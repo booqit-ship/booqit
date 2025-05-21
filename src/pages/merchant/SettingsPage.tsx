@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -6,9 +5,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Merchant, BankInfo } from '@/types';
-import { LogOut } from 'lucide-react';
+import { LogOut, Settings } from 'lucide-react';
 import SettingsBusinessForm from '@/components/merchant/SettingsBusinessForm';
 import SettingsBankingForm from '@/components/merchant/SettingsBankingForm';
+import { Separator } from '@/components/ui/separator';
 
 const SettingsPage: React.FC = () => {
   const { toast } = useToast();
@@ -194,63 +194,8 @@ const SettingsPage: React.FC = () => {
 
   const handleUpdateBankInfo = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!merchant) {
-      toast({
-        title: 'Error',
-        description: 'Merchant data not found',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    setIsSavingBank(true);
-    
-    try {
-      if (bankInfo) {
-        // Update existing bank info
-        const { error } = await supabase
-          .from('bank_info')
-          .update({
-            account_holder_name: accountHolderName,
-            account_number: accountNumber,
-            bank_name: bankName,
-            ifsc_code: ifscCode,
-            upi_id: upiId || null
-          })
-          .eq('id', bankInfo.id);
-          
-        if (error) throw error;
-      } else {
-        // Create new bank info
-        const { error } = await supabase
-          .from('bank_info')
-          .insert({
-            merchant_id: merchant.id,
-            account_holder_name: accountHolderName,
-            account_number: accountNumber,
-            bank_name: bankName,
-            ifsc_code: ifscCode,
-            upi_id: upiId || null
-          });
-          
-        if (error) throw error;
-      }
-      
-      toast({
-        title: 'Success',
-        description: 'Bank information updated successfully',
-      });
-    } catch (error) {
-      console.error('Error updating bank info:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to update bank information',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSavingBank(false);
-    }
+    // Banking updates are now disabled in the UI
+    // This function remains as a placeholder
   };
 
   const handleLogout = async () => {
@@ -277,25 +222,29 @@ const SettingsPage: React.FC = () => {
 
   return (
     <div className="container mx-auto px-4 py-6 pb-20 md:pb-6">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Settings</h1>
-          <p className="text-muted-foreground">Manage your shop and account settings</p>
+      <div className="mb-8">
+        <div className="flex justify-between items-center mb-2">
+          <div className="flex items-center gap-2">
+            <Settings className="h-6 w-6 text-booqit-primary" />
+            <h1 className="text-3xl font-bold">Settings</h1>
+          </div>
+          
+          <Button variant="outline" onClick={handleLogout} className="gap-2">
+            <LogOut className="h-4 w-4" />
+            Logout
+          </Button>
         </div>
-        
-        <Button variant="outline" onClick={handleLogout} className="gap-2">
-          <LogOut className="h-4 w-4" />
-          Logout
-        </Button>
+        <p className="text-muted-foreground text-lg">Manage your shop preferences and account settings</p>
+        <Separator className="my-4" />
       </div>
       
-      <Tabs defaultValue="business">
-        <TabsList className="mb-4">
-          <TabsTrigger value="business">Business Information</TabsTrigger>
-          <TabsTrigger value="banking">Banking Details</TabsTrigger>
+      <Tabs defaultValue="business" className="space-y-6">
+        <TabsList className="w-full max-w-md justify-start mb-6 h-12 p-1">
+          <TabsTrigger className="flex-1 h-10 text-base" value="business">Business Information</TabsTrigger>
+          <TabsTrigger className="flex-1 h-10 text-base" value="banking">Banking Details</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="business">
+        <TabsContent value="business" className="space-y-6">
           <SettingsBusinessForm 
             merchant={merchant}
             isLoading={isLoading}
@@ -320,7 +269,7 @@ const SettingsPage: React.FC = () => {
           />
         </TabsContent>
         
-        <TabsContent value="banking">
+        <TabsContent value="banking" className="space-y-6">
           <SettingsBankingForm 
             bankInfo={bankInfo}
             isSavingBank={isSavingBank}

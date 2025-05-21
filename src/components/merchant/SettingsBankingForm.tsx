@@ -1,12 +1,13 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Shield } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Shield, Lock, Info } from 'lucide-react';
 import { BankInfo } from '@/types';
+import { Separator } from '@/components/ui/separator';
 
 interface SettingsBankingFormProps {
   bankInfo: BankInfo | null;
@@ -42,86 +43,99 @@ const SettingsBankingForm: React.FC<SettingsBankingFormProps> = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Banking Details</CardTitle>
+        <CardTitle className="text-2xl flex items-center gap-2">
+          <Lock className="h-5 w-5 text-booqit-primary" />
+          Banking Details
+        </CardTitle>
+        <CardDescription>
+          Your account payment information is protected and secure
+        </CardDescription>
       </CardHeader>
       <CardContent>
-        <Alert className="mb-6">
-          <Shield className="h-5 w-5" />
-          <AlertDescription>
-            Your banking information is encrypted and stored securely. We only use this information to process your payments.
+        <Alert className="mb-6 border-booqit-primary/20 bg-booqit-primary/5">
+          <Shield className="h-5 w-5 text-booqit-primary" />
+          <AlertTitle>Secure Banking Information</AlertTitle>
+          <AlertDescription className="mt-2">
+            For security reasons, banking details cannot be modified through the dashboard. 
+            If you need to update your banking information, please contact our support team.
           </AlertDescription>
         </Alert>
         
-        <form onSubmit={onSave} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label htmlFor="accountHolderName">Account Holder Name</Label>
+              <Label htmlFor="accountHolderName" className="text-sm text-muted-foreground">Account Holder Name</Label>
               <Input 
                 id="accountHolderName"
                 value={accountHolderName}
-                onChange={(e) => setAccountHolderName(e.target.value)}
-                placeholder="Enter account holder's name"
-                required
+                className="bg-muted cursor-not-allowed"
+                disabled
+                readOnly
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="accountNumber">Account Number</Label>
+              <Label htmlFor="accountNumber" className="text-sm text-muted-foreground">Account Number</Label>
               <Input 
                 id="accountNumber"
-                value={accountNumber}
-                onChange={(e) => setAccountNumber(e.target.value)}
-                placeholder="Enter bank account number"
-                required
+                value={accountNumber ? accountNumber.replace(/\d(?=\d{4})/g, '*') : ''}
+                className="bg-muted cursor-not-allowed"
+                disabled
+                readOnly
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="bankName">Bank Name</Label>
+              <Label htmlFor="bankName" className="text-sm text-muted-foreground">Bank Name</Label>
               <Input 
                 id="bankName"
                 value={bankName}
-                onChange={(e) => setBankName(e.target.value)}
-                placeholder="Enter your bank name"
-                required
+                className="bg-muted cursor-not-allowed"
+                disabled
+                readOnly
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="ifscCode">IFSC Code</Label>
+              <Label htmlFor="ifscCode" className="text-sm text-muted-foreground">IFSC Code</Label>
               <Input 
                 id="ifscCode"
                 value={ifscCode}
-                onChange={(e) => setIfscCode(e.target.value)}
-                placeholder="Enter IFSC code"
-                required
+                className="bg-muted cursor-not-allowed"
+                disabled
+                readOnly
               />
-              <p className="text-xs text-muted-foreground">
-                The IFSC code is an 11-character code that identifies your bank branch
-              </p>
             </div>
             
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="upiId">UPI ID (Optional)</Label>
-              <Input 
-                id="upiId"
-                value={upiId}
-                onChange={(e) => setUpiId(e.target.value)}
-                placeholder="yourname@upi"
-              />
-            </div>
+            {upiId && (
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="upiId" className="text-sm text-muted-foreground">UPI ID</Label>
+                <Input 
+                  id="upiId"
+                  value={upiId}
+                  className="bg-muted cursor-not-allowed"
+                  disabled
+                  readOnly
+                />
+              </div>
+            )}
           </div>
           
-          <div className="flex justify-end pt-4">
-            <Button 
-              type="submit" 
-              className="bg-booqit-primary"
-              disabled={isSavingBank}
-            >
-              {isSavingBank ? 'Saving...' : 'Save Changes'}
-            </Button>
+          <Separator />
+          
+          <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+            <div className="flex items-start gap-3">
+              <Info className="h-5 w-5 text-blue-500 mt-0.5" />
+              <div>
+                <h4 className="font-medium text-blue-700">Need to update your banking details?</h4>
+                <p className="text-blue-600 text-sm mt-1">
+                  For security reasons, please contact our support team at support@booqit.com 
+                  or call us at +1-800-BOOQIT to update your banking information.
+                </p>
+              </div>
+            </div>
           </div>
-        </form>
+        </div>
       </CardContent>
     </Card>
   );
