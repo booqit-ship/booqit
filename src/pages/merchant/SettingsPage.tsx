@@ -11,7 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Merchant, BankInfo } from '@/types';
-import { LogOut, Shield, Settings } from 'lucide-react';
+import { LogOut, Shield, Settings, Camera, Upload } from 'lucide-react';
+import { toast as sonnerToast } from 'sonner';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const SettingsPage: React.FC = () => {
   const { toast } = useToast();
@@ -20,6 +22,7 @@ const SettingsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [merchant, setMerchant] = useState<Merchant | null>(null);
   const [bankInfo, setBankInfo] = useState<BankInfo | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   
   // Form states
   const [shopName, setShopName] = useState('');
@@ -28,6 +31,8 @@ const SettingsPage: React.FC = () => {
   const [openTime, setOpenTime] = useState('');
   const [closeTime, setCloseTime] = useState('');
   const [address, setAddress] = useState('');
+  const [shopImage, setShopImage] = useState<File | null>(null);
+  const [shopImageUrl, setShopImageUrl] = useState<string | null>(null);
   
   const [accountHolderName, setAccountHolderName] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
@@ -64,6 +69,7 @@ const SettingsPage: React.FC = () => {
           setOpenTime(merchantData.open_time);
           setCloseTime(merchantData.close_time);
           setAddress(merchantData.address);
+          setShopImageUrl(merchantData.image_url);
           
           // Fetch bank info
           const { data: bankData, error: bankError } = await supabase
@@ -111,6 +117,36 @@ const SettingsPage: React.FC = () => {
     setIsSaving(true);
     
     try {
+      let imageUrl = shopImageUrl;
+
+      // If there's a new image to upload
+      if (shopImage) {
+        setIsUploading(true);
+        // Create a unique file name
+        const fileExt = shopImage.name.split('.').pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+        const filePath = `merchants/${merchant.id}/${fileName}`;
+        
+        // Upload the image to supabase storage
+        const { error: uploadError, data } = await supabase
+          .storage
+          .from('images')
+          .upload(filePath, shopImage);
+          
+        if (uploadError) {
+          throw uploadError;
+        }
+        
+        // Get the public URL for the uploaded image
+        const { data: { publicUrl } } = supabase
+          .storage
+          .from('images')
+          .getPublicUrl(filePath);
+        
+        imageUrl = publicUrl;
+        setIsUploading(false);
+      }
+      
       const { error } = await supabase
         .from('merchants')
         .update({
@@ -119,7 +155,8 @@ const SettingsPage: React.FC = () => {
           category: category,
           open_time: openTime,
           close_time: closeTime,
-          address: address
+          address: address,
+          image_url: imageUrl
         })
         .eq('id', merchant.id);
         
@@ -140,9 +177,14 @@ const SettingsPage: React.FC = () => {
           category: category,
           open_time: openTime,
           close_time: closeTime,
-          address: address
+          address: address,
+          image_url: imageUrl
         };
       });
+      
+      setShopImageUrl(imageUrl);
+      setShopImage(null);
+      
     } catch (error) {
       console.error('Error updating merchant:', error);
       toast({
@@ -216,6 +258,18 @@ const SettingsPage: React.FC = () => {
     }
   };
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      // Only accept image files
+      if (file.type.startsWith('image/')) {
+        setShopImage(file);
+      } else {
+        sonnerToast.error('Please select an image file');
+      }
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await logout();
@@ -264,7 +318,67 @@ const SettingsPage: React.FC = () => {
               <CardTitle>Business Information</CardTitle>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleUpdateMerchant} className="space-y-4">
+              <form onSubmit={handleUpdateMerchant} className="space-y-6">
+                {/* Shop Image */}
+                <div className="space-y-2">
+                  <Label htmlFor="image">Shop Image</Label>
+                  <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                    <div className="w-32 h-32 rounded-lg bg-gray-100 overflow-hidden border flex items-center justify-center">
+                      {(shopImageUrl || shopImage) ? (
+                        <img 
+                          src={shopImage ? URL.createObjectURL(shopImage) : shopImageUrl || ''} 
+                          alt="Shop preview" 
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Camera className="h-10 w-10 text-gray-400" />
+                      )}
+                    </div>
+                    
+                    <div className="flex flex-col gap-2 w-full max-w-md">
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          type="button" 
+                          variant="secondary" 
+                          onClick={() => document.getElementById('shop-image-upload')?.click()}
+                          className="flex items-center gap-2"
+                          disabled={isUploading}
+                        >
+                          <Upload className="h-4 w-4" />
+                          {shopImage ? 'Change Image' : 'Upload Image'}
+                        </Button>
+                        
+                        {shopImage && (
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            className="text-destructive"
+                            onClick={() => setShopImage(null)}
+                          >
+                            Cancel
+                          </Button>
+                        )}
+                      </div>
+                      
+                      {shopImage && (
+                        <p className="text-sm text-muted-foreground">{shopImage.name}</p>
+                      )}
+                      
+                      <input 
+                        type="file" 
+                        id="shop-image-upload" 
+                        accept="image/*" 
+                        onChange={handleImageChange} 
+                        className="hidden" 
+                      />
+                      
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Recommended: Square image, at least 500x500px
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="shopName">Shop Name</Label>
@@ -272,14 +386,15 @@ const SettingsPage: React.FC = () => {
                       id="shopName"
                       value={shopName}
                       onChange={(e) => setShopName(e.target.value)}
+                      placeholder="Enter your shop name"
                       required
                     />
                   </div>
                   
                   <div className="space-y-2">
-                    <Label htmlFor="category">Category</Label>
+                    <Label htmlFor="category">Business Category</Label>
                     <Select value={category} onValueChange={setCategory}>
-                      <SelectTrigger>
+                      <SelectTrigger id="category">
                         <SelectValue placeholder="Select a category" />
                       </SelectTrigger>
                       <SelectContent>
@@ -294,21 +409,27 @@ const SettingsPage: React.FC = () => {
                   </div>
                   
                   <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="description">Description</Label>
+                    <Label htmlFor="description">Business Description</Label>
                     <Textarea
                       id="description"
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
-                      rows={3}
+                      placeholder="Describe your services and specialties"
+                      rows={4}
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Tell customers what makes your business special
+                    </p>
                   </div>
                   
                   <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="address">Address</Label>
+                    <Label htmlFor="address">Business Address</Label>
                     <Input
                       id="address"
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
+                      placeholder="Enter your business address"
+                      required
                     />
                   </div>
                   
@@ -319,6 +440,7 @@ const SettingsPage: React.FC = () => {
                       id="openTime"
                       value={openTime}
                       onChange={(e) => setOpenTime(e.target.value)}
+                      required
                     />
                   </div>
                   
@@ -329,17 +451,20 @@ const SettingsPage: React.FC = () => {
                       id="closeTime"
                       value={closeTime}
                       onChange={(e) => setCloseTime(e.target.value)}
+                      required
                     />
                   </div>
                 </div>
                 
-                <Button 
-                  type="submit" 
-                  className="bg-booqit-primary"
-                  disabled={isSaving}
-                >
-                  {isSaving ? 'Saving...' : 'Save Changes'}
-                </Button>
+                <div className="flex justify-end pt-4">
+                  <Button 
+                    type="submit" 
+                    className="bg-booqit-primary"
+                    disabled={isSaving || isUploading}
+                  >
+                    {isSaving ? 'Saving...' : isUploading ? 'Uploading...' : 'Save Changes'}
+                  </Button>
+                </div>
               </form>
             </CardContent>
           </Card>
@@ -351,6 +476,13 @@ const SettingsPage: React.FC = () => {
               <CardTitle>Banking Details</CardTitle>
             </CardHeader>
             <CardContent>
+              <Alert className="mb-6">
+                <Shield className="h-5 w-5" />
+                <AlertDescription>
+                  Your banking information is encrypted and stored securely. We only use this information to process your payments.
+                </AlertDescription>
+              </Alert>
+              
               <form onSubmit={handleUpdateBankInfo} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -359,6 +491,7 @@ const SettingsPage: React.FC = () => {
                       id="accountHolderName"
                       value={accountHolderName}
                       onChange={(e) => setAccountHolderName(e.target.value)}
+                      placeholder="Enter account holder's name"
                       required
                     />
                   </div>
@@ -369,6 +502,7 @@ const SettingsPage: React.FC = () => {
                       id="accountNumber"
                       value={accountNumber}
                       onChange={(e) => setAccountNumber(e.target.value)}
+                      placeholder="Enter bank account number"
                       required
                     />
                   </div>
@@ -379,6 +513,7 @@ const SettingsPage: React.FC = () => {
                       id="bankName"
                       value={bankName}
                       onChange={(e) => setBankName(e.target.value)}
+                      placeholder="Enter your bank name"
                       required
                     />
                   </div>
@@ -389,8 +524,12 @@ const SettingsPage: React.FC = () => {
                       id="ifscCode"
                       value={ifscCode}
                       onChange={(e) => setIfscCode(e.target.value)}
+                      placeholder="Enter IFSC code"
                       required
                     />
+                    <p className="text-xs text-muted-foreground">
+                      The IFSC code is an 11-character code that identifies your bank branch
+                    </p>
                   </div>
                   
                   <div className="space-y-2 md:col-span-2">
@@ -404,13 +543,15 @@ const SettingsPage: React.FC = () => {
                   </div>
                 </div>
                 
-                <Button 
-                  type="submit" 
-                  className="bg-booqit-primary"
-                  disabled={isSavingBank}
-                >
-                  {isSavingBank ? 'Saving...' : 'Save Changes'}
-                </Button>
+                <div className="flex justify-end pt-4">
+                  <Button 
+                    type="submit" 
+                    className="bg-booqit-primary"
+                    disabled={isSavingBank}
+                  >
+                    {isSavingBank ? 'Saving...' : 'Save Changes'}
+                  </Button>
+                </div>
               </form>
             </CardContent>
           </Card>
