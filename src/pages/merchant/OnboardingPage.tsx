@@ -1,10 +1,12 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 import BankDetailsForm from '@/components/merchant/onboarding/BankDetailsForm';
 import LocationForm from '@/components/merchant/onboarding/LocationForm';
@@ -48,9 +50,45 @@ const OnboardingPage: React.FC = () => {
     image: null as File | null,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAlreadyOnboarded, setIsAlreadyOnboarded] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { userId } = useAuth();
+
+  // Check if merchant has already completed onboarding
+  useEffect(() => {
+    const checkOnboardingStatus = async () => {
+      if (!userId) return;
+      
+      try {
+        // Check if merchant record exists for this user
+        const { data: merchantData, error } = await supabase
+          .from('merchants')
+          .select('*')
+          .eq('user_id', userId)
+          .single();
+        
+        if (merchantData) {
+          // Merchant already exists, redirect to dashboard
+          setIsAlreadyOnboarded(true);
+          toast({
+            title: "Already onboarded",
+            description: "Your merchant account is already set up.",
+          });
+          navigate('/merchant');
+        }
+      } catch (error) {
+        // No merchant record found, continue with onboarding
+        console.log("No merchant record found, proceeding with onboarding");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    checkOnboardingStatus();
+  }, [userId, navigate, toast]);
 
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
@@ -64,15 +102,79 @@ const OnboardingPage: React.FC = () => {
     }
   };
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
+    if (!userId) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to complete onboarding.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsSubmitting(true);
     
-    // Simulated API call to save merchant data
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      // 1. Insert merchant record
+      const { data: merchantData, error: merchantError } = await supabase
+        .from('merchants')
+        .insert({
+          user_id: userId,
+          shop_name: shopInfo.name,
+          category: shopInfo.category,
+          description: shopInfo.description,
+          open_time: shopInfo.open_time,
+          close_time: shopInfo.close_time,
+          lat: locationDetails.lat,
+          lng: locationDetails.lng,
+          address: locationDetails.address,
+        })
+        .select()
+        .single();
       
-      // Save completed state
-      localStorage.setItem('booqit_onboarding_complete', 'true');
+      if (merchantError) throw merchantError;
+      
+      // 2. Insert bank details
+      if (merchantData) {
+        const { error: bankError } = await supabase
+          .from('bank_info')
+          .insert({
+            merchant_id: merchantData.id,
+            account_holder_name: bankDetails.account_holder_name,
+            account_number: bankDetails.account_number,
+            ifsc_code: bankDetails.ifsc_code,
+            bank_name: bankDetails.bank_name,
+            upi_id: bankDetails.upi_id || null,
+          });
+        
+        if (bankError) throw bankError;
+      }
+      
+      // 3. Upload shop image if provided
+      if (shopInfo.image && merchantData) {
+        const fileExt = shopInfo.image.name.split('.').pop();
+        const fileName = `${userId}-${Date.now()}.${fileExt}`;
+        const filePath = `merchants/${fileName}`;
+        
+        const { error: uploadError } = await supabase
+          .storage
+          .from('merchant_images')
+          .upload(filePath, shopInfo.image);
+          
+        if (!uploadError) {
+          // Update merchant record with image URL
+          const { error: updateError } = await supabase
+            .from('merchants')
+            .update({ 
+              image_url: `${filePath}` 
+            })
+            .eq('id', merchantData.id);
+            
+          if (updateError) console.error('Error updating merchant image URL:', updateError);
+        } else {
+          console.error('Error uploading image:', uploadError);
+        }
+      }
       
       // Show success message
       toast({
@@ -82,7 +184,16 @@ const OnboardingPage: React.FC = () => {
       
       // Navigate to merchant dashboard
       navigate('/merchant');
-    }, 1500);
+    } catch (error: any) {
+      console.error('Onboarding error:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to complete onboarding. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Render current step form
@@ -113,6 +224,18 @@ const OnboardingPage: React.FC = () => {
         return null;
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-booqit-primary/10 to-white p-6 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-booqit-primary"></div>
+      </div>
+    );
+  }
+
+  if (isAlreadyOnboarded) {
+    return null; // Will redirect in useEffect
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-booqit-primary/10 to-white p-6">

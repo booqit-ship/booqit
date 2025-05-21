@@ -72,6 +72,7 @@ const MapView: React.FC = () => {
         zoom={12}
         markers={mapMarkers}
         className="h-full"
+        onMarkerClick={(index) => handleMarkerClick(merchants[index])}
         onClick={() => setSelectedMerchant(null)}
       />
       
