@@ -28,6 +28,8 @@ export interface Merchant {
 }
 
 export interface BankInfo {
+  id: string;
+  merchant_id: string;
   account_holder_name: string;
   account_number: string;
   ifsc_code: string;

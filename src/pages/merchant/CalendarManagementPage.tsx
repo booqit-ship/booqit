@@ -19,9 +19,17 @@ import { Booking } from '@/types';
 import { format, parseISO } from 'date-fns';
 import { CalendarIcon, Clock, User, Calendar as CalendarCheck, Phone, Check, X } from 'lucide-react';
 
+interface BookingWithUserDetails extends Booking {
+  user_details?: {
+    name: string;
+    email: string;
+    phone: string;
+  };
+}
+
 const CalendarManagementPage: React.FC = () => {
   const [date, setDate] = useState<Date | undefined>(new Date());
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookings, setBookings] = useState<BookingWithUserDetails[]>([]);
   const [merchantId, setMerchantId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(false);
@@ -79,7 +87,13 @@ const CalendarManagementPage: React.FC = () => {
         
         if (error) throw error;
         
-        setBookings(data as unknown as Booking[]);
+        // Ensure the status is of the correct type
+        const typedBookings: BookingWithUserDetails[] = data.map((booking: any) => ({
+          ...booking,
+          status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled'
+        }));
+        
+        setBookings(typedBookings);
       } catch (error: any) {
         toast({
           title: "Error",
@@ -106,7 +120,7 @@ const CalendarManagementPage: React.FC = () => {
   const datesWithBookings = bookings.map(booking => parseISO(booking.date));
 
   // Handle booking status change
-  const handleStatusChange = async (bookingId: string, newStatus: string) => {
+  const handleStatusChange = async (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
     try {
       const { error } = await supabase
         .from('bookings')
@@ -166,7 +180,12 @@ const CalendarManagementPage: React.FC = () => {
                   selected={date}
                   onSelect={setDate}
                   className="rounded-md border"
-                  highlightedDates={datesWithBookings}
+                  modifiers={{
+                    highlighted: datesWithBookings
+                  }}
+                  modifiersStyles={{
+                    highlighted: { fontWeight: 'bold', backgroundColor: 'rgba(0, 120, 255, 0.1)' }
+                  }}
                 />
               </CardContent>
             </Card>
@@ -265,11 +284,11 @@ const CalendarManagementPage: React.FC = () => {
                               <div className="space-y-2">
                                 <div className="flex items-center">
                                   <User className="h-4 w-4 mr-2 text-booqit-dark/60" />
-                                  <span className="text-sm">{(booking as any).user_details?.name || 'Customer'}</span>
+                                  <span className="text-sm">{booking.user_details?.name || 'Customer'}</span>
                                 </div>
                                 <div className="flex items-center">
                                   <Phone className="h-4 w-4 mr-2 text-booqit-dark/60" />
-                                  <span className="text-sm">{(booking as any).user_details?.phone || 'No phone'}</span>
+                                  <span className="text-sm">{booking.user_details?.phone || 'No phone'}</span>
                                 </div>
                               </div>
                             </div>

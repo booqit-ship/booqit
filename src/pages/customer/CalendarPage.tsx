@@ -127,7 +127,12 @@ const CalendarPage: React.FC = () => {
                 selected={date}
                 onSelect={setDate}
                 className="rounded-md border"
-                highlightedDates={datesWithBookings}
+                modifiers={{
+                  highlighted: datesWithBookings
+                }}
+                modifiersStyles={{
+                  highlighted: { fontWeight: 'bold', backgroundColor: 'rgba(0, 120, 255, 0.1)' }
+                }}
               />
             </CardContent>
           </Card>
