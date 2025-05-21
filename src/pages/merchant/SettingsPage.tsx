@@ -1,6 +1,5 @@
 
 import React, { useState, useEffect } from 'react';
-import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
@@ -13,7 +12,6 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 
 const SettingsPage: React.FC = () => {
-  const { toast } = useToast();
   const { userId, logout } = useAuth();
   
   const [isLoading, setIsLoading] = useState(true);
@@ -86,9 +84,8 @@ const SettingsPage: React.FC = () => {
         }
       } catch (error) {
         console.error('Error:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to load merchant data',
+        toast('Failed to load merchant data', {
+          description: 'Please try again later',
           variant: 'destructive',
         });
       } finally {
@@ -97,14 +94,13 @@ const SettingsPage: React.FC = () => {
     };
     
     fetchMerchantData();
-  }, [userId, toast]);
+  }, [userId]);
 
   const handleUpdateMerchant = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!merchant || !userId) {
-      toast({
-        title: 'Error',
+      toast('Error', {
         description: 'Merchant data not found',
         variant: 'destructive',
       });
@@ -160,7 +156,9 @@ const SettingsPage: React.FC = () => {
         
       if (error) throw error;
       
-      toast.success('Business information updated successfully');
+      toast('Business information updated', {
+        description: 'Your changes have been saved successfully',
+      });
       
       // Update local state
       setMerchant(prev => {
@@ -182,7 +180,10 @@ const SettingsPage: React.FC = () => {
       
     } catch (error: any) {
       console.error('Error updating merchant:', error);
-      toast.error(error.message || 'Failed to update business information');
+      toast('Update failed', {
+        description: error.message || 'Failed to update business information',
+        variant: 'destructive',
+      });
     } finally {
       setIsSaving(false);
     }
@@ -199,8 +200,7 @@ const SettingsPage: React.FC = () => {
       window.location.href = '/auth';
     } catch (error) {
       console.error('Logout error:', error);
-      toast({
-        title: 'Error',
+      toast('Logout failed', {
         description: 'Failed to logout. Please try again.',
         variant: 'destructive',
       });
