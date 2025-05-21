@@ -32,6 +32,7 @@ import CalendarManagementPage from "./pages/merchant/CalendarManagementPage";
 import CustomersPage from "./pages/merchant/CustomersPage";
 import EarningsPage from "./pages/merchant/EarningsPage";
 import MerchantProfilePage from "./pages/merchant/ProfilePage";
+import SettingsPage from "./pages/merchant/SettingsPage";
 
 // Not Found
 import NotFound from "./pages/NotFound";
@@ -104,6 +105,7 @@ const App = () => {
                 <Route path="customers" element={<CustomersPage />} />
                 <Route path="earnings" element={<EarningsPage />} />
                 <Route path="profile" element={<MerchantProfilePage />} />
+                <Route path="settings" element={<SettingsPage />} />
               </Route>
 
               {/* Redirect to auth if no route */}
