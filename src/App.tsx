@@ -30,9 +30,8 @@ import DashboardPage from "./pages/merchant/DashboardPage";
 import ServicesPage from "./pages/merchant/ServicesPage";
 import CalendarManagementPage from "./pages/merchant/CalendarManagementPage";
 import CustomersPage from "./pages/merchant/CustomersPage";
-import EarningsPage from "./pages/merchant/EarningsPage";
-import MerchantProfilePage from "./pages/merchant/ProfilePage";
 import SettingsPage from "./pages/merchant/SettingsPage";
+import MerchantProfilePage from "./pages/merchant/ProfilePage";
 
 // Not Found
 import NotFound from "./pages/NotFound";
@@ -103,7 +102,6 @@ const App = () => {
                 <Route path="services" element={<ServicesPage />} />
                 <Route path="calendar" element={<CalendarManagementPage />} />
                 <Route path="customers" element={<CustomersPage />} />
-                <Route path="earnings" element={<EarningsPage />} />
                 <Route path="profile" element={<MerchantProfilePage />} />
                 <Route path="settings" element={<SettingsPage />} />
               </Route>
