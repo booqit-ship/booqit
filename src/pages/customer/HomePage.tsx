@@ -5,6 +5,7 @@ import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { useNavigate } from 'react-router-dom';
 
 // Mock data for featured categories
 const featuredCategories = [
@@ -13,7 +14,7 @@ const featuredCategories = [
   { id: 3, name: 'Yoga', icon: '🧘', color: '#FF6B6B' },
   { id: 4, name: 'Dental', icon: '🦷', color: '#FFD166' },
   { id: 5, name: 'Fitness', icon: '💪', color: '#3D405B' },
-  { id: 6, name: 'More', icon: '•••', color: '#343A40' },
+  { id: 6, name: 'Map', icon: '🗺️', color: '#343A40' },
 ];
 
 // Mock data for nearby shops
@@ -46,6 +47,7 @@ const nearbyShops = [
 
 const HomePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
+  const navigate = useNavigate();
   
   // Get user's current location name (this would come from geolocation + reverse geocoding)
   const locationName = "Bengaluru";
@@ -66,6 +68,21 @@ const HomePage: React.FC = () => {
     visible: {
       y: 0,
       opacity: 1
+    }
+  };
+
+  const handleCategoryClick = (categoryName: string) => {
+    if (categoryName === 'Map') {
+      navigate('/map');
+    } else {
+      // Handle other category clicks (e.g. set search filter)
+      navigate(`/search?category=${categoryName}`);
+    }
+  };
+
+  const handleSearch = () => {
+    if (searchQuery.trim()) {
+      navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
     }
   };
 
@@ -97,6 +114,7 @@ const HomePage: React.FC = () => {
             placeholder="Search services, shops..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
             className="pl-10 bg-white text-gray-800 border-0 shadow-md focus:ring-2 focus:ring-white"
           />
         </div>
@@ -117,6 +135,7 @@ const HomePage: React.FC = () => {
                   variant="outline"
                   className="h-auto flex flex-col items-center justify-center p-4 border border-gray-200 shadow-sm hover:shadow-md hover:border-booqit-primary transition-all"
                   style={{ backgroundColor: `${category.color}10` }}
+                  onClick={() => handleCategoryClick(category.name)}
                 >
                   <span className="text-2xl mb-2" style={{ color: category.color }}>
                     {category.icon}
@@ -170,9 +189,26 @@ const HomePage: React.FC = () => {
           </motion.div>
 
           <motion.div variants={itemVariants} className="mt-8">
-            <h2 className="text-xl font-semibold mb-4">Explore Map</h2>
-            <Card className="overflow-hidden shadow-md bg-gray-100 h-48 flex items-center justify-center">
-              <p className="text-gray-500">Map view coming soon!</p>
+            <h2 className="text-xl font-semibold mb-4 flex justify-between items-center">
+              <span>Explore Map</span>
+              <Button size="sm" variant="link" onClick={() => navigate('/map')}>
+                View Full Map
+              </Button>
+            </h2>
+            <Card className="overflow-hidden shadow-md bg-gray-100 h-48 relative">
+              <GoogleMapComponent
+                center={{ lat: 12.9716, lng: 77.5946 }}
+                zoom={12}
+                className="h-full"
+              />
+              <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+                <Button 
+                  className="bg-booqit-primary" 
+                  onClick={() => navigate('/map')}
+                >
+                  Open Map View
+                </Button>
+              </div>
             </Card>
           </motion.div>
         </motion.div>

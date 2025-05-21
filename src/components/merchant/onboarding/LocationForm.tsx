@@ -1,7 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import GoogleMapComponent from '@/components/common/GoogleMap';
+import { supabase } from '@/integrations/supabase/client';
 
 interface LocationFormProps {
   locationDetails: {
@@ -33,13 +35,13 @@ const LocationForm: React.FC<LocationFormProps> = ({
           // Success callback
           const { latitude, longitude } = position.coords;
           
-          // Mock reverse geocoding (would use actual service in production)
-          const mockAddress = "123 Main Street, Bangalore, Karnataka, India";
+          // Get address via reverse geocoding
+          fetchAddress(latitude, longitude);
           
           setLocationDetails({
             lat: latitude,
             lng: longitude,
-            address: mockAddress
+            address: locationDetails.address
           });
           
           setLocationPermission('granted');
@@ -59,23 +61,50 @@ const LocationForm: React.FC<LocationFormProps> = ({
     }
   };
 
+  const fetchAddress = async (lat: number, lng: number) => {
+    try {
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=AIzaSyB28nWHDBaEoMGIEoqfWDh6L2VRkM5AMwc`
+      );
+      const data = await response.json();
+      
+      if (data.status === 'OK' && data.results && data.results[0]) {
+        const address = data.results[0].formatted_address;
+        setLocationDetails(prev => ({
+          ...prev,
+          address
+        }));
+      }
+    } catch (error) {
+      console.error("Error fetching address:", error);
+    }
+  };
+
+  const handleMarkerDragEnd = (e: google.maps.MapMouseEvent) => {
+    if (e.latLng) {
+      const lat = e.latLng.lat();
+      const lng = e.latLng.lng();
+      
+      setLocationDetails(prev => ({
+        ...prev,
+        lat,
+        lng
+      }));
+      
+      fetchAddress(lat, lng);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <Card className="p-4 bg-gray-100 border-none">
-        <div className="h-40 bg-gray-300 flex items-center justify-center mb-4 rounded">
-          {locationDetails.lat !== 0 && locationDetails.lng !== 0 ? (
-            <div className="text-center">
-              <div className="text-green-600 mb-2">
-                <svg className="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                </svg>
-              </div>
-              <p className="text-sm">Location set successfully</p>
-              <p className="text-xs text-gray-500">{locationDetails.lat.toFixed(6)}, {locationDetails.lng.toFixed(6)}</p>
-            </div>
-          ) : (
-            <p className="text-gray-500 text-sm">Map will appear here</p>
-          )}
+        <div className="h-64 bg-gray-300 rounded mb-4 overflow-hidden">
+          <GoogleMapComponent 
+            center={{ lat: locationDetails.lat || 12.9716, lng: locationDetails.lng || 77.5946 }}
+            markers={locationDetails.lat !== 0 ? [{ lat: locationDetails.lat, lng: locationDetails.lng }] : []}
+            draggableMarker={true}
+            onMarkerDragEnd={handleMarkerDragEnd}
+          />
         </div>
         
         <div className="space-y-3">
@@ -117,7 +146,6 @@ const LocationForm: React.FC<LocationFormProps> = ({
       
       <div className="text-sm text-gray-500 text-center">
         <p>Drag the map pin to set your exact shop location</p>
-        <p>(Map interaction will be available in the next version)</p>
       </div>
     </div>
   );

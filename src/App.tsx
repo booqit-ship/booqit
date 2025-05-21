@@ -22,6 +22,7 @@ import HomePage from "./pages/customer/HomePage";
 import SearchPage from "./pages/customer/SearchPage";
 import CalendarPage from "./pages/customer/CalendarPage";
 import ProfilePage from "./pages/customer/ProfilePage";
+import MapPage from "./pages/customer/MapPage";
 
 // Merchant pages
 import OnboardingPage from "./pages/merchant/OnboardingPage";
@@ -82,6 +83,7 @@ const App = () => {
                 <Route path="search" element={<SearchPage />} />
                 <Route path="calendar" element={<CalendarPage />} />
                 <Route path="profile" element={<ProfilePage />} />
+                <Route path="map" element={<MapPage />} />
               </Route>
 
               {/* Merchant routes */}
