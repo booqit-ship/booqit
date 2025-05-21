@@ -69,25 +69,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsAuthenticated(true);
         setUserId(session.user.id);
         
-        // Fetch user role from profiles table
-        supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single()
-          .then(({ data }) => {
-            if (data) {
-              setUserRole(data.role as UserRole);
-              localStorage.setItem('booqit_auth', JSON.stringify({ 
-                isAuthenticated: true, 
-                role: data.role, 
-                id: session.user.id 
-              }));
-            }
-          })
-          .catch(error => {
-            console.error('Error fetching user role', error);
-          });
+        // Fetch user role from profiles table using a try/catch block
+        try {
+          supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', session.user.id)
+            .single()
+            .then(({ data }) => {
+              if (data) {
+                setUserRole(data.role as UserRole);
+                localStorage.setItem('booqit_auth', JSON.stringify({ 
+                  isAuthenticated: true, 
+                  role: data.role, 
+                  id: session.user.id 
+                }));
+              }
+            })
+            .catch(error => {
+              console.error('Error fetching user role', error);
+            });
+        } catch (error) {
+          console.error('Error in user role query', error);
+        }
       }
     });
 
