@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { Merchant } from '@/types';
 import { MapPin, Star } from 'lucide-react';
+import { toast } from 'sonner';
 
 const MapView: React.FC = () => {
   const [merchants, setMerchants] = useState<Merchant[]>([]);
@@ -27,6 +28,7 @@ const MapView: React.FC = () => {
         },
         (error) => {
           console.error('Error getting location:', error);
+          toast.error('Could not access your location. Using default location.');
           // Default to Bangalore if location access is denied
           setUserLocation({ lat: 12.9716, lng: 77.5946 });
         }
@@ -41,9 +43,15 @@ const MapView: React.FC = () => {
           .select('*')
           .order('rating', { ascending: false });
           
-        if (error) throw error;
+        if (error) {
+          console.error('Error fetching merchants:', error);
+          toast.error('Failed to load merchants. Please try again.');
+          throw error;
+        }
         
-        setMerchants(data as Merchant[]);
+        if (data) {
+          setMerchants(data as Merchant[]);
+        }
       } catch (error) {
         console.error('Error fetching merchants:', error);
       } finally {

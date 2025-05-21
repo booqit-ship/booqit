@@ -2,18 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Merchant, BankInfo } from '@/types';
-import { LogOut, Shield, Settings, Camera, Upload } from 'lucide-react';
-import { toast as sonnerToast } from 'sonner';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { LogOut } from 'lucide-react';
+import SettingsBusinessForm from '@/components/merchant/SettingsBusinessForm';
+import SettingsBankingForm from '@/components/merchant/SettingsBankingForm';
 
 const SettingsPage: React.FC = () => {
   const { toast } = useToast();
@@ -100,7 +95,7 @@ const SettingsPage: React.FC = () => {
     };
     
     fetchMerchantData();
-  }, [userId]);
+  }, [userId, toast]);
 
   const handleUpdateMerchant = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -258,18 +253,6 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      // Only accept image files
-      if (file.type.startsWith('image/')) {
-        setShopImage(file);
-      } else {
-        sonnerToast.error('Please select an image file');
-      }
-    }
-  };
-
   const handleLogout = async () => {
     try {
       await logout();
@@ -313,248 +296,46 @@ const SettingsPage: React.FC = () => {
         </TabsList>
         
         <TabsContent value="business">
-          <Card>
-            <CardHeader>
-              <CardTitle>Business Information</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleUpdateMerchant} className="space-y-6">
-                {/* Shop Image */}
-                <div className="space-y-2">
-                  <Label htmlFor="image">Shop Image</Label>
-                  <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-                    <div className="w-32 h-32 rounded-lg bg-gray-100 overflow-hidden border flex items-center justify-center">
-                      {(shopImageUrl || shopImage) ? (
-                        <img 
-                          src={shopImage ? URL.createObjectURL(shopImage) : shopImageUrl || ''} 
-                          alt="Shop preview" 
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <Camera className="h-10 w-10 text-gray-400" />
-                      )}
-                    </div>
-                    
-                    <div className="flex flex-col gap-2 w-full max-w-md">
-                      <div className="flex items-center gap-2">
-                        <Button 
-                          type="button" 
-                          variant="secondary" 
-                          onClick={() => document.getElementById('shop-image-upload')?.click()}
-                          className="flex items-center gap-2"
-                          disabled={isUploading}
-                        >
-                          <Upload className="h-4 w-4" />
-                          {shopImage ? 'Change Image' : 'Upload Image'}
-                        </Button>
-                        
-                        {shopImage && (
-                          <Button 
-                            type="button" 
-                            variant="ghost" 
-                            className="text-destructive"
-                            onClick={() => setShopImage(null)}
-                          >
-                            Cancel
-                          </Button>
-                        )}
-                      </div>
-                      
-                      {shopImage && (
-                        <p className="text-sm text-muted-foreground">{shopImage.name}</p>
-                      )}
-                      
-                      <input 
-                        type="file" 
-                        id="shop-image-upload" 
-                        accept="image/*" 
-                        onChange={handleImageChange} 
-                        className="hidden" 
-                      />
-                      
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Recommended: Square image, at least 500x500px
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="shopName">Shop Name</Label>
-                    <Input 
-                      id="shopName"
-                      value={shopName}
-                      onChange={(e) => setShopName(e.target.value)}
-                      placeholder="Enter your shop name"
-                      required
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="category">Business Category</Label>
-                    <Select value={category} onValueChange={setCategory}>
-                      <SelectTrigger id="category">
-                        <SelectValue placeholder="Select a category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Salon">Salon</SelectItem>
-                        <SelectItem value="Spa">Spa</SelectItem>
-                        <SelectItem value="Barber">Barber</SelectItem>
-                        <SelectItem value="Massage">Massage</SelectItem>
-                        <SelectItem value="Nail Salon">Nail Salon</SelectItem>
-                        <SelectItem value="Other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="description">Business Description</Label>
-                    <Textarea
-                      id="description"
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      placeholder="Describe your services and specialties"
-                      rows={4}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Tell customers what makes your business special
-                    </p>
-                  </div>
-                  
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="address">Business Address</Label>
-                    <Input
-                      id="address"
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      placeholder="Enter your business address"
-                      required
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="openTime">Opening Time</Label>
-                    <Input
-                      type="time"
-                      id="openTime"
-                      value={openTime}
-                      onChange={(e) => setOpenTime(e.target.value)}
-                      required
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="closeTime">Closing Time</Label>
-                    <Input
-                      type="time"
-                      id="closeTime"
-                      value={closeTime}
-                      onChange={(e) => setCloseTime(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <div className="flex justify-end pt-4">
-                  <Button 
-                    type="submit" 
-                    className="bg-booqit-primary"
-                    disabled={isSaving || isUploading}
-                  >
-                    {isSaving ? 'Saving...' : isUploading ? 'Uploading...' : 'Save Changes'}
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+          <SettingsBusinessForm 
+            merchant={merchant}
+            isLoading={isLoading}
+            isSaving={isSaving}
+            isUploading={isUploading}
+            onSave={handleUpdateMerchant}
+            shopName={shopName}
+            setShopName={setShopName}
+            description={description}
+            setDescription={setDescription}
+            category={category}
+            setCategory={setCategory}
+            openTime={openTime}
+            setOpenTime={setOpenTime}
+            closeTime={closeTime}
+            setCloseTime={setCloseTime}
+            address={address}
+            setAddress={setAddress}
+            shopImage={shopImage}
+            setShopImage={setShopImage}
+            shopImageUrl={shopImageUrl}
+          />
         </TabsContent>
         
         <TabsContent value="banking">
-          <Card>
-            <CardHeader>
-              <CardTitle>Banking Details</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Alert className="mb-6">
-                <Shield className="h-5 w-5" />
-                <AlertDescription>
-                  Your banking information is encrypted and stored securely. We only use this information to process your payments.
-                </AlertDescription>
-              </Alert>
-              
-              <form onSubmit={handleUpdateBankInfo} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="accountHolderName">Account Holder Name</Label>
-                    <Input 
-                      id="accountHolderName"
-                      value={accountHolderName}
-                      onChange={(e) => setAccountHolderName(e.target.value)}
-                      placeholder="Enter account holder's name"
-                      required
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="accountNumber">Account Number</Label>
-                    <Input 
-                      id="accountNumber"
-                      value={accountNumber}
-                      onChange={(e) => setAccountNumber(e.target.value)}
-                      placeholder="Enter bank account number"
-                      required
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="bankName">Bank Name</Label>
-                    <Input 
-                      id="bankName"
-                      value={bankName}
-                      onChange={(e) => setBankName(e.target.value)}
-                      placeholder="Enter your bank name"
-                      required
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="ifscCode">IFSC Code</Label>
-                    <Input 
-                      id="ifscCode"
-                      value={ifscCode}
-                      onChange={(e) => setIfscCode(e.target.value)}
-                      placeholder="Enter IFSC code"
-                      required
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      The IFSC code is an 11-character code that identifies your bank branch
-                    </p>
-                  </div>
-                  
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="upiId">UPI ID (Optional)</Label>
-                    <Input 
-                      id="upiId"
-                      value={upiId}
-                      onChange={(e) => setUpiId(e.target.value)}
-                      placeholder="yourname@upi"
-                    />
-                  </div>
-                </div>
-                
-                <div className="flex justify-end pt-4">
-                  <Button 
-                    type="submit" 
-                    className="bg-booqit-primary"
-                    disabled={isSavingBank}
-                  >
-                    {isSavingBank ? 'Saving...' : 'Save Changes'}
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+          <SettingsBankingForm 
+            bankInfo={bankInfo}
+            isSavingBank={isSavingBank}
+            onSave={handleUpdateBankInfo}
+            accountHolderName={accountHolderName}
+            setAccountHolderName={setAccountHolderName}
+            accountNumber={accountNumber}
+            setAccountNumber={setAccountNumber}
+            bankName={bankName}
+            setBankName={setBankName}
+            ifscCode={ifscCode}
+            setIfscCode={setIfscCode}
+            upiId={upiId}
+            setUpiId={setUpiId}
+          />
         </TabsContent>
       </Tabs>
     </div>
