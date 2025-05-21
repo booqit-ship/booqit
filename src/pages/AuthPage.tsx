@@ -1,0 +1,275 @@
+
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { UserRole } from '@/types';
+import RoleSelection from '@/components/RoleSelection';
+
+const AuthPage: React.FC = () => {
+  const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
+  const [isRoleSelected, setIsRoleSelected] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const { setAuth } = useAuth();
+
+  // Mock function for login (will replace with Supabase auth later)
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    // Simulating API call
+    setTimeout(() => {
+      setIsLoading(false);
+      
+      // Mock successful login
+      if (email && password) {
+        const mockId = `user-${Date.now()}`;
+        setAuth(true, selectedRole as UserRole, mockId);
+        
+        // Navigate to appropriate dashboard
+        if (selectedRole === 'merchant') {
+          navigate('/merchant/onboarding');
+        } else {
+          navigate('/');
+        }
+
+        toast({
+          title: "Success!",
+          description: "You have been logged in successfully.",
+        });
+      } else {
+        toast({
+          title: "Error!",
+          description: "Invalid email or password.",
+          variant: "destructive",
+        });
+      }
+    }, 1000);
+  };
+
+  // Mock function for registration (will replace with Supabase auth later)
+  const handleRegister = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    // Simulating API call
+    setTimeout(() => {
+      setIsLoading(false);
+      
+      // Mock successful registration
+      if (email && password && name && phone) {
+        const mockId = `user-${Date.now()}`;
+        setAuth(true, selectedRole as UserRole, mockId);
+        
+        // Navigate to appropriate dashboard
+        if (selectedRole === 'merchant') {
+          navigate('/merchant/onboarding');
+        } else {
+          navigate('/');
+        }
+
+        toast({
+          title: "Success!",
+          description: "Your account has been created successfully.",
+        });
+      } else {
+        toast({
+          title: "Error!",
+          description: "Please fill in all fields.",
+          variant: "destructive",
+        });
+      }
+    }, 1000);
+  };
+
+  const handleRoleSelect = (role: UserRole) => {
+    setSelectedRole(role);
+    setIsRoleSelected(true);
+    
+    // Store selected role for future reference
+    localStorage.setItem('booqit_selected_role', role);
+  };
+  
+  // If role is not selected, show role selection screen
+  if (!isRoleSelected) {
+    return <RoleSelection onRoleSelect={handleRoleSelect} />;
+  }
+
+  return (
+    <motion.div 
+      className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-booqit-primary/10 to-white p-6"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+    >
+      <div className="w-full max-w-md">
+        <motion.div 
+          className="mb-8 text-center"
+          initial={{ y: -20 }}
+          animate={{ y: 0 }}
+        >
+          <h1 className="text-3xl font-bold text-booqit-dark">
+            {selectedRole === 'customer' ? 'Customer Account' : 'Merchant Account'}
+          </h1>
+          <p className="text-booqit-dark/70">
+            {selectedRole === 'customer' 
+              ? 'Access your bookings and profile' 
+              : 'Manage your business and appointments'}
+          </p>
+        </motion.div>
+
+        <Card className="border-none shadow-lg">
+          <CardHeader className="pb-2">
+            <CardDescription>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="p-0" 
+                onClick={() => setIsRoleSelected(false)}
+              >
+                ← Change Role
+              </Button>
+            </CardDescription>
+          </CardHeader>
+          <Tabs defaultValue="login" className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-4">
+              <TabsTrigger value="login">Login</TabsTrigger>
+              <TabsTrigger value="register">Register</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="login">
+              <form onSubmit={handleLogin}>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input 
+                      id="email" 
+                      type="email" 
+                      placeholder="you@example.com" 
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password">Password</Label>
+                      <Button 
+                        variant="link" 
+                        size="sm" 
+                        className="text-xs p-0 h-auto"
+                      >
+                        Forgot password?
+                      </Button>
+                    </div>
+                    <Input 
+                      id="password" 
+                      type="password" 
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-booqit-primary hover:bg-booqit-primary/90"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? "Logging in..." : "Login"}
+                  </Button>
+                </CardFooter>
+              </form>
+            </TabsContent>
+
+            <TabsContent value="register">
+              <form onSubmit={handleRegister}>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Full Name</Label>
+                    <Input 
+                      id="name" 
+                      type="text" 
+                      placeholder="Your Name" 
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input 
+                      id="email" 
+                      type="email" 
+                      placeholder="you@example.com" 
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone Number</Label>
+                    <Input 
+                      id="phone" 
+                      type="tel" 
+                      placeholder="+91 XXXXXXXXXX" 
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="new-password">Password</Label>
+                    <Input 
+                      id="new-password" 
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-booqit-primary hover:bg-booqit-primary/90"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? "Creating Account..." : "Create Account"}
+                  </Button>
+                </CardFooter>
+              </form>
+            </TabsContent>
+          </Tabs>
+        </Card>
+      </div>
+    </motion.div>
+  );
+};
+
+export default AuthPage;
