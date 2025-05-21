@@ -69,14 +69,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsAuthenticated(true);
         setUserId(session.user.id);
         
-        // Fetch user role from profiles table using a try/catch block
+        // Fetch user role from profiles table
         try {
-          supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', session.user.id)
-            .single()
-            .then(({ data }) => {
+          // Fix: Use proper Promise handling with async/await pattern
+          const fetchUserRole = async () => {
+            try {
+              const { data, error } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('id', session.user.id)
+                .single();
+                
               if (data) {
                 setUserRole(data.role as UserRole);
                 localStorage.setItem('booqit_auth', JSON.stringify({ 
@@ -85,12 +88,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   id: session.user.id 
                 }));
               }
-            })
-            .catch(error => {
-              console.error('Error fetching user role', error);
-            });
+              
+              if (error) {
+                console.error('Error fetching user role', error);
+              }
+            } catch (error) {
+              console.error('Exception in user role query', error);
+            }
+          };
+          
+          fetchUserRole();
         } catch (error) {
-          console.error('Error in user role query', error);
+          console.error('Error in user role query setup', error);
         }
       }
     });
