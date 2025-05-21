@@ -2,11 +2,18 @@
 import React from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { BankInfo } from '@/types';
+
+interface BankDetailsState {
+  account_holder_name: string;
+  account_number: string;
+  ifsc_code: string;
+  bank_name: string;
+  upi_id: string;
+}
 
 interface BankDetailsFormProps {
-  bankDetails: BankInfo;
-  setBankDetails: React.Dispatch<React.SetStateAction<BankInfo>>;
+  bankDetails: BankDetailsState;
+  setBankDetails: React.Dispatch<React.SetStateAction<BankDetailsState>>;
 }
 
 const BankDetailsForm: React.FC<BankDetailsFormProps> = ({ 

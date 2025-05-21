@@ -17,9 +17,17 @@ const steps = [
   { id: 'info', title: 'Shop Information' }
 ];
 
+interface BankDetailsState {
+  account_holder_name: string;
+  account_number: string;
+  ifsc_code: string;
+  bank_name: string;
+  upi_id: string;
+}
+
 const OnboardingPage: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(0);
-  const [bankDetails, setBankDetails] = useState({
+  const [bankDetails, setBankDetails] = useState<BankDetailsState>({
     account_holder_name: '',
     account_number: '',
     ifsc_code: '',
