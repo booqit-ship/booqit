@@ -19,12 +19,18 @@ import MerchantLayout from "./layouts/MerchantLayout";
 
 // Customer pages
 import HomePage from "./pages/customer/HomePage";
-// Import other customer pages as needed
+import SearchPage from "./pages/customer/SearchPage";
+import CalendarPage from "./pages/customer/CalendarPage";
+import ProfilePage from "./pages/customer/ProfilePage";
 
 // Merchant pages
 import OnboardingPage from "./pages/merchant/OnboardingPage";
 import DashboardPage from "./pages/merchant/DashboardPage";
-// Import other merchant pages as needed
+import ServicesPage from "./pages/merchant/ServicesPage";
+import CalendarManagementPage from "./pages/merchant/CalendarManagementPage";
+import CustomersPage from "./pages/merchant/CustomersPage";
+import EarningsPage from "./pages/merchant/EarningsPage";
+import MerchantProfilePage from "./pages/merchant/ProfilePage";
 
 // Not Found
 import NotFound from "./pages/NotFound";
@@ -73,9 +79,9 @@ const App = () => {
                 </ProtectedRoute>
               }>
                 <Route index element={<HomePage />} />
-                <Route path="search" element={<div>Search Page (Coming Soon)</div>} />
-                <Route path="calendar" element={<div>Calendar Page (Coming Soon)</div>} />
-                <Route path="profile" element={<div>Profile Page (Coming Soon)</div>} />
+                <Route path="search" element={<SearchPage />} />
+                <Route path="calendar" element={<CalendarPage />} />
+                <Route path="profile" element={<ProfilePage />} />
               </Route>
 
               {/* Merchant routes */}
@@ -91,14 +97,14 @@ const App = () => {
                 </ProtectedRoute>
               }>
                 <Route index element={<DashboardPage />} />
-                <Route path="services" element={<div>Services Management (Coming Soon)</div>} />
-                <Route path="calendar" element={<div>Calendar Management (Coming Soon)</div>} />
-                <Route path="customers" element={<div>Customer Management (Coming Soon)</div>} />
-                <Route path="earnings" element={<div>Earnings Page (Coming Soon)</div>} />
-                <Route path="profile" element={<div>Profile Page (Coming Soon)</div>} />
+                <Route path="services" element={<ServicesPage />} />
+                <Route path="calendar" element={<CalendarManagementPage />} />
+                <Route path="customers" element={<CustomersPage />} />
+                <Route path="earnings" element={<EarningsPage />} />
+                <Route path="profile" element={<MerchantProfilePage />} />
               </Route>
 
-              {/* Redirect to auth if not logged in */}
+              {/* Redirect to auth if no route */}
               <Route path="/" element={<Navigate to="/auth" />} />
               
               {/* 404 route */}

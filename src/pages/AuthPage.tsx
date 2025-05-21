@@ -23,6 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserRole } from '@/types';
 import RoleSelection from '@/components/RoleSelection';
+import { supabase } from '@/integrations/supabase/client';
 
 const AuthPage: React.FC = () => {
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
@@ -36,74 +37,100 @@ const AuthPage: React.FC = () => {
   const navigate = useNavigate();
   const { setAuth } = useAuth();
 
-  // Mock function for login (will replace with Supabase auth later)
-  const handleLogin = (e: React.FormEvent) => {
+  // Handle login with Supabase
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulating API call
-    setTimeout(() => {
-      setIsLoading(false);
-      
-      // Mock successful login
-      if (email && password) {
-        const mockId = `user-${Date.now()}`;
-        setAuth(true, selectedRole as UserRole, mockId);
-        
-        // Navigate to appropriate dashboard
-        if (selectedRole === 'merchant') {
-          navigate('/merchant/onboarding');
-        } else {
-          navigate('/');
-        }
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-        toast({
-          title: "Success!",
-          description: "You have been logged in successfully.",
-        });
+      if (error) throw error;
+
+      // Check user role from profiles table
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', data.user.id)
+        .single();
+
+      const userRole = profileData?.role as UserRole;
+      
+      // Set auth state
+      setAuth(true, userRole, data.user.id);
+      
+      // Navigate to appropriate dashboard
+      if (userRole === 'merchant') {
+        navigate('/merchant/onboarding');
       } else {
-        toast({
-          title: "Error!",
-          description: "Invalid email or password.",
-          variant: "destructive",
-        });
+        navigate('/');
       }
-    }, 1000);
+
+      toast({
+        title: "Success!",
+        description: "You have been logged in successfully.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error!",
+        description: error.message || "Failed to login.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // Mock function for registration (will replace with Supabase auth later)
-  const handleRegister = (e: React.FormEvent) => {
+  // Handle registration with Supabase
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulating API call
-    setTimeout(() => {
-      setIsLoading(false);
-      
-      // Mock successful registration
-      if (email && password && name && phone) {
-        const mockId = `user-${Date.now()}`;
-        setAuth(true, selectedRole as UserRole, mockId);
-        
-        // Navigate to appropriate dashboard
-        if (selectedRole === 'merchant') {
-          navigate('/merchant/onboarding');
-        } else {
-          navigate('/');
-        }
-
-        toast({
-          title: "Success!",
-          description: "Your account has been created successfully.",
-        });
-      } else {
-        toast({
-          title: "Error!",
-          description: "Please fill in all fields.",
-          variant: "destructive",
-        });
+    try {
+      if (!email || !password || !name) {
+        throw new Error("Please fill in all required fields");
       }
-    }, 1000);
+
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name,
+            phone,
+            role: selectedRole,
+          }
+        }
+      });
+
+      if (error) throw error;
+
+      // Set auth state
+      setAuth(true, selectedRole as UserRole, data.user?.id);
+      
+      // Navigate to appropriate dashboard
+      if (selectedRole === 'merchant') {
+        navigate('/merchant/onboarding');
+      } else {
+        navigate('/');
+      }
+
+      toast({
+        title: "Success!",
+        description: "Your account has been created successfully.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error!",
+        description: error.message || "Failed to create account.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleRoleSelect = (role: UserRole) => {
@@ -240,7 +267,6 @@ const AuthPage: React.FC = () => {
                       placeholder="+91 XXXXXXXXXX" 
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      required
                     />
                   </div>
                   <div className="space-y-2">
