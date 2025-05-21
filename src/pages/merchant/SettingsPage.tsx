@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -9,6 +10,7 @@ import { LogOut, Settings } from 'lucide-react';
 import SettingsBusinessForm from '@/components/merchant/SettingsBusinessForm';
 import SettingsBankingForm from '@/components/merchant/SettingsBankingForm';
 import { Separator } from '@/components/ui/separator';
+import { toast } from 'sonner';
 
 const SettingsPage: React.FC = () => {
   const { toast } = useToast();
@@ -100,7 +102,7 @@ const SettingsPage: React.FC = () => {
   const handleUpdateMerchant = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!merchant) {
+    if (!merchant || !userId) {
       toast({
         title: 'Error',
         description: 'Merchant data not found',
@@ -117,15 +119,16 @@ const SettingsPage: React.FC = () => {
       // If there's a new image to upload
       if (shopImage) {
         setIsUploading(true);
-        // Create a unique file name
+        
+        // Create a unique file path with user ID as folder
         const fileExt = shopImage.name.split('.').pop();
-        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
-        const filePath = `merchants/${merchant.id}/${fileName}`;
+        const fileName = `${Date.now()}.${fileExt}`;
+        const filePath = `${userId}/${fileName}`;
         
         // Upload the image to supabase storage
-        const { error: uploadError, data } = await supabase
+        const { error: uploadError } = await supabase
           .storage
-          .from('images')
+          .from('merchant_images')
           .upload(filePath, shopImage);
           
         if (uploadError) {
@@ -135,7 +138,7 @@ const SettingsPage: React.FC = () => {
         // Get the public URL for the uploaded image
         const { data: { publicUrl } } = supabase
           .storage
-          .from('images')
+          .from('merchant_images')
           .getPublicUrl(filePath);
         
         imageUrl = publicUrl;
@@ -157,10 +160,7 @@ const SettingsPage: React.FC = () => {
         
       if (error) throw error;
       
-      toast({
-        title: 'Success',
-        description: 'Merchant information updated successfully',
-      });
+      toast.success('Business information updated successfully');
       
       // Update local state
       setMerchant(prev => {
@@ -180,13 +180,9 @@ const SettingsPage: React.FC = () => {
       setShopImageUrl(imageUrl);
       setShopImage(null);
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating merchant:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to update merchant information',
-        variant: 'destructive',
-      });
+      toast.error(error.message || 'Failed to update business information');
     } finally {
       setIsSaving(false);
     }
@@ -195,7 +191,6 @@ const SettingsPage: React.FC = () => {
   const handleUpdateBankInfo = async (e: React.FormEvent) => {
     e.preventDefault();
     // Banking updates are now disabled in the UI
-    // This function remains as a placeholder
   };
 
   const handleLogout = async () => {

@@ -6,9 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Camera, Upload } from 'lucide-react';
+import { Camera, Upload, AlertCircle } from 'lucide-react';
 import { Merchant } from '@/types';
 import { toast } from 'sonner';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface SettingsBusinessFormProps {
   merchant: Merchant | null;
@@ -55,22 +56,33 @@ const SettingsBusinessForm: React.FC<SettingsBusinessFormProps> = ({
   setShopImage,
   shopImageUrl
 }) => {
+  const [imageError, setImageError] = useState<string | null>(null);
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setImageError(null);
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      // Only accept image files
-      if (file.type.startsWith('image/')) {
-        setShopImage(file);
-      } else {
-        toast.error('Please select an image file');
+      
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setImageError("Image size should be less than 5MB");
+        return;
       }
+      
+      // Only accept image files
+      if (!file.type.startsWith('image/')) {
+        setImageError("Please select an image file");
+        return;
+      }
+
+      setShopImage(file);
     }
   };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Business Information</CardTitle>
+        <CardTitle className="text-2xl font-bold">Business Information</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSave} className="space-y-6">
@@ -128,15 +140,22 @@ const SettingsBusinessForm: React.FC<SettingsBusinessFormProps> = ({
                 />
                 
                 <p className="text-xs text-muted-foreground mt-1">
-                  Recommended: Square image, at least 500x500px
+                  Recommended: Square image, at least 500x500px, maximum size 5MB
                 </p>
               </div>
             </div>
+            
+            {imageError && (
+              <Alert variant="destructive" className="mt-2">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{imageError}</AlertDescription>
+              </Alert>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="shopName">Shop Name</Label>
+              <Label htmlFor="shopName">Shop Name <span className="text-red-500">*</span></Label>
               <Input 
                 id="shopName"
                 value={shopName}
@@ -147,8 +166,8 @@ const SettingsBusinessForm: React.FC<SettingsBusinessFormProps> = ({
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="category">Business Category</Label>
-              <Select value={category} onValueChange={setCategory}>
+              <Label htmlFor="category">Business Category <span className="text-red-500">*</span></Label>
+              <Select value={category} onValueChange={setCategory} required>
                 <SelectTrigger id="category">
                   <SelectValue placeholder="Select a category" />
                 </SelectTrigger>
@@ -178,7 +197,7 @@ const SettingsBusinessForm: React.FC<SettingsBusinessFormProps> = ({
             </div>
             
             <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="address">Business Address</Label>
+              <Label htmlFor="address">Business Address <span className="text-red-500">*</span></Label>
               <Input
                 id="address"
                 value={address}
@@ -189,7 +208,7 @@ const SettingsBusinessForm: React.FC<SettingsBusinessFormProps> = ({
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="openTime">Opening Time</Label>
+              <Label htmlFor="openTime">Opening Time <span className="text-red-500">*</span></Label>
               <Input
                 type="time"
                 id="openTime"
@@ -200,7 +219,7 @@ const SettingsBusinessForm: React.FC<SettingsBusinessFormProps> = ({
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="closeTime">Closing Time</Label>
+              <Label htmlFor="closeTime">Closing Time <span className="text-red-500">*</span></Label>
               <Input
                 type="time"
                 id="closeTime"
@@ -214,7 +233,7 @@ const SettingsBusinessForm: React.FC<SettingsBusinessFormProps> = ({
           <div className="flex justify-end pt-4">
             <Button 
               type="submit" 
-              className="bg-booqit-primary"
+              className="bg-booqit-primary hover:bg-booqit-primary/90"
               disabled={isSaving || isUploading}
             >
               {isSaving ? 'Saving...' : isUploading ? 'Uploading...' : 'Save Changes'}
