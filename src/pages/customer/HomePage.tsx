@@ -115,12 +115,12 @@ const HomePage: React.FC = () => {
           return {
             ...merchant,
             distance: `${distance.toFixed(1)} km`
-          };
+          } as Merchant; // Explicitly cast to Merchant type
         });
         
         // Sort by distance
         shopsWithDistance.sort((a, b) => 
-          parseFloat(a.distance) - parseFloat(b.distance)
+          parseFloat(a.distance || '0') - parseFloat(b.distance || '0')
         );
         
         setNearbyShops(shopsWithDistance);

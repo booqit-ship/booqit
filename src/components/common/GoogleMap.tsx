@@ -15,6 +15,7 @@ interface MapProps {
   zoom?: number;
   markers?: Array<{ lat: number; lng: number; title?: string }>;
   onClick?: (e: google.maps.MapMouseEvent) => void;
+  onMarkerClick?: (index: number) => void;
   className?: string;
   draggableMarker?: boolean;
   onMarkerDragEnd?: (e: google.maps.MapMouseEvent) => void;
@@ -25,6 +26,7 @@ const GoogleMapComponent: React.FC<MapProps> = ({
   zoom = 13,
   markers = [],
   onClick,
+  onMarkerClick,
   className = '',
   draggableMarker = false,
   onMarkerDragEnd
@@ -68,6 +70,7 @@ const GoogleMapComponent: React.FC<MapProps> = ({
               title={marker.title}
               draggable={draggableMarker}
               onDragEnd={onMarkerDragEnd}
+              onClick={() => onMarkerClick && onMarkerClick(index)}
             />
           ))
         ) : draggableMarker ? (

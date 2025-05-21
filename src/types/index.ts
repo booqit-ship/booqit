@@ -14,17 +14,18 @@ export interface Merchant {
   id: string;
   user_id: string;
   shop_name: string;
-  description: string;
+  description: string | null;
   address: string;
   lat: number;
   lng: number;
   open_time: string;
   close_time: string;
   category: string;
-  bank_info: BankInfo;
-  image_url?: string;
+  bank_info?: BankInfo; // Make bank_info optional
+  image_url?: string | null;
   created_at: string;
-  rating?: number;
+  rating?: number | null;
+  distance?: string; // Add distance property
 }
 
 export interface BankInfo {
