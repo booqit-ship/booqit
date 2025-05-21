@@ -86,7 +86,7 @@ const SettingsPage: React.FC = () => {
         console.error('Error:', error);
         toast('Failed to load merchant data', {
           description: 'Please try again later',
-          variant: 'destructive',
+          style: { backgroundColor: 'red', color: 'white' }
         });
       } finally {
         setIsLoading(false);
@@ -102,7 +102,7 @@ const SettingsPage: React.FC = () => {
     if (!merchant || !userId) {
       toast('Error', {
         description: 'Merchant data not found',
-        variant: 'destructive',
+        style: { backgroundColor: 'red', color: 'white' }
       });
       return;
     }
@@ -157,7 +157,7 @@ const SettingsPage: React.FC = () => {
       if (error) throw error;
       
       toast('Business information updated', {
-        description: 'Your changes have been saved successfully',
+        description: 'Your changes have been saved successfully'
       });
       
       // Update local state
@@ -182,7 +182,7 @@ const SettingsPage: React.FC = () => {
       console.error('Error updating merchant:', error);
       toast('Update failed', {
         description: error.message || 'Failed to update business information',
-        variant: 'destructive',
+        style: { backgroundColor: 'red', color: 'white' }
       });
     } finally {
       setIsSaving(false);
@@ -202,7 +202,7 @@ const SettingsPage: React.FC = () => {
       console.error('Logout error:', error);
       toast('Logout failed', {
         description: 'Failed to logout. Please try again.',
-        variant: 'destructive',
+        style: { backgroundColor: 'red', color: 'white' }
       });
     }
   };
