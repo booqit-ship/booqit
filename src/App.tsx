@@ -24,6 +24,9 @@ import CalendarPage from "./pages/customer/CalendarPage";
 import ProfilePage from "./pages/customer/ProfilePage";
 import MapPage from "./pages/customer/MapPage";
 import MerchantDetailPage from "./pages/customer/MerchantDetailPage";
+import BookingPage from "./pages/customer/BookingPage";
+import PaymentPage from "./pages/customer/PaymentPage";
+import ReceiptPage from "./pages/customer/ReceiptPage";
 
 // Merchant pages
 import OnboardingPage from "./pages/merchant/OnboardingPage";
@@ -87,10 +90,29 @@ const App = () => {
                 <Route path="map" element={<MapPage />} />
               </Route>
 
-              {/* Merchant detail page - outside layout because it has its own back button */}
+              {/* Pages outside layout because they have their own back buttons */}
               <Route path="/merchant/:merchantId" element={
                 <ProtectedRoute requiredRole="customer">
                   <MerchantDetailPage />
+                </ProtectedRoute>
+              } />
+              
+              {/* New booking flow routes */}
+              <Route path="/booking/:merchantId/:serviceId" element={
+                <ProtectedRoute requiredRole="customer">
+                  <BookingPage />
+                </ProtectedRoute>
+              } />
+              
+              <Route path="/payment/:merchantId/:serviceId" element={
+                <ProtectedRoute requiredRole="customer">
+                  <PaymentPage />
+                </ProtectedRoute>
+              } />
+              
+              <Route path="/receipt/:bookingId" element={
+                <ProtectedRoute requiredRole="customer">
+                  <ReceiptPage />
                 </ProtectedRoute>
               } />
 
