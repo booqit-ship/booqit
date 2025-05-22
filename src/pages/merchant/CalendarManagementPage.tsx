@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Calendar } from '@/components/ui/calendar';
@@ -520,7 +519,7 @@ const CalendarManagementPage: React.FC = () => {
                     <DialogDescription>
                       {isHoliday(date) 
                         ? 'This date is already marked as a holiday. You can update the description or remove it.'
-                        : 'Select a date to mark as a shop holiday. Customers won't be able to book on this date.'}
+                        : 'Select a date to mark as a shop holiday. Customers won\'t be able to book on this date.'}
                     </DialogDescription>
                   </DialogHeader>
                   
