@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import {
   Select,
@@ -47,6 +48,10 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Switch } from '@/components/ui/switch';
+import { Toggle } from '@/components/ui/toggle';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 interface BookingWithUserDetails extends Booking {
   user_details?: {
@@ -68,6 +73,7 @@ const CalendarManagementPage: React.FC = () => {
   const [holidays, setHolidays] = useState<HolidayDate[]>([]);
   const [newHoliday, setNewHoliday] = useState<Date | undefined>(new Date());
   const [holidayDescription, setHolidayDescription] = useState('');
+  const [holidayDialogOpen, setHolidayDialogOpen] = useState(false);
   const [merchantId, setMerchantId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(false);
@@ -77,13 +83,13 @@ const CalendarManagementPage: React.FC = () => {
 
   // Calculate the 5 day range centered on the selected date
   const visibleDays = useMemo(() => {
-    const today = date;
+    const center = date;
     return [
-      subDays(today, 2),
-      subDays(today, 1),
-      today,
-      addDays(today, 1),
-      addDays(today, 2),
+      subDays(center, 2),
+      subDays(center, 1),
+      center,
+      addDays(center, 1),
+      addDays(center, 2),
     ];
   }, [date]);
 
@@ -258,6 +264,7 @@ const CalendarManagementPage: React.FC = () => {
       
       setHolidays(data);
       setHolidayDescription('');
+      setHolidayDialogOpen(false);
       
       toast({
         title: "Success",
@@ -300,6 +307,22 @@ const CalendarManagementPage: React.FC = () => {
 
   const holidayDates = holidays.map(h => parseISO(h.holiday_date));
 
+  // Check if a date is a holiday
+  const isHoliday = (checkDate: Date) => {
+    return holidayDates.some(holiday => isSameDay(holiday, checkDate));
+  };
+
+  // Get holiday description
+  const getHolidayDescription = (checkDate: Date) => {
+    const holiday = holidays.find(h => isSameDay(parseISO(h.holiday_date), checkDate));
+    return holiday?.description || 'Shop Holiday';
+  };
+
+  // Get the number of bookings for a day
+  const getBookingsCountForDay = (day: Date) => {
+    return filteredBookings.filter(b => isSameDay(parseISO(b.date), day)).length;
+  };
+
   // Get status badge color
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -311,6 +334,15 @@ const CalendarManagementPage: React.FC = () => {
     }
   };
 
+  // Navigate to previous set of days
+  const goToPrevious = () => setDate(subDays(date, 5));
+  
+  // Navigate to next set of days
+  const goToNext = () => setDate(addDays(date, 5));
+  
+  // Navigate to today
+  const goToToday = () => setDate(new Date());
+
   return (
     <div className="container mx-auto px-4 py-6">
       <div className="mb-6">
@@ -318,187 +350,270 @@ const CalendarManagementPage: React.FC = () => {
         <p className="text-booqit-dark/70">View and manage your appointment schedule</p>
       </div>
       
-      <div className="mb-8">
-        {/* Simplified 5-Day View */}
-        <Card className="mb-6">
-          <CardContent className="p-4">
-            <div className="flex justify-between items-center mb-4">
-              <Button 
-                variant="outline" 
-                onClick={() => setDate(subDays(date, 5))}
-                size="sm"
-              >
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                Previous
-              </Button>
+      {/* Modern 5-Day Calendar View */}
+      <Card className="mb-6 overflow-hidden shadow-md">
+        <CardHeader className="bg-gradient-to-r from-booqit-primary/5 to-booqit-primary/10 pb-3 pt-4">
+          <div className="flex justify-between items-center">
+            <CardTitle className="text-booqit-dark">Appointment Calendar</CardTitle>
+            <div className="flex items-center space-x-2">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="outline"
+                      size="sm"
+                      className="h-8 w-8 p-0 rounded-full"
+                      onClick={goToPrevious}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      <span className="sr-only">Previous</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    Previous 5 days
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               
               <Button 
-                variant="outline" 
-                onClick={() => setDate(new Date())}
+                variant="outline"
                 size="sm"
+                className="h-8 text-xs font-medium"
+                onClick={goToToday}
               >
                 Today
               </Button>
               
-              <Button 
-                variant="outline" 
-                onClick={() => setDate(addDays(date, 5))}
-                size="sm"
-              >
-                Next
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="outline"
+                      size="sm"
+                      className="h-8 w-8 p-0 rounded-full"
+                      onClick={goToNext}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                      <span className="sr-only">Next</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    Next 5 days
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          </div>
+        </CardHeader>
+        
+        <CardContent className="p-0">
+          <div className="flex w-full">
+            {visibleDays.map((day, index) => {
+              const isCurrentDay = isSameDay(day, new Date());
+              const isSelectedDay = isSameDay(day, date);
+              const isHolidayDay = isHoliday(day);
+              const bookingsCount = getBookingsCountForDay(day);
+              const holidayDesc = isHolidayDay ? getHolidayDescription(day) : null;
+              
+              return (
+                <div 
+                  key={index}
+                  onClick={() => !isHolidayDay && setDate(day)}
+                  className={`
+                    flex-1 transition-all duration-200 ease-in-out cursor-pointer border-r last:border-r-0 border-gray-100
+                    ${isSelectedDay ? 'ring-2 ring-inset ring-booqit-primary z-10' : ''}
+                    ${isHolidayDay ? 'cursor-not-allowed' : 'hover:bg-gray-50'}
+                  `}
+                >
+                  <div className={`
+                    flex flex-col items-center justify-center p-4 md:p-6
+                    ${isCurrentDay ? 'bg-booqit-primary text-white' : ''}
+                    ${isHolidayDay ? 'bg-red-500 text-white' : ''}
+                  `}>
+                    <div className="text-xs uppercase font-medium tracking-wider">
+                      {format(day, 'EEE')}
+                    </div>
+                    <div className="text-2xl font-bold my-1">
+                      {format(day, 'd')}
+                    </div>
+                    <div className="text-xs">
+                      {format(day, 'MMM')}
+                    </div>
+                    
+                    {isHolidayDay && (
+                      <Badge variant="outline" className="mt-1 border-white text-white text-[10px] whitespace-nowrap overflow-hidden text-ellipsis max-w-[90%]">
+                        Holiday
+                      </Badge>
+                    )}
+                  </div>
+                  
+                  <div className={`
+                    p-2 text-center text-xs font-medium
+                    ${isHolidayDay ? 'text-red-500' : ''}
+                  `}>
+                    {isHolidayDay ? (
+                      <span>Closed</span>
+                    ) : bookingsCount === 0 ? (
+                      <span className="text-gray-500">No bookings</span>
+                    ) : (
+                      <span>{bookingsCount} {bookingsCount === 1 ? 'booking' : 'bookings'}</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+      
+      {/* Selected Date Status Bar */}
+      <Card className="mb-6">
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row justify-between items-center">
+            <div className="flex items-center mb-3 sm:mb-0">
+              <CalendarCheck className="mr-2 h-5 w-5 text-booqit-primary" />
+              <span className="font-medium">{format(date, 'EEEE, MMMM d, yyyy')}</span>
             </div>
             
-            <div className="flex space-x-1 md:space-x-4 justify-between">
-              {visibleDays.map((day, index) => {
-                const isToday = isSameDay(day, new Date());
-                const isHolidayDate = holidayDates.some(h => isSameDay(h, day));
-                const bookingsForDay = filteredBookings.filter(b => isSameDay(parseISO(b.date), day));
-                
-                return (
-                  <div 
-                    key={index}
-                    className={`relative flex-1 rounded-lg overflow-hidden shadow-sm border cursor-pointer transition-all 
-                      ${isSameDay(day, date) ? 'ring-2 ring-booqit-primary' : ''} 
-                      ${isHolidayDate ? 'bg-red-50 border-red-200' : isToday ? 'bg-blue-50 border-blue-200' : 'bg-white'}`}
-                    onClick={() => setDate(day)}
+            <div className="flex items-center">
+              {isHoliday(date) ? (
+                <div className="flex items-center text-red-500">
+                  <Badge variant="destructive" className="mr-2">Holiday</Badge>
+                  <span>Shop Holiday – Bookings disabled</span>
+                </div>
+              ) : (
+                <div className="flex items-center">
+                  {getBookingsCountForDay(date) === 0 ? (
+                    <div className="flex items-center text-gray-500">
+                      <Badge variant="outline" className="mr-2">Available</Badge>
+                      <span>No appointments scheduled</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center text-green-600">
+                      <Badge className="mr-2 bg-green-100 text-green-800 border-green-200">
+                        Active
+                      </Badge>
+                      <span>Available for bookings</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              <Dialog open={holidayDialogOpen} onOpenChange={setHolidayDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button 
+                    variant="outline"
+                    size="sm"
+                    className="ml-4"
+                    onClick={() => {
+                      setNewHoliday(date);
+                      setHolidayDialogOpen(true);
+                    }}
                   >
-                    <div className={`text-center py-3 ${isHolidayDate ? 'text-red-600' : isToday ? 'text-blue-600' : ''}`}>
-                      <div className="text-xs uppercase font-bold">{format(day, 'EEE')}</div>
-                      <div className="text-xl font-bold">{format(day, 'd')}</div>
-                      <div className="text-xs">{format(day, 'MMM')}</div>
-                      
-                      {isToday && (
-                        <div className="absolute top-1 right-1">
-                          <Badge variant="secondary" className="text-[10px] h-4 bg-blue-500 text-white">Today</Badge>
-                        </div>
-                      )}
-                      
-                      {isHolidayDate && (
-                        <div className="absolute top-1 right-1">
-                          <Badge variant="destructive" className="text-[10px] h-4">Holiday</Badge>
-                        </div>
-                      )}
-                      
-                      <div className="mt-2">
-                        <span className="text-xs font-medium">
-                          {bookingsForDay.length} bookings
-                        </span>
+                    <Flag className="mr-2 h-4 w-4" />
+                    {isHoliday(date) ? 'Edit Holiday' : 'Mark Holiday'}
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Mark Shop Holiday</DialogTitle>
+                    <DialogDescription>
+                      {isHoliday(date) 
+                        ? 'This date is already marked as a holiday. You can update the description or remove it.'
+                        : 'Select a date to mark as a shop holiday. Customers won't be able to book on this date.'}
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  <div className="mt-4 space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Date</label>
+                      <div className="p-2 bg-gray-50 rounded-md text-center">
+                        {format(newHoliday || date, 'MMMM d, yyyy')}
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-        
-        {/* Filter and Holiday Management Row */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-6">
-          <div className="md:col-span-9">
-            <Card>
-              <CardHeader className="py-3">
-                <div className="flex justify-between items-center">
-                  <CardTitle>Filter Bookings</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="py-2">
-                <div className="flex flex-wrap gap-3">
-                  <Select 
-                    value={statusFilter} 
-                    onValueChange={(value) => setStatusFilter(value)}
-                  >
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All statuses</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="confirmed">Confirmed</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-          
-          <div className="md:col-span-3">
-            <Card>
-              <CardHeader className="py-3">
-                <CardTitle className="flex justify-between items-center">
-                  <span>Manage</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="py-2">
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button className="w-full">
-                      <Flag className="mr-2 h-4 w-4" />
-                      Mark Holiday
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Mark Shop Holiday</DialogTitle>
-                      <DialogDescription>
-                        Select a date to mark as a shop holiday. Customers won't be able to book on these dates.
-                      </DialogDescription>
-                    </DialogHeader>
                     
-                    <div className="mt-4 space-y-4">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Select Date</label>
-                        <Calendar
-                          mode="single"
-                          selected={newHoliday}
-                          onSelect={setNewHoliday}
-                          className="border rounded-md"
-                          modifiers={{
-                            holiday: holidayDates
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Description (Optional)</label>
+                      <Textarea 
+                        placeholder="Add description for this holiday"
+                        value={holidayDescription}
+                        onChange={(e) => setHolidayDescription(e.target.value)}
+                        className="resize-none"
+                      />
+                    </div>
+                    
+                    <DialogFooter className="flex sm:justify-between flex-col sm:flex-row gap-2 sm:gap-0">
+                      {isHoliday(date) && (
+                        <Button 
+                          variant="destructive" 
+                          onClick={() => {
+                            const holiday = holidays.find(h => 
+                              isSameDay(parseISO(h.holiday_date), date)
+                            );
+                            if (holiday) {
+                              deleteHolidayDate(holiday.id);
+                              setHolidayDialogOpen(false);
+                            }
                           }}
-                          modifiersStyles={{
-                            holiday: { backgroundColor: "#fee2e2", color: "#ef4444", fontWeight: "bold" }
-                          }}
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Description (Optional)</label>
-                        <Textarea 
-                          placeholder="Add description for this holiday"
-                          value={holidayDescription}
-                          onChange={(e) => setHolidayDescription(e.target.value)}
-                          className="resize-none"
-                        />
-                      </div>
+                        >
+                          <X className="mr-2 h-4 w-4" />
+                          Remove Holiday
+                        </Button>
+                      )}
                       
                       <Button 
                         onClick={addHolidayDate}
-                        className="w-full"
+                        className="w-full sm:w-auto"
                       >
-                        Mark as Holiday
+                        <Check className="mr-2 h-4 w-4" />
+                        {isHoliday(date) ? 'Update Holiday' : 'Mark as Holiday'}
                       </Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              </CardContent>
-            </Card>
+                    </DialogFooter>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
       
-      {/* Main Content: Booking Details and Holidays */}
+      {/* Filter Section */}
+      <Card className="mb-6">
+        <CardContent className="py-4 px-4">
+          <div className="flex flex-wrap gap-4 items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <span className="text-sm font-medium">Filter by status:</span>
+              <ToggleGroup type="single" value={statusFilter} onValueChange={(value) => value && setStatusFilter(value)}>
+                <ToggleGroupItem value="all" aria-label="All statuses" className="text-xs px-3 py-1 h-7">
+                  All
+                </ToggleGroupItem>
+                <ToggleGroupItem value="pending" aria-label="Pending" className="text-xs px-3 py-1 h-7">
+                  Pending
+                </ToggleGroupItem>
+                <ToggleGroupItem value="confirmed" aria-label="Confirmed" className="text-xs px-3 py-1 h-7">
+                  Confirmed
+                </ToggleGroupItem>
+                <ToggleGroupItem value="completed" aria-label="Completed" className="text-xs px-3 py-1 h-7">
+                  Completed
+                </ToggleGroupItem>
+                <ToggleGroupItem value="cancelled" aria-label="Cancelled" className="text-xs px-3 py-1 h-7">
+                  Cancelled
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      
+      {/* Bookings & Holiday Lists */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
         {/* Booking Details */}
         <div className="md:col-span-8">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
+          <Card className="shadow-sm">
+            <CardHeader className="py-4">
+              <CardTitle className="text-lg flex items-center">
                 <CalendarCheck className="mr-2 h-5 w-5" />
-                Bookings for {format(date, 'MMMM d, yyyy')}
+                Bookings for {format(date, 'MMM d, yyyy')}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -506,10 +621,16 @@ const CalendarManagementPage: React.FC = () => {
                 <div className="flex justify-center py-10">
                   <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-booqit-primary"></div>
                 </div>
+              ) : isHoliday(date) ? (
+                <div className="text-center py-10 border rounded-md bg-red-50">
+                  <CalendarX className="h-12 w-12 mx-auto text-red-400 mb-2" />
+                  <p className="text-red-600 font-medium">Shop Holiday - Bookings disabled</p>
+                  <p className="text-red-500 text-sm mt-1">{getHolidayDescription(date)}</p>
+                </div>
               ) : filteredBookings.filter(b => isSameDay(parseISO(b.date), date)).length === 0 ? (
-                <div className="text-center py-10 border rounded-md">
-                  <Calendar className="h-12 w-12 mx-auto text-booqit-dark/30 mb-2" />
-                  <p className="text-booqit-dark/60">No bookings for the selected date</p>
+                <div className="text-center py-10 border rounded-md bg-gray-50">
+                  <Calendar className="h-12 w-12 mx-auto text-gray-400 mb-2" />
+                  <p className="text-gray-500">No bookings for this date</p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -517,7 +638,11 @@ const CalendarManagementPage: React.FC = () => {
                     .filter(b => isSameDay(parseISO(b.date), date))
                     .sort((a, b) => a.time_slot.localeCompare(b.time_slot))
                     .map(booking => (
-                      <Card key={booking.id} className="overflow-hidden">
+                      <Card key={booking.id} className="overflow-hidden border-l-4" style={{
+                        borderLeftColor: booking.status === 'confirmed' ? '#22c55e' : 
+                                        booking.status === 'pending' ? '#eab308' :
+                                        booking.status === 'completed' ? '#3b82f6' : '#ef4444'
+                      }}>
                         <CardContent className="p-0">
                           <div className="p-4">
                             <div className="flex justify-between items-center mb-4">
@@ -528,7 +653,7 @@ const CalendarManagementPage: React.FC = () => {
                                 <div>
                                   <h3 className="font-medium">{booking.service?.name}</h3>
                                   <p className="text-sm text-booqit-dark/60">
-                                    {format(parseISO(booking.date), 'MMM dd, yyyy')} at {booking.time_slot}
+                                    {booking.time_slot}
                                   </p>
                                 </div>
                               </div>
@@ -537,7 +662,7 @@ const CalendarManagementPage: React.FC = () => {
                               </Badge>
                             </div>
                             
-                            <Separator className="my-4" />
+                            <Separator className="my-3" />
                             
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div>
@@ -571,7 +696,7 @@ const CalendarManagementPage: React.FC = () => {
                             
                             {booking.status !== 'cancelled' && booking.status !== 'completed' && (
                               <>
-                                <Separator className="my-4" />
+                                <Separator className="my-3" />
                                 
                                 <div className="flex justify-end gap-2">
                                   {booking.status === 'pending' && (
@@ -594,7 +719,7 @@ const CalendarManagementPage: React.FC = () => {
                                       onClick={() => handleStatusChange(booking.id, 'completed')}
                                     >
                                       <Check className="mr-1 h-4 w-4" />
-                                      Mark as Completed
+                                      Complete
                                     </Button>
                                   )}
                                   
@@ -621,9 +746,66 @@ const CalendarManagementPage: React.FC = () => {
         
         {/* Holiday List */}
         <div className="md:col-span-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Shop Holidays</CardTitle>
+          <Card className="shadow-sm">
+            <CardHeader className="py-4">
+              <CardTitle className="text-lg flex justify-between items-center">
+                <span className="flex items-center">
+                  <Flag className="mr-2 h-5 w-5 text-red-500" />
+                  Shop Holidays
+                </span>
+                
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button size="sm" variant="outline" className="h-7 text-xs">
+                      <Flag className="mr-1 h-3 w-3" />
+                      Add Holiday
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Mark Shop Holiday</DialogTitle>
+                      <DialogDescription>
+                        Select a date to mark as a shop holiday. Customers won't be able to book on these dates.
+                      </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="mt-4 space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Select Date</label>
+                        <Calendar
+                          mode="single"
+                          selected={newHoliday}
+                          onSelect={setNewHoliday}
+                          className="border rounded-md mx-auto"
+                          modifiers={{
+                            holiday: holidayDates
+                          }}
+                          modifiersStyles={{
+                            holiday: { backgroundColor: "#fee2e2", color: "#ef4444", fontWeight: "bold" }
+                          }}
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Description (Optional)</label>
+                        <Textarea 
+                          placeholder="Add description for this holiday"
+                          value={holidayDescription}
+                          onChange={(e) => setHolidayDescription(e.target.value)}
+                          className="resize-none"
+                        />
+                      </div>
+                      
+                      <Button 
+                        onClick={addHolidayDate}
+                        className="w-full"
+                      >
+                        Mark as Holiday
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {isHolidayLoading ? (
@@ -636,34 +818,43 @@ const CalendarManagementPage: React.FC = () => {
                   <p className="text-booqit-dark/60">No holidays marked yet</p>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead className="text-right">Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {holidays
-                      .sort((a, b) => new Date(a.holiday_date).getTime() - new Date(b.holiday_date).getTime())
-                      .map((holiday) => (
-                        <TableRow key={holiday.id}>
-                          <TableCell className="font-medium">{format(parseISO(holiday.holiday_date), 'MMM dd, yyyy')}</TableCell>
-                          <TableCell>{holiday.description || 'No description'}</TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => deleteHolidayDate(holiday.id)}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                  </TableBody>
-                </Table>
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead className="hidden sm:table-cell">Description</TableHead>
+                        <TableHead className="w-[50px] text-right">Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {holidays
+                        .sort((a, b) => new Date(a.holiday_date).getTime() - new Date(b.holiday_date).getTime())
+                        .map((holiday) => (
+                          <TableRow key={holiday.id}>
+                            <TableCell className="font-medium">
+                              {format(parseISO(holiday.holiday_date), 'MMM dd, yyyy')}
+                              <div className="sm:hidden text-xs text-gray-500 mt-1 line-clamp-1">
+                                {holiday.description || 'No description'}
+                              </div>
+                            </TableCell>
+                            <TableCell className="hidden sm:table-cell">{holiday.description || 'No description'}</TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => deleteHolidayDate(holiday.id)}
+                                className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
+                              >
+                                <X className="h-4 w-4" />
+                                <span className="sr-only">Delete</span>
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>
