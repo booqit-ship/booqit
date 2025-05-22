@@ -264,9 +264,9 @@ const HomePage: React.FC = () => {
               {featuredCategories.map(category => <Button key={category.id} variant="outline" className="h-auto flex flex-col items-center justify-center p-4 border border-gray-200 shadow-sm hover:shadow-md hover:border-booqit-primary transition-all" style={{
               backgroundColor: `${category.color}10`
             }} onClick={() => handleCategoryClick(category.name)}>
-                  <span className="text-2xl mb-2" style={{
+                  <span style={{
                 color: category.color
-              }}>
+              }} className="mb-2 text-3xl font-normal text-purple-600">
                     {category.icon}
                   </span>
                   <span className="text-sm font-medium">{category.name}</span>
