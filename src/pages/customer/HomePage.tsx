@@ -10,15 +10,15 @@ import GoogleMapComponent from '@/components/common/GoogleMap';
 import { supabase } from '@/integrations/supabase/client';
 import { Merchant } from '@/types';
 import { useToast } from '@/hooks/use-toast';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useAuth } from '@/contexts/AuthContext';
 
-// Featured categories for filtering
+// Featured categories for filtering - Removed "Spas" and "Map" as requested
 const featuredCategories = [
   { id: 1, name: 'Haircuts', icon: '💇', color: '#7E57C2' },
-  { id: 2, name: 'Spas', icon: '💆', color: '#4ECDC4' },
   { id: 3, name: 'Yoga', icon: '🧘', color: '#FF6B6B' },
   { id: 4, name: 'Dental', icon: '🦷', color: '#FFD166' },
   { id: 5, name: 'Fitness', icon: '💪', color: '#3D405B' },
-  { id: 6, name: 'Map', icon: '🗺️', color: '#343A40' },
 ];
 
 const HomePage: React.FC = () => {
@@ -26,12 +26,41 @@ const HomePage: React.FC = () => {
   const [nearbyShops, setNearbyShops] = useState<Merchant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [userName, setUserName] = useState('there');
+  const [userAvatar, setUserAvatar] = useState<string | null>(null);
   
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { userId } = useAuth();
   
   // Get user's current location name (this would come from geolocation + reverse geocoding)
   const [locationName, setLocationName] = useState("Loading location...");
+  
+  // Fetch user profile data
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (userId) {
+        try {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('name, avatar_url')
+            .eq('id', userId)
+            .single();
+            
+          if (error) throw error;
+          
+          if (data) {
+            setUserName(data.name.split(' ')[0]); // Get first name
+            setUserAvatar(data.avatar_url);
+          }
+        } catch (error) {
+          console.error('Error fetching user profile:', error);
+        }
+      }
+    };
+    
+    fetchUserProfile();
+  }, [userId]);
   
   useEffect(() => {
     // Get user location
@@ -75,15 +104,24 @@ const HomePage: React.FC = () => {
       const data = await response.json();
       
       if (data.status === 'OK' && data.results && data.results[0]) {
-        // Extract city name from address components
+        // Get more specific location details
         const addressComponents = data.results[0].address_components;
+        
+        // Try to find neighborhood or sublocality first for more precise location
+        const neighborhood = addressComponents.find(
+          (component: any) => 
+            component.types.includes('sublocality_level_1') || 
+            component.types.includes('neighborhood')
+        );
+        
+        // If no neighborhood, try to get locality (city)
         const cityComponent = addressComponents.find(
           (component: any) => 
             component.types.includes('locality') || 
             component.types.includes('administrative_area_level_1')
         );
         
-        setLocationName(cityComponent ? cityComponent.long_name : "Your area");
+        setLocationName(neighborhood?.long_name || cityComponent?.long_name || "Your area");
       }
     } catch (error) {
       console.error("Error fetching location name:", error);
@@ -175,12 +213,7 @@ const HomePage: React.FC = () => {
   };
 
   const handleCategoryClick = (categoryName: string) => {
-    if (categoryName === 'Map') {
-      navigate('/map');
-    } else {
-      // Handle other category clicks (e.g. set search filter)
-      navigate(`/search?category=${categoryName}`);
-    }
+    navigate(`/search?category=${categoryName}`);
   };
 
   const handleSearch = () => {
@@ -206,7 +239,7 @@ const HomePage: React.FC = () => {
       >
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-2xl font-bold">Hi there! 👋</h1>
+            <h1 className="text-2xl font-bold">Hi {userName}! 👋</h1>
             <p className="opacity-90 flex items-center">
               <svg className="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M12 13.5C13.933 13.5 15.5 11.933 15.5 10C15.5 8.067 13.933 6.5 12 6.5C10.067 6.5 8.5 8.067 8.5 10C8.5 11.933 10.067 13.5 12 13.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -215,9 +248,15 @@ const HomePage: React.FC = () => {
               {locationName}
             </p>
           </div>
-          <div className="h-10 w-10 bg-white rounded-full flex items-center justify-center">
-            <span className="text-booqit-primary font-medium">A</span>
-          </div>
+          <Avatar className="h-10 w-10 bg-white">
+            {userAvatar ? (
+              <AvatarImage src={userAvatar} alt={userName} className="object-cover" />
+            ) : (
+              <AvatarFallback className="text-booqit-primary font-medium">
+                {userName.charAt(0).toUpperCase()}
+              </AvatarFallback>
+            )}
+          </Avatar>
         </div>
         <div className="relative">
           <Search className="absolute left-3 top-3 h-5 w-5 text-booqit-primary" />
@@ -239,7 +278,7 @@ const HomePage: React.FC = () => {
         >
           <motion.div variants={itemVariants}>
             <h2 className="text-xl font-semibold mb-4">Categories</h2>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               {featuredCategories.map((category) => (
                 <Button
                   key={category.id}
