@@ -287,6 +287,38 @@ export type Database = {
           },
         ]
       }
+      shop_holidays: {
+        Row: {
+          created_at: string
+          description: string | null
+          holiday_date: string
+          id: string
+          merchant_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          holiday_date: string
+          id?: string
+          merchant_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          holiday_date?: string
+          id?: string
+          merchant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_holidays_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "merchants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff: {
         Row: {
           assigned_service_ids: string[]
