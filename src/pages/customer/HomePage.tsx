@@ -219,11 +219,14 @@ const HomePage: React.FC = () => {
   };
   const getShopImage = (merchant: Merchant) => {
     if (merchant.image_url) {
-      // Use the proper path to the merchant images in Supabase storage
+      // Use direct public URL for Supabase storage
       return `https://ggclvurfcykbwmhfftkn.supabase.co/storage/v1/object/public/merchant_images/${merchant.image_url}`;
     }
     // Return a default image if no image URL exists
     return 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
+  };
+  const handleBookNow = (merchantId: string) => {
+    navigate(`/merchant/${merchantId}`);
   };
   return <div className="pb-20"> {/* Add padding to account for bottom navigation */}
       <motion.div className="bg-gradient-to-r from-booqit-primary to-purple-700 text-white p-6 rounded-b-3xl shadow-lg" initial={{
@@ -283,11 +286,16 @@ const HomePage: React.FC = () => {
                     <CardContent className="p-0">
                       <div className="flex">
                         <div className="w-24 h-24 bg-gray-200 flex-shrink-0">
-                          <img src={getShopImage(shop)} alt={shop.shop_name} className="w-full h-full object-cover" onError={e => {
-                      // Set default image if the image fails to load
-                      const target = e.target as HTMLImageElement;
-                      target.src = 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
-                    }} />
+                          <img 
+                            src={getShopImage(shop)} 
+                            alt={shop.shop_name} 
+                            className="w-full h-full object-cover" 
+                            onError={(e) => {
+                              // Set default image if the image fails to load
+                              const target = e.target as HTMLImageElement;
+                              target.src = 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
+                            }} 
+                          />
                         </div>
                         <div className="p-3 flex-1 py-[6px]">
                           <div className="flex justify-between items-start">
@@ -305,7 +313,11 @@ const HomePage: React.FC = () => {
                               </svg>
                               {shop.distance}
                             </span>
-                            <Button size="sm" className="bg-booqit-primary hover:bg-booqit-primary/90 text-xs h-8" onClick={() => navigate(`/merchant/${shop.id}`)}>
+                            <Button 
+                              size="sm" 
+                              className="bg-booqit-primary hover:bg-booqit-primary/90 text-xs h-8" 
+                              onClick={() => handleBookNow(shop.id)}
+                            >
                               Book Now
                             </Button>
                           </div>
