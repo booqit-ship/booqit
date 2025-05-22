@@ -2,9 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Card,
   CardContent,
@@ -19,10 +16,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Service } from '@/types';
-import { PlusCircle, Edit, Trash, X } from 'lucide-react';
+import { PlusCircle, Edit, Trash, Loader2 } from 'lucide-react';
 import { 
   Dialog, 
   DialogContent, 
@@ -255,36 +255,41 @@ const ServicesPage: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-6">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-booqit-dark mb-2">Manage Services</h1>
-          <p className="text-booqit-dark/70">Add and edit services that customers can book</p>
-        </div>
+    <div className="container mx-auto px-4 py-6 max-w-6xl">
+      <div className="mb-8 text-center">
+        <h1 className="text-3xl font-bold text-booqit-dark">Service Management</h1>
+        <p className="text-booqit-dark/70 mt-2 mb-6">Create and manage the services you offer to your customers</p>
         <Button 
           onClick={openAddNewService} 
-          className="bg-booqit-primary hover:bg-booqit-primary/90"
+          size="lg"
+          className="bg-booqit-primary hover:bg-booqit-primary/90 mx-auto"
         >
-          <PlusCircle className="mr-2 h-4 w-4" /> Add New Service
+          <PlusCircle className="mr-2 h-5 w-5" /> Add New Service
         </Button>
       </div>
       
-      <Card>
-        <CardHeader className="border-b">
+      <Card className="shadow-md">
+        <CardHeader className="border-b bg-muted/30">
           <CardTitle>Your Services</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
             <div className="flex justify-center py-10">
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-booqit-primary"></div>
+              <Loader2 className="h-10 w-10 text-booqit-primary animate-spin" />
             </div>
           ) : services.length === 0 ? (
-            <div className="text-center py-10">
-              <PlusCircle className="h-12 w-12 mx-auto text-booqit-dark/30 mb-2" />
-              <p className="text-booqit-dark/60 mb-4">You haven't added any services yet</p>
+            <div className="text-center py-16 px-4">
+              <div className="bg-muted/30 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <PlusCircle className="h-10 w-10 text-booqit-dark/40" />
+              </div>
+              <h3 className="text-xl font-semibold text-booqit-dark mb-2">No services yet</h3>
+              <p className="text-booqit-dark/60 mb-6 max-w-md mx-auto">
+                Add your first service to start accepting bookings from customers
+              </p>
               <Button 
                 onClick={openAddNewService} 
-                className="bg-booqit-primary hover:bg-booqit-primary/90"
+                variant="outline"
+                className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary/10"
               >
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Your First Service
               </Button>
@@ -294,23 +299,24 @@ const ServicesPage: React.FC = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Service Name</TableHead>
-                    <TableHead>Duration</TableHead>
-                    <TableHead>Price</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="w-1/3">Service Name</TableHead>
+                    <TableHead className="text-center">Duration</TableHead>
+                    <TableHead className="text-center">Price</TableHead>
+                    <TableHead className="text-right w-28">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {services.map((service) => (
                     <TableRow key={service.id} className="hover:bg-muted/30">
                       <TableCell className="font-medium">{service.name}</TableCell>
-                      <TableCell>{service.duration} mins</TableCell>
-                      <TableCell>₹{service.price}</TableCell>
+                      <TableCell className="text-center">{service.duration} mins</TableCell>
+                      <TableCell className="text-center">₹{service.price}</TableCell>
                       <TableCell className="text-right space-x-1">
                         <Button 
                           variant="ghost" 
                           size="icon" 
                           onClick={() => handleEditService(service)}
+                          className="hover:bg-booqit-primary/10 hover:text-booqit-primary"
                           title="Edit service"
                         >
                           <Edit className="h-4 w-4" />
@@ -319,8 +325,8 @@ const ServicesPage: React.FC = () => {
                           variant="ghost" 
                           size="icon" 
                           onClick={() => confirmDelete(service.id)}
+                          className="hover:bg-destructive/10 hover:text-destructive"
                           title="Delete service"
-                          className="text-destructive hover:text-destructive"
                         >
                           <Trash className="h-4 w-4" />
                         </Button>
@@ -394,7 +400,7 @@ const ServicesPage: React.FC = () => {
               />
             </div>
             
-            <SheetFooter className="flex justify-between items-center">
+            <SheetFooter className="flex justify-between items-center pt-4">
               <Button
                 type="button"
                 variant="outline"
@@ -408,7 +414,14 @@ const ServicesPage: React.FC = () => {
                 className="bg-booqit-primary hover:bg-booqit-primary/90"
                 disabled={isSubmitting}
               >
-                {isSubmitting ? "Saving..." : isEditMode ? "Update Service" : "Add Service"}
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {isEditMode ? "Updating..." : "Adding..."}
+                  </>
+                ) : (
+                  isEditMode ? "Update Service" : "Add Service"
+                )}
               </Button>
             </SheetFooter>
           </form>
@@ -437,7 +450,14 @@ const ServicesPage: React.FC = () => {
               onClick={handleDeleteService}
               disabled={isDeleting}
             >
-              {isDeleting ? "Deleting..." : "Delete"}
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
