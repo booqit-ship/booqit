@@ -1,12 +1,12 @@
-
 export type UserRole = 'customer' | 'merchant';
 
 export interface User {
   id: string;
   name: string;
   email: string;
-  phone: string;
-  role: UserRole;
+  phone: string | null;
+  role: string;
+  avatar_url?: string | null;
   created_at: string;
 }
 
