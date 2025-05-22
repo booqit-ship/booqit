@@ -17,13 +17,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Input } from '@/components/ui/input';
+import {
+  Input,
+} from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Service, Staff } from '@/types';
-import { PlusCircle, Edit, Trash, Loader2, Clock, DollarSign } from 'lucide-react';
+import { PlusCircle, Edit, Trash, Loader2, Clock, Users } from 'lucide-react';
 import { 
   Dialog, 
   DialogContent, 
@@ -43,6 +45,7 @@ import {
 import StaffSelector from '@/components/merchant/StaffSelector';
 import AssignedStaff from '@/components/merchant/AssignedStaff';
 import { useIsMobile } from '@/hooks/use-mobile';
+import StaffManagementSheet from '@/components/merchant/StaffManagementSheet';
 
 const ServicesPage: React.FC = () => {
   const [services, setServices] = useState<Service[]>([]);
@@ -62,6 +65,7 @@ const ServicesPage: React.FC = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [isStaffSheetOpen, setIsStaffSheetOpen] = useState(false);
   
   const { toast } = useToast();
   const { userId } = useAuth();
@@ -352,10 +356,14 @@ const ServicesPage: React.FC = () => {
     resetForm();
     setIsSheetOpen(true);
   };
+  
+  const openManageStylists = () => {
+    setIsStaffSheetOpen(true);
+  };
 
   const MobileServiceCard = ({ service }: { service: Service }) => {
     return (
-      <Card className="mb-4 overflow-hidden border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+      <Card className="mb-5 overflow-hidden border border-gray-200 shadow-sm hover:shadow-md transition-shadow animate-fade-in">
         <CardHeader className="p-4 pb-2 bg-muted/20 border-b">
           <CardTitle className="text-lg font-semibold text-booqit-dark flex justify-between items-center">
             <span className="truncate pr-2">{service.name}</span>
@@ -388,7 +396,6 @@ const ServicesPage: React.FC = () => {
               <span>{service.duration} mins</span>
             </div>
             <div className="font-medium text-booqit-dark flex items-center">
-              <DollarSign className="h-3.5 w-3.5 mr-0.5" />
               <span>₹{service.price}</span>
             </div>
           </div>
@@ -403,17 +410,25 @@ const ServicesPage: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-6xl">
+    <div className="container mx-auto px-4 py-6 pb-24 max-w-6xl relative">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-booqit-dark text-center">Service Management</h1>
         <p className="text-booqit-dark/70 mt-2 mb-6 text-center">Create and manage the services you offer to your customers</p>
-        <div className="flex justify-center">
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <Button 
             onClick={openAddNewService} 
             size={isMobile ? "default" : "lg"}
             className="bg-booqit-primary hover:bg-booqit-primary/90"
           >
             <PlusCircle className="mr-2 h-5 w-5" /> Add New Service
+          </Button>
+          <Button 
+            onClick={openManageStylists} 
+            size={isMobile ? "default" : "lg"}
+            variant="outline"
+            className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary/10"
+          >
+            <Users className="mr-2 h-5 w-5" /> Manage Stylists
           </Button>
         </div>
       </div>
@@ -445,7 +460,7 @@ const ServicesPage: React.FC = () => {
               </Button>
             </div>
           ) : isMobile ? (
-            <div className="p-4">
+            <div className="p-5 grid grid-cols-1 gap-5">
               {services.map((service) => (
                 <MobileServiceCard key={service.id} service={service} />
               ))}
@@ -600,6 +615,13 @@ const ServicesPage: React.FC = () => {
         </SheetContent>
       </Sheet>
       
+      {/* Staff Management Sheet */}
+      <StaffManagementSheet 
+        open={isStaffSheetOpen} 
+        onOpenChange={setIsStaffSheetOpen}
+        merchantId={merchantId}
+      />
+      
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
@@ -634,6 +656,17 @@ const ServicesPage: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      {/* Floating Add Button */}
+      <div className="fixed bottom-6 right-6 z-10">
+        <Button
+          onClick={openAddNewService}
+          size="icon"
+          className="h-14 w-14 rounded-full shadow-lg bg-booqit-primary hover:bg-booqit-primary/90 animate-fade-in"
+        >
+          <PlusCircle className="h-6 w-6" />
+        </Button>
+      </div>
     </div>
   );
 };

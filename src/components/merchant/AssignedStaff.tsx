@@ -78,7 +78,7 @@ const AssignedStaff: React.FC<AssignedStaffProps> = ({
         <Badge 
           key={s.id} 
           variant="stylist" 
-          className="py-1 px-2.5 text-xs flex items-center"
+          className="py-1 px-2.5 text-xs flex items-center animate-fade-in"
         >
           <User className="h-3 w-3 mr-1.5" />
           {s.name}
@@ -90,8 +90,8 @@ const AssignedStaff: React.FC<AssignedStaffProps> = ({
           <Tooltip>
             <TooltipTrigger asChild>
               <Badge 
-                variant="stylist" 
-                className="py-1 px-2.5 text-xs flex items-center cursor-pointer"
+                variant="outline" 
+                className="py-1 px-2.5 text-xs flex items-center cursor-pointer bg-muted/30 hover:bg-muted/50 transition-colors"
               >
                 <MoreHorizontal className="h-3 w-3 mr-1" />
                 +{remainingCount} more
