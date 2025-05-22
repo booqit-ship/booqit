@@ -312,24 +312,27 @@ const ServicesPage: React.FC = () => {
                       <TableCell className="text-center">{service.duration} mins</TableCell>
                       <TableCell className="text-center">₹{service.price}</TableCell>
                       <TableCell className="text-right space-x-1">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => handleEditService(service)}
-                          className="hover:bg-booqit-primary/10 hover:text-booqit-primary"
-                          title="Edit service"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => confirmDelete(service.id)}
-                          className="hover:bg-destructive/10 hover:text-destructive"
-                          title="Delete service"
-                        >
-                          <Trash className="h-4 w-4" />
-                        </Button>
+                        {/* Replace the horizontal button layout with vertical layout */}
+                        <div className="flex flex-col gap-2 items-end">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => handleEditService(service)}
+                            className="hover:bg-booqit-primary/10 hover:text-booqit-primary w-full justify-end"
+                            title="Edit service"
+                          >
+                            <Edit className="h-4 w-4 mr-1" /> Edit
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => confirmDelete(service.id)}
+                            className="hover:bg-destructive/10 hover:text-destructive w-full justify-end"
+                            title="Delete service"
+                          >
+                            <Trash className="h-4 w-4 mr-1" /> Delete
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
