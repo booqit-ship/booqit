@@ -43,7 +43,9 @@ import {
   Check, 
   X, 
   Flag, 
-  CalendarX 
+  CalendarX,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 
 interface BookingWithUserDetails extends Booking {
