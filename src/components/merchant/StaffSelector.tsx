@@ -23,6 +23,7 @@ interface StaffSelectorProps {
   selectedStaffIds: string[];
   onChange: (staffIds: string[]) => void;
   isRequired?: boolean;
+  hideAddNew?: boolean;
 }
 
 const StaffSelector: React.FC<StaffSelectorProps> = ({
@@ -30,7 +31,8 @@ const StaffSelector: React.FC<StaffSelectorProps> = ({
   serviceId,
   selectedStaffIds,
   onChange,
-  isRequired = true
+  isRequired = true,
+  hideAddNew = false
 }) => {
   const [staffList, setStaffList] = useState<Staff[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -137,14 +139,16 @@ const StaffSelector: React.FC<StaffSelectorProps> = ({
             </span>
           )}
         </div>
-        <Button 
-          type="button" 
-          variant="outline" 
-          size="sm"
-          onClick={() => setShowAddStaffDialog(true)}
-        >
-          <UserPlus className="h-4 w-4 mr-1" /> Add New
-        </Button>
+        {!hideAddNew && (
+          <Button 
+            type="button" 
+            variant="outline" 
+            size="sm"
+            onClick={() => setShowAddStaffDialog(true)}
+          >
+            <UserPlus className="h-4 w-4 mr-1" /> Add New
+          </Button>
+        )}
       </div>
 
       {isLoading ? (
@@ -154,14 +158,21 @@ const StaffSelector: React.FC<StaffSelectorProps> = ({
       ) : staffList.length === 0 ? (
         <div className="text-center py-4 border rounded-md bg-muted/20">
           <p className="text-sm text-muted-foreground mb-2">No stylists added yet</p>
-          <Button 
-            type="button" 
-            variant="outline" 
-            size="sm"
-            onClick={() => setShowAddStaffDialog(true)}
-          >
-            <PlusCircle className="h-4 w-4 mr-1" /> Add Your First Stylist
-          </Button>
+          {!hideAddNew && (
+            <Button 
+              type="button" 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowAddStaffDialog(true)}
+            >
+              <PlusCircle className="h-4 w-4 mr-1" /> Add Your First Stylist
+            </Button>
+          )}
+          {hideAddNew && (
+            <p className="text-xs text-muted-foreground">
+              Stylists can be added from the "Manage Stylists" section
+            </p>
+          )}
         </div>
       ) : (
         <div className="grid gap-2">

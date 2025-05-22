@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -584,6 +583,7 @@ const ServicesPage: React.FC = () => {
                 serviceId={currentServiceId}
                 selectedStaffIds={selectedStaffIds}
                 onChange={setSelectedStaffIds}
+                hideAddNew={true}
               />
             )}
             
@@ -656,17 +656,6 @@ const ServicesPage: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      
-      {/* Floating Add Button */}
-      <div className="fixed bottom-6 right-6 z-10">
-        <Button
-          onClick={openAddNewService}
-          size="icon"
-          className="h-14 w-14 rounded-full shadow-lg bg-booqit-primary hover:bg-booqit-primary/90 animate-fade-in"
-        >
-          <PlusCircle className="h-6 w-6" />
-        </Button>
-      </div>
     </div>
   );
 };
