@@ -13,27 +13,32 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 
 // Featured categories for filtering - Removed "Spas" and "Map" as requested
-const featuredCategories = [{
-  id: 1,
-  name: 'Haircuts',
-  icon: '💇',
-  color: '#7E57C2'
-}, {
-  id: 3,
-  name: 'Yoga',
-  icon: '🧘',
-  color: '#FF6B6B'
-}, {
-  id: 4,
-  name: 'Dental',
-  icon: '🦷',
-  color: '#FFD166'
-}, {
-  id: 5,
-  name: 'Fitness',
-  icon: '💪',
-  color: '#3D405B'
-}];
+const featuredCategories = [
+  {
+    id: 1,
+    name: 'Haircuts',
+    icon: '💇',
+    color: '#7E57C2'
+  },
+  {
+    id: 3,
+    name: 'Yoga',
+    icon: '🧘',
+    color: '#FF6B6B'
+  },
+  {
+    id: 4,
+    name: 'Dental',
+    icon: '🦷',
+    color: '#FFD166'
+  },
+  {
+    id: 5,
+    name: 'Fitness',
+    icon: '💪',
+    color: '#3D405B'
+  }
+];
 const HomePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [nearbyShops, setNearbyShops] = useState<Merchant[]>([]);
@@ -139,14 +144,16 @@ const HomePage: React.FC = () => {
     setIsLoading(true);
     try {
       // Fetch merchants from database
-      const {
-        data: merchants,
-        error
-      } = await supabase.from('merchants').select('*').order('rating', {
-        ascending: false
-      });
+      const { data: merchants, error } = await supabase
+        .from('merchants')
+        .select('*')
+        .order('rating', { ascending: false });
+        
       if (error) throw error;
+      
       if (merchants && merchants.length > 0) {
+        console.log("Fetched merchants:", merchants); // Debug log to check merchant data
+        
         // Calculate distance for each merchant (simplified version)
         const shopsWithDistance = merchants.map(merchant => {
           // Simple distance calculation (this is just an approximation)
@@ -218,8 +225,9 @@ const HomePage: React.FC = () => {
     }
   };
   const getShopImage = (merchant: Merchant) => {
-    if (merchant.image_url) {
-      // Use direct public URL for Supabase storage
+    if (merchant.image_url && merchant.image_url.trim() !== '') {
+      console.log("Merchant image URL:", merchant.image_url); // Debug log
+      // Construct the public URL for Supabase storage
       return `https://ggclvurfcykbwmhfftkn.supabase.co/storage/v1/object/public/merchant_images/${merchant.image_url}`;
     }
     // Return a default image if no image URL exists
@@ -294,6 +302,7 @@ const HomePage: React.FC = () => {
                               // Set default image if the image fails to load
                               const target = e.target as HTMLImageElement;
                               target.src = 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
+                              console.error(`Failed to load image for ${shop.shop_name}`, shop.image_url);
                             }} 
                           />
                         </div>

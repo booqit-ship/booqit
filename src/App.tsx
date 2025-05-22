@@ -23,6 +23,7 @@ import SearchPage from "./pages/customer/SearchPage";
 import CalendarPage from "./pages/customer/CalendarPage";
 import ProfilePage from "./pages/customer/ProfilePage";
 import MapPage from "./pages/customer/MapPage";
+import MerchantDetailPage from "./pages/customer/MerchantDetailPage";
 
 // Merchant pages
 import OnboardingPage from "./pages/merchant/OnboardingPage";
@@ -85,6 +86,13 @@ const App = () => {
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="map" element={<MapPage />} />
               </Route>
+
+              {/* Merchant detail page - outside layout because it has its own back button */}
+              <Route path="/merchant/:merchantId" element={
+                <ProtectedRoute requiredRole="customer">
+                  <MerchantDetailPage />
+                </ProtectedRoute>
+              } />
 
               {/* Merchant routes */}
               <Route path="/merchant/onboarding" element={
