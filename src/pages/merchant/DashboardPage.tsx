@@ -122,8 +122,8 @@ const DashboardPage: React.FC = () => {
         const { data: uniqueCustomers, error: customersError } = await supabase
           .from('bookings')
           .select('user_id')
-          .eq('merchant_id', mId)
-          .is('user_id', 'not.null');
+          .eq('merchant_id', mId);
+          // Fix: removed the .is() call that was causing the type error
 
         if (customersError) {
           console.error('Error fetching unique customers:', customersError);
@@ -181,7 +181,7 @@ const DashboardPage: React.FC = () => {
             })
           );
           
-          setRecentBookings(bookingsWithCustomers as unknown as Booking[]);
+          setRecentBookings(bookingsWithCustomers as Booking[]);
         }
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
