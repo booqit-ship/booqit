@@ -657,7 +657,7 @@ const CalendarManagementPage: React.FC = () => {
                                   </p>
                                 </div>
                               </div>
-                              <Badge className={`${getStatusColor(booking.status)}`}>
+                              <Badge className={getStatusColor(booking.status)}>
                                 {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                               </Badge>
                             </div>
