@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +26,7 @@ const CalendarPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const { userId } = useAuth();
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
 
   // Calculate the visible days based on the selected date (today + next 6 days)
@@ -32,6 +34,11 @@ const CalendarPage: React.FC = () => {
     const today = new Date();
     return Array.from({ length: 7 }, (_, i) => addDays(today, i));
   }, []);
+
+  // Navigate to search page
+  const handleExploreServices = () => {
+    navigate('/search');
+  };
 
   // Fetch bookings for the user with real-time updates
   useEffect(() => {
@@ -140,11 +147,6 @@ const CalendarPage: React.FC = () => {
       case 'cancelled': return 'bg-red-500';
       default: return 'bg-gray-500';
     }
-  };
-
-  // Get the number of bookings for a day
-  const getBookingsCountForDay = (day: Date) => {
-    return bookings.filter(b => isSameDay(parseISO(b.date), day)).length;
   };
   
   // Go to today
@@ -292,7 +294,10 @@ const CalendarPage: React.FC = () => {
           <div className="text-center py-10 border rounded-md">
             <CalendarX className="h-8 w-8 mx-auto text-booqit-dark/30 mb-2" />
             <p className="text-booqit-dark/60 text-sm">You don't have any bookings yet.</p>
-            <Button className="mt-4 bg-booqit-primary" onClick={() => window.location.href = '/search'}>
+            <Button 
+              className="mt-4 bg-booqit-primary" 
+              onClick={handleExploreServices}
+            >
               Explore Services
             </Button>
           </div>
@@ -334,6 +339,18 @@ const CalendarPage: React.FC = () => {
                   </CardContent>
                 </Card>
               ))}
+              
+            {bookings.filter(booking => booking.status !== 'cancelled' && booking.status !== 'completed').length > 0 && (
+              <div className="flex justify-center mt-4">
+                <Button 
+                  variant="outline" 
+                  className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary/10"
+                  onClick={handleExploreServices}
+                >
+                  Explore More Services
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>
