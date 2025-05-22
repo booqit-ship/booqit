@@ -177,7 +177,9 @@ const ProfilePage: React.FC = () => {
         .from('profiles')
         .update({
           name,
-          phone
+          phone,
+          // Include avatar_url in the update to match the database schema
+          avatar_url: avatarUrl
         })
         .eq('id', userId);
         
@@ -189,7 +191,7 @@ const ProfilePage: React.FC = () => {
       });
       
       // Update local state
-      setUser(prev => prev ? { ...prev, name, phone } : null);
+      setUser(prev => prev ? { ...prev, name, phone, avatar_url: avatarUrl } : null);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -217,7 +219,7 @@ const ProfilePage: React.FC = () => {
       // Upload image to storage
       const fileExt = file.name.split('.').pop();
       const fileName = `${userId}-${Date.now()}.${fileExt}`;
-      const filePath = `avatars/${fileName}`;
+      const filePath = `${userId}/${fileName}`;
       
       const { error: uploadError } = await supabase.storage
         .from('avatars')
