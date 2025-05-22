@@ -1,3 +1,4 @@
+
 export type UserRole = 'customer' | 'merchant';
 
 export interface User {
