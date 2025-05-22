@@ -134,6 +134,10 @@ const CalendarManagementPage: React.FC = () => {
         // Process the bookings data
         const processedBookings = await Promise.all(
           data.map(async (booking) => {
+            // Cast payment_status to the correct type
+            const typedPaymentStatus = booking.payment_status as "pending" | "completed" | "failed" | "refunded";
+            const typedStatus = booking.status as "pending" | "confirmed" | "completed" | "cancelled";
+            
             // If needed, fetch user details separately
             if (booking.user_id) {
               const { data: userData, error: userError } = await supabase
@@ -145,20 +149,22 @@ const CalendarManagementPage: React.FC = () => {
               if (!userError && userData) {
                 return {
                   ...booking,
-                  status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
+                  status: typedStatus,
+                  payment_status: typedPaymentStatus,
                   user_details: {
                     name: userData.name,
                     email: userData.email,
                     phone: userData.phone
                   }
-                };
+                } as BookingWithUserDetails;
               }
             }
             
             return {
               ...booking,
-              status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled'
-            };
+              status: typedStatus,
+              payment_status: typedPaymentStatus
+            } as BookingWithUserDetails;
           })
         );
         
