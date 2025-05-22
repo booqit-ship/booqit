@@ -8,19 +8,9 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   Card,
   CardContent,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -32,7 +22,23 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Service } from '@/types';
-import { Plus, Edit, Trash } from 'lucide-react';
+import { PlusCircle, Edit, Trash, X } from 'lucide-react';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle 
+} from '@/components/ui/dialog';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 
 const ServicesPage: React.FC = () => {
   const [services, setServices] = useState<Service[]>([]);
@@ -50,6 +56,7 @@ const ServicesPage: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
   
   const { toast } = useToast();
   const { userId } = useAuth();
@@ -97,7 +104,6 @@ const ServicesPage: React.FC = () => {
         toast({
           title: "Error",
           description: "Failed to fetch services. Please try again.",
-          variant: "destructive",
         });
         console.error(error);
       } finally {
@@ -124,7 +130,6 @@ const ServicesPage: React.FC = () => {
       toast({
         title: "Error",
         description: "Merchant information not found. Please complete onboarding first.",
-        variant: "destructive",
       });
       return;
     }
@@ -187,11 +192,11 @@ const ServicesPage: React.FC = () => {
       }
       
       resetForm();
+      setIsSheetOpen(false);
     } catch (error: any) {
       toast({
         title: "Error",
         description: error.message || "Failed to save service. Please try again.",
-        variant: "destructive",
       });
     } finally {
       setIsSubmitting(false);
@@ -205,6 +210,7 @@ const ServicesPage: React.FC = () => {
     setDescription(service.description || '');
     setIsEditMode(true);
     setCurrentServiceId(service.id);
+    setIsSheetOpen(true);
   };
 
   const confirmDelete = (id: string) => {
@@ -237,155 +243,179 @@ const ServicesPage: React.FC = () => {
       toast({
         title: "Error",
         description: "Failed to delete service. Please try again.",
-        variant: "destructive",
       });
     } finally {
       setIsDeleting(false);
     }
   };
 
+  const openAddNewService = () => {
+    resetForm();
+    setIsSheetOpen(true);
+  };
+
   return (
     <div className="container mx-auto px-4 py-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-booqit-dark mb-2">Manage Services</h1>
-        <p className="text-booqit-dark/70">Add and edit services that customers can book</p>
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-booqit-dark mb-2">Manage Services</h1>
+          <p className="text-booqit-dark/70">Add and edit services that customers can book</p>
+        </div>
+        <Button 
+          onClick={openAddNewService} 
+          className="bg-booqit-primary hover:bg-booqit-primary/90"
+        >
+          <PlusCircle className="mr-2 h-4 w-4" /> Add New Service
+        </Button>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-1">
-          <Card>
-            <CardHeader>
-              <CardTitle>{isEditMode ? 'Edit Service' : 'Add New Service'}</CardTitle>
-            </CardHeader>
-            <form onSubmit={handleCreateOrUpdateService}>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Service Name</Label>
-                  <Input 
-                    id="name" 
-                    value={name} 
-                    onChange={(e) => setName(e.target.value)} 
-                    required 
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="price">Price (₹)</Label>
-                    <Input 
-                      id="price" 
-                      type="number" 
-                      value={price} 
-                      onChange={(e) => setPrice(e.target.value)} 
-                      required 
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="duration">Duration (mins)</Label>
-                    <Input 
-                      id="duration" 
-                      type="number" 
-                      value={duration} 
-                      onChange={(e) => setDuration(e.target.value)} 
-                      required 
-                    />
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea 
-                    id="description" 
-                    value={description} 
-                    onChange={(e) => setDescription(e.target.value)} 
-                    rows={3} 
-                  />
-                </div>
-              </CardContent>
-              <CardFooter className="flex justify-between">
-                {isEditMode && (
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={resetForm}
-                  >
-                    Cancel
-                  </Button>
-                )}
-                <Button 
-                  type="submit" 
-                  className="bg-booqit-primary ml-auto"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? "Saving..." : isEditMode ? "Update Service" : "Add Service"}
-                </Button>
-              </CardFooter>
-            </form>
-          </Card>
-        </div>
-        
-        <div className="md:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Your Services</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="flex justify-center py-10">
-                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-booqit-primary"></div>
-                </div>
-              ) : services.length === 0 ? (
-                <div className="text-center py-10 border rounded-md">
-                  <Plus className="h-12 w-12 mx-auto text-booqit-dark/30 mb-2" />
-                  <p className="text-booqit-dark/60 mb-4">You haven't added any services yet</p>
-                  <p className="text-sm text-booqit-dark/60">
-                    Add your first service using the form on the left
-                  </p>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Service Name</TableHead>
-                      <TableHead>Duration</TableHead>
-                      <TableHead>Price</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+      <Card>
+        <CardHeader className="border-b">
+          <CardTitle>Your Services</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="flex justify-center py-10">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-booqit-primary"></div>
+            </div>
+          ) : services.length === 0 ? (
+            <div className="text-center py-10">
+              <PlusCircle className="h-12 w-12 mx-auto text-booqit-dark/30 mb-2" />
+              <p className="text-booqit-dark/60 mb-4">You haven't added any services yet</p>
+              <Button 
+                onClick={openAddNewService} 
+                className="bg-booqit-primary hover:bg-booqit-primary/90"
+              >
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Your First Service
+              </Button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Service Name</TableHead>
+                    <TableHead>Duration</TableHead>
+                    <TableHead>Price</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {services.map((service) => (
+                    <TableRow key={service.id} className="hover:bg-muted/30">
+                      <TableCell className="font-medium">{service.name}</TableCell>
+                      <TableCell>{service.duration} mins</TableCell>
+                      <TableCell>₹{service.price}</TableCell>
+                      <TableCell className="text-right space-x-1">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => handleEditService(service)}
+                          title="Edit service"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => confirmDelete(service.id)}
+                          title="Delete service"
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {services.map((service) => (
-                      <TableRow key={service.id}>
-                        <TableCell className="font-medium">{service.name}</TableCell>
-                        <TableCell>{service.duration} mins</TableCell>
-                        <TableCell>₹{service.price}</TableCell>
-                        <TableCell className="text-right">
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            onClick={() => handleEditService(service)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            onClick={() => confirmDelete(service.id)}
-                          >
-                            <Trash className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
       
-      {/* Confirmation Dialog */}
+      {/* Service Form in Sheet/Drawer */}
+      <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+        <SheetContent className="sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle>{isEditMode ? 'Edit Service' : 'Add New Service'}</SheetTitle>
+            <SheetDescription>
+              {isEditMode 
+                ? 'Update the details of your service.' 
+                : 'Add a new service for your customers to book.'}
+            </SheetDescription>
+          </SheetHeader>
+          <form onSubmit={handleCreateOrUpdateService} className="mt-6 space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="name">Service Name</Label>
+              <Input 
+                id="name" 
+                value={name} 
+                onChange={(e) => setName(e.target.value)} 
+                required 
+                placeholder="e.g. Haircut, Massage, Consultation"
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="price">Price (₹)</Label>
+                <Input 
+                  id="price" 
+                  type="number" 
+                  value={price} 
+                  onChange={(e) => setPrice(e.target.value)} 
+                  required 
+                  placeholder="e.g. 499"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="duration">Duration (mins)</Label>
+                <Input 
+                  id="duration" 
+                  type="number" 
+                  value={duration} 
+                  onChange={(e) => setDuration(e.target.value)} 
+                  required 
+                  placeholder="e.g. 30"
+                />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="description">Description (Optional)</Label>
+              <Textarea 
+                id="description" 
+                value={description} 
+                onChange={(e) => setDescription(e.target.value)} 
+                rows={3} 
+                placeholder="Describe your service in detail..."
+              />
+            </div>
+            
+            <SheetFooter className="flex justify-between items-center">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsSheetOpen(false)}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="bg-booqit-primary hover:bg-booqit-primary/90"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Saving..." : isEditMode ? "Update Service" : "Add Service"}
+              </Button>
+            </SheetFooter>
+          </form>
+        </SheetContent>
+      </Sheet>
+      
+      {/* Delete Confirmation Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
           <DialogHeader>
