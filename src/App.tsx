@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -106,10 +106,7 @@ const App = () => {
                 <Route path="settings" element={<SettingsPage />} />
               </Route>
 
-              {/* Redirect to auth if no route */}
-              <Route path="/" element={<Navigate to="/auth" />} />
-              
-              {/* 404 route */}
+              {/* Redirect root to auth if no match */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
