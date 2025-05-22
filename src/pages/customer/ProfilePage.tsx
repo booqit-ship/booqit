@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -14,6 +13,7 @@ import { User } from '@/types';
 import { User as UserIcon, Phone, Mail, LogOut, Star, Clock, Camera, Edit, Calendar, ChevronRight, CheckCircle } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { format } from 'date-fns';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface BookingHistory {
   id: string;
@@ -356,11 +356,13 @@ const ProfilePage: React.FC = () => {
           
           <div className="md:col-span-3">
             <Tabs defaultValue="account" className="w-full">
-              <TabsList className="mb-4 w-full justify-start overflow-x-auto flex-nowrap">
-                <TabsTrigger value="account" className="px-4">Account Settings</TabsTrigger>
-                <TabsTrigger value="history" className="px-4">Booking History</TabsTrigger>
-                <TabsTrigger value="reviews" className="px-4">Your Reviews</TabsTrigger>
-              </TabsList>
+              <div className="mb-4 flex flex-col sm:flex-row gap-2">
+                <TabsList className="w-full grid grid-cols-3 sm:w-auto sm:flex">
+                  <TabsTrigger value="account" className="px-4 py-2">Account</TabsTrigger>
+                  <TabsTrigger value="history" className="px-4 py-2">Bookings</TabsTrigger>
+                  <TabsTrigger value="reviews" className="px-4 py-2">Reviews</TabsTrigger>
+                </TabsList>
+              </div>
               
               <TabsContent value="account">
                 <Card>
