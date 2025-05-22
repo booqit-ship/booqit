@@ -578,44 +578,14 @@ const ServicesPage: React.FC = () => {
               />
             </div>
             
-            <div className="space-y-2">
-              <Label className="block mb-2">Assigned Stylists</Label>
-              <div className="p-3 border border-input rounded-md bg-muted/10">
-                {selectedStaffIds.length === 0 ? (
-                  <div className="text-sm text-muted-foreground flex items-center">
-                    <Users className="h-4 w-4 mr-2 opacity-70" />
-                    No stylists assigned. Please go to "Manage Stylists" to add them first, then come back to assign them.
-                  </div>
-                ) : (
-                  <>
-                    <p className="text-sm text-muted-foreground mb-2">Currently assigned stylists:</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {merchantId && (
-                        <StaffSelector 
-                          merchantId={merchantId}
-                          serviceId={currentServiceId}
-                          selectedStaffIds={selectedStaffIds}
-                          onChange={setSelectedStaffIds}
-                          readOnly={false}
-                        />
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-              <div className="mt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={openManageStylists}
-                  className="w-full text-sm"
-                >
-                  <Users className="h-3.5 w-3.5 mr-1.5" /> 
-                  Manage Stylists
-                </Button>
-              </div>
-            </div>
+            {merchantId && (
+              <StaffSelector 
+                merchantId={merchantId}
+                serviceId={currentServiceId}
+                selectedStaffIds={selectedStaffIds}
+                onChange={setSelectedStaffIds}
+              />
+            )}
             
             <SheetFooter className="flex justify-between items-center pt-4">
               <Button
@@ -686,6 +656,17 @@ const ServicesPage: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      {/* Floating Add Button */}
+      <div className="fixed bottom-6 right-6 z-10">
+        <Button
+          onClick={openAddNewService}
+          size="icon"
+          className="h-14 w-14 rounded-full shadow-lg bg-booqit-primary hover:bg-booqit-primary/90 animate-fade-in"
+        >
+          <PlusCircle className="h-6 w-6" />
+        </Button>
+      </div>
     </div>
   );
 };
