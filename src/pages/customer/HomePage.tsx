@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Search } from 'lucide-react';
@@ -136,8 +135,7 @@ const HomePage: React.FC = () => {
       const { data: merchants, error } = await supabase
         .from('merchants')
         .select('*')
-        .order('rating', { ascending: false })
-        .limit(5);
+        .order('rating', { ascending: false });
         
       if (error) throw error;
       
@@ -222,7 +220,7 @@ const HomePage: React.FC = () => {
     }
   };
 
-  const getShopImage = (merchant: any) => {
+  const getShopImage = (merchant: Merchant) => {
     if (merchant.image_url) {
       return `https://ggclvurfcykbwmhfftkn.supabase.co/storage/v1/object/public/merchant_images/${merchant.image_url}`;
     }
@@ -308,21 +306,26 @@ const HomePage: React.FC = () => {
                   <Card key={shop.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow">
                     <CardContent className="p-0">
                       <div className="flex">
-                        <div className="w-24 h-24 bg-gray-200 relative">
+                        <div className="w-24 h-24 bg-gray-200 flex-shrink-0 relative">
                           <img 
                             src={getShopImage(shop)} 
                             alt={shop.shop_name}
                             className="absolute inset-0 w-full h-full object-cover"
+                            onError={(e) => {
+                              // Set default image if the image fails to load
+                              const target = e.target as HTMLImageElement;
+                              target.src = 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
+                            }}
                           />
                         </div>
                         <div className="p-3 flex-1">
-                          <div className="flex justify-between">
-                            <h3 className="font-medium text-base">{shop.shop_name}</h3>
-                            <span className="text-sm bg-green-100 text-green-800 px-2 py-0.5 rounded-full flex items-center">
-                              ★ {shop.rating || 'New'}
+                          <div className="flex justify-between items-start">
+                            <h3 className="font-medium text-base line-clamp-1">{shop.shop_name}</h3>
+                            <span className="text-sm bg-green-100 text-green-800 px-2 py-0.5 rounded-full flex items-center whitespace-nowrap">
+                              ★ {shop.rating?.toFixed(1) || 'New'}
                             </span>
                           </div>
-                          <p className="text-sm text-gray-500">{shop.category}</p>
+                          <p className="text-sm text-gray-500 line-clamp-1">{shop.category}</p>
                           <div className="flex justify-between items-center mt-2">
                             <span className="text-xs text-gray-500 flex items-center">
                               <svg className="w-3 h-3 mr-1" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
