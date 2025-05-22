@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -33,14 +32,12 @@ import {
   User, 
   Calendar as CalendarCheck, 
   Phone, 
-  Check, 
   X, 
   Flag, 
   CalendarX,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 interface BookingWithUserDetails extends Booking {
@@ -119,7 +116,8 @@ const CalendarManagementPage: React.FC = () => {
       
       setIsLoading(true);
       try {
-        let query = supabase
+        // Using a simpler query that doesn't try to join with profiles
+        const { data, error } = await supabase
           .from('bookings')
           .select(`
             *,
@@ -127,27 +125,44 @@ const CalendarManagementPage: React.FC = () => {
               name,
               price,
               duration
-            ),
-            profiles(name, email, phone)
+            )
           `)
           .eq('merchant_id', merchantId);
         
-        const { data, error } = await query;
-        
         if (error) throw error;
         
-        // Ensure the status is of the correct type and map the user details
-        const typedBookings: BookingWithUserDetails[] = data.map((booking: any) => ({
-          ...booking,
-          status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
-          user_details: booking.profiles ? {
-            name: booking.profiles.name,
-            email: booking.profiles.email,
-            phone: booking.profiles.phone
-          } : undefined
-        }));
+        // Process the bookings data
+        const processedBookings = await Promise.all(
+          data.map(async (booking) => {
+            // If needed, fetch user details separately
+            if (booking.user_id) {
+              const { data: userData, error: userError } = await supabase
+                .from('profiles')
+                .select('name, email, phone')
+                .eq('id', booking.user_id)
+                .single();
+              
+              if (!userError && userData) {
+                return {
+                  ...booking,
+                  status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
+                  user_details: {
+                    name: userData.name,
+                    email: userData.email,
+                    phone: userData.phone
+                  }
+                };
+              }
+            }
+            
+            return {
+              ...booking,
+              status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled'
+            };
+          })
+        );
         
-        setBookings(typedBookings);
+        setBookings(processedBookings);
       } catch (error: any) {
         toast({
           title: "Error",
@@ -161,7 +176,7 @@ const CalendarManagementPage: React.FC = () => {
     };
     
     fetchBookings();
-  }, [merchantId]);
+  }, [merchantId, toast]);
 
   // Fetch holiday dates for the merchant
   useEffect(() => {
@@ -191,7 +206,7 @@ const CalendarManagementPage: React.FC = () => {
     };
     
     fetchHolidays();
-  }, [merchantId]);
+  }, [merchantId, toast]);
 
   // Filter bookings for the selected day
   const todayBookings = useMemo(() => {
@@ -471,7 +486,7 @@ const CalendarManagementPage: React.FC = () => {
                   onClick={() => !isHolidayDay && setDate(day)}
                   className={`
                     flex-1 transition-all cursor-pointer border-r last:border-r-0 border-gray-100
-                    ${isSelectedDay ? 'ring-2 ring-inset ring-booqit-primary z-10' : ''}
+                    ${isSelectedDay ? 'bg-purple-100 ring-2 ring-inset ring-booqit-primary z-10' : ''}
                     ${isHolidayDay ? 'cursor-not-allowed' : 'hover:bg-gray-50'}
                   `}
                 >
@@ -514,7 +529,7 @@ const CalendarManagementPage: React.FC = () => {
             <CardHeader className="py-3">
               <CardTitle className="text-base sm:text-lg flex items-center">
                 <CalendarCheck className="mr-2 h-4 w-4" />
-                {format(date, 'MMM d, yyyy')} Bookings
+                {format(date, 'MMMM d, yyyy')} Bookings
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -530,7 +545,7 @@ const CalendarManagementPage: React.FC = () => {
                 </div>
               ) : todayBookings.length === 0 ? (
                 <div className="text-center py-6 border rounded-md bg-gray-50">
-                  <Calendar className="h-8 w-8 mx-auto text-gray-400 mb-2" />
+                  <CalendarIcon className="h-8 w-8 mx-auto text-gray-400 mb-2" />
                   <p className="text-gray-500 text-sm">No bookings for this date</p>
                 </div>
               ) : (
