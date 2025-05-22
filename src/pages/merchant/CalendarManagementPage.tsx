@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -71,20 +70,15 @@ const CalendarManagementPage: React.FC = () => {
   // Calculate the 3 or 5 day range centered on the selected date based on screen size
   const visibleDays = useMemo(() => {
     const center = date;
-    return isMobile ? 
-      [
-        subDays(center, 1),
-        center,
-        addDays(center, 1),
-      ] : 
-      [
-        subDays(center, 2),
-        subDays(center, 1),
-        center,
-        addDays(center, 1),
-        addDays(center, 2),
-      ];
-  }, [date, isMobile]);
+    // Always show 5 days, even on mobile
+    return [
+      subDays(center, 2),
+      subDays(center, 1),
+      center,
+      addDays(center, 1),
+      addDays(center, 2),
+    ];
+  }, [date]);
 
   // Fetch merchant ID for the current user
   useEffect(() => {
@@ -367,26 +361,26 @@ const CalendarManagementPage: React.FC = () => {
         <h1 className="text-xl sm:text-2xl font-bold text-booqit-dark">Calendar Management</h1>
       </div>
       
-      {/* Compact Calendar View */}
+      {/* Compact Calendar View with improved mobile layout */}
       <Card className="mb-4 overflow-hidden shadow-sm">
-        <CardHeader className="bg-gradient-to-r from-booqit-primary/5 to-booqit-primary/10 py-3">
+        <CardHeader className="bg-gradient-to-r from-booqit-primary/5 to-booqit-primary/10 py-2">
           <div className="flex justify-between items-center">
-            <CardTitle className="text-booqit-dark text-base sm:text-lg">Appointments</CardTitle>
-            <div className="flex items-center space-x-1 sm:space-x-2">
+            <CardTitle className="text-booqit-dark text-sm sm:text-lg">Appointments</CardTitle>
+            <div className="flex items-center space-x-1">
               <Button 
                 variant="outline"
                 size="sm"
-                className="h-7 w-7 p-0"
+                className="h-6 w-6 p-0"
                 onClick={goToPrevious}
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-3 w-3" />
                 <span className="sr-only">Previous</span>
               </Button>
               
               <Button 
                 variant="outline"
                 size="sm"
-                className="h-7 text-xs font-medium"
+                className="h-6 text-xs font-medium px-1.5"
                 onClick={goToToday}
               >
                 Today
@@ -395,10 +389,10 @@ const CalendarManagementPage: React.FC = () => {
               <Button 
                 variant="outline"
                 size="sm"
-                className="h-7 w-7 p-0"
+                className="h-6 w-6 p-0"
                 onClick={goToNext}
               >
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-3 w-3" />
                 <span className="sr-only">Next</span>
               </Button>
               
@@ -407,14 +401,14 @@ const CalendarManagementPage: React.FC = () => {
                   <Button 
                     variant="outline"
                     size="sm"
-                    className="h-7 ml-1"
+                    className="h-6 ml-1 px-1.5"
                     onClick={() => {
                       setNewHoliday(date);
                       setHolidayDialogOpen(true);
                     }}
                   >
                     <Flag className="h-3 w-3 mr-1" />
-                    <span className="text-xs">Holiday</span>
+                    <span className="text-xs hidden xs:inline">Holiday</span>
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-[350px] sm:max-w-md">
@@ -492,33 +486,33 @@ const CalendarManagementPage: React.FC = () => {
                   onClick={() => !isHolidayDay && setDate(day)}
                   className={`
                     flex-1 transition-all cursor-pointer border-r last:border-r-0 border-gray-100
-                    ${isSelectedDay ? 'bg-purple-100 ring-2 ring-inset ring-booqit-primary z-10' : ''}
+                    ${isSelectedDay ? 'bg-purple-100 ring-1 ring-inset ring-booqit-primary z-10' : ''}
                     ${isHolidayDay ? 'cursor-not-allowed' : 'hover:bg-gray-50'}
                   `}
                 >
                   <div className={`
-                    flex flex-col items-center justify-center p-2 sm:p-3
+                    flex flex-col items-center justify-center p-1 sm:p-2
                     ${isCurrentDay ? 'bg-booqit-primary text-white' : ''}
                     ${isHolidayDay ? 'bg-red-500 text-white' : ''}
                   `}>
-                    <div className="text-[10px] sm:text-xs uppercase font-medium tracking-wider">
+                    <div className="text-[8px] xs:text-[10px] sm:text-xs uppercase font-medium tracking-wider">
                       {format(day, 'EEE')}
                     </div>
-                    <div className="text-lg sm:text-2xl font-bold my-1">
+                    <div className="text-base xs:text-lg sm:text-xl font-bold my-0.5">
                       {format(day, 'd')}
                     </div>
-                    <div className="text-[10px] sm:text-xs">
+                    <div className="text-[8px] xs:text-[10px] sm:text-xs">
                       {format(day, 'MMM')}
                     </div>
                   </div>
                   
-                  <div className="py-1 px-1 text-center text-[10px] sm:text-xs font-medium">
+                  <div className="py-0.5 px-1 text-center text-[8px] xs:text-[10px] sm:text-xs font-medium">
                     {isHolidayDay ? (
-                      <span className="text-red-500">Holiday</span>
+                      <span className="text-red-500 text-[7px] xs:text-[8px] sm:text-xs">Holiday</span>
                     ) : bookingsCount > 0 ? (
-                      <span>{bookingsCount} {bookingsCount === 1 ? 'appt' : 'appts'}</span>
+                      <span className="text-[7px] xs:text-[8px] sm:text-xs">{bookingsCount} {bookingsCount === 1 ? 'appt' : 'appts'}</span>
                     ) : (
-                      <span className="text-gray-400">-</span>
+                      <span className="text-gray-400 text-[7px] xs:text-[8px] sm:text-xs">-</span>
                     )}
                   </div>
                 </div>
@@ -532,8 +526,8 @@ const CalendarManagementPage: React.FC = () => {
         {/* Today's Bookings */}
         <div className="sm:col-span-2">
           <Card>
-            <CardHeader className="py-3">
-              <CardTitle className="text-base sm:text-lg flex items-center">
+            <CardHeader className="py-2">
+              <CardTitle className="text-sm sm:text-lg flex items-center">
                 <CalendarCheck className="mr-2 h-4 w-4" />
                 {format(date, 'MMMM d, yyyy')} Bookings
               </CardTitle>
@@ -641,8 +635,8 @@ const CalendarManagementPage: React.FC = () => {
         {/* Holiday List */}
         <div className="sm:col-span-1">
           <Card>
-            <CardHeader className="py-3">
-              <CardTitle className="text-base sm:text-lg flex items-center">
+            <CardHeader className="py-2">
+              <CardTitle className="text-sm sm:text-lg flex items-center">
                 <Flag className="mr-2 h-4 w-4 text-red-500" />
                 Shop Holidays
               </CardTitle>
