@@ -7,13 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet';
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -21,7 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Table,
@@ -34,7 +33,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Booking } from '@/types';
-import { format, parseISO, addDays, subDays, isSameDay, isAfter, isBefore, startOfDay } from 'date-fns';
+import { format, parseISO, addDays, subDays, isSameDay, startOfDay } from 'date-fns';
 import { 
   CalendarIcon, 
   Clock, 
@@ -273,8 +272,6 @@ const CalendarManagementPage: React.FC = () => {
 
   // Delete a holiday date
   const deleteHolidayDate = async (holidayId: string) => {
-    if (!merchantId) return;
-    
     try {
       const { error } = await supabase
         .from('shop_holidays')
@@ -299,12 +296,7 @@ const CalendarManagementPage: React.FC = () => {
     }
   };
 
-  // Check if a date is a holiday
-  const isHoliday = (date: Date) => {
-    return holidays.some(holiday => 
-      isSameDay(parseISO(holiday.holiday_date), date)
-    );
-  };
+  const holidayDates = holidays.map(h => parseISO(h.holiday_date));
 
   // Get status badge color
   const getStatusColor = (status: string) => {
@@ -324,175 +316,43 @@ const CalendarManagementPage: React.FC = () => {
         <p className="text-booqit-dark/70">View and manage your appointment schedule</p>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-        {/* Left Sidebar */}
-        <div className="md:col-span-4">
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex justify-between items-center">
-                  <span>Calendar</span>
-                  <Sheet>
-                    <SheetTrigger asChild>
-                      <Button variant="outline" size="sm" className="flex items-center">
-                        <Flag className="mr-2 h-4 w-4" />
-                        Mark Holiday
-                      </Button>
-                    </SheetTrigger>
-                    <SheetContent>
-                      <SheetHeader>
-                        <SheetTitle>Mark Shop Holiday</SheetTitle>
-                        <SheetDescription>
-                          Select a date to mark as a shop holiday. Customers won't be able to book appointments on holiday dates.
-                        </SheetDescription>
-                      </SheetHeader>
-                      <div className="mt-6 space-y-4">
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">Select Date</label>
-                          <Calendar
-                            mode="single"
-                            selected={newHoliday}
-                            onSelect={setNewHoliday}
-                            className="border rounded-md"
-                            modifiers={{
-                              holiday: holidays.map(h => parseISO(h.holiday_date))
-                            }}
-                            modifiersClassNames={{
-                              holiday: "bg-red-100 text-red-600 hover:bg-red-200 hover:text-red-700 rounded-full"
-                            }}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">Description (Optional)</label>
-                          <Textarea 
-                            placeholder="Add description for this holiday"
-                            value={holidayDescription}
-                            onChange={(e) => setHolidayDescription(e.target.value)}
-                            className="resize-none"
-                          />
-                        </div>
-                        <Button 
-                          onClick={addHolidayDate}
-                          className="w-full"
-                        >
-                          Mark as Holiday
-                        </Button>
-                      </div>
-                    </SheetContent>
-                  </Sheet>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Calendar
-                  mode="single"
-                  selected={date}
-                  onSelect={(d) => d && setDate(d)}
-                  className="rounded-md border"
-                  modifiers={{
-                    holiday: holidays.map(h => parseISO(h.holiday_date))
-                  }}
-                  modifiersClassNames={{
-                    holiday: "bg-red-100 text-red-600 hover:bg-red-200 hover:text-red-700 rounded-full"
-                  }}
-                />
-              </CardContent>
-            </Card>
+      <div className="mb-8">
+        {/* Simplified 5-Day View */}
+        <Card className="mb-6">
+          <CardContent className="p-4">
+            <div className="flex justify-between items-center mb-4">
+              <Button 
+                variant="outline" 
+                onClick={() => setDate(subDays(date, 5))}
+                size="sm"
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Previous
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                onClick={() => setDate(new Date())}
+                size="sm"
+              >
+                Today
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                onClick={() => setDate(addDays(date, 5))}
+                size="sm"
+              >
+                Next
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </div>
             
-            <Card>
-              <CardHeader>
-                <CardTitle>Filters</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Date</label>
-                  <Button 
-                    variant="outline" 
-                    className="w-full justify-start text-left font-normal"
-                    onClick={() => setDate(new Date())}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(date, 'PPP')}
-                  </Button>
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Status</label>
-                  <Select 
-                    value={statusFilter} 
-                    onValueChange={(value) => setStatusFilter(value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="All statuses" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All statuses</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="confirmed">Confirmed</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle>Shop Holidays</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {isHolidayLoading ? (
-                  <div className="flex justify-center py-10">
-                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-booqit-primary"></div>
-                  </div>
-                ) : holidays.length === 0 ? (
-                  <div className="text-center py-10 border rounded-md">
-                    <CalendarX className="h-12 w-12 mx-auto text-booqit-dark/30 mb-2" />
-                    <p className="text-booqit-dark/60">No holidays marked yet</p>
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Description</TableHead>
-                        <TableHead className="text-right">Action</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {holidays
-                        .sort((a, b) => new Date(a.holiday_date).getTime() - new Date(b.holiday_date).getTime())
-                        .map((holiday) => (
-                          <TableRow key={holiday.id}>
-                            <TableCell className="font-medium">{format(parseISO(holiday.holiday_date), 'MMM dd, yyyy')}</TableCell>
-                            <TableCell>{holiday.description || 'No description'}</TableCell>
-                            <TableCell className="text-right">
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => deleteHolidayDate(holiday.id)}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-        
-        {/* Main Content */}
-        <div className="md:col-span-8">
-          {/* 5-Day View */}
-          <div className="mb-6">
             <div className="flex space-x-1 md:space-x-4 justify-between">
               {visibleDays.map((day, index) => {
                 const isToday = isSameDay(day, new Date());
-                const isHolidayDate = isHoliday(day);
+                const isHolidayDate = holidayDates.some(h => isSameDay(h, day));
+                const bookingsForDay = filteredBookings.filter(b => isSameDay(parseISO(b.date), day));
                 
                 return (
                   <div 
@@ -521,7 +381,7 @@ const CalendarManagementPage: React.FC = () => {
                       
                       <div className="mt-2">
                         <span className="text-xs font-medium">
-                          {filteredBookings.filter(b => isSameDay(parseISO(b.date), day)).length} bookings
+                          {bookingsForDay.length} bookings
                         </span>
                       </div>
                     </div>
@@ -529,8 +389,109 @@ const CalendarManagementPage: React.FC = () => {
                 );
               })}
             </div>
+          </CardContent>
+        </Card>
+        
+        {/* Filter and Holiday Management Row */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-6">
+          <div className="md:col-span-9">
+            <Card>
+              <CardHeader className="py-3">
+                <div className="flex justify-between items-center">
+                  <CardTitle>Filter Bookings</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="py-2">
+                <div className="flex flex-wrap gap-3">
+                  <Select 
+                    value={statusFilter} 
+                    onValueChange={(value) => setStatusFilter(value)}
+                  >
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All statuses</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="confirmed">Confirmed</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
           </div>
           
+          <div className="md:col-span-3">
+            <Card>
+              <CardHeader className="py-3">
+                <CardTitle className="flex justify-between items-center">
+                  <span>Manage</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="py-2">
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button className="w-full">
+                      <Flag className="mr-2 h-4 w-4" />
+                      Mark Holiday
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Mark Shop Holiday</DialogTitle>
+                      <DialogDescription>
+                        Select a date to mark as a shop holiday. Customers won't be able to book on these dates.
+                      </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="mt-4 space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Select Date</label>
+                        <Calendar
+                          mode="single"
+                          selected={newHoliday}
+                          onSelect={setNewHoliday}
+                          className="border rounded-md"
+                          modifiers={{
+                            holiday: holidayDates
+                          }}
+                          modifiersStyles={{
+                            holiday: { backgroundColor: "#fee2e2", color: "#ef4444", fontWeight: "bold" }
+                          }}
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Description (Optional)</label>
+                        <Textarea 
+                          placeholder="Add description for this holiday"
+                          value={holidayDescription}
+                          onChange={(e) => setHolidayDescription(e.target.value)}
+                          className="resize-none"
+                        />
+                      </div>
+                      
+                      <Button 
+                        onClick={addHolidayDate}
+                        className="w-full"
+                      >
+                        Mark as Holiday
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+      
+      {/* Main Content: Booking Details and Holidays */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+        {/* Booking Details */}
+        <div className="md:col-span-8">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center">
@@ -610,7 +571,7 @@ const CalendarManagementPage: React.FC = () => {
                               <>
                                 <Separator className="my-4" />
                                 
-                                <div className="flex justify-end space-y-2 flex-col">
+                                <div className="flex justify-end gap-2">
                                   {booking.status === 'pending' && (
                                     <Button 
                                       variant="default"
@@ -651,6 +612,56 @@ const CalendarManagementPage: React.FC = () => {
                       </Card>
                     ))}
                 </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+        
+        {/* Holiday List */}
+        <div className="md:col-span-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Shop Holidays</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isHolidayLoading ? (
+                <div className="flex justify-center py-10">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-booqit-primary"></div>
+                </div>
+              ) : holidays.length === 0 ? (
+                <div className="text-center py-10 border rounded-md">
+                  <CalendarX className="h-12 w-12 mx-auto text-booqit-dark/30 mb-2" />
+                  <p className="text-booqit-dark/60">No holidays marked yet</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {holidays
+                      .sort((a, b) => new Date(a.holiday_date).getTime() - new Date(b.holiday_date).getTime())
+                      .map((holiday) => (
+                        <TableRow key={holiday.id}>
+                          <TableCell className="font-medium">{format(parseISO(holiday.holiday_date), 'MMM dd, yyyy')}</TableCell>
+                          <TableCell>{holiday.description || 'No description'}</TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => deleteHolidayDate(holiday.id)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
               )}
             </CardContent>
           </Card>

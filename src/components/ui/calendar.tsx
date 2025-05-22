@@ -50,7 +50,6 @@ function Calendar({
         day_range_middle:
           "aria-selected:bg-accent aria-selected:text-accent-foreground",
         day_hidden: "invisible",
-        day_holiday: "bg-red-100 text-red-600 hover:bg-red-200 hover:text-red-700 rounded-full",
         ...classNames,
       }}
       components={{
