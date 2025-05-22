@@ -52,9 +52,17 @@ const ReceiptPage: React.FC = () => {
         if (bookingError) throw bookingError;
         
         if (bookingData) {
-          setBooking(bookingData);
-          setService(bookingData.service);
-          setMerchant(bookingData.merchant);
+          // Use type assertion to ensure data conforms to our Booking type
+          // This ensures the status field is correctly typed
+          const typedBooking = {
+            ...bookingData,
+            status: bookingData.status as "pending" | "confirmed" | "completed" | "cancelled",
+            payment_status: bookingData.payment_status as "pending" | "completed" | "failed" | "refunded"
+          } as Booking;
+          
+          setBooking(typedBooking);
+          setService(bookingData.service as Service);
+          setMerchant(bookingData.merchant as Merchant);
         }
       } catch (error) {
         console.error('Error fetching booking details:', error);
