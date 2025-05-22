@@ -8,15 +8,13 @@ import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { Booking } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
-import { format, parseISO, addDays, subDays, isSameDay } from 'date-fns';
+import { format, parseISO, addDays, isSameDay } from 'date-fns';
 import {
   Calendar as CalendarIcon,
   Clock,
   Store,
   Check,
   X,
-  ChevronLeft,
-  ChevronRight,
   CalendarX
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -29,18 +27,11 @@ const CalendarPage: React.FC = () => {
   const { userId } = useAuth();
   const isMobile = useIsMobile();
 
-  // Calculate the visible days based on the selected date
+  // Calculate the visible days based on the selected date (today + next 6 days)
   const visibleDays = useMemo(() => {
-    const center = date;
-    // Show 5 days centered around the selected date
-    return [
-      subDays(center, 2),
-      subDays(center, 1),
-      center,
-      addDays(center, 1),
-      addDays(center, 2),
-    ];
-  }, [date]);
+    const today = new Date();
+    return Array.from({ length: 7 }, (_, i) => addDays(today, i));
+  }, []);
 
   // Fetch bookings for the user with real-time updates
   useEffect(() => {
@@ -155,18 +146,9 @@ const CalendarPage: React.FC = () => {
   const getBookingsCountForDay = (day: Date) => {
     return bookings.filter(b => isSameDay(parseISO(b.date), day)).length;
   };
-
-  // Navigate to previous set of days
-  const goToPrevious = () => setDate(subDays(date, 5));
   
-  // Navigate to next set of days
-  const goToNext = () => setDate(addDays(date, 5));
-  
-  // Navigate to today
+  // Go to today
   const goToToday = () => setDate(new Date());
-  
-  // Get dates with bookings for calendar highlighting
-  const datesWithBookings = bookings.map(booking => parseISO(booking.date));
 
   return (
     <div className="container mx-auto px-2 sm:px-4 py-4">
@@ -183,30 +165,10 @@ const CalendarPage: React.FC = () => {
               <Button 
                 variant="outline"
                 size="sm"
-                className="h-8 w-8 p-0 rounded-full"
-                onClick={goToPrevious}
-              >
-                <ChevronLeft className="h-4 w-4" />
-                <span className="sr-only">Previous</span>
-              </Button>
-              
-              <Button 
-                variant="outline"
-                size="sm"
                 className="h-8 text-xs font-medium px-2"
                 onClick={goToToday}
               >
                 Today
-              </Button>
-              
-              <Button 
-                variant="outline"
-                size="sm"
-                className="h-8 w-8 p-0 rounded-full"
-                onClick={goToNext}
-              >
-                <ChevronRight className="h-4 w-4" />
-                <span className="sr-only">Next</span>
               </Button>
             </div>
           </div>
@@ -217,7 +179,6 @@ const CalendarPage: React.FC = () => {
             {visibleDays.map((day, index) => {
               const isCurrentDay = isSameDay(day, new Date());
               const isSelectedDay = isSameDay(day, date);
-              const bookingsCount = getBookingsCountForDay(day);
               
               return (
                 <div 
@@ -242,14 +203,6 @@ const CalendarPage: React.FC = () => {
                     <div className="text-[10px] xs:text-xs sm:text-xs">
                       {format(day, 'MMM')}
                     </div>
-                  </div>
-                  
-                  <div className="py-1 px-1 text-center text-[10px] xs:text-xs sm:text-xs font-medium">
-                    {bookingsCount > 0 ? (
-                      <span className="text-[9px] xs:text-xs">{bookingsCount} {bookingsCount === 1 ? 'appt' : 'appts'}</span>
-                    ) : (
-                      <span className="text-gray-400 text-[9px] xs:text-xs">-</span>
-                    )}
                   </div>
                 </div>
               );
