@@ -222,6 +222,7 @@ const HomePage: React.FC = () => {
 
   const getShopImage = (merchant: Merchant) => {
     if (merchant.image_url) {
+      // Use the proper path to the merchant images in Supabase storage
       return `https://ggclvurfcykbwmhfftkn.supabase.co/storage/v1/object/public/merchant_images/${merchant.image_url}`;
     }
     // Return a default image if no image URL exists
@@ -306,11 +307,11 @@ const HomePage: React.FC = () => {
                   <Card key={shop.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow">
                     <CardContent className="p-0">
                       <div className="flex">
-                        <div className="w-24 h-24 bg-gray-200 flex-shrink-0 relative">
+                        <div className="w-24 h-24 bg-gray-200 flex-shrink-0">
                           <img 
                             src={getShopImage(shop)} 
                             alt={shop.shop_name}
-                            className="absolute inset-0 w-full h-full object-cover"
+                            className="w-full h-full object-cover"
                             onError={(e) => {
                               // Set default image if the image fails to load
                               const target = e.target as HTMLImageElement;
