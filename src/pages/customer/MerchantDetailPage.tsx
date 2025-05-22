@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Clock, MapPin, CalendarIcon, Star } from 'lucide-react';
@@ -15,6 +14,7 @@ const MerchantDetailPage: React.FC = () => {
   const [merchant, setMerchant] = useState<Merchant | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
     const fetchMerchantDetails = async () => {
@@ -38,6 +38,7 @@ const MerchantDetailPage: React.FC = () => {
           
         if (servicesError) throw servicesError;
         
+        console.log('Merchant data:', merchantData);
         setMerchant(merchantData);
         setServices(servicesData || []);
       } catch (error) {
@@ -58,9 +59,20 @@ const MerchantDetailPage: React.FC = () => {
 
   const getMerchantImage = (merchant: Merchant) => {
     if (merchant.image_url) {
+      // Return the direct image URL if it already includes https://
+      if (merchant.image_url.startsWith('http')) {
+        return merchant.image_url;
+      }
+      // Otherwise, construct the full Supabase storage URL
       return `https://ggclvurfcykbwmhfftkn.supabase.co/storage/v1/object/public/merchant_images/${merchant.image_url}`;
     }
+    // Fallback image
     return 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
+  };
+
+  const handleImageError = () => {
+    console.error('Failed to load merchant image');
+    setImageError(true);
   };
 
   const handleBookService = (serviceId: string) => {
@@ -88,13 +100,10 @@ const MerchantDetailPage: React.FC = () => {
     <div className="pb-20">
       <div className="relative h-64 bg-gray-200">
         <img 
-          src={getMerchantImage(merchant)} 
+          src={imageError ? 'https://images.unsplash.com/photo-1582562124811-c09040d0a901' : getMerchantImage(merchant)} 
           alt={merchant.shop_name} 
           className="w-full h-full object-cover"
-          onError={(e) => {
-            const target = e.target as HTMLImageElement;
-            target.src = 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
-          }}
+          onError={handleImageError}
         />
         <Button 
           variant="outline" 
