@@ -1,3 +1,4 @@
+
 export type UserRole = 'customer' | 'merchant';
 
 export interface User {
@@ -46,6 +47,7 @@ export interface Service {
   description: string;
   image_url?: string;
   created_at: string;
+  assigned_staff?: Staff[]; // Add this field to track assigned staff
 }
 
 export interface Booking {

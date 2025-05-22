@@ -21,7 +21,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { Service } from '@/types';
+import { Service, Staff } from '@/types';
 import { PlusCircle, Edit, Trash, Loader2 } from 'lucide-react';
 import { 
   Dialog, 
@@ -39,6 +39,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import StaffSelector from '@/components/merchant/StaffSelector';
+import AssignedStaff from '@/components/merchant/AssignedStaff';
 
 const ServicesPage: React.FC = () => {
   const [services, setServices] = useState<Service[]>([]);
@@ -52,6 +54,7 @@ const ServicesPage: React.FC = () => {
   const [price, setPrice] = useState('');
   const [duration, setDuration] = useState('');
   const [description, setDescription] = useState('');
+  const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
   
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -119,6 +122,7 @@ const ServicesPage: React.FC = () => {
     setPrice('');
     setDuration('');
     setDescription('');
+    setSelectedStaffIds([]);
     setIsEditMode(false);
     setCurrentServiceId(null);
   };
@@ -130,6 +134,16 @@ const ServicesPage: React.FC = () => {
       toast({
         title: "Error",
         description: "Merchant information not found. Please complete onboarding first.",
+      });
+      return;
+    }
+    
+    // Validate that at least one staff is selected
+    if (selectedStaffIds.length === 0) {
+      toast({
+        title: "Error",
+        description: "Please assign at least one stylist to this service.",
+        variant: "destructive"
       });
       return;
     }
@@ -149,6 +163,9 @@ const ServicesPage: React.FC = () => {
           .eq('id', currentServiceId);
           
         if (error) throw error;
+        
+        // Update staff-service relationships
+        await updateStaffServiceRelationships(currentServiceId, selectedStaffIds);
         
         // Update local state
         setServices(services.map(service => 
@@ -182,8 +199,13 @@ const ServicesPage: React.FC = () => {
           
         if (error) throw error;
         
+        const newService = data[0] as Service;
+        
+        // Update staff-service relationships
+        await updateStaffServiceRelationships(newService.id, selectedStaffIds);
+        
         // Update local state
-        setServices([...services, data[0] as Service]);
+        setServices([...services, newService]);
         
         toast({
           title: "Success",
@@ -203,13 +225,67 @@ const ServicesPage: React.FC = () => {
     }
   };
 
-  const handleEditService = (service: Service) => {
+  // Helper function to update staff-service relationships
+  const updateStaffServiceRelationships = async (serviceId: string, staffIds: string[]) => {
+    try {
+      // First, get all staff
+      const { data: allStaff, error: staffError } = await supabase
+        .from('staff')
+        .select('*');
+        
+      if (staffError) throw staffError;
+      
+      // For each staff member, update their assigned_service_ids accordingly
+      for (const staff of allStaff as Staff[]) {
+        let assigned_service_ids = [...(staff.assigned_service_ids || [])];
+        
+        // If staff should be assigned to this service, add if not already present
+        if (staffIds.includes(staff.id)) {
+          if (!assigned_service_ids.includes(serviceId)) {
+            assigned_service_ids.push(serviceId);
+          }
+        } 
+        // If staff should not be assigned to this service, remove if present
+        else {
+          assigned_service_ids = assigned_service_ids.filter(id => id !== serviceId);
+        }
+        
+        // Update the staff record
+        const { error: updateError } = await supabase
+          .from('staff')
+          .update({ assigned_service_ids })
+          .eq('id', staff.id);
+          
+        if (updateError) throw updateError;
+      }
+    } catch (error) {
+      console.error('Error updating staff-service relationships:', error);
+      throw error;
+    }
+  };
+
+  const handleEditService = async (service: Service) => {
     setName(service.name);
     setPrice(service.price.toString());
     setDuration(service.duration.toString());
     setDescription(service.description || '');
     setIsEditMode(true);
     setCurrentServiceId(service.id);
+    
+    // Fetch staff assigned to this service
+    try {
+      const { data, error } = await supabase
+        .from('staff')
+        .select('*')
+        .contains('assigned_service_ids', [service.id]);
+        
+      if (error) throw error;
+      
+      setSelectedStaffIds((data as Staff[]).map(staff => staff.id));
+    } catch (error) {
+      console.error('Error fetching service staff:', error);
+    }
+    
     setIsSheetOpen(true);
   };
 
@@ -223,6 +299,26 @@ const ServicesPage: React.FC = () => {
     
     setIsDeleting(true);
     try {
+      // First, remove this service from all staff assigned_service_ids
+      const { data: assignedStaff, error: staffError } = await supabase
+        .from('staff')
+        .select('*')
+        .contains('assigned_service_ids', [deleteId]);
+        
+      if (staffError) throw staffError;
+      
+      for (const staff of assignedStaff as Staff[]) {
+        const assigned_service_ids = staff.assigned_service_ids.filter(id => id !== deleteId);
+        
+        const { error: updateError } = await supabase
+          .from('staff')
+          .update({ assigned_service_ids })
+          .eq('id', staff.id);
+          
+        if (updateError) throw updateError;
+      }
+      
+      // Now delete the service
       const { error } = await supabase
         .from('services')
         .delete()
@@ -299,9 +395,10 @@ const ServicesPage: React.FC = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-1/3">Service Name</TableHead>
+                    <TableHead className="w-1/4">Service Name</TableHead>
                     <TableHead className="text-center">Duration</TableHead>
                     <TableHead className="text-center">Price</TableHead>
+                    <TableHead className="w-1/3">Assigned Stylists</TableHead>
                     <TableHead className="text-right w-28">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -311,6 +408,9 @@ const ServicesPage: React.FC = () => {
                       <TableCell className="font-medium">{service.name}</TableCell>
                       <TableCell className="text-center">{service.duration} mins</TableCell>
                       <TableCell className="text-center">₹{service.price}</TableCell>
+                      <TableCell>
+                        <AssignedStaff serviceId={service.id} />
+                      </TableCell>
                       <TableCell className="text-right space-x-1">
                         <Button 
                           variant="ghost" 
@@ -400,6 +500,15 @@ const ServicesPage: React.FC = () => {
               />
             </div>
             
+            {merchantId && (
+              <StaffSelector 
+                merchantId={merchantId}
+                serviceId={currentServiceId}
+                selectedStaffIds={selectedStaffIds}
+                onChange={setSelectedStaffIds}
+              />
+            )}
+            
             <SheetFooter className="flex justify-between items-center pt-4">
               <Button
                 type="button"
@@ -412,7 +521,7 @@ const ServicesPage: React.FC = () => {
               <Button
                 type="submit"
                 className="bg-booqit-primary hover:bg-booqit-primary/90"
-                disabled={isSubmitting}
+                disabled={isSubmitting || selectedStaffIds.length === 0}
               >
                 {isSubmitting ? (
                   <>
