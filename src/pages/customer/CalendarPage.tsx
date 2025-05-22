@@ -9,13 +9,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { Booking } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { format, parseISO, addDays, isSameDay } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 import {
   Calendar as CalendarIcon,
   Clock,
   Store,
   Check,
   X,
-  CalendarX
+  CalendarX,
+  Search
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -26,6 +28,7 @@ const CalendarPage: React.FC = () => {
   const { toast } = useToast();
   const { userId } = useAuth();
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
 
   // Calculate the visible days based on the selected date (today + next 6 days)
   const visibleDays = useMemo(() => {
@@ -149,6 +152,11 @@ const CalendarPage: React.FC = () => {
   
   // Go to today
   const goToToday = () => setDate(new Date());
+  
+  // Navigate to explore services page
+  const handleExploreServices = () => {
+    navigate('/search');
+  };
 
   return (
     <div className="container mx-auto px-2 sm:px-4 py-4">
@@ -230,6 +238,15 @@ const CalendarPage: React.FC = () => {
                 <div className="text-center py-6 border rounded-md bg-gray-50">
                   <CalendarX className="h-8 w-8 mx-auto text-gray-400 mb-2" />
                   <p className="text-gray-500 text-sm">No bookings for this date</p>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="mt-3 bg-white border-booqit-primary text-booqit-primary hover:bg-booqit-primary hover:text-white transition-colors"
+                    onClick={handleExploreServices}
+                  >
+                    <Search className="w-4 h-4 mr-2" />
+                    Find Services
+                  </Button>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -286,13 +303,27 @@ const CalendarPage: React.FC = () => {
       </div>
       
       <div className="mt-6">
-        <h2 className="text-lg font-semibold mb-4">Upcoming Bookings</h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold">Upcoming Bookings</h2>
+          <Button 
+            variant="outline" 
+            onClick={handleExploreServices}
+            className="text-sm border-booqit-primary text-booqit-primary hover:bg-booqit-primary hover:text-white"
+          >
+            <Search className="w-4 h-4 mr-2" />
+            Explore Services
+          </Button>
+        </div>
         
         {bookings.length === 0 ? (
           <div className="text-center py-10 border rounded-md">
             <CalendarX className="h-8 w-8 mx-auto text-booqit-dark/30 mb-2" />
             <p className="text-booqit-dark/60 text-sm">You don't have any bookings yet.</p>
-            <Button className="mt-4 bg-booqit-primary" onClick={() => window.location.href = '/search'}>
+            <Button 
+              className="mt-4 bg-booqit-primary" 
+              onClick={handleExploreServices}
+            >
+              <Search className="w-4 h-4 mr-2" />
               Explore Services
             </Button>
           </div>
@@ -334,6 +365,21 @@ const CalendarPage: React.FC = () => {
                   </CardContent>
                 </Card>
               ))}
+              
+            {bookings.filter(booking => booking.status !== 'cancelled' && booking.status !== 'completed').length > 3 && (
+              <div className="text-center mt-4">
+                <Button
+                  variant="link"
+                  className="text-booqit-primary"
+                  onClick={() => {
+                    // Scroll to the top to show all bookings
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                >
+                  View all upcoming bookings
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>
