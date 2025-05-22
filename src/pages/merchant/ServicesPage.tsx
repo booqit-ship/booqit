@@ -352,21 +352,23 @@ const ServicesPage: React.FC = () => {
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-6xl">
-      <div className="mb-8 text-center">
-        <h1 className="text-3xl font-bold text-booqit-dark">Service Management</h1>
-        <p className="text-booqit-dark/70 mt-2 mb-6">Create and manage the services you offer to your customers</p>
-        <Button 
-          onClick={openAddNewService} 
-          size="lg"
-          className="bg-booqit-primary hover:bg-booqit-primary/90 mx-auto"
-        >
-          <PlusCircle className="mr-2 h-5 w-5" /> Add New Service
-        </Button>
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-booqit-dark text-center">Service Management</h1>
+        <p className="text-booqit-dark/70 mt-2 mb-6 text-center">Create and manage the services you offer to your customers</p>
+        <div className="flex justify-center">
+          <Button 
+            onClick={openAddNewService} 
+            size="lg"
+            className="bg-booqit-primary hover:bg-booqit-primary/90"
+          >
+            <PlusCircle className="mr-2 h-5 w-5" /> Add New Service
+          </Button>
+        </div>
       </div>
       
       <Card className="shadow-md">
         <CardHeader className="border-b bg-muted/30">
-          <CardTitle>Your Services</CardTitle>
+          <CardTitle className="text-xl font-bold text-booqit-dark">Your Services</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
@@ -394,24 +396,27 @@ const ServicesPage: React.FC = () => {
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-1/4">Service Name</TableHead>
-                    <TableHead className="text-center">Duration</TableHead>
-                    <TableHead className="text-center">Price</TableHead>
-                    <TableHead className="w-1/3">Assigned Stylists</TableHead>
-                    <TableHead className="text-right w-28">Actions</TableHead>
+                  <TableRow className="bg-muted/10">
+                    <TableHead className="w-1/4 py-3 text-booqit-dark/90 font-medium">Service Name</TableHead>
+                    <TableHead className="text-center py-3 text-booqit-dark/90 font-medium">Duration</TableHead>
+                    <TableHead className="text-center py-3 text-booqit-dark/90 font-medium">Price</TableHead>
+                    <TableHead className="w-1/3 py-3 text-booqit-dark/90 font-medium">Assigned Stylists</TableHead>
+                    <TableHead className="text-right w-28 py-3 text-booqit-dark/90 font-medium">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {services.map((service) => (
-                    <TableRow key={service.id} className="hover:bg-muted/30">
-                      <TableCell className="font-medium">{service.name}</TableCell>
-                      <TableCell className="text-center">{service.duration} mins</TableCell>
-                      <TableCell className="text-center">₹{service.price}</TableCell>
-                      <TableCell>
-                        <AssignedStaff serviceId={service.id} />
+                    <TableRow 
+                      key={service.id} 
+                      className="hover:bg-muted/20 border-b border-gray-100"
+                    >
+                      <TableCell className="font-medium py-4">{service.name}</TableCell>
+                      <TableCell className="text-center py-4">{service.duration} mins</TableCell>
+                      <TableCell className="text-center py-4">₹{service.price}</TableCell>
+                      <TableCell className="py-4">
+                        <AssignedStaff serviceId={service.id} maxDisplay={2} />
                       </TableCell>
-                      <TableCell className="text-right space-x-1">
+                      <TableCell className="text-right space-x-1.5 py-4">
                         <Button 
                           variant="ghost" 
                           size="icon" 
