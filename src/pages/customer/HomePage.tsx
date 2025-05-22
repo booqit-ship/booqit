@@ -226,8 +226,11 @@ const HomePage: React.FC = () => {
   };
   const getShopImage = (merchant: Merchant) => {
     if (merchant.image_url && merchant.image_url.trim() !== '') {
-      console.log("Merchant image URL:", merchant.image_url); // Debug log
-      // Construct the public URL for Supabase storage
+      // Return the direct image URL if it already includes https://
+      if (merchant.image_url.startsWith('http')) {
+        return merchant.image_url;
+      }
+      // Otherwise, construct the full Supabase storage URL
       return `https://ggclvurfcykbwmhfftkn.supabase.co/storage/v1/object/public/merchant_images/${merchant.image_url}`;
     }
     // Return a default image if no image URL exists
@@ -236,7 +239,8 @@ const HomePage: React.FC = () => {
   const handleBookNow = (merchantId: string) => {
     navigate(`/merchant/${merchantId}`);
   };
-  return <div className="pb-20"> {/* Add padding to account for bottom navigation */}
+  return (
+    <div className="pb-20"> {/* Add padding to account for bottom navigation */}
       <motion.div className="bg-gradient-to-r from-booqit-primary to-purple-700 text-white p-6 rounded-b-3xl shadow-lg" initial={{
       y: -20,
       opacity: 0
@@ -287,10 +291,14 @@ const HomePage: React.FC = () => {
 
           <motion.div variants={itemVariants} className="mt-8">
             <h2 className="text-xl font-semibold mb-4">Near You</h2>
-            {isLoading ? <div className="flex justify-center py-8">
+            {isLoading ? (
+              <div className="flex justify-center py-8">
                 <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
-              </div> : nearbyShops.length > 0 ? <div className="space-y-4">
-                {nearbyShops.map(shop => <Card key={shop.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow">
+              </div>
+            ) : nearbyShops.length > 0 ? (
+              <div className="space-y-4">
+                {nearbyShops.map(shop => (
+                  <Card key={shop.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow">
                     <CardContent className="p-0">
                       <div className="flex">
                         <div className="w-24 h-24 bg-gray-200 flex-shrink-0">
@@ -302,7 +310,7 @@ const HomePage: React.FC = () => {
                               // Set default image if the image fails to load
                               const target = e.target as HTMLImageElement;
                               target.src = 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
-                              console.error(`Failed to load image for ${shop.shop_name}`, shop.image_url);
+                              console.error(`Failed to load image for ${shop.shop_name}, URL: ${shop.image_url}`);
                             }} 
                           />
                         </div>
@@ -333,13 +341,17 @@ const HomePage: React.FC = () => {
                         </div>
                       </div>
                     </CardContent>
-                  </Card>)}
-              </div> : <div className="text-center py-8 bg-gray-50 rounded-lg">
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 bg-gray-50 rounded-lg">
                 <p className="text-gray-500">No shops found nearby</p>
                 <Button variant="link" className="mt-2" onClick={() => navigate('/map')}>
                   Browse on Map
                 </Button>
-              </div>}
+              </div>
+            )}
           </motion.div>
 
           <motion.div variants={itemVariants} className="mt-8">
@@ -367,6 +379,8 @@ const HomePage: React.FC = () => {
           </motion.div>
         </motion.div>
       </div>
-    </div>;
+    </div>
+  );
 };
+
 export default HomePage;
