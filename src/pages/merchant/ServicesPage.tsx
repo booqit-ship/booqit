@@ -7,6 +7,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from '@/components/ui/card';
 import {
   Table,
@@ -22,7 +23,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Service, Staff } from '@/types';
-import { PlusCircle, Edit, Trash, Loader2 } from 'lucide-react';
+import { PlusCircle, Edit, Trash, Loader2, Clock, DollarSign } from 'lucide-react';
 import { 
   Dialog, 
   DialogContent, 
@@ -41,6 +42,7 @@ import {
 } from '@/components/ui/sheet';
 import StaffSelector from '@/components/merchant/StaffSelector';
 import AssignedStaff from '@/components/merchant/AssignedStaff';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const ServicesPage: React.FC = () => {
   const [services, setServices] = useState<Service[]>([]);
@@ -63,6 +65,7 @@ const ServicesPage: React.FC = () => {
   
   const { toast } = useToast();
   const { userId } = useAuth();
+  const isMobile = useIsMobile();
 
   // Fetch merchant ID for the current user
   useEffect(() => {
@@ -350,6 +353,55 @@ const ServicesPage: React.FC = () => {
     setIsSheetOpen(true);
   };
 
+  const MobileServiceCard = ({ service }: { service: Service }) => {
+    return (
+      <Card className="mb-4 overflow-hidden border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+        <CardHeader className="p-4 pb-2 bg-muted/20 border-b">
+          <CardTitle className="text-lg font-semibold text-booqit-dark flex justify-between items-center">
+            <span className="truncate pr-2">{service.name}</span>
+            <div className="flex space-x-1">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => handleEditService(service)}
+                className="h-8 w-8 hover:bg-booqit-primary/10 hover:text-booqit-primary"
+                title="Edit service"
+              >
+                <Edit className="h-3.5 w-3.5" />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => confirmDelete(service.id)}
+                className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
+                title="Delete service"
+              >
+                <Trash className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center text-muted-foreground">
+              <Clock className="h-3.5 w-3.5 mr-1.5" />
+              <span>{service.duration} mins</span>
+            </div>
+            <div className="font-medium text-booqit-dark flex items-center">
+              <DollarSign className="h-3.5 w-3.5 mr-0.5" />
+              <span>₹{service.price}</span>
+            </div>
+          </div>
+          
+          <div className="pt-1">
+            <p className="text-xs text-muted-foreground mb-1.5 font-medium">Assigned Stylists:</p>
+            <AssignedStaff serviceId={service.id} maxDisplay={3} />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
   return (
     <div className="container mx-auto px-4 py-6 max-w-6xl">
       <div className="mb-8">
@@ -358,7 +410,7 @@ const ServicesPage: React.FC = () => {
         <div className="flex justify-center">
           <Button 
             onClick={openAddNewService} 
-            size="lg"
+            size={isMobile ? "default" : "lg"}
             className="bg-booqit-primary hover:bg-booqit-primary/90"
           >
             <PlusCircle className="mr-2 h-5 w-5" /> Add New Service
@@ -391,6 +443,12 @@ const ServicesPage: React.FC = () => {
               >
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Your First Service
               </Button>
+            </div>
+          ) : isMobile ? (
+            <div className="p-4">
+              {services.map((service) => (
+                <MobileServiceCard key={service.id} service={service} />
+              ))}
             </div>
           ) : (
             <div className="overflow-x-auto">
