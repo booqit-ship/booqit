@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import GoogleMapComponent from '@/components/common/GoogleMap';
@@ -121,118 +120,118 @@ const MapView: React.FC = () => {
     navigate(`/merchant/${merchant.id}`);
   };
 
+  if (showMapFullScreen) {
+    return (
+      <div className="absolute inset-0 z-10 bg-white">
+        <GoogleMapComponent 
+          center={userLocation || { lat: 12.9716, lng: 77.5946 }}
+          markers={merchants.map((merchant) => ({
+            lat: merchant.lat,
+            lng: merchant.lng,
+            title: merchant.shop_name
+          }))}
+          zoom={14}
+          onMarkerClick={handleMarkerClick}
+          showUserLocation={true}
+          className="h-full w-full"
+        />
+        <Button
+          variant="secondary"
+          className="absolute bottom-5 left-1/2 transform -translate-x-1/2 shadow-lg z-10"
+          onClick={() => setShowMapFullScreen(false)}
+        >
+          Back to List
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full flex flex-col">
-      {showMapFullScreen ? (
-        <div className="h-full w-full">
-          <GoogleMapComponent 
-            center={userLocation || { lat: 12.9716, lng: 77.5946 }}
-            markers={merchants.map((merchant) => ({
-              lat: merchant.lat,
-              lng: merchant.lng,
-              title: merchant.shop_name
-            }))}
-            zoom={14}
-            onMarkerClick={handleMarkerClick}
-            showUserLocation={true}
-            className="h-full w-full"
-          />
-          <Button
-            variant="outline"
-            className="absolute bottom-20 left-1/2 transform -translate-x-1/2 shadow-lg bg-white"
-            onClick={() => setShowMapFullScreen(false)}
-          >
-            Show List
-          </Button>
-        </div>
-      ) : (
-        <>
-          <div className="h-48 relative">
-            <GoogleMapComponent 
-              center={userLocation || { lat: 12.9716, lng: 77.5946 }}
-              markers={merchants.map((merchant) => ({
-                lat: merchant.lat,
-                lng: merchant.lng,
-                title: merchant.shop_name
-              }))}
-              zoom={14}
-              onMarkerClick={handleMarkerClick}
-              showUserLocation={true}
-            />
-            <Button
-              variant="outline"
-              className="absolute bottom-4 left-1/2 transform -translate-x-1/2 shadow-lg bg-white"
-              onClick={() => setShowMapFullScreen(true)}
-            >
-              View Map
-            </Button>
+      <div className="h-48 relative">
+        <GoogleMapComponent 
+          center={userLocation || { lat: 12.9716, lng: 77.5946 }}
+          markers={merchants.map((merchant) => ({
+            lat: merchant.lat,
+            lng: merchant.lng,
+            title: merchant.shop_name
+          }))}
+          zoom={14}
+          onMarkerClick={handleMarkerClick}
+          showUserLocation={true}
+        />
+        <Button
+          variant="secondary"
+          className="absolute bottom-4 left-1/2 transform -translate-x-1/2 shadow-lg bg-white"
+          onClick={() => setShowMapFullScreen(true)}
+        >
+          Explore Map
+        </Button>
+      </div>
+      
+      <div className="flex-grow overflow-auto p-4 bg-gray-50">
+        <h2 className="text-lg font-medium mb-3">Nearby Services (within 5km)</h2>
+        
+        {loading ? (
+          <div className="flex justify-center py-8">
+            <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
           </div>
-          
-          <div className="flex-grow overflow-auto p-4 bg-gray-50">
-            <h2 className="text-lg font-medium mb-3">Nearby Services (within 5km)</h2>
-            
-            {loading ? (
-              <div className="flex justify-center py-8">
-                <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
-              </div>
-            ) : merchants.length > 0 ? (
-              <div className="space-y-3">
-                {merchants.map((merchant) => (
-                  <Card 
-                    key={merchant.id} 
-                    className={`overflow-hidden cursor-pointer transition-colors ${
-                      selectedMerchant?.id === merchant.id ? 'border-booqit-primary' : 'hover:border-gray-300'
-                    }`}
-                    onClick={() => handleMerchantClick(merchant)}
-                  >
-                    <CardContent className="p-0">
-                      <div className="flex">
-                        <div className="w-24 h-24 bg-gray-200 relative">
-                          {merchant.image_url ? (
-                            <img 
-                              src={merchant.image_url} 
-                              alt={merchant.shop_name}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <Store className="h-8 w-8 text-gray-400" />
-                            </div>
-                          )}
+        ) : merchants.length > 0 ? (
+          <div className="space-y-3">
+            {merchants.map((merchant) => (
+              <Card 
+                key={merchant.id} 
+                className={`overflow-hidden cursor-pointer transition-colors ${
+                  selectedMerchant?.id === merchant.id ? 'border-booqit-primary' : 'hover:border-gray-300'
+                }`}
+                onClick={() => handleMerchantClick(merchant)}
+              >
+                <CardContent className="p-0">
+                  <div className="flex">
+                    <div className="w-24 h-24 bg-gray-200 relative">
+                      {merchant.image_url ? (
+                        <img 
+                          src={merchant.image_url} 
+                          alt={merchant.shop_name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Store className="h-8 w-8 text-gray-400" />
                         </div>
-                        <div className="p-3 flex-grow">
-                          <div className="flex justify-between">
-                            <h3 className="font-medium">{merchant.shop_name}</h3>
-                            <ChevronRight className="h-5 w-5 text-gray-400" />
-                          </div>
-                          
-                          <div className="flex items-center text-sm text-gray-500 mt-1">
-                            <Star className="h-4 w-4 text-yellow-400 mr-1" />
-                            <span>{merchant.rating || '4.5'}</span>
-                            <Separator orientation="vertical" className="mx-2 h-3" />
-                            <span>{merchant.category}</span>
-                          </div>
-                          
-                          <div className="flex items-center text-sm text-gray-500 mt-1">
-                            <MapPin className="h-4 w-4 mr-1 flex-shrink-0" />
-                            <span className="truncate">{merchant.distance}</span>
-                          </div>
-                        </div>
+                      )}
+                    </div>
+                    <div className="p-3 flex-grow">
+                      <div className="flex justify-between">
+                        <h3 className="font-medium">{merchant.shop_name}</h3>
+                        <ChevronRight className="h-5 w-5 text-gray-400" />
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                <MapPin className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                <p>No services found within 5km</p>
-                <p className="text-sm mt-1">Try searching in a different area</p>
-              </div>
-            )}
+                      
+                      <div className="flex items-center text-sm text-gray-500 mt-1">
+                        <Star className="h-4 w-4 text-yellow-400 mr-1" />
+                        <span>{merchant.rating || '4.5'}</span>
+                        <Separator orientation="vertical" className="mx-2 h-3" />
+                        <span>{merchant.category}</span>
+                      </div>
+                      
+                      <div className="flex items-center text-sm text-gray-500 mt-1">
+                        <MapPin className="h-4 w-4 mr-1 flex-shrink-0" />
+                        <span className="truncate">{merchant.distance}</span>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
-        </>
-      )}
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <MapPin className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+            <p>No services found within 5km</p>
+            <p className="text-sm mt-1">Try searching in a different area</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

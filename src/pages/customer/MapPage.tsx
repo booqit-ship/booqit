@@ -9,8 +9,8 @@ const MapPage: React.FC = () => {
   const navigate = useNavigate();
   
   return (
-    <div className="h-[100vh] w-full flex flex-col overflow-hidden touch-none">
-      <div className="p-4 flex items-center shadow-sm z-10 bg-white">
+    <div className="h-[100dvh] w-full flex flex-col overflow-hidden">
+      <div className="p-4 flex items-center bg-white shadow-sm z-10 flex-shrink-0">
         <Button 
           variant="ghost" 
           size="icon"
@@ -21,10 +21,8 @@ const MapPage: React.FC = () => {
         </Button>
         <h1 className="text-xl font-bold">Nearby Services</h1>
       </div>
-      <div className="flex-grow relative w-full">
-        <div className="absolute inset-0">
-          <MapView />
-        </div>
+      <div className="flex-grow relative">
+        <MapView />
       </div>
     </div>
   );
