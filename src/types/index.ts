@@ -1,3 +1,4 @@
+
 export type UserRole = 'customer' | 'merchant';
 
 export interface User {
@@ -57,7 +58,6 @@ export interface Booking {
   user_id: string;
   merchant_id: string;
   service_id: string;
-  staff_id?: string | null; // Added to support staff assignment
   date: string;
   time_slot: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
@@ -65,7 +65,7 @@ export interface Booking {
   created_at: string;
   service?: Service;
   merchant?: Merchant;
-  customer_name?: string;
+  customer_name?: string; // Add this field to the type
 }
 
 export interface Payment {
