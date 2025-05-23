@@ -18,15 +18,13 @@ const featuredCategories = [
     id: 1,
     name: 'Salon',
     icon: '💇',
-    color: '#7E57C2',
-    dbCategory: 'barber_shop'
+    color: '#7E57C2'
   },
   {
     id: 2,
     name: 'Beauty Parlour',
     icon: '💅',
-    color: '#FF6B6B',
-    dbCategory: 'beauty_parlour'
+    color: '#FF6B6B'
   }
 ];
 
@@ -144,11 +142,7 @@ const HomePage: React.FC = () => {
         
       // Filter by category if selected
       if (category) {
-        // Map the display category to the database category
-        const categoryToFilter = featuredCategories.find(cat => cat.name === category)?.dbCategory;
-        if (categoryToFilter) {
-          query = query.eq('category', categoryToFilter);
-        }
+        query = query.eq('category', category);
       }
         
       const { data: merchants, error } = await query;
@@ -417,7 +411,6 @@ const HomePage: React.FC = () => {
                   lng: shop.lng,
                   title: shop.shop_name
                 }))} 
-                markerColor="#8B5CF6" // Purple color for markers
               />
               <div className="absolute inset-0 flex items-center justify-center bg-black/10">
                 <Button className="bg-booqit-primary" onClick={() => navigate('/map')}>

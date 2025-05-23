@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Merchant } from '@/types';
-import { MapPin, Star, X } from 'lucide-react';
+import { MapPin, Star } from 'lucide-react';
 import { toast } from 'sonner';
 
 const MapView: React.FC = () => {
@@ -47,13 +47,7 @@ const MapView: React.FC = () => {
           
         // Filter by category if provided
         if (category) {
-          if (category === 'Salon') {
-            // Show all salons (barber_shop)
-            query = query.eq('category', 'barber_shop');
-          } else if (category === 'Beauty Parlour') {
-            // Show all beauty parlours (beauty_parlour)
-            query = query.eq('category', 'beauty_parlour');
-          }
+          query = query.eq('category', category);
         }
         
         const { data, error } = await query;
@@ -111,19 +105,9 @@ const MapView: React.FC = () => {
       <div className="absolute top-4 left-4 right-4 z-10">
         <Card className="bg-white/90 backdrop-blur-sm shadow-lg">
           <CardContent className="p-4">
-            <div className="flex justify-between items-center">
-              <h2 className="font-semibold mb-2">
-                {category ? `${category} Shops` : 'All Nearby Shops'}
-              </h2>
-              <Button 
-                variant="ghost" 
-                size="icon"
-                onClick={() => navigate(-1)}
-                className="h-8 w-8"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
+            <h2 className="font-semibold mb-2">
+              {category ? `${category} Shops` : 'All Nearby Shops'}
+            </h2>
             {category && (
               <Button 
                 variant="outline" 
@@ -150,7 +134,6 @@ const MapView: React.FC = () => {
         showUserLocation={true}
         onMarkerClick={handleMarkerClick}
         onClick={() => setSelectedMerchant(null)}
-        markerColor="#8B5CF6" // Purple color for markers
       />
       
       {loading && (
@@ -166,23 +149,12 @@ const MapView: React.FC = () => {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-medium text-lg">{selectedMerchant.shop_name}</h3>
-                <Button 
-                  variant="ghost" 
-                  size="icon"
-                  onClick={() => setSelectedMerchant(null)}
-                  className="h-8 w-8 -mr-2 -mt-2"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              <div className="flex items-center space-x-2 mt-1">
                 <div className="flex items-center">
                   <Star className="w-4 h-4 text-yellow-400 mr-1" />
                   <span>{selectedMerchant.rating?.toFixed(1) || 'New'}</span>
                 </div>
-                <span className="text-gray-400">•</span>
-                <span className="text-sm text-gray-700">{selectedMerchant.category}</span>
               </div>
+              <p className="text-sm text-gray-700 mt-1">{selectedMerchant.category}</p>
               <p className="text-sm text-gray-500 flex items-center mt-1">
                 <MapPin className="w-3 h-3 mr-1" /> {selectedMerchant.address}
               </p>
