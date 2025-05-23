@@ -1,5 +1,8 @@
-import React, { useCallback, useState } from 'react';
+
+import React, { useCallback, useState, useEffect } from 'react';
 import { GoogleMap, Marker, InfoWindow, useJsApiLoader } from '@react-google-maps/api';
+import { Button } from '@/components/ui/button';
+import { Locate } from 'lucide-react';
 
 const googleMapsApiKey = 'AIzaSyB28nWHDBaEoMGIEoqfWDh6L2VRkM5AMwc';
 
@@ -17,6 +20,7 @@ const userLocationIcon = {
   strokeColor: '#FFFFFF',
   strokeWeight: 2,
   scale: 2.2, // Increased from 1.5
+  anchor: new google.maps.Point(12, 17), // Add proper anchor point to fix positioning when zooming
 };
 
 // Custom shop marker style with LARGER size
@@ -27,6 +31,7 @@ const shopMarkerIcon = {
   strokeColor: '#FFFFFF',
   strokeWeight: 2,
   scale: 1.8, // Increased from 1.2
+  anchor: new google.maps.Point(12, 17), // Add proper anchor point to fix positioning when zooming
 };
 
 interface MapProps {
@@ -59,6 +64,40 @@ const GoogleMapComponent: React.FC<MapProps> = ({
 
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [activeMarker, setActiveMarker] = useState<number | null>(null);
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(
+    showUserLocation ? center : null
+  );
+
+  // Function to get and center on user's location
+  const getUserLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const userLocation = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          };
+          setUserCoords(userLocation);
+          
+          // Center map on user location if map exists
+          if (map) {
+            map.panTo(userLocation);
+            map.setZoom(15); // Zoom in closer
+          }
+        },
+        (error) => {
+          console.error("Error getting user location:", error);
+        }
+      );
+    }
+  };
+
+  // Get user location on initial load if showUserLocation is true
+  useEffect(() => {
+    if (showUserLocation && !userCoords) {
+      getUserLocation();
+    }
+  }, [showUserLocation]);
 
   const onLoad = useCallback((map: google.maps.Map) => {
     setMap(map);
@@ -154,10 +193,21 @@ const GoogleMapComponent: React.FC<MapProps> = ({
           styles: mapStyles
         }}
       >
+        {/* User's location button */}
+        <div className="absolute bottom-6 right-6 z-10">
+          <Button
+            onClick={getUserLocation}
+            size="icon"
+            className="bg-white shadow-md hover:bg-gray-100 text-black rounded-full h-12 w-12"
+          >
+            <Locate className="h-5 w-5 text-booqit-primary" />
+          </Button>
+        </div>
+        
         {/* Show user location marker if requested */}
-        {showUserLocation && center && (
+        {showUserLocation && userCoords && (
           <Marker
-            position={center}
+            position={userCoords}
             icon={userLocationIcon}
             zIndex={1000}
             animation={google.maps.Animation.DROP}
