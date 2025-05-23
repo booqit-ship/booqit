@@ -30,6 +30,7 @@ interface MapProps {
   draggableMarker?: boolean;
   onMarkerDragEnd?: (e: google.maps.MapMouseEvent) => void;
   showUserLocation?: boolean;
+  markerColor?: string; // Added color option for markers
 }
 
 const GoogleMapComponent: React.FC<MapProps> = ({
@@ -42,6 +43,7 @@ const GoogleMapComponent: React.FC<MapProps> = ({
   draggableMarker = false,
   onMarkerDragEnd,
   showUserLocation = false,
+  markerColor = '#EA4335', // Default red color
 }) => {
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
@@ -68,6 +70,17 @@ const GoogleMapComponent: React.FC<MapProps> = ({
     setActiveMarker(null);
     if (onClick) onClick(e);
   };
+
+  // Create custom marker icon with the specified color
+  const getMarkerIcon = (index: number) => ({
+    path: google.maps.SymbolPath.CIRCLE,
+    fillColor: markerColor,
+    fillOpacity: 1,
+    strokeColor: '#FFFFFF',
+    strokeWeight: 2,
+    scale: 12,
+    labelOrigin: new google.maps.Point(0, 0)
+  });
 
   return isLoaded ? (
     <div className={`rounded-lg overflow-hidden ${className}`}>
@@ -118,6 +131,7 @@ const GoogleMapComponent: React.FC<MapProps> = ({
               onDragEnd={onMarkerDragEnd}
               onClick={() => handleMarkerClick(index)}
               animation={google.maps.Animation.DROP}
+              icon={getMarkerIcon(index)}
               label={{
                 text: (index + 1).toString(),
                 color: "white",
