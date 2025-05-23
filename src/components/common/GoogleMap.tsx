@@ -22,6 +22,7 @@ interface MapProps {
   draggableMarker?: boolean;
   onMarkerDragEnd?: (e: google.maps.MapMouseEvent) => void;
   showUserLocation?: boolean;
+  disableScrolling?: boolean;
 }
 
 const GoogleMapComponent: React.FC<MapProps> = ({
@@ -34,6 +35,7 @@ const GoogleMapComponent: React.FC<MapProps> = ({
   draggableMarker = false,
   onMarkerDragEnd,
   showUserLocation = false,
+  disableScrolling = false,
 }) => {
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
@@ -49,25 +51,24 @@ const GoogleMapComponent: React.FC<MapProps> = ({
     // Only create these if Google Maps API is loaded
     if (!window.google || !google.maps) return null;
     
-    // Custom marker icon for shops
+    // Custom marker icon for shops - blue circle with "A" marker style from Google Maps
     const shopMarkerIcon = {
-      path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z",
-      fillColor: '#7E57C2',
+      path: google.maps.SymbolPath.CIRCLE,
+      fillColor: '#4285F4', // Google blue
       fillOpacity: 1,
-      strokeColor: '#5E35B1',
-      strokeWeight: 1,
-      scale: 1.5,
-      anchor: new google.maps.Point(12, 22),
+      strokeColor: '#FFFFFF',
+      strokeWeight: 2,
+      scale: 10,
     };
 
     // Custom marker icon for user location - soft light blue circle
     const userLocationIcon = {
       path: google.maps.SymbolPath.CIRCLE,
-      fillColor: '#60A5FA', // Soft light blue
-      fillOpacity: 0.8,
-      strokeColor: '#3B82F6',
+      fillColor: '#4285F4', // Light blue
+      fillOpacity: 0.6,
+      strokeColor: '#4285F4',
       strokeWeight: 2,
-      scale: 10, // Larger, softer circle
+      scale: 10,
     };
     
     return { shopMarkerIcon, userLocationIcon };
@@ -94,7 +95,15 @@ const GoogleMapComponent: React.FC<MapProps> = ({
   const onLoad = useCallback((map: google.maps.Map) => {
     setMap(map);
     mapRef.current = map;
-  }, []);
+    
+    // Disable scrolling/dragging if disableScrolling is true
+    if (disableScrolling && map) {
+      map.setOptions({ 
+        gestureHandling: 'none',
+        keyboardShortcuts: false
+      });
+    }
+  }, [disableScrolling]);
 
   const onUnmount = useCallback(() => {
     setMap(null);
@@ -150,11 +159,18 @@ const GoogleMapComponent: React.FC<MapProps> = ({
         onClick={onClick}
         options={{
           fullscreenControl: false,
-          streetViewControl: false, // Removed per user request
-          mapTypeControl: false, // Removed per user request
-          zoomControl: false, // Removed per user request
-          gestureHandling: 'greedy', // Makes the map more mobile-friendly
+          streetViewControl: false, 
+          mapTypeControl: false, 
+          zoomControl: false,
+          gestureHandling: disableScrolling ? 'none' : 'greedy',
           mapTypeId: google.maps.MapTypeId.ROADMAP,
+          styles: [
+            {
+              featureType: "poi",
+              elementType: "labels",
+              stylers: [{ visibility: "off" }]
+            }
+          ]
         }}
       >
         {/* User location marker (soft light blue circle) */}
@@ -167,7 +183,7 @@ const GoogleMapComponent: React.FC<MapProps> = ({
           />
         )}
 
-        {/* Shop markers (purple) */}
+        {/* Shop markers (blue) */}
         {markers.length > 0 ? (
           markers.map((marker, index) => (
             <Marker
@@ -179,6 +195,11 @@ const GoogleMapComponent: React.FC<MapProps> = ({
               onClick={() => onMarkerClick && onMarkerClick(index)}
               icon={shopMarkerIcon}
               animation={google.maps.Animation.DROP}
+              label={{
+                text: String.fromCharCode(65 + index), // A, B, C, etc.
+                color: "#FFFFFF", // White text
+                fontWeight: "bold"
+              }}
             />
           ))
         ) : draggableMarker ? (

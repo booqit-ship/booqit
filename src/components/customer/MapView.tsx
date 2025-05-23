@@ -90,23 +90,33 @@ const MapView: React.FC = () => {
     fetchMerchants();
   }, [userLocation]);
 
-  // Filter merchants based on active category
+  // Filter merchants based on active category and distance (now up to 5km)
   useEffect(() => {
-    if (activeCategory && merchants.length > 0) {
-      // Map UI category names to database values
-      let dbCategory = activeCategory;
-      if (activeCategory === "Salon") {
-        dbCategory = "barber_shop";
-      } else if (activeCategory === "Beauty Parlour") {
-        dbCategory = "beauty_parlour";
+    if (merchants.length > 0) {
+      // First filter by distance (up to 5km)
+      let distanceFiltered = merchants.filter(merchant => {
+        // Use the numeric distance value for filtering
+        return merchant.distanceValue !== undefined && merchant.distanceValue <= 5;
+      });
+      
+      // Then filter by category if one is active
+      if (activeCategory) {
+        // Map UI category names to database values
+        let dbCategory = activeCategory;
+        if (activeCategory === "Salon") {
+          dbCategory = "barber_shop";
+        } else if (activeCategory === "Beauty Parlour") {
+          dbCategory = "beauty_parlour";
+        }
+        
+        distanceFiltered = distanceFiltered.filter(merchant => 
+          merchant.category.toLowerCase() === dbCategory.toLowerCase()
+        );
       }
       
-      const filtered = merchants.filter(merchant => 
-        merchant.category.toLowerCase() === dbCategory.toLowerCase()
-      );
-      setFilteredMerchants(filtered);
+      setFilteredMerchants(distanceFiltered);
     } else {
-      setFilteredMerchants(merchants);
+      setFilteredMerchants([]);
     }
   }, [activeCategory, merchants]);
 
@@ -147,18 +157,44 @@ const MapView: React.FC = () => {
     <div className="h-full relative">
       <GoogleMapComponent 
         center={userLocation || { lat: 12.9716, lng: 77.5946 }}
-        zoom={12}
+        zoom={14}
         markers={mapMarkers}
         className="h-full"
         onMarkerClick={handleMarkerClick}
         onClick={() => setSelectedMerchant(null)}
         showUserLocation={true}
+        disableScrolling={true} // Disable scrolling/dragging on the map
       />
       
       {loading && (
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white p-4 rounded-lg shadow">
           <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full mx-auto"></div>
           <p className="mt-2 text-center">Loading merchants...</p>
+        </div>
+      )}
+      
+      {filteredMerchants.length === 0 && !loading && (
+        <div className="absolute bottom-24 left-0 right-0 mx-4">
+          <Card className="shadow-lg">
+            <CardContent className="p-4 text-center">
+              <p>No services found within 5km</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+      
+      {!loading && filteredMerchants.length > 0 && (
+        <div className="absolute bottom-24 left-0 right-0 mx-4">
+          <Card className="shadow-lg">
+            <CardContent className="p-4">
+              <p className="font-medium text-sm mb-2">
+                Nearby services
+              </p>
+              <p className="text-gray-600 text-xs">
+                {filteredMerchants.length} {filteredMerchants.length === 1 ? 'service' : 'services'} within 5km
+              </p>
+            </CardContent>
+          </Card>
         </div>
       )}
       

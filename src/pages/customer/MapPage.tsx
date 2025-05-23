@@ -10,7 +10,7 @@ const MapPage: React.FC = () => {
   
   return (
     <div className="h-[100vh] w-full flex flex-col overflow-hidden touch-none">
-      <div className="p-4 flex items-center shadow-sm z-10 bg-white">
+      <div className="p-4 flex items-center bg-white">
         <Button 
           variant="ghost" 
           size="icon"
@@ -20,6 +20,15 @@ const MapPage: React.FC = () => {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <h1 className="text-xl font-bold">Nearby Services</h1>
+        <div className="ml-auto">
+          <Button 
+            variant="link" 
+            className="text-purple-600"
+            onClick={() => navigate('/map')}
+          >
+            View Map
+          </Button>
+        </div>
       </div>
       <div className="flex-grow relative w-full">
         <div className="absolute inset-0">
