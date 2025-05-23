@@ -12,12 +12,13 @@ const containerStyle = {
 
 // Custom marker icon for shops
 const shopMarkerIcon = {
-  path: 'M10.453 14.016l6.563-6.609-1.406-1.406-5.156 5.203-2.063-2.109-1.406 1.406zM12 2.016q2.906 0 4.945 2.039t2.039 4.945q0 1.453-0.727 3.328t-1.758 3.516-2.039 3.070-1.711 2.273l-0.75 0.797q-0.281-0.328-0.75-0.867t-1.688-2.156-2.133-3.141-1.664-3.445-0.75-3.375q0-2.906 2.039-4.945t4.945-2.039z',
+  path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z",
   fillColor: '#7E57C2',
   fillOpacity: 1,
   strokeColor: '#5E35B1',
   strokeWeight: 1,
   scale: 1.5,
+  anchor: new google.maps.Point(12, 22),
 };
 
 // Custom marker icon for user location
@@ -28,6 +29,7 @@ const userLocationIcon = {
   strokeColor: '#1D4ED8',
   strokeWeight: 1,
   scale: 1.5,
+  anchor: new google.maps.Point(12, 22),
 };
 
 interface MapProps {
@@ -44,7 +46,7 @@ interface MapProps {
 
 const GoogleMapComponent: React.FC<MapProps> = ({
   center = { lat: 12.9716, lng: 77.5946 }, // Default to Bangalore
-  zoom = 13,
+  zoom = 14,
   markers = [],
   onClick,
   onMarkerClick,
@@ -86,50 +88,6 @@ const GoogleMapComponent: React.FC<MapProps> = ({
     setMap(null);
   }, []);
 
-  // Custom map style for more visual appeal
-  const mapStyles = [
-    {
-      "featureType": "administrative",
-      "elementType": "labels.text.fill",
-      "stylers": [{"color": "#444444"}]
-    },
-    {
-      "featureType": "landscape",
-      "elementType": "all",
-      "stylers": [{"color": "#f2f2f2"}]
-    },
-    {
-      "featureType": "poi",
-      "elementType": "all",
-      "stylers": [{"visibility": "off"}]
-    },
-    {
-      "featureType": "road",
-      "elementType": "all",
-      "stylers": [{"saturation": -100}, {"lightness": 45}]
-    },
-    {
-      "featureType": "road.highway",
-      "elementType": "all",
-      "stylers": [{"visibility": "simplified"}]
-    },
-    {
-      "featureType": "road.arterial",
-      "elementType": "labels.icon",
-      "stylers": [{"visibility": "off"}]
-    },
-    {
-      "featureType": "transit",
-      "elementType": "all",
-      "stylers": [{"visibility": "off"}]
-    },
-    {
-      "featureType": "water",
-      "elementType": "all",
-      "stylers": [{"color": "#c4e8f3"}, {"visibility": "on"}]
-    }
-  ];
-
   return isLoaded ? (
     <div className={`rounded-lg overflow-hidden ${className}`}>
       <GoogleMap
@@ -141,11 +99,15 @@ const GoogleMapComponent: React.FC<MapProps> = ({
         onClick={onClick}
         options={{
           fullscreenControl: false,
-          streetViewControl: false,
-          mapTypeControl: false,
-          zoomControl: false, // Removed zoom controls as requested
-          styles: mapStyles,
-          gestureHandling: 'greedy' // Makes the map more mobile-friendly
+          streetViewControl: true,
+          mapTypeControl: true,
+          zoomControl: true,
+          gestureHandling: 'greedy', // Makes the map more mobile-friendly
+          mapTypeId: google.maps.MapTypeId.ROADMAP,
+          mapTypeControlOptions: {
+            position: google.maps.ControlPosition.TOP_RIGHT,
+            style: google.maps.MapTypeControlStyle.DROPDOWN_MENU,
+          },
         }}
       >
         {/* User location marker (blue) */}
@@ -155,6 +117,7 @@ const GoogleMapComponent: React.FC<MapProps> = ({
             icon={userLocationIcon}
             title="Your Location"
             zIndex={1000} // Make sure user location is on top of other markers
+            animation={google.maps.Animation.DROP}
           />
         )}
 
@@ -169,6 +132,7 @@ const GoogleMapComponent: React.FC<MapProps> = ({
               onDragEnd={onMarkerDragEnd}
               onClick={() => onMarkerClick && onMarkerClick(index)}
               icon={shopMarkerIcon}
+              animation={google.maps.Animation.DROP}
             />
           ))
         ) : draggableMarker ? (
@@ -176,6 +140,7 @@ const GoogleMapComponent: React.FC<MapProps> = ({
             position={center}
             draggable={true}
             onDragEnd={onMarkerDragEnd}
+            animation={google.maps.Animation.DROP}
           />
         ) : null}
       </GoogleMap>

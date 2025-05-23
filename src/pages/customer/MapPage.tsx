@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import MapView from '@/components/customer/MapView';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
