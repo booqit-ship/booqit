@@ -1,4 +1,3 @@
-
 import React, { useCallback, useState } from 'react';
 import { GoogleMap, Marker, InfoWindow, useJsApiLoader } from '@react-google-maps/api';
 
@@ -10,24 +9,24 @@ const containerStyle = {
   borderRadius: 'inherit',
 };
 
-// Custom marker styles
+// Custom marker styles with LARGER size
 const userLocationIcon = {
   path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z',
   fillColor: '#4285F4',
   fillOpacity: 1,
   strokeColor: '#FFFFFF',
   strokeWeight: 2,
-  scale: 1.5,
+  scale: 2.2, // Increased from 1.5
 };
 
-// Custom shop marker style
+// Custom shop marker style with LARGER size
 const shopMarkerIcon = {
   path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z',
   fillColor: '#7E57C2', // Purple color (booqit-primary)
   fillOpacity: 1,
   strokeColor: '#FFFFFF',
   strokeWeight: 2,
-  scale: 1.2,
+  scale: 1.8, // Increased from 1.2
 };
 
 interface MapProps {
@@ -79,65 +78,63 @@ const GoogleMapComponent: React.FC<MapProps> = ({
     if (onClick) onClick(e);
   };
 
-  // Improved map styles
+  // Updated map styles for a more colorful look
   const mapStyles = [
+    {
+      featureType: "all",
+      elementType: "labels.text.fill",
+      stylers: [{ color: "#333333" }]
+    },
     {
       featureType: "water",
       elementType: "geometry",
-      stylers: [{ color: "#e9e9e9" }, { lightness: 17 }]
+      stylers: [{ color: "#a2daf2" }] // Brighter blue
     },
     {
       featureType: "landscape",
       elementType: "geometry",
-      stylers: [{ color: "#f5f5f5" }, { lightness: 20 }]
-    },
-    {
-      featureType: "road.highway",
-      elementType: "geometry.fill",
-      stylers: [{ color: "#ffffff" }, { lightness: 17 }]
-    },
-    {
-      featureType: "road.highway",
-      elementType: "geometry.stroke",
-      stylers: [{ color: "#ffffff" }, { lightness: 29 }, { weight: 0.2 }]
-    },
-    {
-      featureType: "road.arterial",
-      elementType: "geometry",
-      stylers: [{ color: "#ffffff" }, { lightness: 18 }]
-    },
-    {
-      featureType: "road.local",
-      elementType: "geometry",
-      stylers: [{ color: "#ffffff" }, { lightness: 16 }]
-    },
-    {
-      featureType: "poi",
-      elementType: "geometry",
-      stylers: [{ color: "#f5f5f5" }, { lightness: 21 }]
+      stylers: [{ color: "#e8f4f6" }] // Light cyan
     },
     {
       featureType: "poi.park",
       elementType: "geometry",
-      stylers: [{ color: "#dedede" }, { lightness: 21 }]
+      stylers: [{ color: "#c8e6c9" }] // Light green
+    },
+    {
+      featureType: "poi",
+      elementType: "geometry",
+      stylers: [{ color: "#e5f5e0" }] // Very light green
     },
     {
       featureType: "poi",
       elementType: "labels",
-      stylers: [{ visibility: "off" }]
+      stylers: [{ visibility: "simplified" }]
     },
     {
-      elementType: "labels.text.stroke",
-      stylers: [{ visibility: "on" }, { color: "#ffffff" }, { lightness: 16 }]
+      featureType: "road.highway",
+      elementType: "geometry.fill",
+      stylers: [{ color: "#ffffff" }]
     },
     {
-      elementType: "labels.text.fill",
-      stylers: [{ saturation: 36 }, { color: "#333333" }, { lightness: 40 }]
+      featureType: "road.highway",
+      elementType: "geometry.stroke",
+      stylers: [{ color: "#d6d6d6" }]
     },
     {
-      elementType: "labels.icon",
-      stylers: [{ visibility: "off" }]
-    }
+      featureType: "road.arterial",
+      elementType: "geometry",
+      stylers: [{ color: "#ffffff" }]
+    },
+    {
+      featureType: "transit.line",
+      elementType: "geometry",
+      stylers: [{ color: "#dfd2ae" }]
+    },
+    {
+      featureType: "transit.station",
+      elementType: "geometry",
+      stylers: [{ color: "#eeeeee" }]
+    },
   ];
 
   return isLoaded ? (
@@ -183,7 +180,8 @@ const GoogleMapComponent: React.FC<MapProps> = ({
               label={draggableMarker ? undefined : {
                 text: (index + 1).toString(),
                 color: "white",
-                fontSize: "12px",
+                fontSize: "14px", // Increased from 12px
+                fontWeight: "bold"
               }}
             />
           ))

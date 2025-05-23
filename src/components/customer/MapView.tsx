@@ -17,6 +17,7 @@ const MapView: React.FC = () => {
   const [searchParams] = useSearchParams();
   const category = searchParams.get('category');
   const navigate = useNavigate();
+  const [showTopCard, setShowTopCard] = useState(true);
 
   useEffect(() => {
     // Get user's current location
@@ -111,29 +112,41 @@ const MapView: React.FC = () => {
 
   return (
     <div className="h-[calc(100vh-120px)] relative">
-      <div className="absolute top-4 left-4 right-4 z-10">
-        <Card className="bg-white/90 backdrop-blur-sm shadow-lg">
-          <CardContent className="p-4">
-            <h2 className="font-semibold mb-2">
-              {category ? `${category} Shops` : 'All Nearby Shops'}
-            </h2>
-            {category && (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => navigate('/map')}
-                className="mb-2"
-              >
-                Show all categories
-              </Button>
-            )}
-            <p className="text-sm text-gray-600">
-              {merchants.length} {merchants.length === 1 ? 'shop' : 'shops'} found
-              {userLocation && ` around your location`}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      {showTopCard && (
+        <div className="absolute top-4 left-4 right-4 z-10">
+          <Card className="bg-white/90 backdrop-blur-sm shadow-lg">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <h2 className="font-semibold mb-2">
+                  {category ? `${category} Shops` : 'All Nearby Shops'}
+                </h2>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={() => setShowTopCard(false)}
+                  className="h-8 w-8"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              {category && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => navigate('/map')}
+                  className="mb-2"
+                >
+                  Show all categories
+                </Button>
+              )}
+              <p className="text-sm text-gray-600">
+                {merchants.length} {merchants.length === 1 ? 'shop' : 'shops'} found
+                {userLocation && ` around your location`}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
       
       <GoogleMapComponent 
         center={userLocation || { lat: 12.9716, lng: 77.5946 }}
