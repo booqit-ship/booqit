@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import GoogleMapComponent from '@/components/common/GoogleMap';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Merchant } from '@/types';
 import { MapPin, Star } from 'lucide-react';
 import { toast } from 'sonner';
@@ -14,6 +14,8 @@ const MapView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [selectedMerchant, setSelectedMerchant] = useState<Merchant | null>(null);
+  const [searchParams] = useSearchParams();
+  const category = searchParams.get('category');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -38,10 +40,17 @@ const MapView: React.FC = () => {
     // Fetch merchants
     const fetchMerchants = async () => {
       try {
-        const { data, error } = await supabase
+        let query = supabase
           .from('merchants')
           .select('*')
           .order('rating', { ascending: false });
+          
+        // Filter by category if provided
+        if (category) {
+          query = query.eq('category', category);
+        }
+        
+        const { data, error } = await query;
           
         if (error) {
           console.error('Error fetching merchants:', error);
@@ -60,7 +69,7 @@ const MapView: React.FC = () => {
     };
     
     fetchMerchants();
-  }, []);
+  }, [category]);
 
   // Calculate markers for the map
   const mapMarkers = merchants.map(merchant => ({
@@ -72,14 +81,57 @@ const MapView: React.FC = () => {
   const handleMarkerClick = (index: number) => {
     setSelectedMerchant(merchants[index]);
   };
+  
+  // Calculate distance from user to merchant
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // Radius of the earth in km
+    const dLat = deg2rad(lat2 - lat1);
+    const dLon = deg2rad(lon2 - lon1);
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2); 
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+    const d = R * c; // Distance in km
+    return d.toFixed(1);
+  };
+  
+  const deg2rad = (deg: number) => {
+    return deg * (Math.PI/180);
+  };
 
   return (
     <div className="h-[calc(100vh-120px)] relative">
+      <div className="absolute top-4 left-4 right-4 z-10">
+        <Card className="bg-white/90 backdrop-blur-sm shadow-lg">
+          <CardContent className="p-4">
+            <h2 className="font-semibold mb-2">
+              {category ? `${category} Shops` : 'All Nearby Shops'}
+            </h2>
+            {category && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => navigate('/map')}
+                className="mb-2"
+              >
+                Show all categories
+              </Button>
+            )}
+            <p className="text-sm text-gray-600">
+              {merchants.length} {merchants.length === 1 ? 'shop' : 'shops'} found
+              {userLocation && ` around your location`}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+      
       <GoogleMapComponent 
         center={userLocation || { lat: 12.9716, lng: 77.5946 }}
-        zoom={12}
+        zoom={14}
         markers={mapMarkers}
         className="h-full"
+        showUserLocation={true}
         onMarkerClick={handleMarkerClick}
         onClick={() => setSelectedMerchant(null)}
       />
@@ -91,28 +143,38 @@ const MapView: React.FC = () => {
         </div>
       )}
       
-      {selectedMerchant && (
+      {selectedMerchant && userLocation && (
         <div className="absolute bottom-6 left-0 right-0 mx-4">
-          <Card className="shadow-lg">
+          <Card className="shadow-lg bg-white/95 backdrop-blur-sm">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
-                <h3 className="font-medium">{selectedMerchant.shop_name}</h3>
+                <h3 className="font-medium text-lg">{selectedMerchant.shop_name}</h3>
                 <div className="flex items-center">
                   <Star className="w-4 h-4 text-yellow-400 mr-1" />
-                  <span>{selectedMerchant.rating || 'New'}</span>
+                  <span>{selectedMerchant.rating?.toFixed(1) || 'New'}</span>
                 </div>
               </div>
+              <p className="text-sm text-gray-700 mt-1">{selectedMerchant.category}</p>
               <p className="text-sm text-gray-500 flex items-center mt-1">
                 <MapPin className="w-3 h-3 mr-1" /> {selectedMerchant.address}
               </p>
-              <p className="text-sm mt-1">{selectedMerchant.category}</p>
-              <Button 
-                className="w-full mt-3 bg-booqit-primary"
-                size="sm"
-                onClick={() => navigate(`/merchant/${selectedMerchant.id}`)}
-              >
-                View Services
-              </Button>
+              <div className="flex items-center justify-between mt-3">
+                <span className="text-sm font-medium text-booqit-primary">
+                  {calculateDistance(
+                    userLocation.lat, 
+                    userLocation.lng, 
+                    selectedMerchant.lat, 
+                    selectedMerchant.lng
+                  )} km away
+                </span>
+                <Button 
+                  className="bg-booqit-primary"
+                  size="sm"
+                  onClick={() => navigate(`/merchant/${selectedMerchant.id}`)}
+                >
+                  Book Now
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
