@@ -225,10 +225,10 @@ const GoogleMapComponent: React.FC<MapProps> = ({
         ) : null}
       </GoogleMap>
       
-      {/* Floating locate button */}
+      {/* Floating locate button - positioned to avoid bottom navigation */}
       <Button
         onClick={centerOnUserLocation}
-        className="absolute bottom-4 right-4 h-12 w-12 rounded-full shadow-lg bg-white hover:bg-gray-100 text-booqit-primary p-0 z-10"
+        className="absolute bottom-20 right-4 h-12 w-12 rounded-full shadow-lg bg-white hover:bg-gray-100 text-booqit-primary p-0 z-10"
         aria-label="Center on my location"
       >
         <Locate className="h-5 w-5" />

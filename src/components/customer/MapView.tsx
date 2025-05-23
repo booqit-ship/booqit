@@ -194,7 +194,7 @@ const MapView: React.FC = () => {
       )}
       
       {selectedMerchant && (
-        <div className={`absolute ${isMobile ? 'bottom-6 left-0 right-0 mx-4' : 'bottom-8 left-8 max-w-md'} z-10`}>
+        <div className={`absolute ${isMobile ? 'bottom-24 left-0 right-0 mx-4' : 'bottom-8 left-8 max-w-md'} z-10`}>
           <Card className="shadow-lg">
             <CardContent className="p-4 pr-10 relative">
               <button 

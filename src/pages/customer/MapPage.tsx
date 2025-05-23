@@ -9,8 +9,8 @@ const MapPage: React.FC = () => {
   const navigate = useNavigate();
   
   return (
-    <div className="h-[100dvh] w-full flex flex-col overflow-hidden touch-none">
-      <div className="p-4 flex items-center shadow-sm z-10 bg-white">
+    <div className="h-[100dvh] w-full flex flex-col overflow-hidden">
+      <div className="p-4 flex items-center shadow-sm z-50 bg-white sticky top-0">
         <Button 
           variant="ghost" 
           size="icon"
