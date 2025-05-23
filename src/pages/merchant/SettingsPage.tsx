@@ -23,6 +23,7 @@ const SettingsPage: React.FC = () => {
   const [shopName, setShopName] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
+  const [genderFocus, setGenderFocus] = useState('unisex'); // Added gender focus state
   const [openTime, setOpenTime] = useState('');
   const [closeTime, setCloseTime] = useState('');
   const [address, setAddress] = useState('');
@@ -61,6 +62,7 @@ const SettingsPage: React.FC = () => {
           setShopName(merchantData.shop_name);
           setDescription(merchantData.description || '');
           setCategory(merchantData.category);
+          setGenderFocus(merchantData.gender_focus || 'unisex'); // Set gender focus from merchant data
           setOpenTime(merchantData.open_time);
           setCloseTime(merchantData.close_time);
           setAddress(merchantData.address);
@@ -147,6 +149,7 @@ const SettingsPage: React.FC = () => {
           shop_name: shopName,
           description: description,
           category: category,
+          gender_focus: genderFocus, // Include gender focus in the update
           open_time: openTime,
           close_time: closeTime,
           address: address,
@@ -168,6 +171,7 @@ const SettingsPage: React.FC = () => {
           shop_name: shopName,
           description: description,
           category: category,
+          gender_focus: genderFocus, // Update gender focus in local state
           open_time: openTime,
           close_time: closeTime,
           address: address,
@@ -252,6 +256,8 @@ const SettingsPage: React.FC = () => {
             setDescription={setDescription}
             category={category}
             setCategory={setCategory}
+            genderFocus={genderFocus}
+            setGenderFocus={setGenderFocus}
             openTime={openTime}
             setOpenTime={setOpenTime}
             closeTime={closeTime}

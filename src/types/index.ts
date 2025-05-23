@@ -1,3 +1,4 @@
+
 export type UserRole = 'customer' | 'merchant';
 
 export interface User {
@@ -21,7 +22,7 @@ export interface Merchant {
   open_time: string;
   close_time: string;
   category: string;
-  gender_focus?: string; // New field for gender focus
+  gender_focus: string; // Updated to be non-optional since we've added it to the DB as NOT NULL
   bank_info?: BankInfo; 
   image_url?: string | null;
   created_at: string;

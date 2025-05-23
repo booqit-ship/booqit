@@ -108,6 +108,7 @@ export type Database = {
           close_time: string
           created_at: string
           description: string | null
+          gender_focus: string
           id: string
           image_url: string | null
           lat: number
@@ -123,6 +124,7 @@ export type Database = {
           close_time: string
           created_at?: string
           description?: string | null
+          gender_focus?: string
           id?: string
           image_url?: string | null
           lat: number
@@ -138,6 +140,7 @@ export type Database = {
           close_time?: string
           created_at?: string
           description?: string | null
+          gender_focus?: string
           id?: string
           image_url?: string | null
           lat?: number
