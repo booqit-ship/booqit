@@ -1,5 +1,5 @@
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { GoogleMap, Marker, InfoWindow, useJsApiLoader } from '@react-google-maps/api';
 
 const googleMapsApiKey = 'AIzaSyB28nWHDBaEoMGIEoqfWDh6L2VRkM5AMwc';
@@ -13,12 +13,72 @@ const containerStyle = {
 // Custom marker styles
 const userLocationIcon = {
   path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z',
-  fillColor: '#4285F4',
+  fillColor: '#3B82F6', // Blue color for user location
   fillOpacity: 1,
   strokeColor: '#FFFFFF',
   strokeWeight: 2,
-  scale: 1.5,
+  scale: 2,
 };
+
+// Shop marker styles
+const shopMarkerIcon = {
+  path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z",
+  fillColor: '#9333EA', // Purple color for shops
+  fillOpacity: 1,
+  strokeColor: '#FFFFFF',
+  strokeWeight: 2,
+  scale: 1.8,
+  anchor: { x: 12, y: 22 },
+  labelOrigin: { x: 12, y: 9 }
+};
+
+// Custom map styles for a more colorful look
+const mapStyles = [
+  {
+    "featureType": "administrative.land_parcel",
+    "elementType": "labels",
+    "stylers": [{ "visibility": "off" }]
+  },
+  {
+    "featureType": "poi",
+    "elementType": "labels.text",
+    "stylers": [{ "visibility": "off" }]
+  },
+  {
+    "featureType": "poi.business",
+    "stylers": [{ "visibility": "off" }]
+  },
+  {
+    "featureType": "poi.park",
+    "elementType": "labels.text",
+    "stylers": [{ "visibility": "off" }]
+  },
+  {
+    "featureType": "road.local",
+    "elementType": "labels",
+    "stylers": [{ "visibility": "off" }]
+  },
+  {
+    "featureType": "water",
+    "elementType": "geometry.fill",
+    "stylers": [{ "color": "#b3e6ff" }]
+  },
+  {
+    "featureType": "landscape",
+    "elementType": "geometry.fill",
+    "stylers": [{ "color": "#f0f8f0" }]
+  },
+  {
+    "featureType": "road.highway",
+    "elementType": "geometry.fill",
+    "stylers": [{ "color": "#ffd580" }]
+  },
+  {
+    "featureType": "road.arterial",
+    "elementType": "geometry.fill",
+    "stylers": [{ "color": "#ffe0b3" }]
+  }
+];
 
 interface MapProps {
   center?: { lat: number; lng: number };
@@ -30,11 +90,12 @@ interface MapProps {
   draggableMarker?: boolean;
   onMarkerDragEnd?: (e: google.maps.MapMouseEvent) => void;
   showUserLocation?: boolean;
+  onMyLocationClick?: () => void;
 }
 
 const GoogleMapComponent: React.FC<MapProps> = ({
   center = { lat: 12.9716, lng: 77.5946 }, // Default to Bangalore
-  zoom = 13,
+  zoom = 14,
   markers = [],
   onClick,
   onMarkerClick,
@@ -42,6 +103,7 @@ const GoogleMapComponent: React.FC<MapProps> = ({
   draggableMarker = false,
   onMarkerDragEnd,
   showUserLocation = false,
+  onMyLocationClick,
 }) => {
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
@@ -69,6 +131,48 @@ const GoogleMapComponent: React.FC<MapProps> = ({
     if (onClick) onClick(e);
   };
 
+  // Custom control for "My Location" button
+  const createMyLocationControl = (map: google.maps.Map) => {
+    const controlDiv = document.createElement('div');
+    
+    // Set CSS for the control
+    controlDiv.className = "bg-white rounded-full shadow-lg m-4 cursor-pointer hover:bg-gray-100 transition-colors";
+    
+    // Set CSS for the control interior
+    const controlUI = document.createElement('div');
+    controlUI.className = "flex items-center justify-center h-10 w-10 rounded-full";
+    controlUI.title = "Click to go to your location";
+    controlDiv.appendChild(controlUI);
+    
+    // Set CSS for the control text
+    const controlIcon = document.createElement('div');
+    controlIcon.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <circle cx="12" cy="12" r="1"></circle>
+        <line x1="12" y1="2" x2="12" y2="4"></line>
+        <line x1="12" y1="20" x2="12" y2="22"></line>
+        <line x1="2" y1="12" x2="4" y2="12"></line>
+        <line x1="20" y1="12" x2="22" y2="12"></line>
+      </svg>
+    `;
+    controlUI.appendChild(controlIcon);
+    
+    // Setup the click event listener
+    controlUI.addEventListener('click', () => {
+      if (onMyLocationClick) onMyLocationClick();
+    });
+    
+    return controlDiv;
+  };
+
+  useEffect(() => {
+    if (isLoaded && map) {
+      const myLocationControl = createMyLocationControl(map);
+      map.controls[google.maps.ControlPosition.LEFT_BOTTOM].push(myLocationControl);
+    }
+  }, [isLoaded, map, onMyLocationClick]);
+
   return isLoaded ? (
     <div className={`rounded-lg overflow-hidden ${className}`}>
       <GoogleMap
@@ -82,14 +186,9 @@ const GoogleMapComponent: React.FC<MapProps> = ({
           fullscreenControl: false,
           streetViewControl: false,
           mapTypeControl: false,
-          zoomControl: true,
-          styles: [
-            {
-              featureType: "poi",
-              elementType: "labels",
-              stylers: [{ visibility: "off" }]
-            }
-          ]
+          zoomControl: false,
+          styles: mapStyles,
+          gestureHandling: 'greedy'
         }}
       >
         {/* Show user location marker if requested */}
@@ -100,11 +199,7 @@ const GoogleMapComponent: React.FC<MapProps> = ({
             zIndex={1000}
             animation={google.maps.Animation.DROP}
             title="Your location"
-          >
-            <InfoWindow position={center}>
-              <div className="p-1 text-sm font-medium">Your location</div>
-            </InfoWindow>
-          </Marker>
+          />
         )}
 
         {/* Shop markers */}
@@ -118,6 +213,7 @@ const GoogleMapComponent: React.FC<MapProps> = ({
               onDragEnd={onMarkerDragEnd}
               onClick={() => handleMarkerClick(index)}
               animation={google.maps.Animation.DROP}
+              icon={shopMarkerIcon}
               label={{
                 text: (index + 1).toString(),
                 color: "white",
