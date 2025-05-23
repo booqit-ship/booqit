@@ -28,6 +28,7 @@ export interface Merchant {
   created_at: string;
   rating?: number | null;
   distance?: string;
+  distanceValue?: number; // Added this property for sorting and filtering
 }
 
 export interface BankInfo {
