@@ -1,4 +1,3 @@
-
 export type UserRole = 'customer' | 'merchant';
 
 export interface User {
@@ -22,11 +21,12 @@ export interface Merchant {
   open_time: string;
   close_time: string;
   category: string;
-  bank_info?: BankInfo; // Make bank_info optional
+  gender_focus?: string; // New field for gender focus
+  bank_info?: BankInfo; 
   image_url?: string | null;
   created_at: string;
   rating?: number | null;
-  distance?: string; // Add distance property
+  distance?: string;
 }
 
 export interface BankInfo {

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -12,11 +11,11 @@ import BankDetailsForm from '@/components/merchant/onboarding/BankDetailsForm';
 import LocationForm from '@/components/merchant/onboarding/LocationForm';
 import ShopInfoForm from '@/components/merchant/onboarding/ShopInfoForm';
 
-// Define steps for onboarding
+// Define steps for onboarding - changed order
 const steps = [
-  { id: 'bank', title: 'Bank Details' },
+  { id: 'info', title: 'Shop Information' },
   { id: 'location', title: 'Shop Location' },
-  { id: 'info', title: 'Shop Information' }
+  { id: 'bank', title: 'Bank Details' }
 ];
 
 interface BankDetailsState {
@@ -44,6 +43,7 @@ const OnboardingPage: React.FC = () => {
   const [shopInfo, setShopInfo] = useState({
     name: '',
     category: '',
+    gender_focus: 'unisex', // New field for gender focus
     description: '',
     open_time: '',
     close_time: '',
@@ -122,6 +122,7 @@ const OnboardingPage: React.FC = () => {
           user_id: userId,
           shop_name: shopInfo.name,
           category: shopInfo.category,
+          gender_focus: shopInfo.gender_focus, // Add the new field
           description: shopInfo.description,
           open_time: shopInfo.open_time,
           close_time: shopInfo.close_time,
@@ -196,14 +197,14 @@ const OnboardingPage: React.FC = () => {
     }
   };
 
-  // Render current step form
+  // Render current step form based on new order
   const renderStep = () => {
     switch (currentStep) {
       case 0:
         return (
-          <BankDetailsForm 
-            bankDetails={bankDetails} 
-            setBankDetails={setBankDetails} 
+          <ShopInfoForm 
+            shopInfo={shopInfo} 
+            setShopInfo={setShopInfo} 
           />
         );
       case 1:
@@ -215,9 +216,9 @@ const OnboardingPage: React.FC = () => {
         );
       case 2:
         return (
-          <ShopInfoForm 
-            shopInfo={shopInfo} 
-            setShopInfo={setShopInfo} 
+          <BankDetailsForm 
+            bankDetails={bankDetails} 
+            setBankDetails={setBankDetails} 
           />
         );
       default:
@@ -287,9 +288,9 @@ const OnboardingPage: React.FC = () => {
           <CardHeader>
             <CardTitle>{steps[currentStep].title}</CardTitle>
             <CardDescription>
-              {currentStep === 0 && "Enter your bank details for receiving payments"}
+              {currentStep === 0 && "Tell us about your business"}
               {currentStep === 1 && "Let customers know where to find you"}
-              {currentStep === 2 && "Tell us about your business"}
+              {currentStep === 2 && "Enter your bank details for receiving payments"}
             </CardDescription>
           </CardHeader>
           

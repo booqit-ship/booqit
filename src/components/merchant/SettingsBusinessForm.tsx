@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Camera, Upload, AlertCircle } from 'lucide-react';
 import { Merchant } from '@/types';
 import { toast } from 'sonner';
@@ -23,6 +24,8 @@ interface SettingsBusinessFormProps {
   setDescription: React.Dispatch<React.SetStateAction<string>>;
   category: string;
   setCategory: React.Dispatch<React.SetStateAction<string>>;
+  genderFocus: string;
+  setGenderFocus: React.Dispatch<React.SetStateAction<string>>;
   openTime: string;
   setOpenTime: React.Dispatch<React.SetStateAction<string>>;
   closeTime: string;
@@ -33,6 +36,13 @@ interface SettingsBusinessFormProps {
   setShopImage: React.Dispatch<React.SetStateAction<File | null>>;
   shopImageUrl: string | null;
 }
+
+// Gender focus options
+const genderOptions = [
+  { id: 'male', label: 'Male' },
+  { id: 'female', label: 'Female' },
+  { id: 'unisex', label: 'Unisex' }
+];
 
 const SettingsBusinessForm: React.FC<SettingsBusinessFormProps> = ({
   merchant,
@@ -46,6 +56,8 @@ const SettingsBusinessForm: React.FC<SettingsBusinessFormProps> = ({
   setDescription,
   category,
   setCategory,
+  genderFocus,
+  setGenderFocus,
   openTime,
   setOpenTime,
   closeTime,
@@ -166,20 +178,34 @@ const SettingsBusinessForm: React.FC<SettingsBusinessFormProps> = ({
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="category">Business Category <span className="text-red-500">*</span></Label>
+              <Label htmlFor="category">Business Type <span className="text-red-500">*</span></Label>
               <Select value={category} onValueChange={setCategory} required>
                 <SelectTrigger id="category">
                   <SelectValue placeholder="Select a category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Salon">Salon</SelectItem>
-                  <SelectItem value="Spa">Spa</SelectItem>
-                  <SelectItem value="Barber">Barber</SelectItem>
-                  <SelectItem value="Massage">Massage</SelectItem>
-                  <SelectItem value="Nail Salon">Nail Salon</SelectItem>
-                  <SelectItem value="Other">Other</SelectItem>
+                  <SelectItem value="beauty_salon">Beauty Salon</SelectItem>
+                  <SelectItem value="barber_shop">Barber Shop</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <Label>Service For <span className="text-red-500">*</span></Label>
+              <RadioGroup 
+                value={genderFocus} 
+                onValueChange={setGenderFocus}
+                className="flex flex-wrap gap-4 pt-2"
+              >
+                {genderOptions.map(option => (
+                  <div key={option.id} className="flex items-center space-x-2">
+                    <RadioGroupItem value={option.id} id={`gender-${option.id}`} />
+                    <Label htmlFor={`gender-${option.id}`} className="cursor-pointer">
+                      {option.label}
+                    </Label>
+                  </div>
+                ))}
+              </RadioGroup>
             </div>
             
             <div className="space-y-2 md:col-span-2">

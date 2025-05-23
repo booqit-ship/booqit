@@ -11,12 +11,14 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Button } from '@/components/ui/button';
 
 interface ShopInfoFormProps {
   shopInfo: {
     name: string;
     category: string;
+    gender_focus: string;
     description: string;
     open_time: string;
     close_time: string;
@@ -25,6 +27,7 @@ interface ShopInfoFormProps {
   setShopInfo: React.Dispatch<React.SetStateAction<{
     name: string;
     category: string;
+    gender_focus: string;
     description: string;
     open_time: string;
     close_time: string;
@@ -32,15 +35,17 @@ interface ShopInfoFormProps {
   }>>;
 }
 
-// Shop categories
+// Simplified shop categories
 const categories = [
-  { id: 'barber', name: 'Barber Shop' },
-  { id: 'salon', name: 'Beauty Salon' },
-  { id: 'spa', name: 'Spa & Wellness' },
-  { id: 'yoga', name: 'Yoga Studio' },
-  { id: 'dental', name: 'Dental Clinic' },
-  { id: 'fitness', name: 'Fitness Center' },
-  { id: 'other', name: 'Other' }
+  { id: 'beauty_salon', name: 'Beauty Salon' },
+  { id: 'barber_shop', name: 'Barber Shop' }
+];
+
+// Gender focus options
+const genderOptions = [
+  { id: 'male', label: 'Male' },
+  { id: 'female', label: 'Female' },
+  { id: 'unisex', label: 'Unisex' }
 ];
 
 const ShopInfoForm: React.FC<ShopInfoFormProps> = ({ 
@@ -54,6 +59,10 @@ const ShopInfoForm: React.FC<ShopInfoFormProps> = ({
   
   const handleCategoryChange = (value: string) => {
     setShopInfo(prev => ({ ...prev, category: value }));
+  };
+
+  const handleGenderFocusChange = (value: string) => {
+    setShopInfo(prev => ({ ...prev, gender_focus: value }));
   };
   
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -76,13 +85,13 @@ const ShopInfoForm: React.FC<ShopInfoFormProps> = ({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="category">Shop Category</Label>
+        <Label htmlFor="category">Shop Type</Label>
         <Select 
           value={shopInfo.category} 
           onValueChange={handleCategoryChange}
         >
           <SelectTrigger id="category">
-            <SelectValue placeholder="Select category" />
+            <SelectValue placeholder="Select shop type" />
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
@@ -94,6 +103,24 @@ const ShopInfoForm: React.FC<ShopInfoFormProps> = ({
             </SelectGroup>
           </SelectContent>
         </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Service For</Label>
+        <RadioGroup 
+          value={shopInfo.gender_focus} 
+          onValueChange={handleGenderFocusChange}
+          className="flex flex-wrap gap-4 pt-2"
+        >
+          {genderOptions.map(option => (
+            <div key={option.id} className="flex items-center space-x-2">
+              <RadioGroupItem value={option.id} id={`gender-${option.id}`} />
+              <Label htmlFor={`gender-${option.id}`} className="cursor-pointer">
+                {option.label}
+              </Label>
+            </div>
+          ))}
+        </RadioGroup>
       </div>
 
       <div className="space-y-2">
