@@ -1,73 +1,69 @@
 
-import React, { useState, useEffect } from 'react';
-import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { Booking, Merchant, Service, Staff } from '@/types';
-import { toast } from 'sonner';
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { Check, Download, ChevronLeft, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Share2, Calendar, Home, CheckCircle2 } from 'lucide-react';
-import { format, addMinutes } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { Booking, Service, Merchant } from '@/types';
 
-interface ReceiptProps {}
-
-interface BookingSummary extends Booking {
-  service: Service;
-  merchant: Merchant;
-  staff?: Staff;
+interface ReceiptDetails {
+  bookingId: string;
+  bookingDate: string;
+  bookingTime: string;
+  serviceName: string;
+  servicePrice: number;
+  merchantName: string;
+  paymentMethod: string;
+  staffId?: string;
 }
 
-const ReceiptPage: React.FC<ReceiptProps> = () => {
-  const { id } = useParams<{ id: string }>();
-  const location = useLocation();
+const ReceiptPage: React.FC = () => {
+  const { bookingId } = useParams<{ bookingId: string }>();
   const navigate = useNavigate();
-  
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
-  const [bookings, setBookings] = useState<BookingSummary[]>([]);
-  const [totalAmount, setTotalAmount] = useState(0);
-  const [totalDuration, setTotalDuration] = useState(0);
+  const [booking, setBooking] = useState<Booking | null>(null);
+  const [service, setService] = useState<Service | null>(null);
+  const [merchant, setMerchant] = useState<Merchant | null>(null);
   
+  // Use location state if available, otherwise fetch from API
+  const receiptDetails = location.state as ReceiptDetails;
+
   useEffect(() => {
     const fetchBookingDetails = async () => {
-      setLoading(true);
-      
       try {
-        // Get the booking IDs from location state if available, otherwise use the URL param
-        const bookingIds = location.state?.bookingIds || [id];
+        setLoading(true);
+        if (!bookingId) return;
+
+        // Fetch booking details
+        const { data: bookingData, error: bookingError } = await supabase
+          .from('bookings')
+          .select(`
+            *,
+            service:service_id(*),
+            merchant:merchant_id(*)
+          `)
+          .eq('id', bookingId)
+          .single();
+
+        if (bookingError) throw bookingError;
         
-        // Fetch all bookings
-        const fetchPromises = bookingIds.map(async (bookingId: string) => {
-          const { data: booking, error: bookingError } = await supabase
-            .from('bookings')
-            .select(`
-              *,
-              service:service_id(*),
-              merchant:merchant_id(*),
-              staff:staff_id(*)
-            `)
-            .eq('id', bookingId)
-            .single();
+        if (bookingData) {
+          // Use type assertion to ensure data conforms to our Booking type
+          // This ensures the status field is correctly typed
+          const typedBooking = {
+            ...bookingData,
+            status: bookingData.status as "pending" | "confirmed" | "completed" | "cancelled",
+            payment_status: bookingData.payment_status as "pending" | "completed" | "failed" | "refunded"
+          } as Booking;
           
-          if (bookingError) throw bookingError;
-          return booking;
-        });
-        
-        const results = await Promise.all(fetchPromises);
-        
-        // Calculate totals
-        let total = 0;
-        let duration = 0;
-        
-        results.forEach(booking => {
-          if (booking.service) {
-            total += booking.service.price;
-            duration += booking.service.duration;
-          }
-        });
-        
-        setTotalAmount(total);
-        setTotalDuration(duration);
-        setBookings(results);
+          setBooking(typedBooking);
+          setService(bookingData.service as Service);
+          setMerchant(bookingData.merchant as Merchant);
+        }
       } catch (error) {
         console.error('Error fetching booking details:', error);
         toast.error('Could not load booking details');
@@ -75,34 +71,51 @@ const ReceiptPage: React.FC<ReceiptProps> = () => {
         setLoading(false);
       }
     };
-    
-    fetchBookingDetails();
-  }, [id, location.state]);
-  
-  const formatDuration = (minutes: number) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    
-    if (hours > 0 && mins > 0) {
-      return `${hours}h ${mins}m`;
-    } else if (hours > 0) {
-      return `${hours}h`;
+
+    if (!receiptDetails) {
+      fetchBookingDetails();
     } else {
-      return `${mins}m`;
+      setLoading(false);
     }
+  }, [bookingId, receiptDetails]);
+
+  const handleAddToCalendar = () => {
+    // Get data either from state or fetched data
+    const bookingDate = receiptDetails?.bookingDate || booking?.date;
+    const bookingTime = receiptDetails?.bookingTime || booking?.time_slot;
+    const serviceName = receiptDetails?.serviceName || service?.name;
+    const merchantName = receiptDetails?.merchantName || merchant?.shop_name;
+    
+    if (!bookingDate || !bookingTime || !serviceName || !merchantName) {
+      toast.error("Couldn't create calendar event");
+      return;
+    }
+
+    // Create Google Calendar URL
+    const [hours, minutes] = bookingTime.split(':').map(Number);
+    const startDate = new Date(bookingDate);
+    startDate.setHours(hours, minutes, 0, 0);
+    
+    const endDate = new Date(startDate);
+    endDate.setMinutes(endDate.getMinutes() + (service?.duration || 60));
+    
+    // Format dates for Google Calendar
+    const formatForGCal = (date: Date) => {
+      return date.toISOString().replace(/-|:|\.\d+/g, '');
+    };
+    
+    const googleCalUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(`${serviceName} appointment`)}&details=${encodeURIComponent(`Appointment at ${merchantName}`)}&location=${encodeURIComponent(merchant?.address || '')}&dates=${formatForGCal(startDate)}/${formatForGCal(endDate)}`;
+    
+    window.open(googleCalUrl, '_blank');
   };
   
-  const calculateEndTime = (startTime: string, durationMinutes: number) => {
-    // Parse time in 24-hour format
-    const [hours, minutes] = startTime.split(':').map(Number);
-    const startDate = new Date();
-    startDate.setHours(hours, minutes, 0);
-    
-    // Add duration
-    const endDate = addMinutes(startDate, durationMinutes);
-    
-    // Format to HH:MM
-    return format(endDate, 'HH:mm');
+  const handleDownloadReceipt = () => {
+    // In a real app, this would generate a PDF receipt
+    toast.success('Receipt download started');
+  };
+  
+  const handleGoToHome = () => {
+    navigate('/');
   };
 
   if (loading) {
@@ -113,122 +126,111 @@ const ReceiptPage: React.FC<ReceiptProps> = () => {
     );
   }
 
-  if (bookings.length === 0) {
-    return (
-      <div className="h-screen flex flex-col items-center justify-center p-4">
-        <p className="text-gray-500 mb-4">Booking not found</p>
-        <Button onClick={() => navigate('/customer/bookings')}>View My Bookings</Button>
-      </div>
-    );
-  }
-
-  // Use the first booking to get merchant information
-  const firstBooking = bookings[0];
-  const merchantName = firstBooking.merchant?.shop_name || 'Service Provider';
-  const paymentMethod = location.state?.paymentMethod || 'Unknown';
-  const paymentStatus = firstBooking.payment_status || 'pending';
+  // Use data from either location state or fetched data
+  const displayData = {
+    bookingId: receiptDetails?.bookingId || booking?.id || '',
+    bookingDate: receiptDetails?.bookingDate || booking?.date || '',
+    bookingTime: receiptDetails?.bookingTime || booking?.time_slot || '',
+    serviceName: receiptDetails?.serviceName || service?.name || '',
+    servicePrice: receiptDetails?.servicePrice || service?.price || 0,
+    merchantName: receiptDetails?.merchantName || merchant?.shop_name || '',
+    paymentMethod: receiptDetails?.paymentMethod || 'card',
+  };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <div className="bg-green-500 text-white p-6 text-center">
-        <div className="flex justify-center mb-4">
-          <div className="bg-white rounded-full p-3">
-            <CheckCircle2 className="h-8 w-8 text-green-500" />
-          </div>
-        </div>
-        <h1 className="text-2xl font-bold">Booking Confirmed!</h1>
-        <p className="mt-1">Thank you for your booking</p>
+    <div className="pb-20 bg-gray-50 min-h-screen">
+      <div className="relative bg-booqit-primary text-white p-4">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="absolute top-4 left-4 text-white hover:bg-white/20"
+          onClick={handleGoToHome}
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </Button>
+        <h1 className="text-center text-xl font-medium">Receipt</h1>
       </div>
       
-      <div className="flex-grow bg-gray-50 p-4">
-        <div className="max-w-md mx-auto bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="p-6 space-y-4">
-            <div className="flex justify-between">
-              <h2 className="text-xl font-bold">{merchantName}</h2>
-              <Button variant="ghost" size="sm" className="text-gray-500">
-                <Share2 className="h-4 w-4" />
-              </Button>
-            </div>
-            
-            <div className="bg-gray-50 p-3 rounded-md space-y-2">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Date</span>
-                <span className="font-medium">{firstBooking.date}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Time</span>
-                <span className="font-medium">
-                  {firstBooking.time_slot} - {calculateEndTime(firstBooking.time_slot, totalDuration)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Duration</span>
-                <span className="font-medium">{formatDuration(totalDuration)}</span>
-              </div>
-            </div>
-            
-            <Separator />
-            
+      <div className="p-4 space-y-6">
+        {/* Success message */}
+        <div className="text-center py-6">
+          <div className="flex items-center justify-center w-16 h-16 mx-auto bg-green-100 rounded-full">
+            <Check className="h-8 w-8 text-green-600" />
+          </div>
+          <h2 className="mt-4 text-xl font-medium">Booking Confirmed!</h2>
+          <p className="text-gray-500 mt-1">Your appointment has been successfully booked</p>
+        </div>
+        
+        {/* Receipt Card */}
+        <Card className="overflow-hidden">
+          <div className="bg-booqit-primary text-white p-4">
+            <h3 className="font-medium">Booking #{displayData.bookingId.substring(0, 8)}</h3>
+          </div>
+          <CardContent className="p-4">
             <div className="space-y-3">
-              <h3 className="font-medium">Services</h3>
+              <div>
+                <h4 className="text-sm text-gray-500">Service</h4>
+                <p className="font-medium">{displayData.serviceName}</p>
+              </div>
               
-              {bookings.map((booking) => (
-                <div key={booking.id} className="flex justify-between">
-                  <div>
-                    <p>{booking.service?.name}</p>
-                    {booking.staff && (
-                      <p className="text-sm text-gray-500">Stylist: {booking.staff.name}</p>
-                    )}
-                  </div>
-                  <p className="font-medium">₹{booking.service?.price}</p>
+              <div>
+                <h4 className="text-sm text-gray-500">Merchant</h4>
+                <p className="font-medium">{displayData.merchantName}</p>
+              </div>
+              
+              <div className="flex space-x-6">
+                <div>
+                  <h4 className="text-sm text-gray-500">Date</h4>
+                  <p className="font-medium">{displayData.bookingDate}</p>
                 </div>
-              ))}
-            </div>
-            
-            <Separator />
-            
-            <div className="space-y-2">
-              <div className="flex justify-between text-lg font-semibold">
-                <span>Total</span>
-                <span>₹{totalAmount}</span>
+                
+                <div>
+                  <h4 className="text-sm text-gray-500">Time</h4>
+                  <p className="font-medium">{displayData.bookingTime}</p>
+                </div>
               </div>
-              <div className="flex justify-between text-sm">
-                <span>Payment Method</span>
-                <span>{paymentMethod === 'cash' ? 'Pay at Shop' : paymentMethod}</span>
+              
+              <Separator />
+              
+              <div>
+                <h4 className="text-sm text-gray-500">Payment Method</h4>
+                <p className="font-medium capitalize">{displayData.paymentMethod}</p>
               </div>
-              <div className="flex justify-between text-sm">
-                <span>Payment Status</span>
-                <span className={`${
-                  paymentStatus === 'completed' ? 'text-green-600' : 'text-yellow-600'
-                }`}>
-                  {paymentStatus === 'completed' ? 'Paid' : 'Pending'}
-                </span>
+              
+              <div className="flex justify-between items-center">
+                <h4 className="text-sm text-gray-500">Amount Paid</h4>
+                <p className="font-medium text-lg">₹{displayData.servicePrice}</p>
               </div>
             </div>
-            
-            <div className="bg-blue-50 p-3 rounded-md text-blue-800 text-sm">
-              Your booking confirmation has been sent to your registered email address.
-            </div>
-          </div>
+          </CardContent>
+        </Card>
+        
+        {/* Action Buttons */}
+        <div className="space-y-3">
+          <Button 
+            className="w-full flex items-center justify-center"
+            variant="outline"
+            onClick={handleAddToCalendar}
+          >
+            <Calendar className="h-4 w-4 mr-2" />
+            Add to Calendar
+          </Button>
           
-          <div className="flex border-t">
-            <Button 
-              variant="ghost" 
-              className="flex-1 py-6 rounded-none border-r"
-              onClick={() => navigate('/customer')}
-            >
-              <Home className="mr-2 h-4 w-4" />
-              Home
-            </Button>
-            <Button 
-              variant="ghost" 
-              className="flex-1 py-6 rounded-none"
-              onClick={() => navigate('/customer/calendar')}
-            >
-              <Calendar className="mr-2 h-4 w-4" />
-              My Bookings
-            </Button>
-          </div>
+          <Button 
+            className="w-full flex items-center justify-center"
+            variant="outline"
+            onClick={handleDownloadReceipt}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Download Receipt
+          </Button>
+          
+          <Button 
+            className="w-full bg-booqit-primary hover:bg-booqit-primary/90"
+            onClick={handleGoToHome}
+          >
+            Back to Home
+          </Button>
         </div>
       </div>
     </div>

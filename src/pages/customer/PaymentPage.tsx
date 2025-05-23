@@ -11,39 +11,29 @@ import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-type PaymentMethod = 'cash' | 'upi';
-
-interface SelectedService {
-  id: string;
-  name: string;
-  price: number;
-  duration: number;
-}
-
-interface SelectedStaff {
-  serviceId: string;
-  staffId: string | 'random';
-  staffName: string;
-}
+type PaymentMethod = 'card' | 'upi' | 'wallet' | 'cash';
 
 interface BookingDetails {
-  services: SelectedService[];
-  staffMembers: SelectedStaff[];
   bookingDate: string;
   bookingTime: string;
-  totalPrice: number;
-  totalDuration: number;
+  staffId: string | null;
+  serviceName: string;
+  servicePrice: number;
   merchantName: string;
 }
 
 const PaymentPage: React.FC = () => {
-  const { merchantId } = useParams<{ merchantId: string }>();
+  const { merchantId, serviceId } = useParams<{ merchantId: string, serviceId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const bookingDetails = location.state as BookingDetails;
 
   const [loading, setLoading] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
+  const [cardName, setCardName] = useState('');
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCVC, setCardCVC] = useState('');
   const [upiId, setUpiId] = useState('');
   const [user, setUser] = useState<any>(null);
   const [processingPayment, setProcessingPayment] = useState(false);
@@ -74,27 +64,39 @@ const PaymentPage: React.FC = () => {
     }
   }, [navigate, bookingDetails]);
 
-  const formatDuration = (minutes: number) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    
-    if (hours > 0 && mins > 0) {
-      return `${hours}h ${mins}m`;
-    } else if (hours > 0) {
-      return `${hours}h`;
-    } else {
-      return `${mins}m`;
+  const handleExpiryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Format to MM/YY
+    const input = e.target.value.replace(/\D/g, '');
+    if (input.length <= 4) {
+      const formatted = input.length > 2 
+        ? `${input.slice(0, 2)}/${input.slice(2)}` 
+        : input;
+      setCardExpiry(formatted);
+    }
+  };
+
+  const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Format to XXXX XXXX XXXX XXXX
+    const input = e.target.value.replace(/\D/g, '');
+    if (input.length <= 16) {
+      const formatted = input.match(/.{1,4}/g)?.join(' ') || input;
+      setCardNumber(formatted);
     }
   };
 
   const handlePayment = async () => {
-    if (!user || !merchantId || !bookingDetails) {
+    if (!user || !merchantId || !serviceId || !bookingDetails) {
       toast.error('Missing required information');
       return;
     }
 
-    // Validate UPI if UPI payment method is selected
-    if (paymentMethod === 'upi' && !upiId) {
+    // Validate payment details based on payment method
+    if (paymentMethod === 'card') {
+      if (!cardName || !cardNumber || !cardExpiry || !cardCVC) {
+        toast.error('Please fill in all card details');
+        return;
+      }
+    } else if (paymentMethod === 'upi' && !upiId) {
       toast.error('Please enter your UPI ID');
       return;
     }
@@ -102,96 +104,47 @@ const PaymentPage: React.FC = () => {
     try {
       setProcessingPayment(true);
       
-      // Create bookings for each service
-      const bookingPromises = bookingDetails.services.map(async (service) => {
-        // Find staff for this service
-        const staffSelection = bookingDetails.staffMembers.find(s => s.serviceId === service.id);
-        let staffId = null;
-        
-        // If random is selected, choose random staff or null if none available
-        if (staffSelection?.staffId === 'random') {
-          // Get staff eligible for this service
-          const { data: eligibleStaff } = await supabase
-            .from('staff')
-            .select('id')
-            .eq('merchant_id', merchantId)
-            .contains('assigned_service_ids', [service.id]);
-            
-          // Pick a random staff if available
-          if (eligibleStaff && eligibleStaff.length > 0) {
-            const randomIndex = Math.floor(Math.random() * eligibleStaff.length);
-            staffId = eligibleStaff[randomIndex].id;
-          }
-        } else if (staffSelection) {
-          staffId = staffSelection.staffId;
-        }
-        
-        // Create booking in database
-        const { data: bookingData, error: bookingError } = await supabase
-          .from('bookings')
-          .insert({
-            user_id: user.id,
-            merchant_id: merchantId,
-            service_id: service.id,
-            date: bookingDetails.bookingDate,
-            time_slot: bookingDetails.bookingTime,
-            status: 'confirmed',
-            payment_status: 'pending', // Will be updated to 'completed' after payment
-            staff_id: staffId !== 'random' ? staffId : null
-          })
-          .select()
-          .single();
-        
-        if (bookingError) throw bookingError;
-        
-        return bookingData;
-      });
+      // Create booking in database
+      const { data: bookingData, error: bookingError } = await supabase
+        .from('bookings')
+        .insert({
+          user_id: user.id,
+          merchant_id: merchantId,
+          service_id: serviceId,
+          date: bookingDetails.bookingDate,
+          time_slot: bookingDetails.bookingTime,
+          status: 'confirmed',
+          payment_status: 'completed',
+        })
+        .select()
+        .single();
       
-      // Wait for all bookings to be created
-      const createdBookings = await Promise.all(bookingPromises);
+      if (bookingError) throw bookingError;
       
-      // Create single payment record for all bookings
+      // Create payment record
       const { error: paymentError } = await supabase
         .from('payments')
         .insert({
-          booking_id: createdBookings[0].id, // Reference first booking
+          booking_id: bookingData.id,
           method: paymentMethod,
-          amount: bookingDetails.totalPrice,
-          status: paymentMethod === 'cash' ? 'pending' : 'completed',
-          booking_ids: createdBookings.map(b => b.id) // Store all booking IDs
+          amount: bookingDetails.servicePrice,
+          status: 'completed',
         });
       
       if (paymentError) throw paymentError;
       
-      // Update all bookings payment status
-      if (paymentMethod === 'cash') {
-        for (const booking of createdBookings) {
-          await supabase
-            .from('bookings')
-            .update({ payment_status: 'pending' })
-            .eq('id', booking.id);
-        }
-      } else {
-        for (const booking of createdBookings) {
-          await supabase
-            .from('bookings')
-            .update({ payment_status: 'completed' })
-            .eq('id', booking.id);
-        }
-      }
-      
       // Show success and navigate to receipt
-      toast.success('Booking confirmed!');
-      navigate(`/receipt/${createdBookings[0].id}`, {
+      toast.success('Payment successful!');
+      navigate(`/receipt/${bookingData.id}`, {
         state: {
-          bookingIds: createdBookings.map(b => b.id),
-          paymentMethod,
-          bookingDetails
+          ...bookingDetails,
+          bookingId: bookingData.id,
+          paymentMethod
         }
       });
     } catch (error) {
       console.error('Payment error:', error);
-      toast.error('Booking failed. Please try again.');
+      toast.error('Payment failed. Please try again.');
       setProcessingPayment(false);
     }
   };
@@ -227,6 +180,10 @@ const PaymentPage: React.FC = () => {
             
             <div className="space-y-2">
               <div className="flex justify-between">
+                <span className="text-gray-600">Service</span>
+                <span className="font-medium">{bookingDetails.serviceName}</span>
+              </div>
+              <div className="flex justify-between">
                 <span className="text-gray-600">Merchant</span>
                 <span className="font-medium">{bookingDetails.merchantName}</span>
               </div>
@@ -238,36 +195,16 @@ const PaymentPage: React.FC = () => {
                 <span className="text-gray-600">Time</span>
                 <span className="font-medium">{bookingDetails.bookingTime}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Duration</span>
-                <span className="font-medium">{formatDuration(bookingDetails.totalDuration)}</span>
-              </div>
-              
-              <Separator className="my-1" />
-              <p className="font-medium">Services</p>
-              
-              {bookingDetails.services.map((service, index) => {
-                const staffMember = bookingDetails.staffMembers.find(s => s.serviceId === service.id);
-                
-                return (
-                  <div key={service.id} className="pl-2 flex justify-between text-sm">
-                    <div>
-                      <span>{service.name}</span>
-                      {staffMember && (
-                        <span className="block text-xs text-gray-500">
-                          Stylist: {staffMember.staffName}
-                        </span>
-                      )}
-                    </div>
-                    <span>₹{service.price}</span>
-                  </div>
-                );
-              })}
-              
+              {bookingDetails.staffId && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Staff</span>
+                  <span className="font-medium">Selected</span>
+                </div>
+              )}
               <Separator className="my-1" />
               <div className="flex justify-between text-lg font-medium">
                 <span>Total</span>
-                <span>₹{bookingDetails.totalPrice}</span>
+                <span>₹{bookingDetails.servicePrice}</span>
               </div>
             </div>
           </CardContent>
@@ -283,14 +220,14 @@ const PaymentPage: React.FC = () => {
             className="space-y-3"
           >
             <Label
-              htmlFor="cash-option"
+              htmlFor="card-option"
               className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${
-                paymentMethod === 'cash' ? 'border-booqit-primary bg-booqit-primary/5' : 'border-gray-200'
+                paymentMethod === 'card' ? 'border-booqit-primary bg-booqit-primary/5' : 'border-gray-200'
               }`}
             >
-              <RadioGroupItem value="cash" id="cash-option" className="mr-3" />
-              <span className="mr-3 text-gray-600 font-medium">₹</span>
-              <span>Pay at Shop</span>
+              <RadioGroupItem value="card" id="card-option" className="mr-3" />
+              <CreditCard className="h-5 w-5 mr-3 text-gray-600" />
+              <span>Credit/Debit Card</span>
             </Label>
             
             <Label
@@ -299,14 +236,116 @@ const PaymentPage: React.FC = () => {
                 paymentMethod === 'upi' ? 'border-booqit-primary bg-booqit-primary/5' : 'border-gray-200'
               }`}
             >
-              <RadioGroupItem value="upi" id="upi-option" className="mr-3" disabled />
+              <RadioGroupItem value="upi" id="upi-option" className="mr-3" />
               <User className="h-5 w-5 mr-3 text-gray-600" />
-              <div>
-                <span className="block">UPI</span>
-                <span className="block text-xs text-gray-500">Coming Soon</span>
-              </div>
+              <span>UPI</span>
+            </Label>
+            
+            <Label
+              htmlFor="wallet-option"
+              className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${
+                paymentMethod === 'wallet' ? 'border-booqit-primary bg-booqit-primary/5' : 'border-gray-200'
+              }`}
+            >
+              <RadioGroupItem value="wallet" id="wallet-option" className="mr-3" />
+              <Wallet className="h-5 w-5 mr-3 text-gray-600" />
+              <span>Digital Wallet</span>
+            </Label>
+            
+            <Label
+              htmlFor="cash-option"
+              className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${
+                paymentMethod === 'cash' ? 'border-booqit-primary bg-booqit-primary/5' : 'border-gray-200'
+              }`}
+            >
+              <RadioGroupItem value="cash" id="cash-option" className="mr-3" />
+              <span className="mr-3 text-gray-600 font-medium">₹</span>
+              <span>Cash on Service</span>
             </Label>
           </RadioGroup>
+        </div>
+        
+        {/* Payment Details based on selected method */}
+        <div>
+          {paymentMethod === 'card' && (
+            <Card>
+              <CardContent className="p-4 space-y-3">
+                <div>
+                  <Label htmlFor="card-name">Name on Card</Label>
+                  <Input 
+                    id="card-name" 
+                    placeholder="John Doe" 
+                    value={cardName}
+                    onChange={(e) => setCardName(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="card-number">Card Number</Label>
+                  <Input 
+                    id="card-number" 
+                    placeholder="1234 5678 9012 3456" 
+                    value={cardNumber}
+                    onChange={handleCardNumberChange}
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <Label htmlFor="card-expiry">Expiry Date</Label>
+                    <Input 
+                      id="card-expiry" 
+                      placeholder="MM/YY" 
+                      value={cardExpiry}
+                      onChange={handleExpiryChange}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <Label htmlFor="card-cvc">CVC</Label>
+                    <Input 
+                      id="card-cvc" 
+                      placeholder="123" 
+                      value={cardCVC}
+                      onChange={(e) => {
+                        const input = e.target.value.replace(/\D/g, '');
+                        if (input.length <= 4) {
+                          setCardCVC(input);
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
+          {paymentMethod === 'upi' && (
+            <Card>
+              <CardContent className="p-4">
+                <Label htmlFor="upi-id">UPI ID</Label>
+                <Input 
+                  id="upi-id" 
+                  placeholder="yourname@bank" 
+                  value={upiId}
+                  onChange={(e) => setUpiId(e.target.value)}
+                />
+              </CardContent>
+            </Card>
+          )}
+          
+          {paymentMethod === 'wallet' && (
+            <Card>
+              <CardContent className="p-4 text-center text-gray-600">
+                <p>You'll be redirected to complete the payment</p>
+              </CardContent>
+            </Card>
+          )}
+          
+          {paymentMethod === 'cash' && (
+            <Card>
+              <CardContent className="p-4 text-center text-gray-600">
+                <p>Pay the amount directly at the service location</p>
+              </CardContent>
+            </Card>
+          )}
         </div>
         
         <Button 
@@ -321,7 +360,7 @@ const PaymentPage: React.FC = () => {
               Processing...
             </>
           ) : (
-            paymentMethod === 'cash' ? 'Confirm Booking' : `Pay ₹${bookingDetails.totalPrice}`
+            `Pay ₹${bookingDetails.servicePrice}`
           )}
         </Button>
       </div>
