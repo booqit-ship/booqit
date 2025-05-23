@@ -1,8 +1,6 @@
 
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState } from 'react';
 import { GoogleMap, Marker, InfoWindow, useJsApiLoader } from '@react-google-maps/api';
-import { Button } from '@/components/ui/button';
-import { Locate } from 'lucide-react';
 
 const googleMapsApiKey = 'AIzaSyB28nWHDBaEoMGIEoqfWDh6L2VRkM5AMwc';
 
@@ -12,26 +10,14 @@ const containerStyle = {
   borderRadius: 'inherit',
 };
 
-// Custom marker styles with LARGER size
+// Custom marker styles
 const userLocationIcon = {
   path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z',
   fillColor: '#4285F4',
   fillOpacity: 1,
   strokeColor: '#FFFFFF',
   strokeWeight: 2,
-  scale: 2.2, // Increased from 1.5
-  anchor: new google.maps.Point(12, 17), // Add proper anchor point to fix positioning when zooming
-};
-
-// Custom shop marker style with LARGER size
-const shopMarkerIcon = {
-  path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z',
-  fillColor: '#7E57C2', // Purple color (booqit-primary)
-  fillOpacity: 1,
-  strokeColor: '#FFFFFF',
-  strokeWeight: 2,
-  scale: 1.8, // Increased from 1.2
-  anchor: new google.maps.Point(12, 17), // Add proper anchor point to fix positioning when zooming
+  scale: 1.5,
 };
 
 interface MapProps {
@@ -64,40 +50,6 @@ const GoogleMapComponent: React.FC<MapProps> = ({
 
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [activeMarker, setActiveMarker] = useState<number | null>(null);
-  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(
-    showUserLocation ? center : null
-  );
-
-  // Function to get and center on user's location
-  const getUserLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const userLocation = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          };
-          setUserCoords(userLocation);
-          
-          // Center map on user location if map exists
-          if (map) {
-            map.panTo(userLocation);
-            map.setZoom(15); // Zoom in closer
-          }
-        },
-        (error) => {
-          console.error("Error getting user location:", error);
-        }
-      );
-    }
-  };
-
-  // Get user location on initial load if showUserLocation is true
-  useEffect(() => {
-    if (showUserLocation && !userCoords) {
-      getUserLocation();
-    }
-  }, [showUserLocation]);
 
   const onLoad = useCallback((map: google.maps.Map) => {
     setMap(map);
@@ -117,65 +69,6 @@ const GoogleMapComponent: React.FC<MapProps> = ({
     if (onClick) onClick(e);
   };
 
-  // Updated map styles for a more colorful look
-  const mapStyles = [
-    {
-      featureType: "all",
-      elementType: "labels.text.fill",
-      stylers: [{ color: "#333333" }]
-    },
-    {
-      featureType: "water",
-      elementType: "geometry",
-      stylers: [{ color: "#a2daf2" }] // Brighter blue
-    },
-    {
-      featureType: "landscape",
-      elementType: "geometry",
-      stylers: [{ color: "#e8f4f6" }] // Light cyan
-    },
-    {
-      featureType: "poi.park",
-      elementType: "geometry",
-      stylers: [{ color: "#c8e6c9" }] // Light green
-    },
-    {
-      featureType: "poi",
-      elementType: "geometry",
-      stylers: [{ color: "#e5f5e0" }] // Very light green
-    },
-    {
-      featureType: "poi",
-      elementType: "labels",
-      stylers: [{ visibility: "simplified" }]
-    },
-    {
-      featureType: "road.highway",
-      elementType: "geometry.fill",
-      stylers: [{ color: "#ffffff" }]
-    },
-    {
-      featureType: "road.highway",
-      elementType: "geometry.stroke",
-      stylers: [{ color: "#d6d6d6" }]
-    },
-    {
-      featureType: "road.arterial",
-      elementType: "geometry",
-      stylers: [{ color: "#ffffff" }]
-    },
-    {
-      featureType: "transit.line",
-      elementType: "geometry",
-      stylers: [{ color: "#dfd2ae" }]
-    },
-    {
-      featureType: "transit.station",
-      elementType: "geometry",
-      stylers: [{ color: "#eeeeee" }]
-    },
-  ];
-
   return isLoaded ? (
     <div className={`rounded-lg overflow-hidden ${className}`}>
       <GoogleMap
@@ -190,29 +83,28 @@ const GoogleMapComponent: React.FC<MapProps> = ({
           streetViewControl: false,
           mapTypeControl: false,
           zoomControl: true,
-          styles: mapStyles
+          styles: [
+            {
+              featureType: "poi",
+              elementType: "labels",
+              stylers: [{ visibility: "off" }]
+            }
+          ]
         }}
       >
-        {/* User's location button */}
-        <div className="absolute bottom-6 right-6 z-10">
-          <Button
-            onClick={getUserLocation}
-            size="icon"
-            className="bg-white shadow-md hover:bg-gray-100 text-black rounded-full h-12 w-12"
-          >
-            <Locate className="h-5 w-5 text-booqit-primary" />
-          </Button>
-        </div>
-        
         {/* Show user location marker if requested */}
-        {showUserLocation && userCoords && (
+        {showUserLocation && center && (
           <Marker
-            position={userCoords}
+            position={center}
             icon={userLocationIcon}
             zIndex={1000}
             animation={google.maps.Animation.DROP}
             title="Your location"
-          />
+          >
+            <InfoWindow position={center}>
+              <div className="p-1 text-sm font-medium">Your location</div>
+            </InfoWindow>
+          </Marker>
         )}
 
         {/* Shop markers */}
@@ -226,12 +118,10 @@ const GoogleMapComponent: React.FC<MapProps> = ({
               onDragEnd={onMarkerDragEnd}
               onClick={() => handleMarkerClick(index)}
               animation={google.maps.Animation.DROP}
-              icon={shopMarkerIcon}
-              label={draggableMarker ? undefined : {
+              label={{
                 text: (index + 1).toString(),
                 color: "white",
-                fontSize: "14px", // Increased from 12px
-                fontWeight: "bold"
+                fontSize: "12px",
               }}
             />
           ))

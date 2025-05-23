@@ -1,8 +1,8 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import MapView from '@/components/customer/MapView';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, X } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 const MapPage: React.FC = () => {
@@ -26,14 +26,6 @@ const MapPage: React.FC = () => {
             {category ? `${category} Near You` : 'All Services Near You'}
           </h1>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate('/')}
-          className="h-8 w-8"
-        >
-          <X className="h-5 w-5" />
-        </Button>
       </div>
       <div className="flex-grow">
         <MapView />
