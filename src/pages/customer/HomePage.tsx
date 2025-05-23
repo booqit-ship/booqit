@@ -12,22 +12,33 @@ import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 
-// Updated categories - only 2 as requested
+// Featured categories for filtering - Removed "Spas" and "Map" as requested
 const featuredCategories = [
   {
     id: 1,
-    name: 'Salon',
+    name: 'Haircuts',
     icon: '💇',
     color: '#7E57C2'
   },
   {
-    id: 2,
-    name: 'Beauty Parlour',
-    icon: '💅',
+    id: 3,
+    name: 'Yoga',
+    icon: '🧘',
     color: '#FF6B6B'
+  },
+  {
+    id: 4,
+    name: 'Dental',
+    icon: '🦷',
+    color: '#FFD166'
+  },
+  {
+    id: 5,
+    name: 'Fitness',
+    icon: '💪',
+    color: '#3D405B'
   }
 ];
-
 const HomePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [nearbyShops, setNearbyShops] = useState<Merchant[]>([]);
@@ -38,7 +49,6 @@ const HomePage: React.FC = () => {
   } | null>(null);
   const [userName, setUserName] = useState('there');
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const navigate = useNavigate();
   const {
     toast
@@ -85,7 +95,7 @@ const HomePage: React.FC = () => {
         fetchLocationName(userLoc.lat, userLoc.lng);
 
         // Fetch nearby shops based on location
-        fetchNearbyShops(userLoc, selectedCategory);
+        fetchNearbyShops(userLoc);
       }, error => {
         console.error("Error getting location:", error);
         setLocationName("Location unavailable");
@@ -95,7 +105,7 @@ const HomePage: React.FC = () => {
           lng: 77.5946
         };
         setUserLocation(defaultLocation);
-        fetchNearbyShops(defaultLocation, selectedCategory);
+        fetchNearbyShops(defaultLocation);
       });
     } else {
       setLocationName("Bengaluru"); // Default fallback
@@ -104,10 +114,9 @@ const HomePage: React.FC = () => {
         lng: 77.5946
       };
       setUserLocation(defaultLocation);
-      fetchNearbyShops(defaultLocation, selectedCategory);
+      fetchNearbyShops(defaultLocation);
     }
-  }, [selectedCategory]); // Added selectedCategory dependency to refresh when category changes
-
+  }, []);
   const fetchLocationName = async (lat: number, lng: number) => {
     try {
       const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=AIzaSyB28nWHDBaEoMGIEoqfWDh6L2VRkM5AMwc`);
@@ -128,48 +137,36 @@ const HomePage: React.FC = () => {
       setLocationName("Your area");
     }
   };
-  const fetchNearbyShops = async (
-    location: { lat: number; lng: number },
-    category: string | null
-  ) => {
+  const fetchNearbyShops = async (location: {
+    lat: number;
+    lng: number;
+  }) => {
     setIsLoading(true);
     try {
       // Fetch merchants from database
-      let query = supabase
+      const { data: merchants, error } = await supabase
         .from('merchants')
         .select('*')
         .order('rating', { ascending: false });
         
-      // Filter by category if selected
-      if (category) {
-        query = query.eq('category', category);
-      }
-        
-      const { data: merchants, error } = await query;
-      
       if (error) throw error;
       
       if (merchants && merchants.length > 0) {
-        console.log("Fetched merchants:", merchants);
+        console.log("Fetched merchants:", merchants); // Debug log to check merchant data
         
-        // Calculate distance for each merchant
+        // Calculate distance for each merchant (simplified version)
         const shopsWithDistance = merchants.map(merchant => {
+          // Simple distance calculation (this is just an approximation)
           const distance = calculateDistance(location.lat, location.lng, merchant.lat, merchant.lng);
           return {
             ...merchant,
-            distance: `${distance.toFixed(1)} km`,
-            distanceValue: distance, // Store raw distance value for filtering
-          } as Merchant; 
+            distance: `${distance.toFixed(1)} km`
+          } as Merchant; // Explicitly cast to Merchant type
         });
 
-        // Filter shops within 5km radius
-        const nearbyShopsFiltered = shopsWithDistance
-          .filter(shop => shop.distanceValue && shop.distanceValue <= 5)
-          .sort((a, b) => (a.distanceValue || 0) - (b.distanceValue || 0));
-
-        setNearbyShops(nearbyShopsFiltered);
-      } else {
-        setNearbyShops([]);
+        // Sort by distance
+        shopsWithDistance.sort((a, b) => parseFloat(a.distance || '0') - parseFloat(b.distance || '0'));
+        setNearbyShops(shopsWithDistance);
       }
     } catch (error) {
       console.error("Error fetching merchants:", error);
@@ -220,14 +217,7 @@ const HomePage: React.FC = () => {
     }
   };
   const handleCategoryClick = (categoryName: string) => {
-    if (selectedCategory === categoryName) {
-      // If clicking the same category, clear the filter
-      setSelectedCategory(null);
-    } else {
-      // Otherwise set the new category
-      setSelectedCategory(categoryName);
-    }
-    // We'll refetch shops in the useEffect when selectedCategory changes
+    navigate(`/search?category=${categoryName}`);
   };
   const handleSearch = () => {
     if (searchQuery.trim()) {
@@ -286,46 +276,21 @@ const HomePage: React.FC = () => {
           <motion.div variants={itemVariants}>
             <h2 className="text-xl font-semibold mb-4">Categories</h2>
             <div className="grid grid-cols-2 gap-4">
-              {featuredCategories.map(category => (
-                <Button 
-                  key={category.id} 
-                  variant={selectedCategory === category.name ? "default" : "outline"}
-                  className={`h-auto flex flex-col items-center justify-center p-4 border ${
-                    selectedCategory === category.name 
-                      ? 'border-booqit-primary bg-booqit-primary/10 text-booqit-primary' 
-                      : 'border-gray-200'
-                  } shadow-sm hover:shadow-md hover:border-booqit-primary transition-all`} 
-                  style={{
-                    backgroundColor: selectedCategory === category.name ? `${category.color}20` : `${category.color}10`
-                  }} 
-                  onClick={() => handleCategoryClick(category.name)}
-                >
+              {featuredCategories.map(category => <Button key={category.id} variant="outline" className="h-auto flex flex-col items-center justify-center p-4 border border-gray-200 shadow-sm hover:shadow-md hover:border-booqit-primary transition-all" style={{
+              backgroundColor: `${category.color}10`
+            }} onClick={() => handleCategoryClick(category.name)}>
                   <span style={{
-                    color: category.color
-                  }} className="mb-2 text-3xl font-normal">
+                color: category.color
+              }} className="mb-2 text-3xl font-normal text-purple-600">
                     {category.icon}
                   </span>
                   <span className="text-sm font-medium">{category.name}</span>
-                </Button>
-              ))}
+                </Button>)}
             </div>
           </motion.div>
 
           <motion.div variants={itemVariants} className="mt-8">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Near You</h2>
-              {selectedCategory && (
-                <Button 
-                  variant="link" 
-                  size="sm" 
-                  onClick={() => setSelectedCategory(null)}
-                  className="text-booqit-primary"
-                >
-                  Clear filter
-                </Button>
-              )}
-            </div>
-            
+            <h2 className="text-xl font-semibold mb-4">Near You</h2>
             {isLoading ? (
               <div className="flex justify-center py-8">
                 <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
@@ -381,11 +346,7 @@ const HomePage: React.FC = () => {
               </div>
             ) : (
               <div className="text-center py-8 bg-gray-50 rounded-lg">
-                <p className="text-gray-500">
-                  {selectedCategory 
-                    ? `No ${selectedCategory} shops found within 5km` 
-                    : 'No shops found within 5km'}
-                </p>
+                <p className="text-gray-500">No shops found nearby</p>
                 <Button variant="link" className="mt-2" onClick={() => navigate('/map')}>
                   Browse on Map
                 </Button>
@@ -401,17 +362,14 @@ const HomePage: React.FC = () => {
               </Button>
             </h2>
             <Card className="overflow-hidden shadow-md bg-gray-100 h-48 relative">
-              <GoogleMapComponent 
-                center={userLocation || {lat: 12.9716, lng: 77.5946}} 
-                zoom={14} 
-                className="h-full" 
-                showUserLocation={true}
-                markers={nearbyShops.map(shop => ({
-                  lat: shop.lat,
-                  lng: shop.lng,
-                  title: shop.shop_name
-                }))} 
-              />
+              <GoogleMapComponent center={userLocation || {
+              lat: 12.9716,
+              lng: 77.5946
+            }} zoom={12} className="h-full" markers={nearbyShops.map(shop => ({
+              lat: shop.lat,
+              lng: shop.lng,
+              title: shop.shop_name
+            }))} />
               <div className="absolute inset-0 flex items-center justify-center bg-black/10">
                 <Button className="bg-booqit-primary" onClick={() => navigate('/map')}>
                   Open Map View

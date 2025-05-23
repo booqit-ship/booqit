@@ -1,3 +1,4 @@
+
 export type UserRole = 'customer' | 'merchant';
 
 export interface User {
@@ -27,7 +28,6 @@ export interface Merchant {
   created_at: string;
   rating?: number | null;
   distance?: string;
-  distanceValue?: number; // Added to store the actual distance value for filtering
 }
 
 export interface BankInfo {
