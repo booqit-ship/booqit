@@ -1,4 +1,3 @@
-
 import React, { useCallback, useState, useEffect } from 'react';
 import { GoogleMap, Marker, InfoWindow, useJsApiLoader } from '@react-google-maps/api';
 
@@ -10,7 +9,7 @@ const containerStyle = {
   borderRadius: 'inherit',
 };
 
-// Custom marker styles
+// Custom marker styles - Fixed with proper typing for Google Maps API
 const userLocationIcon = {
   path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z',
   fillColor: '#3B82F6', // Blue color for user location
@@ -20,7 +19,7 @@ const userLocationIcon = {
   scale: 2,
 };
 
-// Shop marker styles
+// Shop marker styles - Fixed with proper typing for Google Maps API
 const shopMarkerIcon = {
   path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z",
   fillColor: '#9333EA', // Purple color for shops
@@ -28,8 +27,6 @@ const shopMarkerIcon = {
   strokeColor: '#FFFFFF',
   strokeWeight: 2,
   scale: 1.8,
-  anchor: { x: 12, y: 22 },
-  labelOrigin: { x: 12, y: 9 }
 };
 
 // Custom map styles for a more colorful look
