@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { Merchant } from '@/types';
-import { MapPin, Star } from 'lucide-react';
+import { MapPin, Star, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 const MapView: React.FC = () => {
@@ -14,7 +14,18 @@ const MapView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [selectedMerchant, setSelectedMerchant] = useState<Merchant | null>(null);
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [filteredMerchants, setFilteredMerchants] = useState<Merchant[]>([]);
   const navigate = useNavigate();
+
+  // Get category from URL params if present
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const category = urlParams.get('category');
+    if (category) {
+      setActiveCategory(category);
+    }
+  }, []);
 
   useEffect(() => {
     // Get user's current location
@@ -50,7 +61,24 @@ const MapView: React.FC = () => {
         }
         
         if (data) {
-          setMerchants(data as Merchant[]);
+          const merchantsWithDistance = data.map((merchant: Merchant) => {
+            if (userLocation) {
+              const distance = calculateDistance(
+                userLocation.lat, 
+                userLocation.lng, 
+                merchant.lat, 
+                merchant.lng
+              );
+              return {
+                ...merchant,
+                distance: `${distance.toFixed(1)} km`,
+                distanceValue: distance
+              } as Merchant;
+            }
+            return merchant;
+          });
+          
+          setMerchants(merchantsWithDistance as Merchant[]);
         }
       } catch (error) {
         console.error('Error fetching merchants:', error);
@@ -60,21 +88,63 @@ const MapView: React.FC = () => {
     };
     
     fetchMerchants();
-  }, []);
+  }, [userLocation]);
+
+  // Filter merchants based on active category
+  useEffect(() => {
+    if (activeCategory && merchants.length > 0) {
+      // Map UI category names to database values
+      let dbCategory = activeCategory;
+      if (activeCategory === "Salon") {
+        dbCategory = "barber_shop";
+      } else if (activeCategory === "Beauty Parlour") {
+        dbCategory = "beauty_parlour";
+      }
+      
+      const filtered = merchants.filter(merchant => 
+        merchant.category.toLowerCase() === dbCategory.toLowerCase()
+      );
+      setFilteredMerchants(filtered);
+    } else {
+      setFilteredMerchants(merchants);
+    }
+  }, [activeCategory, merchants]);
+
+  // Simple distance calculation using Haversine formula
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // Radius of the earth in km
+    const dLat = deg2rad(lat2 - lat1);
+    const dLon = deg2rad(lon2 - lon1);
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) + 
+      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const d = R * c; // Distance in km
+    return d;
+  };
+
+  const deg2rad = (deg: number) => {
+    return deg * (Math.PI / 180);
+  };
 
   // Calculate markers for the map
-  const mapMarkers = merchants.map(merchant => ({
+  const mapMarkers = filteredMerchants.map(merchant => ({
     lat: merchant.lat,
     lng: merchant.lng,
     title: merchant.shop_name
   }));
 
   const handleMarkerClick = (index: number) => {
-    setSelectedMerchant(merchants[index]);
+    setSelectedMerchant(filteredMerchants[index]);
+  };
+
+  const handleCloseCard = () => {
+    setSelectedMerchant(null);
   };
 
   return (
-    <div className="h-[calc(100vh-120px)] relative">
+    <div className="h-full relative">
       <GoogleMapComponent 
         center={userLocation || { lat: 12.9716, lng: 77.5946 }}
         zoom={12}
@@ -82,6 +152,7 @@ const MapView: React.FC = () => {
         className="h-full"
         onMarkerClick={handleMarkerClick}
         onClick={() => setSelectedMerchant(null)}
+        showUserLocation={true}
       />
       
       {loading && (
@@ -94,7 +165,14 @@ const MapView: React.FC = () => {
       {selectedMerchant && (
         <div className="absolute bottom-6 left-0 right-0 mx-4">
           <Card className="shadow-lg">
-            <CardContent className="p-4">
+            <CardContent className="p-4 pr-10 relative">
+              <button 
+                className="absolute top-2 right-2 rounded-full p-1 bg-gray-100 hover:bg-gray-200"
+                onClick={handleCloseCard}
+              >
+                <X className="h-4 w-4" />
+              </button>
+              
               <div className="flex items-center justify-between">
                 <h3 className="font-medium">{selectedMerchant.shop_name}</h3>
                 <div className="flex items-center">
