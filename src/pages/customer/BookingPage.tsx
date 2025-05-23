@@ -207,7 +207,10 @@ const BookingPage: React.FC = () => {
           const bookingEndMinutes = bookingStartMinutes + bookingDuration;
           
           // If we have a selected staff and the booking is for that staff, check for overlap
-          if (selectedStaff && booking.staff_id === selectedStaff) {
+          // We need to access staff_id safely since it might not exist in the booking type
+          const bookingStaffId = (booking as any).staff_id;
+          
+          if (selectedStaff && bookingStaffId === selectedStaff) {
             return (
               (slotStartMinutes < bookingEndMinutes && slotEndMinutes > bookingStartMinutes) ||
               (bookingStartMinutes < slotEndMinutes && bookingEndMinutes > slotStartMinutes)
