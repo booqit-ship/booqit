@@ -142,7 +142,16 @@ const HomePage: React.FC = () => {
         
       // Filter by category if selected
       if (category) {
-        query = query.eq('category', category);
+        if (category === 'Salon') {
+          // If Salon is selected, show both 'Salon' and 'barber_shop'
+          query = query.or('category.eq.Salon,category.eq.barber_shop');
+        } else if (category === 'Beauty Parlour') {
+          // If Beauty Parlour is selected, show both 'Beauty Parlour' and 'beauty_parlour'
+          query = query.or('category.eq.Beauty Parlour,category.eq.beauty_parlour');
+        } else {
+          // Default case, exact match
+          query = query.eq('category', category);
+        }
       }
         
       const { data: merchants, error } = await query;

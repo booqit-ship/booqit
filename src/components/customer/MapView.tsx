@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Merchant } from '@/types';
-import { MapPin, Star } from 'lucide-react';
+import { MapPin, Star, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 const MapView: React.FC = () => {
@@ -45,9 +45,18 @@ const MapView: React.FC = () => {
           .select('*')
           .order('rating', { ascending: false });
           
-        // Filter by category if provided
+        // Handle category filtering - match both exact category and related ones
         if (category) {
-          query = query.eq('category', category);
+          if (category === 'Salon') {
+            // If Salon is selected, show both 'Salon' and 'barber_shop'
+            query = query.or('category.eq.Salon,category.eq.barber_shop');
+          } else if (category === 'Beauty Parlour') {
+            // If Beauty Parlour is selected, show both 'Beauty Parlour' and 'beauty_parlour'
+            query = query.or('category.eq.Beauty Parlour,category.eq.beauty_parlour');
+          } else {
+            // Default case, exact match
+            query = query.eq('category', category);
+          }
         }
         
         const { data, error } = await query;
@@ -149,9 +158,19 @@ const MapView: React.FC = () => {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-medium text-lg">{selectedMerchant.shop_name}</h3>
-                <div className="flex items-center">
-                  <Star className="w-4 h-4 text-yellow-400 mr-1" />
-                  <span>{selectedMerchant.rating?.toFixed(1) || 'New'}</span>
+                <div className="flex items-center space-x-3">
+                  <div className="flex items-center">
+                    <Star className="w-4 h-4 text-yellow-400 mr-1" />
+                    <span>{selectedMerchant.rating?.toFixed(1) || 'New'}</span>
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setSelectedMerchant(null)}
+                    className="h-8 w-8"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
               <p className="text-sm text-gray-700 mt-1">{selectedMerchant.category}</p>
