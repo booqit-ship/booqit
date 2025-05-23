@@ -1,6 +1,8 @@
 
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { GoogleMap, Marker, useJsApiLoader, InfoWindow } from '@react-google-maps/api';
+import { Button } from '@/components/ui/button';
+import { Locate } from 'lucide-react';
 
 const googleMapsApiKey = 'AIzaSyB28nWHDBaEoMGIEoqfWDh6L2VRkM5AMwc';
 
@@ -40,6 +42,7 @@ const GoogleMapComponent: React.FC<MapProps> = ({
 
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const mapRef = useRef<google.maps.Map | null>(null);
   
   // Define marker icons after Google Maps is loaded
   const createMarkerIcons = () => {
@@ -57,15 +60,14 @@ const GoogleMapComponent: React.FC<MapProps> = ({
       anchor: new google.maps.Point(12, 22),
     };
 
-    // Custom marker icon for user location
+    // Custom marker icon for user location - soft light blue circle
     const userLocationIcon = {
-      path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z',
-      fillColor: '#3B82F6',
-      fillOpacity: 1,
-      strokeColor: '#1D4ED8',
-      strokeWeight: 1,
-      scale: 1.5,
-      anchor: new google.maps.Point(12, 22),
+      path: google.maps.SymbolPath.CIRCLE,
+      fillColor: '#60A5FA', // Soft light blue
+      fillOpacity: 0.8,
+      strokeColor: '#3B82F6',
+      strokeWeight: 2,
+      scale: 10, // Larger, softer circle
     };
     
     return { shopMarkerIcon, userLocationIcon };
@@ -76,10 +78,11 @@ const GoogleMapComponent: React.FC<MapProps> = ({
     if (showUserLocation && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setUserLocation({
+          const newUserLocation = {
             lat: position.coords.latitude,
             lng: position.coords.longitude
-          });
+          };
+          setUserLocation(newUserLocation);
         },
         (error) => {
           console.error('Error getting user location for map display:', error);
@@ -90,11 +93,38 @@ const GoogleMapComponent: React.FC<MapProps> = ({
 
   const onLoad = useCallback((map: google.maps.Map) => {
     setMap(map);
+    mapRef.current = map;
   }, []);
 
   const onUnmount = useCallback(() => {
     setMap(null);
+    mapRef.current = null;
   }, []);
+
+  // Function to center map on user's location with animation
+  const centerOnUserLocation = useCallback(() => {
+    if (userLocation && mapRef.current) {
+      mapRef.current.panTo(userLocation);
+      mapRef.current.setZoom(16); // Slightly higher zoom when focusing on user
+    } else if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const newUserLocation = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          };
+          setUserLocation(newUserLocation);
+          if (mapRef.current) {
+            mapRef.current.panTo(newUserLocation);
+            mapRef.current.setZoom(16);
+          }
+        },
+        (error) => {
+          console.error('Error centering on user location:', error);
+        }
+      );
+    }
+  }, [userLocation]);
 
   // Return loading state if Google Maps hasn't loaded yet
   if (!isLoaded) {
@@ -110,7 +140,7 @@ const GoogleMapComponent: React.FC<MapProps> = ({
   const { shopMarkerIcon, userLocationIcon } = markerIcons;
 
   return (
-    <div className={`rounded-lg overflow-hidden ${className}`}>
+    <div className={`rounded-lg overflow-hidden relative ${className}`}>
       <GoogleMap
         mapContainerStyle={containerStyle}
         center={center}
@@ -120,25 +150,20 @@ const GoogleMapComponent: React.FC<MapProps> = ({
         onClick={onClick}
         options={{
           fullscreenControl: false,
-          streetViewControl: true,
-          mapTypeControl: true,
-          zoomControl: true,
+          streetViewControl: false, // Removed per user request
+          mapTypeControl: false, // Removed per user request
+          zoomControl: false, // Removed per user request
           gestureHandling: 'greedy', // Makes the map more mobile-friendly
           mapTypeId: google.maps.MapTypeId.ROADMAP,
-          mapTypeControlOptions: {
-            position: google.maps.ControlPosition.TOP_RIGHT,
-            style: google.maps.MapTypeControlStyle.DROPDOWN_MENU,
-          },
         }}
       >
-        {/* User location marker (blue) */}
+        {/* User location marker (soft light blue circle) */}
         {showUserLocation && userLocation && (
           <Marker
             position={userLocation}
             icon={userLocationIcon}
             title="Your Location"
             zIndex={1000} // Make sure user location is on top of other markers
-            animation={google.maps.Animation.DROP}
           />
         )}
 
@@ -165,6 +190,15 @@ const GoogleMapComponent: React.FC<MapProps> = ({
           />
         ) : null}
       </GoogleMap>
+      
+      {/* Floating locate button */}
+      <Button
+        onClick={centerOnUserLocation}
+        className="absolute bottom-4 right-4 h-12 w-12 rounded-full shadow-lg bg-white hover:bg-gray-100 text-booqit-primary p-0"
+        aria-label="Center on my location"
+      >
+        <Locate className="h-5 w-5" />
+      </Button>
     </div>
   );
 };
