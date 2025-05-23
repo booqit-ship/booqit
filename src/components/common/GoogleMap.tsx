@@ -40,25 +40,29 @@ const GoogleMapComponent: React.FC<MapProps> = ({
   const mapRef = useRef<google.maps.Map | null>(null);
   const isMobile = useIsMobile();
   
-  // Define map options
-  const mapOptions = {
-    fullscreenControl: false,
-    streetViewControl: false,
-    mapTypeControl: false,
-    zoomControl: !isMobile,
-    gestureHandling: 'greedy',
-    mapTypeId: google.maps.MapTypeId.ROADMAP,
-    scrollwheel: true,
-    clickableIcons: false,
-    disableDefaultUI: isMobile,
-    zoomControlOptions: {
-      position: google.maps.ControlPosition.RIGHT_TOP,
-    },
-  };
+  // Define map options - only define these when API is loaded
+  const getMapOptions = useCallback(() => {
+    if (!isLoaded || typeof google === 'undefined') return {};
+    
+    return {
+      fullscreenControl: false,
+      streetViewControl: false,
+      mapTypeControl: false,
+      zoomControl: !isMobile,
+      gestureHandling: 'greedy',
+      mapTypeId: google.maps.MapTypeId.ROADMAP,
+      scrollwheel: true,
+      clickableIcons: false,
+      disableDefaultUI: isMobile,
+      zoomControlOptions: {
+        position: google.maps.ControlPosition.RIGHT_TOP,
+      },
+    };
+  }, [isLoaded, isMobile]);
 
   // Create marker icons when Google Maps is loaded
   const createMarkerIcons = useCallback(() => {
-    if (!window.google || !google.maps) return null;
+    if (!isLoaded || typeof google === 'undefined') return null;
     
     const shopMarkerIcon = {
       path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z",
@@ -80,7 +84,7 @@ const GoogleMapComponent: React.FC<MapProps> = ({
     };
     
     return { shopMarkerIcon, userLocationIcon };
-  }, []);
+  }, [isLoaded]);
   
   // Get user's location for the blue dot
   useEffect(() => {
@@ -165,8 +169,11 @@ const GoogleMapComponent: React.FC<MapProps> = ({
     return <div className={`flex items-center justify-center bg-gray-200 ${className}`}>Loading map...</div>;
   }
 
-  // Create marker icons after Google Maps is loaded
+  // Get map options and marker icons after Google Maps is loaded
+  const mapOptions = getMapOptions();
   const markerIcons = createMarkerIcons();
+
+  // If marker icons couldn't be created, show an error
   if (!markerIcons) {
     return <div className={`flex items-center justify-center bg-gray-200 ${className}`}>Error loading Google Maps</div>;
   }
