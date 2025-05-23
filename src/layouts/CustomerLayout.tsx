@@ -6,13 +6,16 @@ import BottomNavigation from '@/components/customer/BottomNavigation';
 const CustomerLayout: React.FC = () => {
   const location = useLocation();
   const isMapPage = location.pathname === '/map';
+  const isBookingFlow = location.pathname.includes('/booking/') || 
+                         location.pathname.includes('/payment/') ||
+                         location.pathname.includes('/receipt/');
   
   return (
     <div className="min-h-screen bg-gray-50">
-      <main className={isMapPage ? "" : "pb-16"}>
+      <main className={(isMapPage || isBookingFlow) ? "" : "pb-16"}>
         <Outlet />
       </main>
-      {!isMapPage && <BottomNavigation />}
+      {!isMapPage && !isBookingFlow && <BottomNavigation />}
     </div>
   );
 };

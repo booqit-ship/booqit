@@ -1,30 +1,17 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { format } from 'date-fns';
+import { format, addDays, isBefore, startOfToday } from 'date-fns';
 import { 
   CalendarIcon, 
   Clock, 
-  ChevronLeft, 
+  ChevronLeft,
   User as UserIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from '@/components/ui/select';
-import { Calendar } from '@/components/ui/calendar';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
-import { Separator } from '@/components/ui/separator';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { Merchant, Service, Staff } from '@/types';
 import { toast } from 'sonner';
@@ -33,6 +20,12 @@ import { cn } from '@/lib/utils';
 interface TimeSlot {
   time: string;
   available: boolean;
+}
+
+interface DateOption {
+  date: Date;
+  label: string;
+  day: string;
 }
 
 const BookingPage: React.FC = () => {
@@ -45,13 +38,36 @@ const BookingPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   
   // Booking state
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [selectedDateIndex, setSelectedDateIndex] = useState<number>(0);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
   const [selectedStaff, setSelectedStaff] = useState<string | null>(null);
+  
+  // Available dates (today + 6 days)
+  const [availableDates, setAvailableDates] = useState<DateOption[]>([]);
   
   // Time slots generation
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   
+  // Generate available dates (today + next 6 days)
+  useEffect(() => {
+    const today = startOfToday();
+    const dates: DateOption[] = [];
+    
+    for (let i = 0; i < 7; i++) {
+      const date = addDays(today, i);
+      const day = format(date, 'EEE').toUpperCase();
+      const label = format(date, 'MMM d');
+      
+      dates.push({
+        date,
+        day,
+        label
+      });
+    }
+    
+    setAvailableDates(dates);
+  }, []);
+
   useEffect(() => {
     const fetchMerchantAndService = async () => {
       try {
@@ -90,9 +106,9 @@ const BookingPage: React.FC = () => {
         setService(serviceData);
         setStaff(staffData || []);
 
-        // Generate time slots between merchant's open and close time
-        if (merchantData && selectedDate) {
-          generateTimeSlots(merchantData.open_time, merchantData.close_time, serviceData.duration);
+        // Generate time slots for today initially
+        if (merchantData && availableDates.length > 0) {
+          generateTimeSlots(merchantData.open_time, merchantData.close_time, serviceData.duration, availableDates[0].date);
         }
       } catch (error) {
         console.error('Error fetching details:', error);
@@ -103,17 +119,20 @@ const BookingPage: React.FC = () => {
     };
     
     fetchMerchantAndService();
-  }, [merchantId, serviceId]);
+  }, [merchantId, serviceId, availableDates.length]);
 
   // Regenerate time slots when date changes
   useEffect(() => {
-    if (merchant && selectedDate && service) {
-      generateTimeSlots(merchant.open_time, merchant.close_time, service.duration);
+    if (merchant && service && availableDates.length > 0) {
+      const selectedDate = availableDates[selectedDateIndex]?.date;
+      if (selectedDate) {
+        generateTimeSlots(merchant.open_time, merchant.close_time, service.duration, selectedDate);
+      }
     }
-  }, [selectedDate, merchant, service]);
+  }, [selectedDateIndex, merchant, service, availableDates]);
 
-  // Generate available time slots based on opening hours and service duration
-  const generateTimeSlots = (openTime: string, closeTime: string, duration: number) => {
+  // Generate available time slots based on opening hours, service duration, and existing bookings
+  const generateTimeSlots = async (openTime: string, closeTime: string, duration: number, date: Date) => {
     const slots: TimeSlot[] = [];
     
     try {
@@ -130,22 +149,22 @@ const BookingPage: React.FC = () => {
         
         slots.push({ 
           time: timeString, 
-          available: true // In a real app, check against existing bookings
+          available: true // Will check against existing bookings
         });
         
-        currentMinute += duration; // Move to next slot based on service duration
+        // Move to next slot based on service duration (in increments of 30 mins)
+        currentMinute += 30; 
       }
 
-      // Check for existing bookings
-      if (selectedDate) {
-        checkBookedSlots(slots, selectedDate.toISOString().split('T')[0]);
-      }
+      // Check for existing bookings for this date
+      const dateString = format(date, 'yyyy-MM-dd');
+      await checkBookedSlots(slots, dateString);
+      
+      setSelectedTimeSlot(null); // Reset selected time slot when the date changes
     } catch (error) {
       console.error('Error generating time slots:', error);
       toast.error('Could not generate time slots');
     }
-    
-    setTimeSlots(slots);
   };
 
   const checkBookedSlots = async (slots: TimeSlot[], dateString: string) => {
@@ -159,18 +178,45 @@ const BookingPage: React.FC = () => {
       
       if (error) throw error;
       
-      // Mark slots as unavailable if already booked
+      if (!bookings || !service) {
+        setTimeSlots(slots);
+        return;
+      }
+      
+      // Mark slots as unavailable if they overlap with any existing booking
+      const serviceDuration = service.duration;
+      
       const updatedSlots = slots.map(slot => {
-        const isBooked = bookings?.some(booking => 
-          booking.time_slot === slot.time && 
-          booking.status !== 'cancelled'
-        );
-        return { ...slot, available: !isBooked };
+        const slotStartMinutes = convertTimeToMinutes(slot.time);
+        const slotEndMinutes = slotStartMinutes + serviceDuration;
+        
+        // Check if this slot overlaps with any existing booking
+        const isOverlapping = bookings.some(booking => {
+          const bookingStartMinutes = convertTimeToMinutes(booking.time_slot);
+          const bookingService = booking.service_id;
+          
+          // Get the duration of the booked service
+          let bookingDuration = serviceDuration; // Default to current service duration as fallback
+          
+          // For more accurate blocking, we should fetch the actual service duration
+          // This would ideally be part of the booking record, but for now we assume it's the same
+          
+          const bookingEndMinutes = bookingStartMinutes + bookingDuration;
+          
+          // Check if there's any overlap between this slot and the booking
+          return (
+            (slotStartMinutes < bookingEndMinutes && slotEndMinutes > bookingStartMinutes) ||
+            (bookingStartMinutes < slotEndMinutes && bookingEndMinutes > slotStartMinutes)
+          );
+        });
+        
+        return { ...slot, available: !isOverlapping };
       });
       
       setTimeSlots(updatedSlots);
     } catch (error) {
       console.error('Error checking booked slots:', error);
+      setTimeSlots(slots); // Use the original slots if there's an error
     }
   };
 
@@ -179,9 +225,18 @@ const BookingPage: React.FC = () => {
     return hours * 60 + minutes;
   };
 
+  const handleDateSelection = (index: number) => {
+    setSelectedDateIndex(index);
+  };
+
   const handleContinue = () => {
-    if (!selectedDate || !selectedTimeSlot) {
-      toast.error('Please select a date and time slot');
+    if (!availableDates[selectedDateIndex]) {
+      toast.error('Please select a date');
+      return;
+    }
+    
+    if (!selectedTimeSlot) {
+      toast.error('Please select a time slot');
       return;
     }
 
@@ -193,7 +248,7 @@ const BookingPage: React.FC = () => {
     // Navigate to payment page with booking details
     navigate(`/payment/${merchantId}/${serviceId}`, {
       state: {
-        bookingDate: selectedDate.toISOString().split('T')[0],
+        bookingDate: format(availableDates[selectedDateIndex].date, 'yyyy-MM-dd'),
         bookingTime: selectedTimeSlot,
         staffId: selectedStaff,
         serviceName: service?.name,
@@ -221,164 +276,159 @@ const BookingPage: React.FC = () => {
   }
 
   return (
-    <div className="pb-20">
-      <div className="relative bg-booqit-primary text-white p-4">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="absolute top-4 left-4 text-white hover:bg-white/20"
-          onClick={() => navigate(-1)}
-        >
-          <ChevronLeft className="h-5 w-5" />
-        </Button>
-        <h1 className="text-center text-xl font-medium">Book Appointment</h1>
+    <div className="pb-20 bg-white min-h-screen">
+      <div className="bg-booqit-primary text-white p-4 sticky top-0 z-10">
+        <div className="relative flex items-center justify-center">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="absolute left-0 text-white hover:bg-white/20"
+            onClick={() => navigate(-1)}
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-xl font-medium">Date and time</h1>
+        </div>
       </div>
       
-      <div className="p-4 space-y-6">
-        {/* Service and Merchant Info */}
-        <Card>
-          <CardContent className="p-4">
-            <h2 className="font-semibold">{service.name}</h2>
-            <div className="flex justify-between text-sm mt-1">
-              <span>{merchant.shop_name}</span>
-              <span className="font-medium">₹{service.price}</span>
-            </div>
-            <div className="flex text-gray-500 text-sm mt-2">
-              <Clock className="h-4 w-4 mr-1" />
-              <span>{service.duration} mins</span>
-            </div>
-          </CardContent>
-        </Card>
-        
-        {/* Staff Selection */}
-        {staff.length > 0 && (
-          <div>
-            <h2 className="text-lg font-medium mb-2">Choose Stylist</h2>
-            <Select
-              value={selectedStaff || ''}
-              onValueChange={setSelectedStaff}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select a stylist" />
-              </SelectTrigger>
-              <SelectContent>
-                {staff.map((person) => (
-                  <SelectItem key={person.id} value={person.id}>
-                    <div className="flex items-center">
-                      <UserIcon className="h-4 w-4 mr-2 opacity-70" />
-                      {person.name}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-        
+      <div className="p-4 space-y-8">
         {/* Date Selection */}
         <div>
-          <h2 className="text-lg font-medium mb-2">Select Date</h2>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className="w-full justify-start text-left font-normal"
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {selectedDate ? format(selectedDate, 'PPP') : <span>Pick a date</span>}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0">
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={setSelectedDate}
-                disabled={(date) => 
-                  date < new Date() ||
-                  date < new Date(new Date().setHours(0, 0, 0, 0))
-                }
-                initialFocus
-                className={cn("p-3 pointer-events-auto")}
-              />
-            </PopoverContent>
-          </Popover>
+          <h2 className="text-xl font-semibold mb-4">Select Date</h2>
+          <div className="grid grid-cols-4 gap-2 overflow-x-auto">
+            {availableDates.map((dateOption, index) => (
+              <div key={index} className="flex-shrink-0">
+                <button
+                  onClick={() => handleDateSelection(index)}
+                  className={cn(
+                    "w-full rounded-lg p-3 border transition-all duration-200",
+                    selectedDateIndex === index
+                      ? "border-booqit-primary bg-booqit-primary text-white"
+                      : "border-gray-200 hover:border-booqit-primary/50"
+                  )}
+                >
+                  <div className="text-center">
+                    <div className="font-medium">{dateOption.day}</div>
+                    <div className={`${selectedDateIndex === index ? 'text-white' : 'text-gray-500'} text-sm`}>
+                      {dateOption.label}
+                    </div>
+                    <div className={`${selectedDateIndex === index ? 'text-white' : 'text-gray-500'} text-xs mt-1`}>
+                      {service.duration} mins
+                    </div>
+                  </div>
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
         
         {/* Time Slots */}
         <div>
-          <h2 className="text-lg font-medium mb-2">Select Time</h2>
+          <h2 className="text-xl font-semibold mb-4">Select Time</h2>
           {timeSlots.length > 0 ? (
             <RadioGroup
               value={selectedTimeSlot || ''}
               onValueChange={setSelectedTimeSlot}
+              className="space-y-2"
             >
-              <div className="grid grid-cols-3 gap-2">
-                {timeSlots.map((slot) => (
-                  <div key={slot.time}>
-                    <label
-                      className={`flex items-center justify-center px-4 py-2 rounded-md border text-sm cursor-pointer ${
-                        slot.available 
-                          ? selectedTimeSlot === slot.time
-                            ? 'bg-booqit-primary text-white'
-                            : 'bg-white hover:bg-gray-50'
-                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      }`}
-                    >
+              {timeSlots.map((slot) => (
+                <div key={slot.time}>
+                  <label
+                    className={cn(
+                      "flex justify-between items-center p-4 rounded-md border transition-all",
+                      slot.available 
+                        ? selectedTimeSlot === slot.time
+                          ? "bg-booqit-primary text-white border-booqit-primary"
+                          : "bg-white hover:border-booqit-primary/50 border-gray-200"
+                        : "bg-gray-100 text-gray-400 cursor-not-allowed border-transparent"
+                    )}
+                  >
+                    <div className="flex items-center">
                       <RadioGroupItem
                         value={slot.time}
                         disabled={!slot.available}
-                        className="sr-only"
+                        className={selectedTimeSlot === slot.time ? "border-white text-white" : ""}
                       />
-                      <span>{slot.time}</span>
-                    </label>
-                  </div>
-                ))}
-              </div>
+                      <span className="ml-2">{slot.time} AM</span>
+                    </div>
+                    {(selectedDateIndex === 0 || selectedDateIndex === 1) && slot.available && (
+                      <span className="text-sm font-medium text-green-500">20% Off</span>
+                    )}
+                  </label>
+                </div>
+              ))}
             </RadioGroup>
           ) : (
-            <p className="text-center py-4 bg-gray-50 rounded-md text-gray-500">
-              No available time slots for the selected date
-            </p>
-          )}
-        </div>
-        
-        <Separator />
-        
-        {/* Summary */}
-        <div className="space-y-3">
-          <div className="flex justify-between">
-            <span className="text-gray-600">Service</span>
-            <span className="font-medium">{service.name}</span>
-          </div>
-          {selectedStaff && staff.length > 0 && (
-            <div className="flex justify-between">
-              <span className="text-gray-600">Stylist</span>
-              <span className="font-medium">
-                {staff.find(s => s.id === selectedStaff)?.name || 'Not selected'}
-              </span>
+            <div className="text-center py-8 bg-gray-50 rounded-lg">
+              <p className="text-gray-500">No available time slots for the selected date</p>
             </div>
           )}
-          <div className="flex justify-between">
-            <span className="text-gray-600">Date & Time</span>
-            <span className="font-medium">
-              {selectedDate 
-                ? `${format(selectedDate, 'PP')} at ${selectedTimeSlot || '--:--'}` 
-                : 'Not selected'}
-            </span>
-          </div>
-          <Separator />
-          <div className="flex justify-between text-lg font-medium">
-            <span>Total</span>
-            <span>₹{service.price}</span>
-          </div>
         </div>
         
+        {/* Staff Selection */}
+        {staff.length > 0 && (
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Choose your stylist</h2>
+            <div className="space-y-3">
+              <Card className={cn(
+                "border transition-all overflow-hidden",
+                selectedStaff === null ? "border-booqit-primary" : "border-gray-200"
+              )}>
+                <CardContent className="p-0">
+                  <button 
+                    onClick={() => setSelectedStaff(null)}
+                    className="w-full p-4 flex items-center text-left"
+                  >
+                    <div className="bg-blue-100 rounded-full p-3 mr-4">
+                      <UserIcon className="h-6 w-6 text-blue-500" />
+                    </div>
+                    <div>
+                      <div className="font-semibold">Any Stylist</div>
+                      <div className="text-gray-500 text-sm">Next available stylist</div>
+                    </div>
+                  </button>
+                </CardContent>
+              </Card>
+              
+              {staff.map((stylist) => (
+                <Card 
+                  key={stylist.id}
+                  className={cn(
+                    "border transition-all overflow-hidden",
+                    selectedStaff === stylist.id ? "border-booqit-primary" : "border-gray-200"
+                  )}
+                >
+                  <CardContent className="p-0">
+                    <button 
+                      onClick={() => setSelectedStaff(stylist.id)}
+                      className="w-full p-4 flex items-center text-left"
+                    >
+                      <div className="w-12 h-12 bg-gray-200 rounded-full mr-4 overflow-hidden">
+                        {/* Placeholder for stylist image */}
+                        <UserIcon className="h-12 w-12 p-2 text-gray-400" />
+                      </div>
+                      <div>
+                        <div className="font-semibold">{stylist.name}</div>
+                        <div className="text-gray-500 text-sm">Hair Specialist</div>
+                      </div>
+                    </button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+      
+      {/* Bottom confirm button */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
         <Button 
-          className="w-full bg-booqit-primary hover:bg-booqit-primary/90"
+          className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6"
           size="lg"
           onClick={handleContinue}
+          disabled={!selectedTimeSlot}
         >
-          Continue to Payment
+          Confirm Appointment
         </Button>
       </div>
     </div>
