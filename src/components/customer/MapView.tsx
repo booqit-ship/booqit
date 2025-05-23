@@ -112,7 +112,6 @@ const MapView: React.FC = () => {
 
   const handleMarkerClick = (index: number) => {
     setSelectedMerchant(merchants[index]);
-    setShowInfoCard(true);
   };
   
   // Calculate distance value for sorting purposes
@@ -140,6 +139,11 @@ const MapView: React.FC = () => {
 
   const handleCloseInfoCard = () => {
     setShowInfoCard(false);
+  };
+
+  // Add a function to close the merchant details card
+  const handleCloseShopDetails = () => {
+    setSelectedMerchant(null);
   };
 
   return (
@@ -202,16 +206,26 @@ const MapView: React.FC = () => {
         </div>
       )}
       
-      {/* Selected merchant details */}
+      {/* Selected merchant details with close button */}
       {selectedMerchant && userLocation && (
         <div className="absolute bottom-6 left-0 right-0 mx-4">
           <Card className="shadow-lg bg-white/95 backdrop-blur-sm">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-medium text-lg">{selectedMerchant.shop_name}</h3>
-                <div className="flex items-center">
-                  <Star className="w-4 h-4 text-yellow-400 mr-1" />
-                  <span>{selectedMerchant.rating?.toFixed(1) || 'New'}</span>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center">
+                    <Star className="w-4 h-4 text-yellow-400 mr-1" />
+                    <span>{selectedMerchant.rating?.toFixed(1) || 'New'}</span>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-7 w-7" 
+                    onClick={handleCloseShopDetails}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
               <p className="text-sm text-gray-700 mt-1">{selectedMerchant.category.replace(/_/g, ' ')}</p>

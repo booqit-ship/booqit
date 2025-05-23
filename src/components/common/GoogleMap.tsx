@@ -1,3 +1,4 @@
+
 import React, { useCallback, useState, useEffect } from 'react';
 import { GoogleMap, Marker, InfoWindow, useJsApiLoader } from '@react-google-maps/api';
 
@@ -137,14 +138,14 @@ const GoogleMapComponent: React.FC<MapProps> = ({
     
     // Set CSS for the control interior
     const controlUI = document.createElement('div');
-    controlUI.className = "flex items-center justify-center h-10 w-10 rounded-full";
-    controlUI.title = "Click to go to your location";
+    controlUI.className = "flex items-center justify-center h-12 w-12 rounded-full";
+    controlUI.title = "Find my location";
     controlDiv.appendChild(controlUI);
     
     // Set CSS for the control text
     const controlIcon = document.createElement('div');
     controlIcon.innerHTML = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="10"></circle>
         <circle cx="12" cy="12" r="1"></circle>
         <line x1="12" y1="2" x2="12" y2="4"></line>
@@ -165,8 +166,9 @@ const GoogleMapComponent: React.FC<MapProps> = ({
 
   useEffect(() => {
     if (isLoaded && map) {
+      // Add the single location button to the map
       const myLocationControl = createMyLocationControl(map);
-      map.controls[google.maps.ControlPosition.LEFT_BOTTOM].push(myLocationControl);
+      map.controls[google.maps.ControlPosition.RIGHT_BOTTOM].push(myLocationControl);
     }
   }, [isLoaded, map, onMyLocationClick]);
 
