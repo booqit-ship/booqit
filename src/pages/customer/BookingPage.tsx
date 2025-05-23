@@ -6,7 +6,8 @@ import {
   CalendarIcon, 
   Clock, 
   ChevronLeft,
-  User as UserIcon
+  UserIcon,
+  Users
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -16,10 +17,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { Merchant, Service, Staff } from '@/types';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
 interface TimeSlot {
   time: string;
   available: boolean;
+  staffId?: string | null;
 }
 
 interface DateOption {
@@ -203,7 +206,16 @@ const BookingPage: React.FC = () => {
           
           const bookingEndMinutes = bookingStartMinutes + bookingDuration;
           
-          // Check if there's any overlap between this slot and the booking
+          // If we have a selected staff and the booking is for that staff, check for overlap
+          if (selectedStaff && booking.staff_id === selectedStaff) {
+            return (
+              (slotStartMinutes < bookingEndMinutes && slotEndMinutes > bookingStartMinutes) ||
+              (bookingStartMinutes < slotEndMinutes && bookingEndMinutes > slotStartMinutes)
+            );
+          }
+          
+          // If we don't have a selected staff yet, check if any slots are completely booked
+          // This is a simplification - ideally we would check per staff
           return (
             (slotStartMinutes < bookingEndMinutes && slotEndMinutes > bookingStartMinutes) ||
             (bookingStartMinutes < slotEndMinutes && bookingEndMinutes > slotStartMinutes)
@@ -349,11 +361,8 @@ const BookingPage: React.FC = () => {
                         disabled={!slot.available}
                         className={selectedTimeSlot === slot.time ? "border-white text-white" : ""}
                       />
-                      <span className="ml-2">{slot.time} AM</span>
+                      <span className="ml-2">{slot.time}</span>
                     </div>
-                    {(selectedDateIndex === 0 || selectedDateIndex === 1) && slot.available && (
-                      <span className="text-sm font-medium text-green-500">20% Off</span>
-                    )}
                   </label>
                 </div>
               ))}
@@ -365,14 +374,15 @@ const BookingPage: React.FC = () => {
           )}
         </div>
         
-        {/* Staff Selection */}
+        {/* Staff Selection - Restyled to match the image */}
         {staff.length > 0 && (
           <div>
             <h2 className="text-xl font-semibold mb-4">Choose your stylist</h2>
             <div className="space-y-3">
+              {/* Any Stylist Option */}
               <Card className={cn(
                 "border transition-all overflow-hidden",
-                selectedStaff === null ? "border-booqit-primary" : "border-gray-200"
+                selectedStaff === null ? "border-blue-500" : "border-gray-200"
               )}>
                 <CardContent className="p-0">
                   <button 
@@ -380,7 +390,7 @@ const BookingPage: React.FC = () => {
                     className="w-full p-4 flex items-center text-left"
                   >
                     <div className="bg-blue-100 rounded-full p-3 mr-4">
-                      <UserIcon className="h-6 w-6 text-blue-500" />
+                      <Users className="h-6 w-6 text-blue-500" />
                     </div>
                     <div>
                       <div className="font-semibold">Any Stylist</div>
@@ -395,7 +405,7 @@ const BookingPage: React.FC = () => {
                   key={stylist.id}
                   className={cn(
                     "border transition-all overflow-hidden",
-                    selectedStaff === stylist.id ? "border-booqit-primary" : "border-gray-200"
+                    selectedStaff === stylist.id ? "border-blue-500" : "border-gray-200"
                   )}
                 >
                   <CardContent className="p-0">
@@ -403,10 +413,11 @@ const BookingPage: React.FC = () => {
                       onClick={() => setSelectedStaff(stylist.id)}
                       className="w-full p-4 flex items-center text-left"
                     >
-                      <div className="w-12 h-12 bg-gray-200 rounded-full mr-4 overflow-hidden">
-                        {/* Placeholder for stylist image */}
-                        <UserIcon className="h-12 w-12 p-2 text-gray-400" />
-                      </div>
+                      <Avatar className="h-12 w-12 mr-4">
+                        <AvatarFallback className="bg-gray-200 text-gray-700">
+                          {stylist.name.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
                       <div>
                         <div className="font-semibold">{stylist.name}</div>
                         <div className="text-gray-500 text-sm">Hair Specialist</div>

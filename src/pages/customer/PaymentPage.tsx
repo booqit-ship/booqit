@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, CreditCard, Wallet, User, Check } from 'lucide-react';
@@ -29,12 +28,7 @@ const PaymentPage: React.FC = () => {
   const bookingDetails = location.state as BookingDetails;
 
   const [loading, setLoading] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
-  const [cardName, setCardName] = useState('');
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCVC, setCardCVC] = useState('');
-  const [upiId, setUpiId] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash'); // Default to cash
   const [user, setUser] = useState<any>(null);
   const [processingPayment, setProcessingPayment] = useState(false);
 
@@ -64,40 +58,9 @@ const PaymentPage: React.FC = () => {
     }
   }, [navigate, bookingDetails]);
 
-  const handleExpiryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Format to MM/YY
-    const input = e.target.value.replace(/\D/g, '');
-    if (input.length <= 4) {
-      const formatted = input.length > 2 
-        ? `${input.slice(0, 2)}/${input.slice(2)}` 
-        : input;
-      setCardExpiry(formatted);
-    }
-  };
-
-  const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Format to XXXX XXXX XXXX XXXX
-    const input = e.target.value.replace(/\D/g, '');
-    if (input.length <= 16) {
-      const formatted = input.match(/.{1,4}/g)?.join(' ') || input;
-      setCardNumber(formatted);
-    }
-  };
-
   const handlePayment = async () => {
     if (!user || !merchantId || !serviceId || !bookingDetails) {
       toast.error('Missing required information');
-      return;
-    }
-
-    // Validate payment details based on payment method
-    if (paymentMethod === 'card') {
-      if (!cardName || !cardNumber || !cardExpiry || !cardCVC) {
-        toast.error('Please fill in all card details');
-        return;
-      }
-    } else if (paymentMethod === 'upi' && !upiId) {
-      toast.error('Please enter your UPI ID');
       return;
     }
 
@@ -111,10 +74,11 @@ const PaymentPage: React.FC = () => {
           user_id: user.id,
           merchant_id: merchantId,
           service_id: serviceId,
+          staff_id: bookingDetails.staffId, // Include the selected staff
           date: bookingDetails.bookingDate,
           time_slot: bookingDetails.bookingTime,
           status: 'confirmed',
-          payment_status: 'completed',
+          payment_status: 'pending', // Since it's cash on service
         })
         .select()
         .single();
@@ -126,25 +90,25 @@ const PaymentPage: React.FC = () => {
         .from('payments')
         .insert({
           booking_id: bookingData.id,
-          method: paymentMethod,
+          method: 'cash',
           amount: bookingDetails.servicePrice,
-          status: 'completed',
+          status: 'pending', // Since it's cash on service
         });
       
       if (paymentError) throw paymentError;
       
       // Show success and navigate to receipt
-      toast.success('Payment successful!');
+      toast.success('Booking confirmed!');
       navigate(`/receipt/${bookingData.id}`, {
         state: {
           ...bookingDetails,
           bookingId: bookingData.id,
-          paymentMethod
+          paymentMethod: 'cash'
         }
       });
     } catch (error) {
-      console.error('Payment error:', error);
-      toast.error('Payment failed. Please try again.');
+      console.error('Booking error:', error);
+      toast.error('Booking failed. Please try again.');
       setProcessingPayment(false);
     }
   };
@@ -219,134 +183,55 @@ const PaymentPage: React.FC = () => {
             onValueChange={(value) => setPaymentMethod(value as PaymentMethod)}
             className="space-y-3"
           >
+            {/* Cash on Service - Only enabled option */}
+            <Label
+              htmlFor="cash-option"
+              className="flex items-center p-4 border rounded-lg cursor-pointer transition-colors border-booqit-primary bg-booqit-primary/5"
+            >
+              <RadioGroupItem value="cash" id="cash-option" className="mr-3" checked />
+              <span className="mr-3 text-gray-600 font-medium">₹</span>
+              <span>Cash on Service</span>
+            </Label>
+            
+            {/* Other payment methods - disabled */}
             <Label
               htmlFor="card-option"
-              className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${
-                paymentMethod === 'card' ? 'border-booqit-primary bg-booqit-primary/5' : 'border-gray-200'
-              }`}
+              className="flex items-center p-4 border rounded-lg cursor-not-allowed border-gray-200 bg-gray-50"
             >
-              <RadioGroupItem value="card" id="card-option" className="mr-3" />
-              <CreditCard className="h-5 w-5 mr-3 text-gray-600" />
-              <span>Credit/Debit Card</span>
+              <RadioGroupItem value="card" id="card-option" className="mr-3" disabled />
+              <CreditCard className="h-5 w-5 mr-3 text-gray-400" />
+              <span className="text-gray-400">Credit/Debit Card</span>
+              <span className="ml-auto text-xs bg-gray-200 px-2 py-0.5 rounded">Coming Soon</span>
             </Label>
             
             <Label
               htmlFor="upi-option"
-              className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${
-                paymentMethod === 'upi' ? 'border-booqit-primary bg-booqit-primary/5' : 'border-gray-200'
-              }`}
+              className="flex items-center p-4 border rounded-lg cursor-not-allowed border-gray-200 bg-gray-50"
             >
-              <RadioGroupItem value="upi" id="upi-option" className="mr-3" />
-              <User className="h-5 w-5 mr-3 text-gray-600" />
-              <span>UPI</span>
+              <RadioGroupItem value="upi" id="upi-option" className="mr-3" disabled />
+              <User className="h-5 w-5 mr-3 text-gray-400" />
+              <span className="text-gray-400">UPI</span>
+              <span className="ml-auto text-xs bg-gray-200 px-2 py-0.5 rounded">Coming Soon</span>
             </Label>
             
             <Label
               htmlFor="wallet-option"
-              className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${
-                paymentMethod === 'wallet' ? 'border-booqit-primary bg-booqit-primary/5' : 'border-gray-200'
-              }`}
+              className="flex items-center p-4 border rounded-lg cursor-not-allowed border-gray-200 bg-gray-50"
             >
-              <RadioGroupItem value="wallet" id="wallet-option" className="mr-3" />
-              <Wallet className="h-5 w-5 mr-3 text-gray-600" />
-              <span>Digital Wallet</span>
-            </Label>
-            
-            <Label
-              htmlFor="cash-option"
-              className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${
-                paymentMethod === 'cash' ? 'border-booqit-primary bg-booqit-primary/5' : 'border-gray-200'
-              }`}
-            >
-              <RadioGroupItem value="cash" id="cash-option" className="mr-3" />
-              <span className="mr-3 text-gray-600 font-medium">₹</span>
-              <span>Cash on Service</span>
+              <RadioGroupItem value="wallet" id="wallet-option" className="mr-3" disabled />
+              <Wallet className="h-5 w-5 mr-3 text-gray-400" />
+              <span className="text-gray-400">Digital Wallet</span>
+              <span className="ml-auto text-xs bg-gray-200 px-2 py-0.5 rounded">Coming Soon</span>
             </Label>
           </RadioGroup>
         </div>
         
-        {/* Payment Details based on selected method */}
-        <div>
-          {paymentMethod === 'card' && (
-            <Card>
-              <CardContent className="p-4 space-y-3">
-                <div>
-                  <Label htmlFor="card-name">Name on Card</Label>
-                  <Input 
-                    id="card-name" 
-                    placeholder="John Doe" 
-                    value={cardName}
-                    onChange={(e) => setCardName(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="card-number">Card Number</Label>
-                  <Input 
-                    id="card-number" 
-                    placeholder="1234 5678 9012 3456" 
-                    value={cardNumber}
-                    onChange={handleCardNumberChange}
-                  />
-                </div>
-                <div className="flex gap-3">
-                  <div className="flex-1">
-                    <Label htmlFor="card-expiry">Expiry Date</Label>
-                    <Input 
-                      id="card-expiry" 
-                      placeholder="MM/YY" 
-                      value={cardExpiry}
-                      onChange={handleExpiryChange}
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <Label htmlFor="card-cvc">CVC</Label>
-                    <Input 
-                      id="card-cvc" 
-                      placeholder="123" 
-                      value={cardCVC}
-                      onChange={(e) => {
-                        const input = e.target.value.replace(/\D/g, '');
-                        if (input.length <= 4) {
-                          setCardCVC(input);
-                        }
-                      }}
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-          
-          {paymentMethod === 'upi' && (
-            <Card>
-              <CardContent className="p-4">
-                <Label htmlFor="upi-id">UPI ID</Label>
-                <Input 
-                  id="upi-id" 
-                  placeholder="yourname@bank" 
-                  value={upiId}
-                  onChange={(e) => setUpiId(e.target.value)}
-                />
-              </CardContent>
-            </Card>
-          )}
-          
-          {paymentMethod === 'wallet' && (
-            <Card>
-              <CardContent className="p-4 text-center text-gray-600">
-                <p>You'll be redirected to complete the payment</p>
-              </CardContent>
-            </Card>
-          )}
-          
-          {paymentMethod === 'cash' && (
-            <Card>
-              <CardContent className="p-4 text-center text-gray-600">
-                <p>Pay the amount directly at the service location</p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+        {/* Cash payment info */}
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-gray-600">Pay the amount directly at the service location</p>
+          </CardContent>
+        </Card>
         
         <Button 
           className="w-full bg-booqit-primary hover:bg-booqit-primary/90"
@@ -360,7 +245,7 @@ const PaymentPage: React.FC = () => {
               Processing...
             </>
           ) : (
-            `Pay ₹${bookingDetails.servicePrice}`
+            `Confirm Booking - ₹${bookingDetails.servicePrice}`
           )}
         </Button>
       </div>
