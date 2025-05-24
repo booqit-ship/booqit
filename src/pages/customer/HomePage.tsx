@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Search } from 'lucide-react';
@@ -276,79 +277,46 @@ const HomePage: React.FC = () => {
   
   return (
     <div className="pb-20"> {/* Add padding to account for bottom navigation */}
-      <motion.div className="bg-gradient-to-r from-booqit-primary to-purple-700 text-white p-4 sm:p-6 rounded-b-3xl shadow-lg" initial={{
+      <motion.div className="bg-gradient-to-r from-booqit-primary to-purple-700 text-white p-6 rounded-b-3xl shadow-lg" initial={{
       y: -20,
       opacity: 0
     }} animate={{
       y: 0,
       opacity: 1
     }}>
-        <div className="flex justify-between items-center mb-4 sm:mb-6">
+        <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold">Hi {userName}! 👋</h1>
-            <p className="opacity-90 flex items-center text-sm sm:text-base">
-              <svg className="w-3 h-3 sm:w-4 sm:h-4 mr-1" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <h1 className="text-2xl font-bold">Hi {userName}! 👋</h1>
+            <p className="opacity-90 flex items-center">
+              <svg className="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M12 13.5C13.933 13.5 15.5 11.933 15.5 10C15.5 8.067 13.933 6.5 12 6.5C10.067 6.5 8.5 8.067 8.5 10C8.5 11.933 10.067 13.5 12 13.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 <path d="M12 21.5C17 17.5 22 14.0718 22 10C22 5.92819 17.5228 2.5 12 2.5C6.47715 2.5 2 5.92819 2 10C2 14.0718 7 17.5 12 21.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               {locationName}
             </p>
           </div>
-          <Avatar className="h-8 w-8 sm:h-10 sm:w-10 bg-white">
-            {userAvatar ? <AvatarImage src={userAvatar} alt={userName} className="object-cover" /> : <AvatarFallback className="text-booqit-primary font-medium text-sm">
+          <Avatar className="h-10 w-10 bg-white">
+            {userAvatar ? <AvatarImage src={userAvatar} alt={userName} className="object-cover" /> : <AvatarFallback className="text-booqit-primary font-medium">
                 {userName.charAt(0).toUpperCase()}
               </AvatarFallback>}
           </Avatar>
         </div>
-        
-        {/* Hero Image Section */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="mb-4 sm:mb-6"
-        >
-          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 sm:p-6">
-            <div className="flex flex-col sm:flex-row items-center gap-4">
-              <div className="flex-1 text-center sm:text-left">
-                <h2 className="text-lg sm:text-xl font-bold mb-2">Book Your Perfect Look</h2>
-                <p className="text-sm sm:text-base opacity-90 mb-4">
-                  Find the best salons and beauty parlours near you
-                </p>
-              </div>
-              <div className="flex-shrink-0">
-                <img 
-                  src="/lovable-uploads/d50215bd-ae40-45ce-9863-f92fd51a1b1c.png" 
-                  alt="Customer and Stylist" 
-                  className="w-32 h-24 sm:w-40 sm:h-30 object-contain rounded-lg"
-                />
-              </div>
-            </div>
-          </div>
-        </motion.div>
-
         <div className="relative">
-          <Search className="absolute left-3 top-3 h-4 w-4 sm:h-5 sm:w-5 text-booqit-primary" />
-          <Input 
-            placeholder="Search services, shops..." 
-            value={searchQuery} 
-            onChange={e => setSearchQuery(e.target.value)} 
-            onKeyPress={e => e.key === 'Enter' && handleSearch()} 
-            className="pl-9 sm:pl-10 bg-white text-gray-800 border-0 shadow-md focus:ring-2 focus:ring-white text-sm sm:text-base" 
-          />
+          <Search className="absolute left-3 top-3 h-5 w-5 text-booqit-primary" />
+          <Input placeholder="Search services, shops..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleSearch()} className="pl-10 bg-white text-gray-800 border-0 shadow-md focus:ring-2 focus:ring-white" />
         </div>
       </motion.div>
 
-      <div className="p-4 sm:p-6">
+      <div className="p-6">
         <motion.div variants={containerVariants} initial="hidden" animate="visible">
           <motion.div variants={itemVariants}>
-            <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4">Categories</h2>
-            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            <h2 className="text-xl font-semibold mb-4">Categories</h2>
+            <div className="grid grid-cols-2 gap-4">
               {featuredCategories.map(category => (
                 <Button 
                   key={category.id} 
                   variant="outline" 
-                  className={`h-auto flex flex-col items-center justify-center p-3 sm:p-4 border transition-all text-sm sm:text-base
+                  className={`h-auto flex flex-col items-center justify-center p-4 border transition-all
                     ${activeCategory === category.name 
                       ? 'border-booqit-primary bg-booqit-primary/10 shadow-md' 
                       : 'border-gray-200 shadow-sm hover:shadow-md hover:border-booqit-primary'}`
@@ -362,22 +330,22 @@ const HomePage: React.FC = () => {
                 >
                   <span style={{
                     color: category.color
-                  }} className="mb-2 text-2xl sm:text-3xl font-normal text-purple-600">
+                  }} className="mb-2 text-3xl font-normal text-purple-600">
                     {category.icon}
                   </span>
-                  <span className="text-xs sm:text-sm font-medium">{category.name}</span>
+                  <span className="text-sm font-medium">{category.name}</span>
                 </Button>
               ))}
             </div>
           </motion.div>
 
-          <motion.div variants={itemVariants} className="mt-6 sm:mt-8">
-            <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4">
+          <motion.div variants={itemVariants} className="mt-8">
+            <h2 className="text-xl font-semibold mb-4">
               {activeCategory ? `${activeCategory} Near You` : "Near You"}
               {activeCategory && (
                 <Button 
                   variant="link" 
-                  className="ml-2 p-0 h-auto text-xs sm:text-sm text-booqit-primary"
+                  className="ml-2 p-0 h-auto text-sm text-booqit-primary"
                   onClick={() => setActiveCategory(null)}
                 >
                   (Clear filter)
@@ -386,15 +354,15 @@ const HomePage: React.FC = () => {
             </h2>
             {isLoading ? (
               <div className="flex justify-center py-8">
-                <div className="animate-spin h-6 w-6 sm:h-8 sm:w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
+                <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
               </div>
             ) : filteredShops.length > 0 ? (
-              <div className="space-y-3 sm:space-y-4">
+              <div className="space-y-4">
                 {filteredShops.map(shop => (
                   <Card key={shop.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow">
                     <CardContent className="p-0">
                       <div className="flex">
-                        <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gray-200 flex-shrink-0">
+                        <div className="w-24 h-24 bg-gray-200 flex-shrink-0">
                           <img 
                             src={getShopImage(shop)} 
                             alt={shop.shop_name} 
@@ -407,17 +375,17 @@ const HomePage: React.FC = () => {
                             }} 
                           />
                         </div>
-                        <div className="p-2 sm:p-3 flex-1">
+                        <div className="p-3 flex-1 py-[6px]">
                           <div className="flex justify-between items-start">
-                            <h3 className="font-medium text-sm sm:text-base line-clamp-1">{shop.shop_name}</h3>
-                            <span className="text-xs sm:text-sm bg-green-100 text-green-800 px-1.5 sm:px-2 py-0.5 rounded-full flex items-center whitespace-nowrap ml-2">
+                            <h3 className="font-medium text-base line-clamp-1">{shop.shop_name}</h3>
+                            <span className="text-sm bg-green-100 text-green-800 px-2 py-0.5 rounded-full flex items-center whitespace-nowrap">
                               ★ {shop.rating?.toFixed(1) || 'New'}
                             </span>
                           </div>
-                          <p className="text-xs sm:text-sm text-gray-500 line-clamp-1">{shop.category}</p>
-                          <div className="flex justify-between items-center mt-1 sm:mt-2">
+                          <p className="text-sm text-gray-500 line-clamp-1">{shop.category}</p>
+                          <div className="flex justify-between items-center mt-2">
                             <span className="text-xs text-gray-500 flex items-center">
-                              <svg className="w-2.5 h-2.5 sm:w-3 sm:h-3 mr-1" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <svg className="w-3 h-3 mr-1" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                 <path d="M12 13.5C13.933 13.5 15.5 11.933 15.5 10C15.5 8.067 13.933 6.5 12 6.5C10.067 6.5 8.5 8.067 8.5 10C8.5 11.933 10.067 13.5 12 13.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                                 <path d="M12 21.5C17 17.5 22 14.0718 22 10C22 5.92819 17.5228 2.5 12 2.5C6.47715 2.5 2 5.92819 2 10C2 14.0718 7 17.5 12 21.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                               </svg>
@@ -425,7 +393,7 @@ const HomePage: React.FC = () => {
                             </span>
                             <Button 
                               size="sm" 
-                              className="bg-booqit-primary hover:bg-booqit-primary/90 text-xs h-6 sm:h-8 px-2 sm:px-3" 
+                              className="bg-booqit-primary hover:bg-booqit-primary/90 text-xs h-8" 
                               onClick={() => handleBookNow(shop.id)}
                             >
                               Book Now
@@ -438,27 +406,27 @@ const HomePage: React.FC = () => {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-6 sm:py-8 bg-gray-50 rounded-lg">
-                <p className="text-gray-500 text-sm sm:text-base">
+              <div className="text-center py-8 bg-gray-50 rounded-lg">
+                <p className="text-gray-500">
                   {activeCategory 
                     ? `No ${activeCategory} shops found within 5km` 
                     : "No shops found within 5km"}
                 </p>
-                <Button variant="link" className="mt-2 text-sm" onClick={() => navigate('/map')}>
+                <Button variant="link" className="mt-2" onClick={() => navigate('/map')}>
                   Browse on Map
                 </Button>
               </div>
             )}
           </motion.div>
 
-          <motion.div variants={itemVariants} className="mt-6 sm:mt-8">
-            <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 flex justify-between items-center">
+          <motion.div variants={itemVariants} className="mt-8">
+            <h2 className="text-xl font-semibold mb-4 flex justify-between items-center">
               <span>Explore Map</span>
-              <Button size="sm" variant="link" onClick={() => navigate('/map')} className="text-sm">
+              <Button size="sm" variant="link" onClick={() => navigate('/map')}>
                 View Full Map
               </Button>
             </h2>
-            <Card className="overflow-hidden shadow-md bg-gray-100 h-40 sm:h-48 relative">
+            <Card className="overflow-hidden shadow-md bg-gray-100 h-48 relative">
               <GoogleMapComponent 
                 center={userLocation || { lat: 12.9716, lng: 77.5946 }} 
                 zoom={12} 
@@ -470,7 +438,7 @@ const HomePage: React.FC = () => {
                 }))} 
               />
               <div className="absolute inset-0 flex items-center justify-center bg-black/10">
-                <Button className="bg-booqit-primary text-sm sm:text-base" onClick={() => navigate('/map')}>
+                <Button className="bg-booqit-primary" onClick={() => navigate('/map')}>
                   Open Map View
                 </Button>
               </div>
