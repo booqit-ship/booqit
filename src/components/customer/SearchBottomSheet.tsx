@@ -46,8 +46,8 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
 
   return (
     <div className={cn(
-      "fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl transition-all duration-300 ease-out z-50 mb-16",
-      isExpanded ? "h-[calc(70vh-4rem)]" : "h-32"
+      "fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl transition-all duration-300 ease-out z-40",
+      isExpanded ? "h-[70vh]" : "h-32"
     )}>
       {/* Handle bar */}
       <div 
@@ -57,8 +57,8 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
         <div className="w-12 h-1 bg-gray-300 rounded-full mb-3"></div>
         
         {/* Filter and Sort buttons */}
-        <div className="flex items-center justify-between w-full px-4 mb-2">
-          <div className="flex gap-2 overflow-x-auto">
+        <div className="flex items-center justify-between w-full px-6 mb-2">
+          <div className="flex gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -66,17 +66,17 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
                 e.stopPropagation();
                 setShowFilters(!showFilters);
               }}
-              className="rounded-full flex-shrink-0"
+              className="rounded-full"
             >
               <SlidersHorizontal className="w-4 h-4 mr-1" />
               Filter
             </Button>
             
             <Select value={filters.sortBy} onValueChange={(value) => handleFilterChange('sortBy', value)}>
-              <SelectTrigger className="w-20 h-8 rounded-full text-xs flex-shrink-0">
+              <SelectTrigger className="w-24 h-8 rounded-full text-sm">
                 <SelectValue placeholder="Sort" />
               </SelectTrigger>
-              <SelectContent className="z-[60]">
+              <SelectContent>
                 <SelectItem value="distance">Distance</SelectItem>
                 <SelectItem value="rating">Rating</SelectItem>
                 <SelectItem value="name">Name</SelectItem>
@@ -84,10 +84,10 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
             </Select>
 
             <Select value={filters.priceRange} onValueChange={(value) => handleFilterChange('priceRange', value)}>
-              <SelectTrigger className="w-16 h-8 rounded-full text-xs flex-shrink-0">
+              <SelectTrigger className="w-20 h-8 rounded-full text-sm">
                 <SelectValue placeholder="Price" />
               </SelectTrigger>
-              <SelectContent className="z-[60]">
+              <SelectContent>
                 <SelectItem value="all">All</SelectItem>
                 <SelectItem value="low">₹0-500</SelectItem>
                 <SelectItem value="medium">₹500-1000</SelectItem>
@@ -96,10 +96,10 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
             </Select>
 
             <Select value={filters.category} onValueChange={(value) => handleFilterChange('category', value)}>
-              <SelectTrigger className="w-16 h-8 rounded-full text-xs flex-shrink-0">
+              <SelectTrigger className="w-20 h-8 rounded-full text-sm">
                 <SelectValue placeholder="Type" />
               </SelectTrigger>
-              <SelectContent className="z-[60]">
+              <SelectContent>
                 <SelectItem value="all">All</SelectItem>
                 <SelectItem value="salon">Salon</SelectItem>
                 <SelectItem value="spa">Spa</SelectItem>
@@ -110,18 +110,18 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
             </Select>
           </div>
           
-          {isExpanded ? <ChevronDown className="w-5 h-5 text-gray-400 flex-shrink-0" /> : <ChevronUp className="w-5 h-5 text-gray-400 flex-shrink-0" />}
+          {isExpanded ? <ChevronDown className="w-5 h-5 text-gray-400" /> : <ChevronUp className="w-5 h-5 text-gray-400" />}
         </div>
         
         {/* Venue count */}
-        <p className="text-sm text-gray-500 px-4 w-full text-left">
+        <p className="text-sm text-gray-500 px-6 w-full text-left">
           {merchants.length} venues nearby
         </p>
       </div>
 
       {/* Extended filters (when showFilters is true) */}
       {showFilters && (
-        <div className="px-4 py-4 border-t border-gray-100">
+        <div className="px-6 py-4 border-t border-gray-100">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold">Filters</h3>
             <Button variant="ghost" size="sm" onClick={resetFilters}>
@@ -132,14 +132,14 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
           <div className="space-y-4">
             <div>
               <label className="text-sm font-medium mb-2 block">Minimum Rating</label>
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex gap-2">
                 {['all', '3', '4', '4.5'].map(rating => (
                   <Button
                     key={rating}
                     variant={filters.rating === rating ? "default" : "outline"}
                     size="sm"
                     onClick={() => handleFilterChange('rating', rating)}
-                    className="rounded-full text-xs"
+                    className="rounded-full"
                   >
                     {rating === 'all' ? 'Any' : `${rating}+ ⭐`}
                   </Button>
@@ -154,7 +154,7 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
 
       {/* Merchant list (when expanded) */}
       {isExpanded && (
-        <div className="flex-1 overflow-y-auto px-4 pb-4">
+        <div className="flex-1 overflow-y-auto px-6 pb-6">
           {isLoading ? (
             <div className="flex justify-center py-10">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-booqit-primary"></div>
@@ -164,15 +164,15 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
               <p className="text-gray-500">No venues found</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {merchants.map(merchant => (
                 <Card 
                   key={merchant.id} 
                   className="overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
                   onClick={() => onMerchantSelect(merchant)}
                 >
-                  <div className="flex h-20">
-                    <div className="w-20 h-20 flex-shrink-0">
+                  <div className="flex h-24">
+                    <div className="w-24 h-24 flex-shrink-0">
                       <img 
                         src={merchant.image_url || '/placeholder.svg'} 
                         alt={merchant.shop_name} 
@@ -181,8 +181,8 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
                     </div>
                     <CardContent className="flex-1 p-3">
                       <div className="flex justify-between items-start mb-1">
-                        <h3 className="font-semibold text-sm line-clamp-1">{merchant.shop_name}</h3>
-                        <div className="flex items-center flex-shrink-0 ml-2">
+                        <h3 className="font-semibold text-sm">{merchant.shop_name}</h3>
+                        <div className="flex items-center">
                           <Star className="w-3 h-3 text-yellow-400 mr-1" />
                           <span className="text-xs font-medium">{merchant.rating || 'New'}</span>
                         </div>
