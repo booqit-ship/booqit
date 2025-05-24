@@ -1,11 +1,14 @@
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import RoleSelection from "@/components/RoleSelection";
+import { UserRole } from "@/types";
 
 const Index = () => {
   const navigate = useNavigate();
   const { isAuthenticated, userRole } = useAuth();
+  const [showRoleSelection, setShowRoleSelection] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -15,9 +18,19 @@ const Index = () => {
         navigate("/");
       }
     } else {
-      navigate("/auth");
+      // Show role selection instead of redirecting directly to auth
+      setShowRoleSelection(true);
     }
   }, [isAuthenticated, userRole, navigate]);
+
+  const handleRoleSelect = (role: UserRole) => {
+    // Navigate to auth page with selected role
+    navigate("/auth", { state: { selectedRole: role } });
+  };
+
+  if (showRoleSelection) {
+    return <RoleSelection onRoleSelect={handleRoleSelect} />;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-booqit-primary/20 to-white">
