@@ -65,11 +65,11 @@ const SearchPage: React.FC = () => {
     initializeSearch();
   }, []);
 
-  // Fetch merchants from database with services
+  // Fetch merchants from database with services and apply initial filters
   const fetchMerchants = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('merchants')
         .select(`
           *,
@@ -83,8 +83,20 @@ const SearchPage: React.FC = () => {
             image_url,
             created_at
           )
-        `)
-        .order('rating', { ascending: false });
+        `);
+
+      // Apply gender focus filter at database level
+      if (filters.genderFocus !== 'all') {
+        query = query.or(`gender_focus.eq.${filters.genderFocus},gender_focus.eq.unisex`);
+      }
+
+      // Apply rating filter at database level
+      if (filters.rating !== 'all') {
+        const minRating = parseFloat(filters.rating);
+        query = query.gte('rating', minRating);
+      }
+
+      const { data, error } = await query.order('rating', { ascending: false });
         
       if (error) throw error;
       
@@ -103,7 +115,12 @@ const SearchPage: React.FC = () => {
     }
   };
 
-  // Calculate distance and apply filters
+  // Re-fetch merchants when filters change
+  useEffect(() => {
+    fetchMerchants();
+  }, [filters.genderFocus, filters.rating]);
+
+  // Calculate distance and apply search/price filters
   useEffect(() => {
     if (merchants.length > 0) {
       let filtered = [...merchants];
@@ -120,26 +137,24 @@ const SearchPage: React.FC = () => {
         );
       }
       
-      // Apply category filter
-      if (filters.category !== 'all') {
-        filtered = filtered.filter(merchant => 
-          merchant.category.toLowerCase() === filters.category.toLowerCase()
-        );
-      }
-      
-      // Apply gender focus filter
-      if (filters.genderFocus !== 'all') {
-        filtered = filtered.filter(merchant => 
-          merchant.gender_focus === filters.genderFocus || merchant.gender_focus === 'unisex'
-        );
-      }
-      
-      // Apply rating filter
-      if (filters.rating !== 'all') {
-        const minRating = parseFloat(filters.rating);
-        filtered = filtered.filter(merchant => 
-          merchant.rating && merchant.rating >= minRating
-        );
+      // Apply price range filter (client-side based on services)
+      if (filters.priceRange !== 'all') {
+        filtered = filtered.filter(merchant => {
+          if (!merchant.services || merchant.services.length === 0) return false;
+          
+          const minPrice = Math.min(...merchant.services.map(s => s.price));
+          
+          switch (filters.priceRange) {
+            case 'low':
+              return minPrice <= 500;
+            case 'medium':
+              return minPrice > 500 && minPrice <= 1000;
+            case 'high':
+              return minPrice > 1000;
+            default:
+              return true;
+          }
+        });
       }
       
       // Calculate distances if user location is available
@@ -170,7 +185,7 @@ const SearchPage: React.FC = () => {
       
       setFilteredMerchants(filtered);
     }
-  }, [merchants, searchTerm, filters, userLocation]);
+  }, [merchants, searchTerm, filters.sortBy, filters.priceRange, userLocation]);
 
   // Calculate distance using Haversine formula
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {

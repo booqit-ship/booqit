@@ -61,19 +61,20 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
 
   return (
     <div className={cn(
-      "fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl transition-all duration-300 ease-out z-40",
-      isExpanded ? "h-[80vh]" : "h-40"
+      "fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl transition-all duration-300 ease-out z-40 flex flex-col",
+      isExpanded ? "h-[85vh]" : "h-44"
     )}>
       {/* Handle bar and header */}
       <div 
-        className="flex flex-col items-center pt-3 pb-4 cursor-pointer"
+        className="flex flex-col items-center pt-3 pb-4 cursor-pointer flex-shrink-0"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="w-12 h-1.5 bg-gray-300 rounded-full mb-4"></div>
         
-        {/* Filter and Sort controls */}
-        <div className="flex items-center justify-between w-full px-6 mb-3">
-          <div className="flex gap-3 items-center overflow-x-auto scrollbar-hide">
+        {/* Filter and Sort controls - Fixed, no scrolling */}
+        <div className="flex items-center justify-between w-full px-4 mb-3">
+          <div className="flex gap-2 items-center w-full">
+            {/* Filter Button */}
             <Button
               variant="outline"
               size="sm"
@@ -81,40 +82,30 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
                 e.stopPropagation();
                 setShowFilters(!showFilters);
               }}
-              className="rounded-full flex-shrink-0 h-9 px-4 border-gray-300"
+              className="rounded-full flex-shrink-0 h-9 px-3 border-gray-300 text-sm"
             >
-              <SlidersHorizontal className="w-4 h-4 mr-2" />
+              <SlidersHorizontal className="w-4 h-4 mr-1" />
               Filter
             </Button>
             
+            {/* Distance/Rating Sort */}
             <Select value={filters.sortBy} onValueChange={(value) => handleFilterChange('sortBy', value)}>
-              <SelectTrigger className="w-28 h-9 rounded-full text-sm flex-shrink-0 border-gray-300">
+              <SelectTrigger className="w-24 h-9 rounded-full text-sm flex-shrink-0 border-gray-300">
                 <SelectValue placeholder="Sort" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white z-50">
                 <SelectItem value="distance">Distance</SelectItem>
                 <SelectItem value="rating">Rating</SelectItem>
                 <SelectItem value="name">Name</SelectItem>
               </SelectContent>
             </Select>
 
-            <Select value={filters.priceRange} onValueChange={(value) => handleFilterChange('priceRange', value)}>
-              <SelectTrigger className="w-24 h-9 rounded-full text-sm flex-shrink-0 border-gray-300">
-                <SelectValue placeholder="Price" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="low">₹0-500</SelectItem>
-                <SelectItem value="medium">₹500-1000</SelectItem>
-                <SelectItem value="high">₹1000+</SelectItem>
-              </SelectContent>
-            </Select>
-
+            {/* Type (Gender Focus) */}
             <Select value={filters.genderFocus} onValueChange={(value) => handleFilterChange('genderFocus', value)}>
-              <SelectTrigger className="w-24 h-9 rounded-full text-sm flex-shrink-0 border-gray-300">
+              <SelectTrigger className="w-20 h-9 rounded-full text-sm flex-shrink-0 border-gray-300">
                 <SelectValue placeholder="Type" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white z-50">
                 <SelectItem value="all">All</SelectItem>
                 <SelectItem value="men">Men</SelectItem>
                 <SelectItem value="women">Women</SelectItem>
@@ -123,7 +114,7 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
             </Select>
           </div>
           
-          <div className="flex-shrink-0 ml-3">
+          <div className="flex-shrink-0 ml-2">
             {isExpanded ? 
               <ChevronDown className="w-5 h-5 text-gray-400" /> : 
               <ChevronUp className="w-5 h-5 text-gray-400" />
@@ -132,24 +123,46 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
         </div>
         
         {/* Venue count */}
-        <div className="px-6 w-full">
+        <div className="px-4 w-full">
           <p className="text-sm text-gray-500 text-left">
-            {merchants.length} venues nearby
+            {merchants.length} salons & spas found
           </p>
         </div>
       </div>
 
       {/* Extended filters */}
       {showFilters && (
-        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50">
+        <div className="px-4 py-4 border-t border-gray-100 bg-gray-50 flex-shrink-0">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-gray-900">Filters</h3>
+            <h3 className="font-semibold text-gray-900">More Filters</h3>
             <Button variant="ghost" size="sm" onClick={resetFilters} className="text-booqit-primary">
               Reset
             </Button>
           </div>
           
           <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-3 block text-gray-700">Price Range</label>
+              <div className="flex gap-2 flex-wrap">
+                {[
+                  { value: 'all', label: 'Any' },
+                  { value: 'low', label: '₹0-500' },
+                  { value: 'medium', label: '₹500-1000' },
+                  { value: 'high', label: '₹1000+' }
+                ].map(price => (
+                  <Button
+                    key={price.value}
+                    variant={filters.priceRange === price.value ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => handleFilterChange('priceRange', price.value)}
+                    className="rounded-full h-9"
+                  >
+                    {price.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            
             <div>
               <label className="text-sm font-medium mb-3 block text-gray-700">Minimum Rating</label>
               <div className="flex gap-2 flex-wrap">
@@ -172,16 +185,16 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
         </div>
       )}
 
-      {/* Merchant list */}
+      {/* Merchant list - Scrollable */}
       {isExpanded && (
-        <div className="flex-1 overflow-y-auto px-6 pb-24">
+        <div className="flex-1 overflow-y-auto px-4 pb-20">
           {isLoading ? (
             <div className="flex justify-center py-10">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-booqit-primary"></div>
             </div>
           ) : merchants.length === 0 ? (
             <div className="text-center py-10">
-              <p className="text-gray-500">No venues found matching your criteria</p>
+              <p className="text-gray-500">No salons found matching your criteria</p>
             </div>
           ) : (
             <div className="space-y-6">
