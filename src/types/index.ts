@@ -1,4 +1,3 @@
-
 export type UserRole = 'customer' | 'merchant';
 
 export interface User {
@@ -29,6 +28,7 @@ export interface Merchant {
   rating?: number | null;
   distance?: string;
   distanceValue?: number; // Added this property for sorting and filtering
+  services?: Service[]; // Added services property to support the search functionality
 }
 
 export interface BankInfo {
