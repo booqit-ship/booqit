@@ -75,10 +75,13 @@ const SearchPage: React.FC = () => {
           *,
           services (
             id,
+            merchant_id,
             name,
             price,
             duration,
-            description
+            description,
+            image_url,
+            created_at
           )
         `)
         .order('rating', { ascending: false });
