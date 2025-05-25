@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Merchant } from '@/types';
-import { SlidersHorizontal, ChevronUp, ChevronDown, Star, MapPin } from 'lucide-react';
+import { SlidersHorizontal, ChevronUp, ChevronDown, Star, MapPin, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SearchBottomSheetProps {
@@ -15,6 +15,7 @@ interface SearchBottomSheetProps {
     priceRange: string;
     category: string;
     rating: string;
+    genderFocus: string;
   };
   onFiltersChange: (filters: any) => void;
   isLoading: boolean;
@@ -40,18 +41,32 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
       sortBy: 'distance',
       priceRange: 'all',
       category: 'all',
-      rating: 'all'
+      rating: 'all',
+      genderFocus: 'all'
     });
+  };
+
+  const formatPrice = (price: number) => {
+    return `₹${price}`;
+  };
+
+  const formatDuration = (duration: number) => {
+    const hours = Math.floor(duration / 60);
+    const minutes = duration % 60;
+    if (hours > 0) {
+      return minutes > 0 ? `${hours} hr, ${minutes} min` : `${hours} hr`;
+    }
+    return `${minutes} min`;
   };
 
   return (
     <div className={cn(
-      "fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl transition-all duration-300 ease-out z-50",
-      isExpanded ? "h-[75vh]" : "h-36"
+      "fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl transition-all duration-300 ease-out z-40",
+      isExpanded ? "h-[80vh]" : "h-40"
     )}>
       {/* Handle bar and header */}
       <div 
-        className="flex flex-col items-center pt-3 pb-3 cursor-pointer"
+        className="flex flex-col items-center pt-3 pb-4 cursor-pointer"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="w-12 h-1.5 bg-gray-300 rounded-full mb-4"></div>
@@ -66,14 +81,14 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
                 e.stopPropagation();
                 setShowFilters(!showFilters);
               }}
-              className="rounded-full flex-shrink-0 h-9 px-4"
+              className="rounded-full flex-shrink-0 h-9 px-4 border-gray-300"
             >
               <SlidersHorizontal className="w-4 h-4 mr-2" />
               Filter
             </Button>
             
             <Select value={filters.sortBy} onValueChange={(value) => handleFilterChange('sortBy', value)}>
-              <SelectTrigger className="w-28 h-9 rounded-full text-sm flex-shrink-0">
+              <SelectTrigger className="w-28 h-9 rounded-full text-sm flex-shrink-0 border-gray-300">
                 <SelectValue placeholder="Sort" />
               </SelectTrigger>
               <SelectContent>
@@ -84,7 +99,7 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
             </Select>
 
             <Select value={filters.priceRange} onValueChange={(value) => handleFilterChange('priceRange', value)}>
-              <SelectTrigger className="w-24 h-9 rounded-full text-sm flex-shrink-0">
+              <SelectTrigger className="w-24 h-9 rounded-full text-sm flex-shrink-0 border-gray-300">
                 <SelectValue placeholder="Price" />
               </SelectTrigger>
               <SelectContent>
@@ -95,17 +110,15 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
               </SelectContent>
             </Select>
 
-            <Select value={filters.category} onValueChange={(value) => handleFilterChange('category', value)}>
-              <SelectTrigger className="w-24 h-9 rounded-full text-sm flex-shrink-0">
+            <Select value={filters.genderFocus} onValueChange={(value) => handleFilterChange('genderFocus', value)}>
+              <SelectTrigger className="w-24 h-9 rounded-full text-sm flex-shrink-0 border-gray-300">
                 <SelectValue placeholder="Type" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All</SelectItem>
-                <SelectItem value="salon">Salon</SelectItem>
-                <SelectItem value="spa">Spa</SelectItem>
-                <SelectItem value="repair">Repair</SelectItem>
-                <SelectItem value="health">Health</SelectItem>
-                <SelectItem value="fitness">Fitness</SelectItem>
+                <SelectItem value="men">Men</SelectItem>
+                <SelectItem value="women">Women</SelectItem>
+                <SelectItem value="unisex">Unisex</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -171,41 +184,82 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
               <p className="text-gray-500">No venues found matching your criteria</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-6">
               {merchants.map(merchant => (
                 <Card 
                   key={merchant.id} 
-                  className="overflow-hidden cursor-pointer hover:shadow-md transition-all duration-200 border border-gray-100"
+                  className="overflow-hidden cursor-pointer hover:shadow-lg transition-all duration-200 border-0 shadow-md rounded-2xl"
                   onClick={() => onMerchantSelect(merchant)}
                 >
-                  <div className="flex h-28">
-                    <div className="w-28 h-28 flex-shrink-0">
+                  <div className="relative">
+                    {/* Shop Image */}
+                    <div className="w-full h-48 relative">
                       <img 
                         src={merchant.image_url || '/placeholder.svg'} 
                         alt={merchant.shop_name} 
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover rounded-t-2xl"
                       />
-                    </div>
-                    <CardContent className="flex-1 p-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="font-semibold text-base text-gray-900 line-clamp-1">{merchant.shop_name}</h3>
-                        <div className="flex items-center flex-shrink-0 ml-2">
+                      <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full">
+                        <div className="flex items-center">
                           <Star className="w-4 h-4 text-yellow-400 mr-1" />
-                          <span className="text-sm font-medium text-gray-700">{merchant.rating || 'New'}</span>
+                          <span className="text-sm font-semibold text-gray-800">
+                            {merchant.rating ? merchant.rating.toFixed(1) : 'New'}
+                          </span>
                         </div>
                       </div>
-                      <p className="text-sm text-gray-600 mb-2 line-clamp-1 flex items-center">
-                        <MapPin className="w-3 h-3 mr-1 flex-shrink-0" />
-                        {merchant.address}
-                      </p>
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">{merchant.category}</p>
-                        {merchant.distanceValue && (
-                          <p className="text-sm text-booqit-primary font-medium">
-                            {merchant.distance} away
-                          </p>
-                        )}
+                    </div>
+                    
+                    <CardContent className="p-4">
+                      {/* Shop Name and Location */}
+                      <div className="mb-3">
+                        <h3 className="font-bold text-lg text-gray-900 mb-1">{merchant.shop_name}</h3>
+                        <div className="flex items-center text-gray-600">
+                          <Star className="w-4 h-4 text-yellow-400 mr-1" />
+                          <span className="text-sm font-medium mr-2">
+                            {merchant.rating ? merchant.rating.toFixed(1) : 'New'}
+                          </span>
+                          <span className="text-sm">•</span>
+                          <span className="text-sm ml-2">{merchant.address.split(',')[0]}</span>
+                        </div>
                       </div>
+
+                      {/* Services */}
+                      {merchant.services && merchant.services.length > 0 && (
+                        <div className="space-y-3">
+                          {merchant.services.slice(0, 3).map((service, index) => (
+                            <div key={service.id} className="flex justify-between items-center">
+                              <div className="flex-1">
+                                <h4 className="font-medium text-gray-900 text-sm">{service.name}</h4>
+                                <div className="flex items-center text-gray-500 text-xs mt-1">
+                                  <Clock className="w-3 h-3 mr-1" />
+                                  <span>{formatDuration(service.duration)}</span>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <span className="font-semibold text-gray-900">from {formatPrice(service.price)}</span>
+                              </div>
+                            </div>
+                          ))}
+                          
+                          {merchant.services.length > 3 && (
+                            <div className="pt-2">
+                              <span className="text-booqit-primary text-sm font-medium">
+                                See more
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Distance */}
+                      {merchant.distanceValue && (
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          <div className="flex items-center text-gray-600">
+                            <MapPin className="w-4 h-4 mr-1" />
+                            <span className="text-sm">{merchant.distance} away</span>
+                          </div>
+                        </div>
+                      )}
                     </CardContent>
                   </div>
                 </Card>

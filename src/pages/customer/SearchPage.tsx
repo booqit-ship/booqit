@@ -20,7 +20,8 @@ const SearchPage: React.FC = () => {
     sortBy: 'distance',
     priceRange: 'all',
     category: 'all',
-    rating: 'all'
+    rating: 'all',
+    genderFocus: 'all'
   });
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -64,13 +65,22 @@ const SearchPage: React.FC = () => {
     initializeSearch();
   }, []);
 
-  // Fetch merchants from database
+  // Fetch merchants from database with services
   const fetchMerchants = async () => {
     setIsLoading(true);
     try {
       const { data, error } = await supabase
         .from('merchants')
-        .select('*')
+        .select(`
+          *,
+          services (
+            id,
+            name,
+            price,
+            duration,
+            description
+          )
+        `)
         .order('rating', { ascending: false });
         
       if (error) throw error;
@@ -100,7 +110,10 @@ const SearchPage: React.FC = () => {
         filtered = filtered.filter(merchant => 
           merchant.shop_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
           merchant.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          merchant.address.toLowerCase().includes(searchTerm.toLowerCase())
+          merchant.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (merchant.services && merchant.services.some(service => 
+            service.name.toLowerCase().includes(searchTerm.toLowerCase())
+          ))
         );
       }
       
@@ -108,6 +121,13 @@ const SearchPage: React.FC = () => {
       if (filters.category !== 'all') {
         filtered = filtered.filter(merchant => 
           merchant.category.toLowerCase() === filters.category.toLowerCase()
+        );
+      }
+      
+      // Apply gender focus filter
+      if (filters.genderFocus !== 'all') {
+        filtered = filtered.filter(merchant => 
+          merchant.gender_focus === filters.genderFocus || merchant.gender_focus === 'unisex'
         );
       }
       
@@ -187,12 +207,12 @@ const SearchPage: React.FC = () => {
       <div className="absolute top-4 left-4 right-4 z-50">
         <form onSubmit={handleSearch}>
           <div className="relative">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-black w-5 h-5 z-10" />
             <Input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search salons, spas, services..."
-              className="pl-12 pr-4 py-4 rounded-2xl border-0 shadow-lg bg-white/95 backdrop-blur-sm text-base placeholder:text-gray-500 focus:ring-2 focus:ring-booqit-primary"
+              placeholder="All treatments • Current location"
+              className="pl-12 pr-4 py-4 rounded-2xl border-0 shadow-lg bg-white/95 backdrop-blur-sm text-base placeholder:text-gray-600 focus:ring-2 focus:ring-booqit-primary font-medium"
             />
           </div>
         </form>
