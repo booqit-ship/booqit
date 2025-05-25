@@ -46,19 +46,19 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
 
   return (
     <div className={cn(
-      "fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl transition-all duration-300 ease-out z-40",
-      isExpanded ? "h-[70vh]" : "h-32"
+      "fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl transition-all duration-300 ease-out z-50",
+      isExpanded ? "h-[75vh]" : "h-36"
     )}>
-      {/* Handle bar */}
+      {/* Handle bar and header */}
       <div 
-        className="flex flex-col items-center pt-3 pb-2 cursor-pointer"
+        className="flex flex-col items-center pt-3 pb-3 cursor-pointer"
         onClick={() => setIsExpanded(!isExpanded)}
       >
-        <div className="w-12 h-1 bg-gray-300 rounded-full mb-3"></div>
+        <div className="w-12 h-1.5 bg-gray-300 rounded-full mb-4"></div>
         
-        {/* Filter and Sort buttons */}
-        <div className="flex items-center justify-between w-full px-6 mb-2">
-          <div className="flex gap-2">
+        {/* Filter and Sort controls */}
+        <div className="flex items-center justify-between w-full px-6 mb-3">
+          <div className="flex gap-3 items-center overflow-x-auto scrollbar-hide">
             <Button
               variant="outline"
               size="sm"
@@ -66,14 +66,14 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
                 e.stopPropagation();
                 setShowFilters(!showFilters);
               }}
-              className="rounded-full"
+              className="rounded-full flex-shrink-0 h-9 px-4"
             >
-              <SlidersHorizontal className="w-4 h-4 mr-1" />
+              <SlidersHorizontal className="w-4 h-4 mr-2" />
               Filter
             </Button>
             
             <Select value={filters.sortBy} onValueChange={(value) => handleFilterChange('sortBy', value)}>
-              <SelectTrigger className="w-24 h-8 rounded-full text-sm">
+              <SelectTrigger className="w-28 h-9 rounded-full text-sm flex-shrink-0">
                 <SelectValue placeholder="Sort" />
               </SelectTrigger>
               <SelectContent>
@@ -84,7 +84,7 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
             </Select>
 
             <Select value={filters.priceRange} onValueChange={(value) => handleFilterChange('priceRange', value)}>
-              <SelectTrigger className="w-20 h-8 rounded-full text-sm">
+              <SelectTrigger className="w-24 h-9 rounded-full text-sm flex-shrink-0">
                 <SelectValue placeholder="Price" />
               </SelectTrigger>
               <SelectContent>
@@ -96,7 +96,7 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
             </Select>
 
             <Select value={filters.category} onValueChange={(value) => handleFilterChange('category', value)}>
-              <SelectTrigger className="w-20 h-8 rounded-full text-sm">
+              <SelectTrigger className="w-24 h-9 rounded-full text-sm flex-shrink-0">
                 <SelectValue placeholder="Type" />
               </SelectTrigger>
               <SelectContent>
@@ -110,36 +110,43 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
             </Select>
           </div>
           
-          {isExpanded ? <ChevronDown className="w-5 h-5 text-gray-400" /> : <ChevronUp className="w-5 h-5 text-gray-400" />}
+          <div className="flex-shrink-0 ml-3">
+            {isExpanded ? 
+              <ChevronDown className="w-5 h-5 text-gray-400" /> : 
+              <ChevronUp className="w-5 h-5 text-gray-400" />
+            }
+          </div>
         </div>
         
         {/* Venue count */}
-        <p className="text-sm text-gray-500 px-6 w-full text-left">
-          {merchants.length} venues nearby
-        </p>
+        <div className="px-6 w-full">
+          <p className="text-sm text-gray-500 text-left">
+            {merchants.length} venues nearby
+          </p>
+        </div>
       </div>
 
-      {/* Extended filters (when showFilters is true) */}
+      {/* Extended filters */}
       {showFilters && (
-        <div className="px-6 py-4 border-t border-gray-100">
+        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold">Filters</h3>
-            <Button variant="ghost" size="sm" onClick={resetFilters}>
+            <h3 className="font-semibold text-gray-900">Filters</h3>
+            <Button variant="ghost" size="sm" onClick={resetFilters} className="text-booqit-primary">
               Reset
             </Button>
           </div>
           
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium mb-2 block">Minimum Rating</label>
-              <div className="flex gap-2">
+              <label className="text-sm font-medium mb-3 block text-gray-700">Minimum Rating</label>
+              <div className="flex gap-2 flex-wrap">
                 {['all', '3', '4', '4.5'].map(rating => (
                   <Button
                     key={rating}
                     variant={filters.rating === rating ? "default" : "outline"}
                     size="sm"
                     onClick={() => handleFilterChange('rating', rating)}
-                    className="rounded-full"
+                    className="rounded-full h-9"
                   >
                     {rating === 'all' ? 'Any' : `${rating}+ ⭐`}
                   </Button>
@@ -152,48 +159,53 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
         </div>
       )}
 
-      {/* Merchant list (when expanded) */}
+      {/* Merchant list */}
       {isExpanded && (
-        <div className="flex-1 overflow-y-auto px-6 pb-6">
+        <div className="flex-1 overflow-y-auto px-6 pb-24">
           {isLoading ? (
             <div className="flex justify-center py-10">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-booqit-primary"></div>
             </div>
           ) : merchants.length === 0 ? (
             <div className="text-center py-10">
-              <p className="text-gray-500">No venues found</p>
+              <p className="text-gray-500">No venues found matching your criteria</p>
             </div>
           ) : (
             <div className="space-y-4">
               {merchants.map(merchant => (
                 <Card 
                   key={merchant.id} 
-                  className="overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+                  className="overflow-hidden cursor-pointer hover:shadow-md transition-all duration-200 border border-gray-100"
                   onClick={() => onMerchantSelect(merchant)}
                 >
-                  <div className="flex h-24">
-                    <div className="w-24 h-24 flex-shrink-0">
+                  <div className="flex h-28">
+                    <div className="w-28 h-28 flex-shrink-0">
                       <img 
                         src={merchant.image_url || '/placeholder.svg'} 
                         alt={merchant.shop_name} 
                         className="w-full h-full object-cover"
                       />
                     </div>
-                    <CardContent className="flex-1 p-3">
-                      <div className="flex justify-between items-start mb-1">
-                        <h3 className="font-semibold text-sm">{merchant.shop_name}</h3>
-                        <div className="flex items-center">
-                          <Star className="w-3 h-3 text-yellow-400 mr-1" />
-                          <span className="text-xs font-medium">{merchant.rating || 'New'}</span>
+                    <CardContent className="flex-1 p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="font-semibold text-base text-gray-900 line-clamp-1">{merchant.shop_name}</h3>
+                        <div className="flex items-center flex-shrink-0 ml-2">
+                          <Star className="w-4 h-4 text-yellow-400 mr-1" />
+                          <span className="text-sm font-medium text-gray-700">{merchant.rating || 'New'}</span>
                         </div>
                       </div>
-                      <p className="text-xs text-gray-600 mb-1 line-clamp-1">{merchant.address}</p>
-                      <p className="text-xs text-gray-500 mb-1">{merchant.category}</p>
-                      {merchant.distanceValue && (
-                        <p className="text-xs text-booqit-primary font-medium">
-                          {merchant.distance} away
-                        </p>
-                      )}
+                      <p className="text-sm text-gray-600 mb-2 line-clamp-1 flex items-center">
+                        <MapPin className="w-3 h-3 mr-1 flex-shrink-0" />
+                        {merchant.address}
+                      </p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">{merchant.category}</p>
+                        {merchant.distanceValue && (
+                          <p className="text-sm text-booqit-primary font-medium">
+                            {merchant.distance} away
+                          </p>
+                        )}
+                      </div>
                     </CardContent>
                   </div>
                 </Card>
