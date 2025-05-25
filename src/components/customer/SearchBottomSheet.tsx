@@ -49,92 +49,94 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
 
   return (
     <div className={cn(
-      "fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl transition-all duration-300 ease-out z-40",
-      isExpanded ? "h-[80vh]" : "h-40"
+      "fixed bottom-16 left-0 right-0 bg-white rounded-t-3xl shadow-2xl transition-all duration-300 ease-out z-40",
+      isExpanded ? "h-[calc(100vh-4rem-4rem)]" : "h-44"
     )}>
       {/* Handle bar and header */}
-      <div 
-        className="flex flex-col items-center pt-3 pb-4 cursor-pointer"
-        onClick={() => setIsExpanded(!isExpanded)}
-      >
-        <div className="w-12 h-1.5 bg-gray-300 rounded-full mb-4"></div>
-        
-        {/* Fixed Filter controls - no horizontal scrolling */}
-        <div className="w-full px-4 mb-3">
-          <div className="flex items-center justify-between gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-full h-9 px-4 border-gray-300 flex-shrink-0"
-            >
-              <SlidersHorizontal className="w-4 h-4 mr-2" />
-              Filter
-            </Button>
-            
-            <div className="flex gap-2 flex-1 justify-end">
-              <Select value={filters.sortBy} onValueChange={(value) => handleFilterChange('sortBy', value)}>
-                <SelectTrigger className="w-24 h-9 rounded-full text-sm border-gray-300 bg-white">
-                  <SelectValue placeholder="Distance" />
-                </SelectTrigger>
-                <SelectContent className="bg-white border shadow-lg z-50">
-                  <SelectItem value="distance">Distance</SelectItem>
-                  <SelectItem value="rating">Rating</SelectItem>
-                  <SelectItem value="name">Name</SelectItem>
-                </SelectContent>
-              </Select>
+      <div className="sticky top-0 bg-white rounded-t-3xl z-50">
+        <div 
+          className="flex flex-col items-center pt-3 pb-4 cursor-pointer"
+          onClick={() => setIsExpanded(!isExpanded)}
+        >
+          <div className="w-12 h-1.5 bg-gray-300 rounded-full mb-4"></div>
+          
+          {/* Fixed Filter controls - properly aligned */}
+          <div className="w-full px-4 mb-3">
+            <div className="flex items-center gap-2 overflow-hidden">
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full h-9 px-3 border-gray-300 flex-shrink-0 text-sm"
+              >
+                <SlidersHorizontal className="w-4 h-4 mr-1" />
+                Filter
+              </Button>
+              
+              <div className="flex gap-2 flex-1 min-w-0">
+                <Select value={filters.sortBy} onValueChange={(value) => handleFilterChange('sortBy', value)}>
+                  <SelectTrigger className="w-20 h-9 rounded-full text-xs border-gray-300 bg-white flex-shrink-0">
+                    <SelectValue placeholder="Distance" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border shadow-lg z-50">
+                    <SelectItem value="distance">Distance</SelectItem>
+                    <SelectItem value="rating">Rating</SelectItem>
+                    <SelectItem value="name">Name</SelectItem>
+                  </SelectContent>
+                </Select>
 
-              <Select value={filters.rating} onValueChange={(value) => handleFilterChange('rating', value)}>
-                <SelectTrigger className="w-20 h-9 rounded-full text-sm border-gray-300 bg-white">
-                  <SelectValue placeholder="Rating" />
-                </SelectTrigger>
-                <SelectContent className="bg-white border shadow-lg z-50">
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="3">3+ ⭐</SelectItem>
-                  <SelectItem value="4">4+ ⭐</SelectItem>
-                  <SelectItem value="4.5">4.5+ ⭐</SelectItem>
-                </SelectContent>
-              </Select>
+                <Select value={filters.rating} onValueChange={(value) => handleFilterChange('rating', value)}>
+                  <SelectTrigger className="w-16 h-9 rounded-full text-xs border-gray-300 bg-white flex-shrink-0">
+                    <SelectValue placeholder="Rating" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border shadow-lg z-50">
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="3">3+ ⭐</SelectItem>
+                    <SelectItem value="4">4+ ⭐</SelectItem>
+                    <SelectItem value="4.5">4.5+ ⭐</SelectItem>
+                  </SelectContent>
+                </Select>
 
-              <Select value={filters.genderFocus} onValueChange={(value) => handleFilterChange('genderFocus', value)}>
-                <SelectTrigger className="w-20 h-9 rounded-full text-sm border-gray-300 bg-white">
-                  <SelectValue placeholder="Type" />
-                </SelectTrigger>
-                <SelectContent className="bg-white border shadow-lg z-50">
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="men">Men</SelectItem>
-                  <SelectItem value="women">Women</SelectItem>
-                  <SelectItem value="unisex">Unisex</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="flex-shrink-0 ml-2">
-              {isExpanded ? 
-                <ChevronDown className="w-5 h-5 text-gray-400" /> : 
-                <ChevronUp className="w-5 h-5 text-gray-400" />
-              }
+                <Select value={filters.genderFocus} onValueChange={(value) => handleFilterChange('genderFocus', value)}>
+                  <SelectTrigger className="w-16 h-9 rounded-full text-xs border-gray-300 bg-white flex-shrink-0">
+                    <SelectValue placeholder="Type" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border shadow-lg z-50">
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="men">Men</SelectItem>
+                    <SelectItem value="women">Women</SelectItem>
+                    <SelectItem value="unisex">Unisex</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="flex-shrink-0">
+                {isExpanded ? 
+                  <ChevronDown className="w-5 h-5 text-gray-400" /> : 
+                  <ChevronUp className="w-5 h-5 text-gray-400" />
+                }
+              </div>
             </div>
           </div>
-        </div>
-        
-        {/* Shop count */}
-        <div className="px-6 w-full">
-          <p className="text-sm text-gray-500 text-left">
-            {merchants.length} salons & spas found
-          </p>
+          
+          {/* Shop count */}
+          <div className="px-6 w-full">
+            <p className="text-sm text-gray-500 text-left">
+              {merchants.length} beauty spots found nearby
+            </p>
+          </div>
         </div>
       </div>
 
       {/* Scrollable merchant list */}
       {isExpanded && (
-        <div className="flex-1 overflow-y-auto px-4 pb-20">
+        <div className="flex-1 overflow-y-auto px-4 pb-6">
           {isLoading ? (
             <div className="flex justify-center py-10">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-booqit-primary"></div>
             </div>
           ) : merchants.length === 0 ? (
             <div className="text-center py-10">
-              <p className="text-gray-500">No salons found matching your criteria</p>
+              <p className="text-gray-500">No beauty spots found matching your criteria</p>
             </div>
           ) : (
             <div className="space-y-4">
