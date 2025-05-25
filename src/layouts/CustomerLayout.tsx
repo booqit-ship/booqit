@@ -16,7 +16,7 @@ const CustomerLayout: React.FC = () => {
       <main className={(isMapPage || isSearchPage || isBookingFlow) ? "" : "pb-16"}>
         <Outlet />
       </main>
-      {!isMapPage && !isBookingFlow && <BottomNavigation />}
+      {!isMapPage && !isSearchPage && !isBookingFlow && <BottomNavigation />}
     </div>
   );
 };
