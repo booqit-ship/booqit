@@ -69,7 +69,7 @@ const SearchPage: React.FC = () => {
   const fetchMerchants = async () => {
     setIsLoading(true);
     try {
-      let query = supabase
+      const { data, error } = await supabase
         .from('merchants')
         .select(`
           *,
@@ -83,34 +83,12 @@ const SearchPage: React.FC = () => {
             image_url,
             created_at
           )
-        `);
-
-      // Apply database-level filtering for gender focus if not 'all'
-      if (filters.genderFocus !== 'all') {
-        query = query.or(`gender_focus.eq.${filters.genderFocus},gender_focus.eq.unisex`);
-      }
-
-      // Apply rating filter at database level
-      if (filters.rating !== 'all') {
-        const minRating = parseFloat(filters.rating);
-        query = query.gte('rating', minRating);
-      }
-
-      // Apply sorting at database level
-      if (filters.sortBy === 'rating') {
-        query = query.order('rating', { ascending: false });
-      } else if (filters.sortBy === 'name') {
-        query = query.order('shop_name', { ascending: true });
-      } else {
-        query = query.order('rating', { ascending: false }); // Default fallback
-      }
-
-      const { data, error } = await query;
+        `)
+        .order('rating', { ascending: false });
         
       if (error) throw error;
       
       if (data) {
-        console.log('Fetched merchants with filters:', data);
         setMerchants(data);
       }
     } catch (error: any) {
@@ -125,12 +103,7 @@ const SearchPage: React.FC = () => {
     }
   };
 
-  // Re-fetch merchants when filters change
-  useEffect(() => {
-    fetchMerchants();
-  }, [filters.genderFocus, filters.rating, filters.sortBy]);
-
-  // Calculate distance and apply client-side filters
+  // Calculate distance and apply filters
   useEffect(() => {
     if (merchants.length > 0) {
       let filtered = [...merchants];
@@ -144,6 +117,28 @@ const SearchPage: React.FC = () => {
           (merchant.services && merchant.services.some(service => 
             service.name.toLowerCase().includes(searchTerm.toLowerCase())
           ))
+        );
+      }
+      
+      // Apply category filter
+      if (filters.category !== 'all') {
+        filtered = filtered.filter(merchant => 
+          merchant.category.toLowerCase() === filters.category.toLowerCase()
+        );
+      }
+      
+      // Apply gender focus filter
+      if (filters.genderFocus !== 'all') {
+        filtered = filtered.filter(merchant => 
+          merchant.gender_focus === filters.genderFocus || merchant.gender_focus === 'unisex'
+        );
+      }
+      
+      // Apply rating filter
+      if (filters.rating !== 'all') {
+        const minRating = parseFloat(filters.rating);
+        filtered = filtered.filter(merchant => 
+          merchant.rating && merchant.rating >= minRating
         );
       }
       
@@ -163,15 +158,19 @@ const SearchPage: React.FC = () => {
           } as Merchant;
         });
         
-        // Apply distance sorting (only if sortBy is distance)
+        // Apply sorting
         if (filters.sortBy === 'distance') {
           filtered.sort((a, b) => (a.distanceValue || 0) - (b.distanceValue || 0));
+        } else if (filters.sortBy === 'rating') {
+          filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+        } else if (filters.sortBy === 'name') {
+          filtered.sort((a, b) => a.shop_name.localeCompare(b.shop_name));
         }
       }
       
       setFilteredMerchants(filtered);
     }
-  }, [merchants, searchTerm, userLocation, filters.sortBy]);
+  }, [merchants, searchTerm, filters, userLocation]);
 
   // Calculate distance using Haversine formula
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
