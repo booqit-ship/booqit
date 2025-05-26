@@ -124,17 +124,26 @@ const BookingPage: React.FC = () => {
       setLoading(true);
       try {
         const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+        console.log('Fetching slots for date:', selectedDateStr);
 
         // Generate base time slots for the total duration
         const baseSlots = generateTimeSlots(totalDuration);
+        console.log('Base slots generated:', baseSlots);
 
-        // Fetch existing bookings for the selected date
-        const { data: existingBookings } = await supabase
+        // Fetch existing bookings for the selected date with proper error handling
+        const { data: existingBookings, error: bookingError } = await supabase
           .from('bookings')
-          .select('time_slot, staff_id')
+          .select('time_slot, staff_id, status')
           .eq('merchant_id', merchantId)
           .eq('date', selectedDateStr)
-          .eq('status', 'confirmed');
+          .in('status', ['confirmed', 'pending']);
+
+        if (bookingError) {
+          console.error('Error fetching bookings:', bookingError);
+          // Don't fail completely, just log and continue with empty bookings
+        }
+
+        console.log('Existing bookings:', existingBookings);
 
         // Filter out booked and blocked slots
         const availableSlots = baseSlots.filter(slot => {
@@ -153,13 +162,16 @@ const BookingPage: React.FC = () => {
             blockedSlot.date === selectedDateStr && blockedSlot.time_slot === slot
           );
           
+          console.log(`Slot ${slot}: booked=${isBooked}, blocked=${isBlocked}`);
           return !isBooked && !isBlocked;
         });
 
+        console.log('Available slots:', availableSlots);
         setAvailableTimeSlots(availableSlots);
       } catch (error) {
         console.error('Error generating time slots:', error);
         toast.error('Could not load time slots');
+        setAvailableTimeSlots([]);
       } finally {
         setLoading(false);
       }
@@ -173,6 +185,17 @@ const BookingPage: React.FC = () => {
       toast.error('Please select both date and time');
       return;
     }
+
+    console.log('Navigating to payment with data:', {
+      merchant,
+      selectedServices,
+      totalPrice,
+      totalDuration,
+      selectedStaff,
+      selectedStaffDetails,
+      bookingDate: format(selectedDate, 'yyyy-MM-dd'),
+      bookingTime: selectedTime
+    });
 
     navigate(`/payment/${merchantId}`, {
       state: {

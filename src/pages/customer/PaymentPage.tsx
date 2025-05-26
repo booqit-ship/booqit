@@ -73,9 +73,11 @@ const PaymentPage: React.FC = () => {
 
   const checkTimeSlotAvailability = async (date: string, timeSlot: string, staffId?: string) => {
     try {
+      console.log('Checking availability for:', { date, timeSlot, staffId, merchantId });
+      
       let query = supabase
         .from('bookings')
-        .select('id')
+        .select('id, status')
         .eq('merchant_id', merchantId)
         .eq('date', date)
         .eq('time_slot', timeSlot)
@@ -92,6 +94,7 @@ const PaymentPage: React.FC = () => {
         return false;
       }
 
+      console.log('Existing bookings for slot:', data);
       return data.length === 0; // Available if no bookings found
     } catch (error) {
       console.error('Error checking time slot availability:', error);
@@ -118,15 +121,7 @@ const PaymentPage: React.FC = () => {
 
     try {
       setProcessingPayment(true);
-      console.log('Starting booking process with data:', {
-        user_id: user.id,
-        merchant_id: merchantId,
-        selectedServices,
-        selectedStaff,
-        bookingDate,
-        bookingTime,
-        totalPrice
-      });
+      console.log('Starting booking process...');
 
       // Check availability before creating booking
       const isAvailable = await checkTimeSlotAvailability(bookingDate, bookingTime, selectedStaff);
@@ -136,10 +131,12 @@ const PaymentPage: React.FC = () => {
         return;
       }
       
+      console.log('Time slot is available, proceeding with booking...');
+      
       // Create bookings for each service
       const bookingPromises = selectedServices.map(async (service: any) => {
         // Validate service data
-        if (!service.id || !service.price) {
+        if (!service.id || typeof service.price !== 'number') {
           throw new Error(`Invalid service data: ${JSON.stringify(service)}`);
         }
 
@@ -169,11 +166,11 @@ const PaymentPage: React.FC = () => {
 
         console.log('Booking created successfully:', booking);
         
-        // Create payment record for each booking
+        // Create payment record for each booking with proper validation
         const paymentData = {
           booking_id: booking.id,
           method: paymentMethod,
-          amount: service.price,
+          amount: Number(service.price), // Ensure it's a number
           status: 'pending' as const,
         };
 
@@ -187,8 +184,13 @@ const PaymentPage: React.FC = () => {
         
         if (paymentError) {
           console.error('Payment creation error:', paymentError);
-          // If payment fails, delete the booking
-          await supabase.from('bookings').delete().eq('id', booking.id);
+          // If payment fails, try to delete the booking to maintain consistency
+          try {
+            await supabase.from('bookings').delete().eq('id', booking.id);
+            console.log('Rolled back booking due to payment failure');
+          } catch (rollbackError) {
+            console.error('Failed to rollback booking:', rollbackError);
+          }
           throw new Error(`Failed to create payment: ${paymentError.message}`);
         }
 
@@ -199,7 +201,7 @@ const PaymentPage: React.FC = () => {
       const results = await Promise.all(bookingPromises);
       const bookings = results.map(r => r.booking);
       
-      console.log('All bookings created:', bookings);
+      console.log('All bookings and payments created successfully:', bookings);
       toast.success('Booking confirmed successfully!');
       
       // Navigate to receipt page with booking data
