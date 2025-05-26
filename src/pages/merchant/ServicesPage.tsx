@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -41,7 +40,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import AssignedStaff from '@/components/merchant/AssignedStaff';
 import { useIsMobile } from '@/hooks/use-mobile';
 import StaffManagementSheet from '@/components/merchant/StaffManagementSheet';
 
@@ -305,13 +303,6 @@ const ServicesPage: React.FC = () => {
               <span>₹{service.price}</span>
             </div>
           </div>
-          
-          {merchantId && (
-            <div className="pt-1">
-              <p className="text-xs text-muted-foreground mb-1.5 font-medium">Available Stylists:</p>
-              <AssignedStaff merchantId={merchantId} maxDisplay={3} />
-            </div>
-          )}
         </CardContent>
       </Card>
     );
@@ -378,10 +369,9 @@ const ServicesPage: React.FC = () => {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/10">
-                    <TableHead className="w-1/4 py-3 text-booqit-dark/90 font-medium">Service Name</TableHead>
+                    <TableHead className="w-1/3 py-3 text-booqit-dark/90 font-medium">Service Name</TableHead>
                     <TableHead className="text-center py-3 text-booqit-dark/90 font-medium">Duration</TableHead>
                     <TableHead className="text-center py-3 text-booqit-dark/90 font-medium">Price</TableHead>
-                    <TableHead className="w-1/3 py-3 text-booqit-dark/90 font-medium">Available Stylists</TableHead>
                     <TableHead className="text-right w-28 py-3 text-booqit-dark/90 font-medium">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -394,9 +384,6 @@ const ServicesPage: React.FC = () => {
                       <TableCell className="font-medium py-4">{service.name}</TableCell>
                       <TableCell className="text-center py-4">{service.duration} mins</TableCell>
                       <TableCell className="text-center py-4">₹{service.price}</TableCell>
-                      <TableCell className="py-4">
-                        {merchantId && <AssignedStaff merchantId={merchantId} maxDisplay={2} />}
-                      </TableCell>
                       <TableCell className="text-right space-x-1.5 py-4">
                         <Button 
                           variant="ghost" 
