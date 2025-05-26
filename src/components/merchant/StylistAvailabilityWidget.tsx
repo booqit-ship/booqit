@@ -259,17 +259,26 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
     }
   };
 
-  const selectedStaffMember = staff.find(s => s.id === selectedStaff);
+  // Helper function to check if an item is a holiday
+  const isHoliday = (item: StylistHoliday | StylistBlockedSlot): item is StylistHoliday => {
+    return 'holiday_date' in item;
+  };
+
+  // Helper function to get the date from either type
+  const getItemDate = (item: StylistHoliday | StylistBlockedSlot): string => {
+    return isHoliday(item) ? item.holiday_date : item.blocked_date;
+  };
 
   // Group data by staff and date for display
   const groupedData = [...stylistHolidays, ...stylistBlockedSlots].reduce((acc: any, item) => {
-    const key = `${item.staff_id}_${item.holiday_date || item.blocked_date}`;
+    const itemDate = getItemDate(item);
+    const key = `${item.staff_id}_${itemDate}`;
     if (!acc[key]) {
       acc[key] = {
         staffId: item.staff_id,
         staffName: (item as any).staff?.name || 'Unknown',
-        date: item.holiday_date || item.blocked_date,
-        type: item.holiday_date ? 'holiday' : 'slots',
+        date: itemDate,
+        type: isHoliday(item) ? 'holiday' : 'slots',
         items: []
       };
     }
