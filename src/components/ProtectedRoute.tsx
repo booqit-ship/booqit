@@ -1,11 +1,11 @@
 
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types';
 
 interface ProtectedRouteProps {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   requiredRole?: UserRole;
 }
 
@@ -24,7 +24,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to={userRole === 'merchant' ? '/merchant' : '/'} replace />;
   }
 
-  return <>{children}</>;
+  // If children are provided, render them (for wrapper usage)
+  // If no children, render Outlet (for route element usage)
+  return children ? <>{children}</> : <Outlet />;
 };
 
 export default ProtectedRoute;
