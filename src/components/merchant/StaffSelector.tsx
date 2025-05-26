@@ -95,8 +95,7 @@ const StaffSelector: React.FC<StaffSelectorProps> = ({
         .from('staff')
         .insert({
           merchant_id: merchantId,
-          name: newStaffName.trim(),
-          assigned_service_ids: serviceId ? [serviceId] : []
+          name: newStaffName.trim()
         })
         .select();
         
@@ -195,7 +194,7 @@ const StaffSelector: React.FC<StaffSelectorProps> = ({
                 {staff.name}
               </Label>
               <Badge variant="outline" className="ml-auto">
-                {staff.assigned_service_ids?.length || 0} services
+                Stylist
               </Badge>
             </div>
           ))}
