@@ -1,12 +1,12 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, CreditCard, Wallet, User, Check } from 'lucide-react';
+import { ChevronLeft, CreditCard, Wallet, User, MapPin, Calendar, Clock, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -124,6 +124,16 @@ const PaymentPage: React.FC = () => {
     }
   };
 
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+  };
+
   if (!merchant || !selectedServices) {
     return (
       <div className="h-screen flex items-center justify-center">
@@ -134,117 +144,175 @@ const PaymentPage: React.FC = () => {
 
   return (
     <div className="pb-24 bg-white min-h-screen">
-      <div className="relative bg-booqit-primary text-white p-4">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="absolute top-4 left-4 text-white hover:bg-white/20"
-          onClick={() => navigate(-1)}
-        >
-          <ChevronLeft className="h-5 w-5" />
-        </Button>
-        <h1 className="text-center text-xl font-medium">Payment</h1>
+      <div className="bg-booqit-primary text-white p-4 sticky top-0 z-10">
+        <div className="relative flex items-center justify-center">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="absolute left-0 text-white hover:bg-white/20"
+            onClick={() => navigate(-1)}
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-xl font-medium">Booking Details & Payment</h1>
+        </div>
       </div>
       
       <div className="p-4 space-y-6">
-        {/* Booking Summary */}
+        {/* Merchant Info */}
         <Card>
           <CardContent className="p-4">
-            <h2 className="font-semibold text-lg">Booking Summary</h2>
-            <Separator className="my-2" />
-            
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Merchant</span>
-                <span className="font-medium">{merchant.shop_name}</span>
+            <div className="flex items-center space-x-3">
+              <div className="w-12 h-12 bg-booqit-primary/10 rounded-lg flex items-center justify-center">
+                <span className="font-semibold text-booqit-primary">
+                  {merchant.shop_name.charAt(0)}
+                </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Date</span>
-                <span className="font-medium">{bookingDate}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Time</span>
-                <span className="font-medium">{bookingTime}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Duration</span>
-                <span className="font-medium">{totalDuration} mins</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Services</span>
-                <span className="font-medium">{selectedServices.length} service(s)</span>
-              </div>
-              {selectedStaff && (
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Stylist</span>
-                  <span className="font-medium">Selected</span>
+              <div>
+                <h3 className="font-semibold">{merchant.shop_name}</h3>
+                <div className="flex items-center text-gray-500 text-sm">
+                  <MapPin className="h-3 w-3 mr-1" />
+                  <span>{merchant.address}</span>
                 </div>
-              )}
-              <Separator className="my-1" />
-              <div className="flex justify-between text-lg font-medium">
-                <span>Total</span>
-                <span>₹{totalPrice}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Services */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Selected Services</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {selectedServices.map((service: any) => (
+                <div key={service.id} className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <div className="font-medium">{service.name}</div>
+                    <div className="text-sm text-gray-500">{service.description}</div>
+                    <div className="flex items-center text-sm text-gray-500 mt-1">
+                      <Clock className="h-3 w-3 mr-1" />
+                      <span>{service.duration} mins</span>
+                      {service.quantity > 1 && <span className="ml-2">x{service.quantity}</span>}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-medium">₹{service.price * service.quantity}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <Separator className="my-3" />
+            <div className="flex justify-between font-semibold">
+              <span>Total</span>
+              <span>₹{totalPrice}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Date & Time */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Date & Time</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <div className="flex items-center">
+                <Calendar className="h-4 w-4 mr-3 text-gray-500" />
+                <span>{formatDate(bookingDate)}</span>
+              </div>
+              <div className="flex items-center">
+                <Clock className="h-4 w-4 mr-3 text-gray-500" />
+                <span>{bookingTime} ({totalDuration} minutes)</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Stylist */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Stylist</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center">
+              <Avatar className="h-10 w-10 mr-3">
+                <AvatarFallback className="bg-gray-200 text-gray-700">
+                  {selectedStaff ? 'S' : 'A'}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <div className="font-medium">
+                  {selectedStaff ? 'Selected Stylist' : 'Any Available Stylist'}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {selectedStaff ? 'Your preferred choice' : 'We\'ll assign the best available stylist'}
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
         
         {/* Payment Methods */}
-        <div>
-          <h2 className="text-lg font-medium mb-3">Select Payment Method</h2>
-          
-          <RadioGroup
-            value={paymentMethod}
-            onValueChange={(value) => setPaymentMethod(value as PaymentMethod)}
-            className="space-y-3"
-          >
-            {/* Cash on Service - Only enabled option */}
-            <Label
-              htmlFor="cash-option"
-              className="flex items-center p-4 border rounded-lg cursor-pointer transition-colors border-booqit-primary bg-booqit-primary/5"
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Select Payment Method</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RadioGroup
+              value={paymentMethod}
+              onValueChange={(value) => setPaymentMethod(value as PaymentMethod)}
+              className="space-y-3"
             >
-              <RadioGroupItem value="cash" id="cash-option" className="mr-3" checked />
-              <span className="mr-3 text-gray-600 font-medium">₹</span>
-              <span>Cash on Service</span>
-            </Label>
-            
-            {/* Other payment methods - disabled */}
-            <Label
-              htmlFor="card-option"
-              className="flex items-center p-4 border rounded-lg cursor-not-allowed border-gray-200 bg-gray-50"
-            >
-              <RadioGroupItem value="card" id="card-option" className="mr-3" disabled />
-              <CreditCard className="h-5 w-5 mr-3 text-gray-400" />
-              <span className="text-gray-400">Credit/Debit Card</span>
-              <span className="ml-auto text-xs bg-gray-200 px-2 py-0.5 rounded">Coming Soon</span>
-            </Label>
-            
-            <Label
-              htmlFor="upi-option"
-              className="flex items-center p-4 border rounded-lg cursor-not-allowed border-gray-200 bg-gray-50"
-            >
-              <RadioGroupItem value="upi" id="upi-option" className="mr-3" disabled />
-              <User className="h-5 w-5 mr-3 text-gray-400" />
-              <span className="text-gray-400">UPI</span>
-              <span className="ml-auto text-xs bg-gray-200 px-2 py-0.5 rounded">Coming Soon</span>
-            </Label>
-            
-            <Label
-              htmlFor="wallet-option"
-              className="flex items-center p-4 border rounded-lg cursor-not-allowed border-gray-200 bg-gray-50"
-            >
-              <RadioGroupItem value="wallet" id="wallet-option" className="mr-3" disabled />
-              <Wallet className="h-5 w-5 mr-3 text-gray-400" />
-              <span className="text-gray-400">Digital Wallet</span>
-              <span className="ml-auto text-xs bg-gray-200 px-2 py-0.5 rounded">Coming Soon</span>
-            </Label>
-          </RadioGroup>
-        </div>
+              {/* Cash on Service - Only enabled option */}
+              <Label
+                htmlFor="cash-option"
+                className="flex items-center p-4 border rounded-lg cursor-pointer transition-colors border-booqit-primary bg-booqit-primary/5"
+              >
+                <RadioGroupItem value="cash" id="cash-option" className="mr-3" checked />
+                <span className="mr-3 text-gray-600 font-medium">₹</span>
+                <span>Cash on Service</span>
+              </Label>
+              
+              {/* Other payment methods - disabled */}
+              <Label
+                htmlFor="card-option"
+                className="flex items-center p-4 border rounded-lg cursor-not-allowed border-gray-200 bg-gray-50"
+              >
+                <RadioGroupItem value="card" id="card-option" className="mr-3" disabled />
+                <CreditCard className="h-5 w-5 mr-3 text-gray-400" />
+                <span className="text-gray-400">Credit/Debit Card</span>
+                <span className="ml-auto text-xs bg-gray-200 px-2 py-0.5 rounded">Coming Soon</span>
+              </Label>
+              
+              <Label
+                htmlFor="upi-option"
+                className="flex items-center p-4 border rounded-lg cursor-not-allowed border-gray-200 bg-gray-50"
+              >
+                <RadioGroupItem value="upi" id="upi-option" className="mr-3" disabled />
+                <User className="h-5 w-5 mr-3 text-gray-400" />
+                <span className="text-gray-400">UPI</span>
+                <span className="ml-auto text-xs bg-gray-200 px-2 py-0.5 rounded">Coming Soon</span>
+              </Label>
+              
+              <Label
+                htmlFor="wallet-option"
+                className="flex items-center p-4 border rounded-lg cursor-not-allowed border-gray-200 bg-gray-50"
+              >
+                <RadioGroupItem value="wallet" id="wallet-option" className="mr-3" disabled />
+                <Wallet className="h-5 w-5 mr-3 text-gray-400" />
+                <span className="text-gray-400">Digital Wallet</span>
+                <span className="ml-auto text-xs bg-gray-200 px-2 py-0.5 rounded">Coming Soon</span>
+              </Label>
+            </RadioGroup>
+          </CardContent>
+        </Card>
         
         {/* Cash payment info */}
-        <Card>
+        <Card className="border-amber-200 bg-amber-50">
           <CardContent className="p-4 text-center">
-            <p className="text-gray-600">Pay the amount directly at the service location</p>
+            <p className="text-amber-800">You will pay ₹{totalPrice} in cash when you arrive for your appointment.</p>
           </CardContent>
         </Card>
       </div>

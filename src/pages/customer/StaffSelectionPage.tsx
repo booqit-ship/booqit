@@ -5,7 +5,7 @@ import { ChevronLeft, User, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
 import { Staff } from '@/types';
 import { toast } from 'sonner';
@@ -26,6 +26,7 @@ const StaffSelectionPage: React.FC = () => {
         if (!merchantId) return;
 
         console.log('Fetching staff for merchant:', merchantId);
+        
         const { data, error } = await supabase
           .from('staff')
           .select('*')
@@ -133,7 +134,7 @@ const StaffSelectionPage: React.FC = () => {
         </RadioGroup>
 
         {staff.length === 0 && (
-          <div className="text-center py-8 bg-gray-50 rounded-lg">
+          <div className="text-center py-8 bg-gray-50 rounded-lg mt-4">
             <User className="h-12 w-12 mx-auto text-gray-400 mb-2" />
             <p className="text-gray-500">No stylists available</p>
             <p className="text-gray-400 text-sm">You can still proceed with your booking</p>

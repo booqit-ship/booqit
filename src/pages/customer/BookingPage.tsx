@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, Clock } from 'lucide-react';
+import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,7 +21,6 @@ const BookingPage: React.FC = () => {
   const [holidays, setHolidays] = useState<string[]>([]);
   const [blockedSlots, setBlockedSlots] = useState<Array<{date: string, time_slot: string}>>([]);
 
-  // Get next 3 available dates (today + next 2 days, excluding weekends and holidays)
   const getAvailableDates = () => {
     const dates: Date[] = [];
     let currentDate = new Date();
@@ -96,14 +95,16 @@ const BookingPage: React.FC = () => {
     const slots: string[] = [];
     if (!merchant) return slots;
 
-    const openHour = parseInt(merchant.open_time.split(':')[0]);
-    const closeHour = parseInt(merchant.close_time.split(':')[0]);
+    const openTime = merchant.open_time;
+    const closeTime = merchant.close_time;
     
-    // Generate slots based on service duration
-    let currentTime = openHour * 60; // Convert to minutes
-    const closeTime = closeHour * 60;
+    const [openHour, openMinute] = openTime.split(':').map(Number);
+    const [closeHour, closeMinute] = closeTime.split(':').map(Number);
     
-    while (currentTime + serviceDuration <= closeTime) {
+    let currentTime = openHour * 60 + openMinute; // Convert to minutes
+    const closeTimeInMinutes = closeHour * 60 + closeMinute;
+    
+    while (currentTime + serviceDuration <= closeTimeInMinutes) {
       const hours = Math.floor(currentTime / 60);
       const minutes = currentTime % 60;
       const timeSlot = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
@@ -130,7 +131,7 @@ const BookingPage: React.FC = () => {
         // Fetch existing bookings for the selected date
         const { data: existingBookings } = await supabase
           .from('bookings')
-          .select('time_slot')
+          .select('time_slot, staff_id')
           .eq('merchant_id', merchantId)
           .eq('date', selectedDateStr)
           .eq('status', 'confirmed');
@@ -138,7 +139,14 @@ const BookingPage: React.FC = () => {
         // Filter out booked and blocked slots
         const availableSlots = baseSlots.filter(slot => {
           // Check if slot is not booked
-          const isBooked = existingBookings?.some(booking => booking.time_slot === slot);
+          const isBooked = existingBookings?.some(booking => {
+            // If a specific staff is selected, only check bookings for that staff
+            if (selectedStaff) {
+              return booking.time_slot === slot && booking.staff_id === selectedStaff;
+            }
+            // If any staff, check all bookings for that time slot
+            return booking.time_slot === slot;
+          });
           
           // Check if slot is blocked for selected staff
           const isBlocked = blockedSlots.some(blockedSlot => 
@@ -158,7 +166,7 @@ const BookingPage: React.FC = () => {
     };
 
     fetchAvailableSlots();
-  }, [selectedDate, merchant, merchantId, blockedSlots, selectedServices, totalDuration]);
+  }, [selectedDate, merchant, merchantId, blockedSlots, selectedServices, totalDuration, selectedStaff]);
 
   const handleContinue = () => {
     if (!selectedDate || !selectedTime) {
@@ -166,15 +174,15 @@ const BookingPage: React.FC = () => {
       return;
     }
 
-    navigate(`/booking/${merchantId}/summary`, {
+    navigate(`/payment/${merchantId}`, {
       state: {
         merchant,
         selectedServices,
         totalPrice,
         totalDuration,
         selectedStaff,
-        selectedDate: format(selectedDate, 'yyyy-MM-dd'),
-        selectedTime
+        bookingDate: format(selectedDate, 'yyyy-MM-dd'),
+        bookingTime: selectedTime
       }
     });
   };
@@ -188,7 +196,7 @@ const BookingPage: React.FC = () => {
     } else if (format(date, 'yyyy-MM-dd') === format(tomorrow, 'yyyy-MM-dd')) {
       return 'Tomorrow';
     } else {
-      return format(date, 'EEE');
+      return format(date, 'EEE, MMM d');
     }
   };
 
@@ -225,31 +233,33 @@ const BookingPage: React.FC = () => {
 
         {/* Date Selection - 3 Day Format */}
         <div className="mb-6">
-          <h3 className="font-medium mb-3">Select Date</h3>
-          <div className="grid grid-cols-3 gap-3">
+          <h3 className="font-medium mb-3 flex items-center">
+            <CalendarIcon className="h-4 w-4 mr-2" />
+            Select Date
+          </h3>
+          <div className="grid grid-cols-3 gap-2">
             {availableDates.map((date) => {
               const isSelected = selectedDate && format(selectedDate, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd');
               
               return (
-                <Card 
+                <Button
                   key={format(date, 'yyyy-MM-dd')}
-                  className={`border transition-all cursor-pointer ${
-                    isSelected ? 'border-booqit-primary bg-booqit-primary text-white' : 'border-gray-200 hover:border-booqit-primary/50'
+                  variant={isSelected ? "default" : "outline"}
+                  className={`h-auto p-3 flex flex-col items-center space-y-1 ${
+                    isSelected ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
                   }`}
                   onClick={() => setSelectedDate(date)}
                 >
-                  <CardContent className="p-4 text-center">
-                    <div className={`text-sm font-medium ${isSelected ? 'text-white' : 'text-booqit-primary'}`}>
-                      {formatDateDisplay(date)}
-                    </div>
-                    <div className={`text-lg font-bold ${isSelected ? 'text-white' : 'text-gray-900'}`}>
-                      {format(date, 'MMM d')}
-                    </div>
-                    <div className={`text-xs ${isSelected ? 'text-white/80' : 'text-gray-500'}`}>
-                      {totalDuration} mins
-                    </div>
-                  </CardContent>
-                </Card>
+                  <div className="text-xs font-medium">
+                    {formatDateDisplay(date)}
+                  </div>
+                  <div className="text-lg font-bold">
+                    {format(date, 'd')}
+                  </div>
+                  <div className="text-xs opacity-70">
+                    {format(date, 'MMM')}
+                  </div>
+                </Button>
               );
             })}
           </div>
@@ -267,25 +277,18 @@ const BookingPage: React.FC = () => {
                 <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
               </div>
             ) : availableTimeSlots.length > 0 ? (
-              <div className="space-y-2">
+              <div className="grid grid-cols-3 gap-2">
                 {availableTimeSlots.map((time) => (
-                  <Card 
+                  <Button
                     key={time}
-                    className={`border transition-all cursor-pointer ${
-                      selectedTime === time ? 'border-booqit-primary bg-booqit-primary/10' : 'border-gray-200 hover:border-booqit-primary/50'
+                    variant={selectedTime === time ? "default" : "outline"}
+                    className={`p-3 ${
+                      selectedTime === time ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
                     }`}
                     onClick={() => setSelectedTime(time)}
                   >
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <div className="flex items-center">
-                        <div className={`w-4 h-4 rounded-full border-2 mr-3 ${
-                          selectedTime === time ? 'bg-booqit-primary border-booqit-primary' : 'border-gray-300'
-                        }`} />
-                        <span className="font-medium">{time}</span>
-                      </div>
-                      <span className="text-sm text-gray-500">{totalDuration} mins</span>
-                    </CardContent>
-                  </Card>
+                    <span className="font-medium">{time}</span>
+                  </Button>
                 ))}
               </div>
             ) : (
@@ -306,7 +309,7 @@ const BookingPage: React.FC = () => {
           onClick={handleContinue}
           disabled={!selectedDate || !selectedTime}
         >
-          Continue to Summary
+          Continue to Payment
         </Button>
       </div>
     </div>

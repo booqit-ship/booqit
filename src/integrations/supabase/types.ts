@@ -58,6 +58,7 @@ export type Database = {
           merchant_id: string
           payment_status: string
           service_id: string
+          staff_id: string | null
           status: string
           time_slot: string
           user_id: string
@@ -69,6 +70,7 @@ export type Database = {
           merchant_id: string
           payment_status: string
           service_id: string
+          staff_id?: string | null
           status: string
           time_slot: string
           user_id: string
@@ -80,6 +82,7 @@ export type Database = {
           merchant_id?: string
           payment_status?: string
           service_id?: string
+          staff_id?: string | null
           status?: string
           time_slot?: string
           user_id?: string
@@ -97,6 +100,13 @@ export type Database = {
             columns: ["service_id"]
             isOneToOne: false
             referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
         ]

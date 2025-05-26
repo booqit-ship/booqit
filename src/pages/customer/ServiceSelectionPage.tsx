@@ -1,65 +1,76 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, Clock, Check } from 'lucide-react';
+import { ChevronLeft, Clock, Plus, Minus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
-import { Merchant, Service } from '@/types';
+import { Service } from '@/types';
 import { toast } from 'sonner';
 
 const ServiceSelectionPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { merchant } = location.state as { merchant: Merchant };
+  const { merchant, services: initialServices } = location.state;
 
-  const [services, setServices] = useState<Service[]>([]);
-  const [selectedServices, setSelectedServices] = useState<Service[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [services, setServices] = useState<Service[]>(initialServices || []);
+  const [selectedServices, setSelectedServices] = useState<Array<Service & { quantity: number }>>([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const fetchServices = async () => {
+    if (!initialServices || initialServices.length === 0) {
+      fetchServices();
+    }
+  }, [merchantId, initialServices]);
+
+  const fetchServices = async () => {
+    try {
+      setLoading(true);
       if (!merchantId) return;
 
-      try {
-        const { data, error } = await supabase
-          .from('services')
-          .select('*')
-          .eq('merchant_id', merchantId);
+      const { data, error } = await supabase
+        .from('services')
+        .select('*')
+        .eq('merchant_id', merchantId);
 
-        if (error) throw error;
-        setServices(data || []);
-      } catch (error) {
-        console.error('Error fetching services:', error);
-        toast.error('Could not load services');
-      } finally {
-        setLoading(false);
-      }
-    };
+      if (error) throw error;
+      setServices(data || []);
+    } catch (error) {
+      console.error('Error fetching services:', error);
+      toast.error('Could not load services');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    fetchServices();
-  }, [merchantId]);
+  const addService = (service: Service) => {
+    const existingIndex = selectedServices.findIndex(s => s.id === service.id);
+    if (existingIndex >= 0) {
+      const updated = [...selectedServices];
+      updated[existingIndex].quantity += 1;
+      setSelectedServices(updated);
+    } else {
+      setSelectedServices([...selectedServices, { ...service, quantity: 1 }]);
+    }
+  };
 
-  const toggleService = (service: Service) => {
-    setSelectedServices(prev => {
-      const existing = prev.find(s => s.id === service.id);
-      if (existing) {
-        return prev.filter(s => s.id !== service.id);
+  const removeService = (serviceId: string) => {
+    const existingIndex = selectedServices.findIndex(s => s.id === serviceId);
+    if (existingIndex >= 0) {
+      const updated = [...selectedServices];
+      if (updated[existingIndex].quantity > 1) {
+        updated[existingIndex].quantity -= 1;
       } else {
-        return [...prev, service];
+        updated.splice(existingIndex, 1);
       }
-    });
+      setSelectedServices(updated);
+    }
   };
 
-  const getTotalPrice = () => {
-    return selectedServices.reduce((total, service) => total + service.price, 0);
-  };
-
-  const getTotalDuration = () => {
-    return selectedServices.reduce((total, service) => total + service.duration, 0);
-  };
+  const totalPrice = selectedServices.reduce((sum, service) => sum + (service.price * service.quantity), 0);
+  const totalDuration = selectedServices.reduce((sum, service) => sum + (service.duration * service.quantity), 0);
 
   const handleContinue = () => {
     if (selectedServices.length === 0) {
@@ -71,8 +82,8 @@ const ServiceSelectionPage: React.FC = () => {
       state: {
         merchant,
         selectedServices,
-        totalPrice: getTotalPrice(),
-        totalDuration: getTotalDuration()
+        totalPrice,
+        totalDuration
       }
     });
   };
@@ -81,15 +92,6 @@ const ServiceSelectionPage: React.FC = () => {
     return (
       <div className="h-screen flex items-center justify-center">
         <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
-      </div>
-    );
-  }
-
-  if (!merchant || services.length === 0) {
-    return (
-      <div className="h-screen flex flex-col items-center justify-center p-4">
-        <p className="text-gray-500 mb-4">No services available</p>
-        <Button onClick={() => navigate(-1)}>Go Back</Button>
       </div>
     );
   }
@@ -112,70 +114,89 @@ const ServiceSelectionPage: React.FC = () => {
 
       <div className="p-4">
         <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-2">{merchant.shop_name}</h2>
-          <p className="text-gray-500 text-sm">Choose the services you want to book</p>
+          <h2 className="text-lg font-semibold mb-2">Choose Your Services</h2>
+          <p className="text-gray-500 text-sm">Select the services you'd like to book</p>
         </div>
 
-        <div className="space-y-4 mb-6">
-          {services.map(service => {
-            const isSelected = selectedServices.some(s => s.id === service.id);
+        {services.length > 0 ? (
+          <div className="space-y-4 mb-6">
+            {services.map(service => {
+              const selectedService = selectedServices.find(s => s.id === service.id);
+              const quantity = selectedService?.quantity || 0;
 
-            return (
-              <Card key={service.id} className={`border transition-all ${isSelected ? 'border-booqit-primary bg-booqit-primary/5' : 'border-gray-200'}`}>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start space-x-3 flex-1">
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={() => toggleService(service)}
-                        className="mt-1"
-                      />
-                      <div className="flex-1">
-                        <h3 className="font-medium">{service.name}</h3>
-                        <p className="text-sm text-gray-500 mt-1">{service.description}</p>
-                        <div className="flex items-center space-x-4 mt-2">
-                          <div className="flex items-center text-gray-500 text-sm">
-                            <Clock className="h-3 w-3 mr-1" />
-                            <span>{service.duration} mins</span>
-                          </div>
-                          <span className="font-medium">₹{service.price}</span>
-                        </div>
-                      </div>
+              return (
+                <Card key={service.id} className="overflow-hidden">
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <h3 className="font-medium">{service.name}</h3>
+                      <span className="font-medium">₹{service.price}</span>
                     </div>
-
-                    {isSelected && (
-                      <div className="flex items-center ml-4">
-                        <Check className="h-5 w-5 text-booqit-primary" />
+                    
+                    <p className="text-sm text-gray-500 mb-3">{service.description}</p>
+                    
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center text-gray-500 text-sm">
+                        <Clock className="h-3 w-3 mr-1" />
+                        <span>{service.duration} mins</span>
                       </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                      
+                      {quantity > 0 ? (
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => removeService(service.id)}
+                          >
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <span className="font-medium w-8 text-center">{quantity}</span>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => addService(service)}
+                          >
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => addService(service)}
+                        >
+                          Add Service
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-8 bg-gray-50 rounded-lg">
+            <p className="text-gray-500">No services available</p>
+          </div>
+        )}
 
         {selectedServices.length > 0 && (
-          <Card className="mb-4 border-booqit-primary">
+          <Card className="mb-6">
             <CardContent className="p-4">
-              <h3 className="font-semibold mb-3">Booking Summary</h3>
+              <h3 className="font-semibold mb-3">Selected Services</h3>
               <div className="space-y-2">
-                {selectedServices.map(service => (
+                {selectedServices.map((service) => (
                   <div key={service.id} className="flex justify-between text-sm">
-                    <span>{service.name}</span>
-                    <span>₹{service.price}</span>
+                    <span>{service.name} x{service.quantity}</span>
+                    <span>₹{service.price * service.quantity}</span>
                   </div>
                 ))}
-                <div className="border-t pt-2 mt-2">
-                  <div className="flex justify-between font-semibold">
-                    <span>Total Duration</span>
-                    <span>{getTotalDuration()} mins</span>
-                  </div>
-                  <div className="flex justify-between font-semibold text-lg">
-                    <span>Total Amount</span>
-                    <span>₹{getTotalPrice()}</span>
-                  </div>
-                </div>
+              </div>
+              <Separator className="my-3" />
+              <div className="flex justify-between font-semibold">
+                <span>Total ({totalDuration} mins)</span>
+                <span>₹{totalPrice}</span>
               </div>
             </CardContent>
           </Card>
@@ -189,7 +210,7 @@ const ServiceSelectionPage: React.FC = () => {
           onClick={handleContinue}
           disabled={selectedServices.length === 0}
         >
-          Continue ({selectedServices.length} service{selectedServices.length !== 1 ? 's' : ''})
+          Continue to Stylist Selection
         </Button>
       </div>
     </div>
