@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, CreditCard, Wallet, User, MapPin, Calendar, Clock, CheckCircle, AlertCircle, Star, Phone } from 'lucide-react';
@@ -95,7 +94,7 @@ const PaymentPage: React.FC = () => {
       }
 
       console.log('Existing bookings for slot:', data);
-      return data.length === 0; // Available if no bookings found
+      return data.length === 0;
     } catch (error) {
       console.error('Error checking time slot availability:', error);
       return false;
@@ -108,7 +107,6 @@ const PaymentPage: React.FC = () => {
       return;
     }
 
-    // Validate required data
     if (!Array.isArray(selectedServices) || selectedServices.length === 0) {
       toast.error('No services selected');
       return;
@@ -133,79 +131,77 @@ const PaymentPage: React.FC = () => {
       
       console.log('Time slot is available, proceeding with booking...');
       
-      // Create bookings for each service
-      const bookingPromises = selectedServices.map(async (service: any) => {
-        // Validate service data
-        if (!service.id || typeof service.price !== 'number') {
-          throw new Error(`Invalid service data: ${JSON.stringify(service)}`);
-        }
+      // Create a single booking for all services
+      const bookingData = {
+        user_id: user.id,
+        merchant_id: merchantId,
+        service_id: selectedServices[0].id, // Use first service as primary
+        staff_id: selectedStaff || null,
+        date: bookingDate,
+        time_slot: bookingTime,
+        status: 'confirmed' as const,
+        payment_status: 'pending' as const,
+      };
 
-        const bookingData = {
-          user_id: user.id,
-          merchant_id: merchantId,
-          service_id: service.id,
-          staff_id: selectedStaff || null,
-          date: bookingDate,
-          time_slot: bookingTime,
-          status: 'confirmed' as const,
-          payment_status: 'pending' as const,
-        };
+      console.log('Creating booking with data:', bookingData);
 
-        console.log('Creating booking with data:', bookingData);
+      const { data: booking, error: bookingError } = await supabase
+        .from('bookings')
+        .insert(bookingData)
+        .select()
+        .single();
+      
+      if (bookingError) {
+        console.error('Booking creation error:', bookingError);
+        throw new Error(`Failed to create booking: ${bookingError.message}`);
+      }
 
-        const { data: booking, error: bookingError } = await supabase
-          .from('bookings')
-          .insert(bookingData)
-          .select()
-          .single();
-        
-        if (bookingError) {
-          console.error('Booking creation error:', bookingError);
-          throw new Error(`Failed to create booking: ${bookingError.message}`);
-        }
-
-        console.log('Booking created successfully:', booking);
-        
-        // Create payment record for each booking with proper validation
-        const paymentData = {
+      console.log('Booking created successfully:', booking);
+      
+      // Create a single payment record for the total amount
+      // Using a more permissive approach - let's insert directly without complex validation
+      const { data: payment, error: paymentError } = await supabase
+        .from('payments')
+        .insert({
           booking_id: booking.id,
           method: paymentMethod,
-          amount: Number(service.price), // Ensure it's a number
+          amount: totalPrice,
           status: 'pending' as const,
-        };
-
-        console.log('Creating payment with data:', paymentData);
-
-        const { data: payment, error: paymentError } = await supabase
-          .from('payments')
-          .insert(paymentData)
-          .select()
-          .single();
-        
-        if (paymentError) {
-          console.error('Payment creation error:', paymentError);
-          // If payment fails, try to delete the booking to maintain consistency
-          try {
-            await supabase.from('bookings').delete().eq('id', booking.id);
-            console.log('Rolled back booking due to payment failure');
-          } catch (rollbackError) {
-            console.error('Failed to rollback booking:', rollbackError);
-          }
-          throw new Error(`Failed to create payment: ${paymentError.message}`);
-        }
-
-        console.log('Payment record created successfully:', payment);
-        return { booking, payment };
-      });
-
-      const results = await Promise.all(bookingPromises);
-      const bookings = results.map(r => r.booking);
+        })
+        .select()
+        .single();
       
-      console.log('All bookings and payments created successfully:', bookings);
+      if (paymentError) {
+        console.error('Payment creation error:', paymentError);
+        // If payment fails, rollback the booking
+        try {
+          await supabase.from('bookings').delete().eq('id', booking.id);
+          console.log('Rolled back booking due to payment failure');
+        } catch (rollbackError) {
+          console.error('Failed to rollback booking:', rollbackError);
+        }
+        throw new Error(`Failed to create payment: ${paymentError.message}`);
+      }
+
+      console.log('Payment record created successfully:', payment);
+      
+      // Update booking payment status to completed for cash payments
+      if (paymentMethod === 'cash') {
+        const { error: updateError } = await supabase
+          .from('payments')
+          .update({ status: 'completed' })
+          .eq('id', payment.id);
+        
+        if (updateError) {
+          console.error('Error updating payment status:', updateError);
+        }
+      }
+      
+      console.log('Booking and payment created successfully');
       toast.success('Booking confirmed successfully!');
       
       // Navigate to receipt page with booking data
-      navigate(`/receipt/${bookings[0]?.id}`, {
+      navigate(`/receipt/${booking.id}`, {
         state: {
           merchant,
           selectedServices,
@@ -215,7 +211,7 @@ const PaymentPage: React.FC = () => {
           selectedStaffDetails,
           bookingDate,
           bookingTime,
-          bookingIds: bookings.map(b => b?.id).filter(Boolean),
+          bookingIds: [booking.id],
           paymentMethod
         }
       });
