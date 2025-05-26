@@ -13,7 +13,7 @@ const CustomerLayout: React.FC = () => {
   
   return (
     <div className="min-h-screen bg-gray-50">
-      <main className={(isMapPage || isSearchPage || isBookingFlow) ? "" : "pb-16"}>
+      <main className={(isMapPage || isSearchPage || isBookingFlow) ? "" : "pb-20"}>
         <Outlet />
       </main>
       {!isMapPage && !isBookingFlow && <BottomNavigation />}

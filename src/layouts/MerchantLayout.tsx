@@ -8,7 +8,7 @@ const MerchantLayout: React.FC = () => {
     <div className="min-h-screen bg-gray-50">
       <SideNavigation />
       <div className="md:ml-20 min-h-screen">
-        <main>
+        <main className="pb-20 md:pb-4">
           <Outlet />
         </main>
       </div>
