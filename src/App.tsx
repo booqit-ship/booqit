@@ -6,7 +6,6 @@ import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AuthProvider } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import SplashScreen from '@/components/SplashScreen';
 import AuthPage from '@/pages/AuthPage';
 import Index from '@/pages/Index';
 import NotFound from '@/pages/NotFound';
@@ -43,16 +42,12 @@ const router = createBrowserRouter([
     element: <Index />,
   },
   {
-    path: "/splash",
-    element: <SplashScreen />,
-  },
-  {
     path: "/auth",
     element: <AuthPage />,
   },
   {
     path: "/",
-    element: <ProtectedRoute allowedRoles={['customer']} />,
+    element: <ProtectedRoute requiredRole="customer" />,
     children: [
       {
         path: "/",
@@ -76,7 +71,7 @@ const router = createBrowserRouter([
   },
   {
     path: "/merchant",
-    element: <ProtectedRoute allowedRoles={['merchant']} />,
+    element: <ProtectedRoute requiredRole="merchant" />,
     children: [
       {
         path: "/merchant",
