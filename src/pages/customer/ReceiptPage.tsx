@@ -52,8 +52,6 @@ const ReceiptPage: React.FC = () => {
         if (bookingError) throw bookingError;
         
         if (bookingData) {
-          // Use type assertion to ensure data conforms to our Booking type
-          // This ensures the status field is correctly typed
           const typedBooking = {
             ...bookingData,
             status: bookingData.status as "pending" | "confirmed" | "completed" | "cancelled",
@@ -80,38 +78,88 @@ const ReceiptPage: React.FC = () => {
   }, [bookingId, receiptDetails]);
 
   const handleAddToCalendar = () => {
-    // Get data either from state or fetched data
-    const bookingDate = receiptDetails?.bookingDate || booking?.date;
-    const bookingTime = receiptDetails?.bookingTime || booking?.time_slot;
-    const serviceName = receiptDetails?.serviceName || service?.name;
-    const merchantName = receiptDetails?.merchantName || merchant?.shop_name;
-    
-    if (!bookingDate || !bookingTime || !serviceName || !merchantName) {
-      toast.error("Couldn't create calendar event");
-      return;
-    }
+    try {
+      // Get data either from state or fetched data
+      const bookingDate = receiptDetails?.bookingDate || booking?.date;
+      const bookingTime = receiptDetails?.bookingTime || booking?.time_slot;
+      const serviceName = receiptDetails?.serviceName || service?.name;
+      const merchantName = receiptDetails?.merchantName || merchant?.shop_name;
+      const merchantAddress = merchant?.address || '';
+      
+      if (!bookingDate || !bookingTime || !serviceName || !merchantName) {
+        toast.error("Couldn't create calendar event");
+        return;
+      }
 
-    // Create Google Calendar URL
-    const [hours, minutes] = bookingTime.split(':').map(Number);
-    const startDate = new Date(bookingDate);
-    startDate.setHours(hours, minutes, 0, 0);
-    
-    const endDate = new Date(startDate);
-    endDate.setMinutes(endDate.getMinutes() + (service?.duration || 60));
-    
-    // Format dates for Google Calendar
-    const formatForGCal = (date: Date) => {
-      return date.toISOString().replace(/-|:|\.\d+/g, '');
-    };
-    
-    const googleCalUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(`${serviceName} appointment`)}&details=${encodeURIComponent(`Appointment at ${merchantName}`)}&location=${encodeURIComponent(merchant?.address || '')}&dates=${formatForGCal(startDate)}/${formatForGCal(endDate)}`;
-    
-    window.open(googleCalUrl, '_blank');
+      // Create start date/time
+      const [hours, minutes] = bookingTime.split(':').map(Number);
+      const startDate = new Date(bookingDate);
+      startDate.setHours(hours, minutes, 0, 0);
+      
+      const endDate = new Date(startDate);
+      endDate.setMinutes(endDate.getMinutes() + (service?.duration || 60));
+      
+      // Format dates for Google Calendar (YYYYMMDDTHHMMSSZ)
+      const formatForGCal = (date: Date) => {
+        return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+      };
+      
+      const eventTitle = `${serviceName} appointment`;
+      const eventDetails = `Appointment at ${merchantName}`;
+      const eventLocation = merchantAddress;
+      
+      const googleCalUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventTitle)}&details=${encodeURIComponent(eventDetails)}&location=${encodeURIComponent(eventLocation)}&dates=${formatForGCal(startDate)}/${formatForGCal(endDate)}`;
+      
+      window.open(googleCalUrl, '_blank');
+      toast.success('Calendar event created!');
+    } catch (error) {
+      console.error('Error creating calendar event:', error);
+      toast.error("Couldn't create calendar event");
+    }
   };
   
   const handleDownloadReceipt = () => {
-    // In a real app, this would generate a PDF receipt
-    toast.success('Receipt download started');
+    try {
+      // Get data for receipt
+      const bookingDate = receiptDetails?.bookingDate || booking?.date;
+      const bookingTime = receiptDetails?.bookingTime || booking?.time_slot;
+      const serviceName = receiptDetails?.serviceName || service?.name;
+      const merchantName = receiptDetails?.merchantName || merchant?.shop_name;
+      const servicePrice = receiptDetails?.servicePrice || service?.price;
+      const bookingRef = receiptDetails?.bookingId || booking?.id;
+
+      // Create receipt content
+      const receiptContent = `
+BOOKING RECEIPT
+===============
+
+Booking ID: ${bookingRef?.substring(0, 8)}
+Date: ${bookingDate}
+Time: ${bookingTime}
+
+Service: ${serviceName}
+Merchant: ${merchantName}
+Amount: ₹${servicePrice}
+
+Thank you for your booking!
+`;
+
+      // Create and download file
+      const blob = new Blob([receiptContent], { type: 'text/plain' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `receipt-${bookingRef?.substring(0, 8)}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('Receipt downloaded successfully!');
+    } catch (error) {
+      console.error('Error downloading receipt:', error);
+      toast.error("Couldn't download receipt");
+    }
   };
   
   const handleGoToHome = () => {
@@ -134,7 +182,7 @@ const ReceiptPage: React.FC = () => {
     serviceName: receiptDetails?.serviceName || service?.name || '',
     servicePrice: receiptDetails?.servicePrice || service?.price || 0,
     merchantName: receiptDetails?.merchantName || merchant?.shop_name || '',
-    paymentMethod: receiptDetails?.paymentMethod || 'card',
+    paymentMethod: receiptDetails?.paymentMethod || 'cash',
   };
 
   return (

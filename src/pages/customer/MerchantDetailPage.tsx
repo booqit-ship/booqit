@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Clock, MapPin, Star } from 'lucide-react';
+import { ChevronLeft, Clock, MapPin, Star, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
-import { Merchant, Service } from '@/types';
+import { Merchant, Service, Staff } from '@/types';
 import { toast } from 'sonner';
 
 const MerchantDetailPage: React.FC = () => {
@@ -14,6 +15,7 @@ const MerchantDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const [merchant, setMerchant] = useState<Merchant | null>(null);
   const [services, setServices] = useState<Service[]>([]);
+  const [staff, setStaff] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
 
@@ -38,10 +40,20 @@ const MerchantDetailPage: React.FC = () => {
           .eq('merchant_id', merchantId);
           
         if (servicesError) throw servicesError;
+
+        // Fetch staff for this merchant
+        const { data: staffData, error: staffError } = await supabase
+          .from('staff')
+          .select('*')
+          .eq('merchant_id', merchantId);
+          
+        if (staffError) throw staffError;
         
         console.log('Merchant data:', merchantData);
+        console.log('Staff data:', staffData);
         setMerchant(merchantData);
         setServices(servicesData || []);
+        setStaff(staffData || []);
       } catch (error) {
         console.error('Error fetching merchant details:', error);
         toast.error('Could not load merchant details');
@@ -138,8 +150,36 @@ const MerchantDetailPage: React.FC = () => {
           <Clock className="h-4 w-4 mr-2" />
           <p>{getFormattedTime(merchant.open_time)} - {getFormattedTime(merchant.close_time)}</p>
         </div>
+
+        {/* Staff Section */}
+        {staff.length > 0 && (
+          <div className="mb-4">
+            <h3 className="font-medium mb-2">Available Stylists</h3>
+            <div className="flex flex-wrap gap-2">
+              {staff.map((stylist) => (
+                <Badge key={stylist.id} variant="outline" className="flex items-center">
+                  <User className="h-3 w-3 mr-1" />
+                  {stylist.name}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
         
         <Separator className="mb-6" />
+
+        {/* Book Services Button - Moved above services */}
+        {services.length > 0 && (
+          <div className="mb-6">
+            <Button 
+              className="w-full bg-booqit-primary hover:bg-booqit-primary/90"
+              size="lg"
+              onClick={handleBookServices}
+            >
+              Book Services
+            </Button>
+          </div>
+        )}
         
         <h2 className="text-xl font-semibold mb-4">Services</h2>
         
@@ -162,16 +202,6 @@ const MerchantDetailPage: React.FC = () => {
                 </CardContent>
               </Card>
             ))}
-            
-            <div className="pt-4">
-              <Button 
-                className="w-full bg-booqit-primary hover:bg-booqit-primary/90"
-                size="lg"
-                onClick={handleBookServices}
-              >
-                Book Services
-              </Button>
-            </div>
           </div>
         ) : (
           <div className="text-center py-8 bg-gray-50 rounded-lg">

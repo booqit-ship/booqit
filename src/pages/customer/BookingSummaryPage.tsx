@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, CalendarIcon, Clock, User, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -34,6 +34,15 @@ const BookingSummaryPage: React.FC = () => {
       }
     });
   };
+
+  // Auto-navigate to payment after 3 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      handleProceedToPayment();
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -71,6 +80,15 @@ const BookingSummaryPage: React.FC = () => {
       </div>
 
       <div className="p-4 space-y-6">
+        {/* Auto-redirect notice */}
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="p-4">
+            <p className="text-blue-800 text-sm text-center">
+              Redirecting to payment in 3 seconds...
+            </p>
+          </CardContent>
+        </Card>
+
         {/* Merchant Info */}
         <Card>
           <CardContent className="p-4">

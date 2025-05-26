@@ -1,14 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, Calendar, Clock } from 'lucide-react';
+import { ChevronLeft, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { format, addDays, isWeekend, startOfDay, isBefore, isAfter, addWeeks } from 'date-fns';
+import { format, addDays, isWeekend, startOfDay } from 'date-fns';
 
 const BookingPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
@@ -94,13 +92,40 @@ const BookingPage: React.FC = () => {
     fetchAvailabilityData();
   }, [merchantId, selectedStaff]);
 
+  const generateTimeSlots = (serviceDuration: number) => {
+    const slots: string[] = [];
+    if (!merchant) return slots;
+
+    const openHour = parseInt(merchant.open_time.split(':')[0]);
+    const closeHour = parseInt(merchant.close_time.split(':')[0]);
+    
+    // Generate slots based on service duration
+    let currentTime = openHour * 60; // Convert to minutes
+    const closeTime = closeHour * 60;
+    
+    while (currentTime + serviceDuration <= closeTime) {
+      const hours = Math.floor(currentTime / 60);
+      const minutes = currentTime % 60;
+      const timeSlot = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+      slots.push(timeSlot);
+      
+      // Move to next slot (30 minute intervals)
+      currentTime += 30;
+    }
+    
+    return slots;
+  };
+
   useEffect(() => {
-    const generateTimeSlots = async () => {
-      if (!selectedDate || !merchant) return;
+    const fetchAvailableSlots = async () => {
+      if (!selectedDate || !merchant || !selectedServices.length) return;
 
       setLoading(true);
       try {
         const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+
+        // Generate base time slots for the total duration
+        const baseSlots = generateTimeSlots(totalDuration);
 
         // Fetch existing bookings for the selected date
         const { data: existingBookings } = await supabase
@@ -110,30 +135,20 @@ const BookingPage: React.FC = () => {
           .eq('date', selectedDateStr)
           .eq('status', 'confirmed');
 
-        // Generate time slots based on merchant hours
-        const slots: string[] = [];
-        const openHour = parseInt(merchant.open_time.split(':')[0]);
-        const closeHour = parseInt(merchant.close_time.split(':')[0]);
+        // Filter out booked and blocked slots
+        const availableSlots = baseSlots.filter(slot => {
+          // Check if slot is not booked
+          const isBooked = existingBookings?.some(booking => booking.time_slot === slot);
+          
+          // Check if slot is blocked for selected staff
+          const isBlocked = blockedSlots.some(blockedSlot => 
+            blockedSlot.date === selectedDateStr && blockedSlot.time_slot === slot
+          );
+          
+          return !isBooked && !isBlocked;
+        });
 
-        for (let hour = openHour; hour < closeHour; hour++) {
-          for (let minute = 0; minute < 60; minute += 30) {
-            const timeSlot = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-            
-            // Check if slot is not booked
-            const isBooked = existingBookings?.some(booking => booking.time_slot === timeSlot);
-            
-            // Check if slot is blocked for selected staff
-            const isBlocked = blockedSlots.some(slot => 
-              slot.date === selectedDateStr && slot.time_slot === timeSlot
-            );
-            
-            if (!isBooked && !isBlocked) {
-              slots.push(timeSlot);
-            }
-          }
-        }
-
-        setAvailableTimeSlots(slots);
+        setAvailableTimeSlots(availableSlots);
       } catch (error) {
         console.error('Error generating time slots:', error);
         toast.error('Could not load time slots');
@@ -142,8 +157,8 @@ const BookingPage: React.FC = () => {
       }
     };
 
-    generateTimeSlots();
-  }, [selectedDate, merchant, merchantId, blockedSlots]);
+    fetchAvailableSlots();
+  }, [selectedDate, merchant, merchantId, blockedSlots, selectedServices, totalDuration]);
 
   const handleContinue = () => {
     if (!selectedDate || !selectedTime) {
@@ -164,17 +179,17 @@ const BookingPage: React.FC = () => {
     });
   };
 
-  const isDateDisabled = (date: Date) => {
-    const dateStr = format(date, 'yyyy-MM-dd');
-    const today = startOfDay(new Date());
-    const twoWeeksFromNow = addWeeks(today, 2);
+  const formatDateDisplay = (date: Date) => {
+    const today = new Date();
+    const tomorrow = addDays(today, 1);
     
-    return (
-      isBefore(date, today) ||
-      isAfter(date, twoWeeksFromNow) ||
-      isWeekend(date) ||
-      holidays.includes(dateStr)
-    );
+    if (format(date, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')) {
+      return 'Today';
+    } else if (format(date, 'yyyy-MM-dd') === format(tomorrow, 'yyyy-MM-dd')) {
+      return 'Tomorrow';
+    } else {
+      return format(date, 'EEE');
+    }
   };
 
   if (!merchant) {
@@ -208,22 +223,36 @@ const BookingPage: React.FC = () => {
           <p className="text-gray-500 text-sm">Select your preferred date and time slot</p>
         </div>
 
-        {/* Date Selection - Calendar View */}
+        {/* Date Selection - 3 Day Format */}
         <div className="mb-6">
-          <h3 className="font-medium mb-3 flex items-center">
-            <Calendar className="h-4 w-4 mr-2" />
-            Select Date
-          </h3>
-          <Card className="p-4">
-            <CalendarComponent
-              mode="single"
-              selected={selectedDate}
-              onSelect={setSelectedDate}
-              disabled={isDateDisabled}
-              className="w-full"
-              initialFocus
-            />
-          </Card>
+          <h3 className="font-medium mb-3">Select Date</h3>
+          <div className="grid grid-cols-3 gap-3">
+            {availableDates.map((date) => {
+              const isSelected = selectedDate && format(selectedDate, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd');
+              
+              return (
+                <Card 
+                  key={format(date, 'yyyy-MM-dd')}
+                  className={`border transition-all cursor-pointer ${
+                    isSelected ? 'border-booqit-primary bg-booqit-primary text-white' : 'border-gray-200 hover:border-booqit-primary/50'
+                  }`}
+                  onClick={() => setSelectedDate(date)}
+                >
+                  <CardContent className="p-4 text-center">
+                    <div className={`text-sm font-medium ${isSelected ? 'text-white' : 'text-booqit-primary'}`}>
+                      {formatDateDisplay(date)}
+                    </div>
+                    <div className={`text-lg font-bold ${isSelected ? 'text-white' : 'text-gray-900'}`}>
+                      {format(date, 'MMM d')}
+                    </div>
+                    <div className={`text-xs ${isSelected ? 'text-white/80' : 'text-gray-500'}`}>
+                      {totalDuration} mins
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
         </div>
 
         {/* Time Selection */}
@@ -238,25 +267,27 @@ const BookingPage: React.FC = () => {
                 <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
               </div>
             ) : availableTimeSlots.length > 0 ? (
-              <RadioGroup value={selectedTime} onValueChange={setSelectedTime} className="grid grid-cols-3 gap-3">
+              <div className="space-y-2">
                 {availableTimeSlots.map((time) => (
                   <Card 
                     key={time}
-                    className={`border transition-all overflow-hidden cursor-pointer ${
-                      selectedTime === time ? 'border-booqit-primary bg-booqit-primary text-white' : 'border-gray-200 hover:border-booqit-primary/50'
+                    className={`border transition-all cursor-pointer ${
+                      selectedTime === time ? 'border-booqit-primary bg-booqit-primary/10' : 'border-gray-200 hover:border-booqit-primary/50'
                     }`}
+                    onClick={() => setSelectedTime(time)}
                   >
-                    <CardContent className="p-0">
-                      <label htmlFor={time} className="flex items-center justify-center p-3 cursor-pointer">
-                        <RadioGroupItem value={time} id={time} className="sr-only" />
-                        <div className="text-center">
-                          <div className="font-medium">{time}</div>
-                        </div>
-                      </label>
+                    <CardContent className="p-4 flex items-center justify-between">
+                      <div className="flex items-center">
+                        <div className={`w-4 h-4 rounded-full border-2 mr-3 ${
+                          selectedTime === time ? 'bg-booqit-primary border-booqit-primary' : 'border-gray-300'
+                        }`} />
+                        <span className="font-medium">{time}</span>
+                      </div>
+                      <span className="text-sm text-gray-500">{totalDuration} mins</span>
                     </CardContent>
                   </Card>
                 ))}
-              </RadioGroup>
+              </div>
             ) : (
               <div className="text-center py-8 bg-gray-50 rounded-lg">
                 <Clock className="h-12 w-12 mx-auto text-gray-400 mb-2" />

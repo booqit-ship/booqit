@@ -25,12 +25,18 @@ const StaffSelectionPage: React.FC = () => {
       try {
         if (!merchantId) return;
 
+        console.log('Fetching staff for merchant:', merchantId);
         const { data, error } = await supabase
           .from('staff')
           .select('*')
           .eq('merchant_id', merchantId);
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error fetching staff:', error);
+          throw error;
+        }
+        
+        console.log('Fetched staff data:', data);
         setStaff(data || []);
       } catch (error) {
         console.error('Error fetching staff:', error);
