@@ -1,24 +1,46 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, Clock, Plus, Minus, Check } from 'lucide-react';
+import { ChevronLeft, Clock, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { supabase } from '@/integrations/supabase/client';
 import { Merchant, Service } from '@/types';
 import { toast } from 'sonner';
-
-interface SelectedService extends Service {
-  quantity: number;
-}
 
 const ServiceSelectionPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { merchant, services } = location.state as { merchant: Merchant; services: Service[] };
+  const { merchant } = location.state as { merchant: Merchant };
 
-  const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [selectedServices, setSelectedServices] = useState<Service[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchServices = async () => {
+      if (!merchantId) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('services')
+          .select('*')
+          .eq('merchant_id', merchantId);
+
+        if (error) throw error;
+        setServices(data || []);
+      } catch (error) {
+        console.error('Error fetching services:', error);
+        toast.error('Could not load services');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchServices();
+  }, [merchantId]);
 
   const toggleService = (service: Service) => {
     setSelectedServices(prev => {
@@ -26,29 +48,17 @@ const ServiceSelectionPage: React.FC = () => {
       if (existing) {
         return prev.filter(s => s.id !== service.id);
       } else {
-        return [...prev, { ...service, quantity: 1 }];
+        return [...prev, service];
       }
     });
   };
 
-  const updateQuantity = (serviceId: string, change: number) => {
-    setSelectedServices(prev => 
-      prev.map(service => {
-        if (service.id === serviceId) {
-          const newQuantity = Math.max(1, service.quantity + change);
-          return { ...service, quantity: newQuantity };
-        }
-        return service;
-      }).filter(service => service.quantity > 0)
-    );
-  };
-
   const getTotalPrice = () => {
-    return selectedServices.reduce((total, service) => total + (service.price * service.quantity), 0);
+    return selectedServices.reduce((total, service) => total + service.price, 0);
   };
 
   const getTotalDuration = () => {
-    return selectedServices.reduce((total, service) => total + (service.duration * service.quantity), 0);
+    return selectedServices.reduce((total, service) => total + service.duration, 0);
   };
 
   const handleContinue = () => {
@@ -67,10 +77,18 @@ const ServiceSelectionPage: React.FC = () => {
     });
   };
 
-  if (!merchant || !services) {
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
+      </div>
+    );
+  }
+
+  if (!merchant || services.length === 0) {
     return (
       <div className="h-screen flex flex-col items-center justify-center p-4">
-        <p className="text-gray-500 mb-4">Service or merchant not found</p>
+        <p className="text-gray-500 mb-4">No services available</p>
         <Button onClick={() => navigate(-1)}>Go Back</Button>
       </div>
     );
@@ -100,8 +118,7 @@ const ServiceSelectionPage: React.FC = () => {
 
         <div className="space-y-4 mb-6">
           {services.map(service => {
-            const selectedService = selectedServices.find(s => s.id === service.id);
-            const isSelected = !!selectedService;
+            const isSelected = selectedServices.some(s => s.id === service.id);
 
             return (
               <Card key={service.id} className={`border transition-all ${isSelected ? 'border-booqit-primary bg-booqit-primary/5' : 'border-gray-200'}`}>
@@ -127,24 +144,8 @@ const ServiceSelectionPage: React.FC = () => {
                     </div>
 
                     {isSelected && (
-                      <div className="flex items-center space-x-2 ml-4">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => updateQuantity(service.id, -1)}
-                        >
-                          <Minus className="h-4 w-4" />
-                        </Button>
-                        <span className="w-8 text-center font-medium">{selectedService?.quantity}</span>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => updateQuantity(service.id, 1)}
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
+                      <div className="flex items-center ml-4">
+                        <Check className="h-5 w-5 text-booqit-primary" />
                       </div>
                     )}
                   </div>
@@ -161,8 +162,8 @@ const ServiceSelectionPage: React.FC = () => {
               <div className="space-y-2">
                 {selectedServices.map(service => (
                   <div key={service.id} className="flex justify-between text-sm">
-                    <span>{service.name} x{service.quantity}</span>
-                    <span>₹{service.price * service.quantity}</span>
+                    <span>{service.name}</span>
+                    <span>₹{service.price}</span>
                   </div>
                 ))}
                 <div className="border-t pt-2 mt-2">

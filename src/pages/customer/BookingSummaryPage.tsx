@@ -17,8 +17,8 @@ const BookingSummaryPage: React.FC = () => {
     totalPrice, 
     totalDuration, 
     selectedStaff, 
-    bookingDate, 
-    bookingTime 
+    selectedDate, 
+    selectedTime 
   } = location.state;
 
   const handleProceedToPayment = () => {
@@ -29,8 +29,8 @@ const BookingSummaryPage: React.FC = () => {
         totalPrice,
         totalDuration,
         selectedStaff,
-        bookingDate,
-        bookingTime
+        selectedDate,
+        selectedTime
       }
     });
   };
@@ -103,14 +103,11 @@ const BookingSummaryPage: React.FC = () => {
                     <div className="text-sm text-gray-500">{service.description}</div>
                     <div className="flex items-center text-sm text-gray-500 mt-1">
                       <Clock className="h-3 w-3 mr-1" />
-                      <span>{service.duration * service.quantity} mins</span>
-                      {service.quantity > 1 && (
-                        <span className="ml-2">x{service.quantity}</span>
-                      )}
+                      <span>{service.duration} mins</span>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-medium">₹{service.price * service.quantity}</div>
+                    <div className="font-medium">₹{service.price}</div>
                   </div>
                 </div>
               ))}
@@ -130,11 +127,11 @@ const BookingSummaryPage: React.FC = () => {
             <div className="space-y-2">
               <div className="flex items-center">
                 <CalendarIcon className="h-4 w-4 mr-3 text-gray-500" />
-                <span>{formatDate(bookingDate)}</span>
+                <span>{formatDate(selectedDate)}</span>
               </div>
               <div className="flex items-center">
                 <Clock className="h-4 w-4 mr-3 text-gray-500" />
-                <span>{bookingTime} ({totalDuration} minutes)</span>
+                <span>{selectedTime} ({totalDuration} minutes)</span>
               </div>
             </div>
           </CardContent>

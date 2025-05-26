@@ -5,9 +5,10 @@ import { ChevronLeft, Calendar, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { format, addDays, isWeekend } from 'date-fns';
+import { format, addDays, isWeekend, startOfDay, isBefore, isAfter, addWeeks } from 'date-fns';
 
 const BookingPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
@@ -15,13 +16,32 @@ const BookingPage: React.FC = () => {
   const location = useLocation();
   const { merchant, selectedServices, totalPrice, totalDuration, selectedStaff } = location.state;
 
-  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string>('');
-  const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [holidays, setHolidays] = useState<string[]>([]);
   const [blockedSlots, setBlockedSlots] = useState<Array<{date: string, time_slot: string}>>([]);
+
+  // Get next 3 available dates (today + next 2 days, excluding weekends and holidays)
+  const getAvailableDates = () => {
+    const dates: Date[] = [];
+    let currentDate = new Date();
+    
+    while (dates.length < 3) {
+      const dateStr = format(currentDate, 'yyyy-MM-dd');
+      
+      if (!isWeekend(currentDate) && !holidays.includes(dateStr)) {
+        dates.push(new Date(currentDate));
+      }
+      
+      currentDate = addDays(currentDate, 1);
+    }
+    
+    return dates;
+  };
+
+  const availableDates = getAvailableDates();
 
   useEffect(() => {
     const fetchAvailabilityData = async () => {
@@ -65,24 +85,9 @@ const BookingPage: React.FC = () => {
           date: slot.blocked_date,
           time_slot: slot.time_slot
         })));
-
-        // Generate available dates (next 30 days, excluding holidays and weekends)
-        const dates: string[] = [];
-        for (let i = 1; i <= 30; i++) {
-          const date = addDays(new Date(), i);
-          const dateStr = format(date, 'yyyy-MM-dd');
-          
-          if (!isWeekend(date) && !allHolidays.includes(dateStr)) {
-            dates.push(dateStr);
-          }
-        }
-        
-        setAvailableDates(dates);
       } catch (error) {
         console.error('Error fetching availability data:', error);
         toast.error('Could not load availability');
-      } finally {
-        setLoading(false);
       }
     };
 
@@ -93,13 +98,16 @@ const BookingPage: React.FC = () => {
     const generateTimeSlots = async () => {
       if (!selectedDate || !merchant) return;
 
+      setLoading(true);
       try {
+        const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+
         // Fetch existing bookings for the selected date
         const { data: existingBookings } = await supabase
           .from('bookings')
           .select('time_slot')
           .eq('merchant_id', merchantId)
-          .eq('date', selectedDate)
+          .eq('date', selectedDateStr)
           .eq('status', 'confirmed');
 
         // Generate time slots based on merchant hours
@@ -116,7 +124,7 @@ const BookingPage: React.FC = () => {
             
             // Check if slot is blocked for selected staff
             const isBlocked = blockedSlots.some(slot => 
-              slot.date === selectedDate && slot.time_slot === timeSlot
+              slot.date === selectedDateStr && slot.time_slot === timeSlot
             );
             
             if (!isBooked && !isBlocked) {
@@ -129,6 +137,8 @@ const BookingPage: React.FC = () => {
       } catch (error) {
         console.error('Error generating time slots:', error);
         toast.error('Could not load time slots');
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -148,16 +158,30 @@ const BookingPage: React.FC = () => {
         totalPrice,
         totalDuration,
         selectedStaff,
-        selectedDate,
+        selectedDate: format(selectedDate, 'yyyy-MM-dd'),
         selectedTime
       }
     });
   };
 
-  if (loading) {
+  const isDateDisabled = (date: Date) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const today = startOfDay(new Date());
+    const twoWeeksFromNow = addWeeks(today, 2);
+    
     return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
+      isBefore(date, today) ||
+      isAfter(date, twoWeeksFromNow) ||
+      isWeekend(date) ||
+      holidays.includes(dateStr)
+    );
+  };
+
+  if (!merchant) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center p-4">
+        <p className="text-gray-500 mb-4">Merchant information missing</p>
+        <Button onClick={() => navigate(-1)}>Go Back</Button>
       </div>
     );
   }
@@ -184,32 +208,22 @@ const BookingPage: React.FC = () => {
           <p className="text-gray-500 text-sm">Select your preferred date and time slot</p>
         </div>
 
-        {/* Date Selection */}
+        {/* Date Selection - Calendar View */}
         <div className="mb-6">
           <h3 className="font-medium mb-3 flex items-center">
             <Calendar className="h-4 w-4 mr-2" />
             Select Date
           </h3>
-          <RadioGroup value={selectedDate} onValueChange={setSelectedDate} className="space-y-2">
-            {availableDates.slice(0, 7).map((date) => (
-              <Card 
-                key={date}
-                className={`border transition-all overflow-hidden ${selectedDate === date ? 'border-booqit-primary' : 'border-gray-200'}`}
-              >
-                <CardContent className="p-0">
-                  <label htmlFor={date} className="flex items-center justify-between p-4 cursor-pointer">
-                    <div className="flex items-center">
-                      <RadioGroupItem value={date} id={date} className="mr-4" />
-                      <div>
-                        <div className="font-medium">{format(new Date(date), 'EEEE, MMM d')}</div>
-                        <div className="text-gray-500 text-sm">{format(new Date(date), 'yyyy')}</div>
-                      </div>
-                    </div>
-                  </label>
-                </CardContent>
-              </Card>
-            ))}
-          </RadioGroup>
+          <Card className="p-4">
+            <CalendarComponent
+              mode="single"
+              selected={selectedDate}
+              onSelect={setSelectedDate}
+              disabled={isDateDisabled}
+              className="w-full"
+              initialFocus
+            />
+          </Card>
         </div>
 
         {/* Time Selection */}
@@ -219,12 +233,18 @@ const BookingPage: React.FC = () => {
               <Clock className="h-4 w-4 mr-2" />
               Select Time
             </h3>
-            {availableTimeSlots.length > 0 ? (
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
+              </div>
+            ) : availableTimeSlots.length > 0 ? (
               <RadioGroup value={selectedTime} onValueChange={setSelectedTime} className="grid grid-cols-3 gap-3">
                 {availableTimeSlots.map((time) => (
                   <Card 
                     key={time}
-                    className={`border transition-all overflow-hidden ${selectedTime === time ? 'border-booqit-primary' : 'border-gray-200'}`}
+                    className={`border transition-all overflow-hidden cursor-pointer ${
+                      selectedTime === time ? 'border-booqit-primary bg-booqit-primary text-white' : 'border-gray-200 hover:border-booqit-primary/50'
+                    }`}
                   >
                     <CardContent className="p-0">
                       <label htmlFor={time} className="flex items-center justify-center p-3 cursor-pointer">

@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
-import { Merchant, Staff } from '@/types';
+import { Staff } from '@/types';
 import { toast } from 'sonner';
 
 const StaffSelectionPage: React.FC = () => {
