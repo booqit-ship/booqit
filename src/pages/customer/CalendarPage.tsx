@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -52,14 +51,30 @@ const CalendarPage: React.FC = () => {
           .select(`
             *,
             service:service_id (
+              id,
               name,
               price,
-              duration
+              duration,
+              description,
+              merchant_id,
+              created_at,
+              image_url
             ),
             merchant:merchant_id (
+              id,
               shop_name,
               address,
-              image_url
+              image_url,
+              user_id,
+              description,
+              category,
+              gender_focus,
+              lat,
+              lng,
+              open_time,
+              close_time,
+              rating,
+              created_at
             )
           `)
           .eq('user_id', userId)

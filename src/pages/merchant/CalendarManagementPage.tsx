@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -115,9 +114,14 @@ const CalendarManagementPage: React.FC = () => {
         .select(`
           *,
           service:service_id (
+            id,
             name,
             price,
-            duration
+            duration,
+            description,
+            merchant_id,
+            created_at,
+            image_url
           )
         `)
         .eq('merchant_id', merchantId);
