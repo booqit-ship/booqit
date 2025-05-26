@@ -39,7 +39,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
-import StylistAvailabilityManager from '@/components/merchant/StylistAvailabilityManager';
+import StylistAvailabilityWidget from '@/components/merchant/StylistAvailabilityWidget';
 
 interface BookingWithUserDetails extends Booking {
   user_details?: {
@@ -69,10 +69,9 @@ const CalendarManagementPage: React.FC = () => {
   const { userId } = useAuth();
   const isMobile = useIsMobile();
 
-  // Calculate the 3 or 5 day range centered on the selected date based on screen size
+  // Calculate the 5 day range centered on the selected date
   const visibleDays = useMemo(() => {
     const center = date;
-    // Always show 5 days, even on mobile
     return [
       subDays(center, 2),
       subDays(center, 1),
@@ -111,7 +110,6 @@ const CalendarManagementPage: React.FC = () => {
     
     setIsLoading(true);
     try {
-      // Using a simpler query that doesn't try to join with profiles
       const { data, error } = await supabase
         .from('bookings')
         .select(`
@@ -129,11 +127,9 @@ const CalendarManagementPage: React.FC = () => {
       // Process the bookings data
       const processedBookings = await Promise.all(
         data.map(async (booking) => {
-          // Cast payment_status to the correct type
           const typedPaymentStatus = booking.payment_status as "pending" | "completed" | "failed" | "refunded";
           const typedStatus = booking.status as "pending" | "confirmed" | "completed" | "cancelled";
           
-          // If needed, fetch user details separately
           if (booking.user_id) {
             const { data: userData, error: userError } = await supabase
               .from('profiles')
@@ -178,7 +174,7 @@ const CalendarManagementPage: React.FC = () => {
 
   useEffect(() => {
     fetchBookings();
-  }, [merchantId, toast]);
+  }, [merchantId]);
 
   // Fetch holiday dates for the merchant
   useEffect(() => {
@@ -208,7 +204,7 @@ const CalendarManagementPage: React.FC = () => {
     };
     
     fetchHolidays();
-  }, [merchantId, toast]);
+  }, [merchantId]);
 
   // Filter bookings for the selected day
   const todayBookings = useMemo(() => {
@@ -228,7 +224,6 @@ const CalendarManagementPage: React.FC = () => {
         
       if (error) throw error;
       
-      // Update local state
       setBookings(bookings.map(booking => 
         booking.id === bookingId 
           ? { ...booking, status: newStatus } 
@@ -268,7 +263,6 @@ const CalendarManagementPage: React.FC = () => {
         throw error;
       }
       
-      // Refetch holiday dates
       const { data, error: fetchError } = await supabase
         .from('shop_holidays')
         .select('*')
@@ -303,7 +297,6 @@ const CalendarManagementPage: React.FC = () => {
         
       if (error) throw error;
       
-      // Update local state
       setHolidays(holidays.filter(holiday => holiday.id !== holidayId));
       
       toast({
@@ -348,18 +341,13 @@ const CalendarManagementPage: React.FC = () => {
     }
   };
 
-  // Navigate to previous set of days
+  // Navigation functions
   const goToPrevious = () => setDate(subDays(date, isMobile ? 3 : 5));
-  
-  // Navigate to next set of days
   const goToNext = () => setDate(addDays(date, isMobile ? 3 : 5));
-  
-  // Navigate to today
   const goToToday = () => setDate(new Date());
 
-  // Add refresh function for availability changes
+  // Handle availability change
   const handleAvailabilityChange = () => {
-    // Trigger a re-fetch of bookings to reflect availability changes
     fetchBookings();
   };
 
@@ -369,7 +357,7 @@ const CalendarManagementPage: React.FC = () => {
         <h1 className="text-xl sm:text-2xl font-bold text-booqit-dark">Calendar Management</h1>
       </div>
       
-      {/* Compact Calendar View with improved mobile layout and touch targets */}
+      {/* Calendar View */}
       <Card className="mb-4 overflow-hidden shadow-sm">
         <CardHeader className="bg-gradient-to-r from-booqit-primary/5 to-booqit-primary/10 py-2">
           <div className="flex justify-between items-center">
@@ -642,9 +630,9 @@ const CalendarManagementPage: React.FC = () => {
         
         {/* Right Sidebar */}
         <div className="space-y-4">
-          {/* Stylist Availability Manager */}
+          {/* Stylist Availability Widget */}
           {merchantId && (
-            <StylistAvailabilityManager 
+            <StylistAvailabilityWidget 
               merchantId={merchantId}
               selectedDate={date}
               onAvailabilityChange={handleAvailabilityChange}
