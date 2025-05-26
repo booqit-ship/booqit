@@ -92,3 +92,22 @@ export interface Review {
   review: string;
   created_at: string;
 }
+
+export interface StylistHoliday {
+  id: string;
+  staff_id: string;
+  merchant_id: string;
+  holiday_date: string;
+  description: string | null;
+  created_at: string;
+}
+
+export interface StylistBlockedSlot {
+  id: string;
+  staff_id: string;
+  merchant_id: string;
+  blocked_date: string;
+  time_slot: string;
+  description: string | null;
+  created_at: string;
+}

@@ -38,6 +38,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
+import StylistAvailabilityManager from '@/components/merchant/StylistAvailabilityManager';
 
 interface BookingWithUserDetails extends Booking {
   user_details?: {
@@ -355,6 +356,14 @@ const CalendarManagementPage: React.FC = () => {
   // Navigate to today
   const goToToday = () => setDate(new Date());
 
+  // Add refresh function for availability changes
+  const handleAvailabilityChange = () => {
+    // Trigger a re-fetch of bookings to reflect availability changes
+    if (merchantId) {
+      fetchBookings();
+    }
+  };
+
   return (
     <div className="container mx-auto px-2 sm:px-4 py-4">
       <div className="mb-4">
@@ -522,9 +531,9 @@ const CalendarManagementPage: React.FC = () => {
         </CardContent>
       </Card>
       
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Today's Bookings */}
-        <div className="sm:col-span-2">
+        <div className="lg:col-span-2">
           <Card>
             <CardHeader className="py-2">
               <CardTitle className="text-base sm:text-lg flex items-center">
@@ -632,8 +641,18 @@ const CalendarManagementPage: React.FC = () => {
           </Card>
         </div>
         
-        {/* Holiday List */}
-        <div className="sm:col-span-1">
+        {/* Right Sidebar */}
+        <div className="space-y-4">
+          {/* Stylist Availability Manager */}
+          {merchantId && (
+            <StylistAvailabilityManager 
+              merchantId={merchantId}
+              selectedDate={date}
+              onAvailabilityChange={handleAvailabilityChange}
+            />
+          )}
+          
+          {/* Shop Holidays */}
           <Card>
             <CardHeader className="py-2">
               <CardTitle className="text-base sm:text-lg flex items-center">

@@ -354,6 +354,93 @@ export type Database = {
           },
         ]
       }
+      stylist_blocked_slots: {
+        Row: {
+          blocked_date: string
+          created_at: string
+          description: string | null
+          id: string
+          merchant_id: string
+          staff_id: string
+          time_slot: string
+        }
+        Insert: {
+          blocked_date: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          merchant_id: string
+          staff_id: string
+          time_slot: string
+        }
+        Update: {
+          blocked_date?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          merchant_id?: string
+          staff_id?: string
+          time_slot?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stylist_blocked_slots_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stylist_blocked_slots_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stylist_holidays: {
+        Row: {
+          created_at: string
+          description: string | null
+          holiday_date: string
+          id: string
+          merchant_id: string
+          staff_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          holiday_date: string
+          id?: string
+          merchant_id: string
+          staff_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          holiday_date?: string
+          id?: string
+          merchant_id?: string
+          staff_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stylist_holidays_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stylist_holidays_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
