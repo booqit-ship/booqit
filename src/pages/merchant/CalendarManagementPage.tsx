@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -105,77 +106,77 @@ const CalendarManagementPage: React.FC = () => {
   }, [userId]);
 
   // Fetch bookings for the merchant
-  useEffect(() => {
-    const fetchBookings = async () => {
-      if (!merchantId) return;
-      
-      setIsLoading(true);
-      try {
-        // Using a simpler query that doesn't try to join with profiles
-        const { data, error } = await supabase
-          .from('bookings')
-          .select(`
-            *,
-            service:service_id (
-              name,
-              price,
-              duration
-            )
-          `)
-          .eq('merchant_id', merchantId);
-        
-        if (error) throw error;
-        
-        // Process the bookings data
-        const processedBookings = await Promise.all(
-          data.map(async (booking) => {
-            // Cast payment_status to the correct type
-            const typedPaymentStatus = booking.payment_status as "pending" | "completed" | "failed" | "refunded";
-            const typedStatus = booking.status as "pending" | "confirmed" | "completed" | "cancelled";
-            
-            // If needed, fetch user details separately
-            if (booking.user_id) {
-              const { data: userData, error: userError } = await supabase
-                .from('profiles')
-                .select('name, email, phone')
-                .eq('id', booking.user_id)
-                .single();
-              
-              if (!userError && userData) {
-                return {
-                  ...booking,
-                  status: typedStatus,
-                  payment_status: typedPaymentStatus,
-                  user_details: {
-                    name: userData.name,
-                    email: userData.email,
-                    phone: userData.phone
-                  }
-                } as BookingWithUserDetails;
-              }
-            }
-            
-            return {
-              ...booking,
-              status: typedStatus,
-              payment_status: typedPaymentStatus
-            } as BookingWithUserDetails;
-          })
-        );
-        
-        setBookings(processedBookings);
-      } catch (error: any) {
-        toast({
-          title: "Error",
-          description: "Failed to fetch bookings. Please try again.",
-          variant: "destructive",
-        });
-        console.error(error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  const fetchBookings = async () => {
+    if (!merchantId) return;
     
+    setIsLoading(true);
+    try {
+      // Using a simpler query that doesn't try to join with profiles
+      const { data, error } = await supabase
+        .from('bookings')
+        .select(`
+          *,
+          service:service_id (
+            name,
+            price,
+            duration
+          )
+        `)
+        .eq('merchant_id', merchantId);
+      
+      if (error) throw error;
+      
+      // Process the bookings data
+      const processedBookings = await Promise.all(
+        data.map(async (booking) => {
+          // Cast payment_status to the correct type
+          const typedPaymentStatus = booking.payment_status as "pending" | "completed" | "failed" | "refunded";
+          const typedStatus = booking.status as "pending" | "confirmed" | "completed" | "cancelled";
+          
+          // If needed, fetch user details separately
+          if (booking.user_id) {
+            const { data: userData, error: userError } = await supabase
+              .from('profiles')
+              .select('name, email, phone')
+              .eq('id', booking.user_id)
+              .single();
+            
+            if (!userError && userData) {
+              return {
+                ...booking,
+                status: typedStatus,
+                payment_status: typedPaymentStatus,
+                user_details: {
+                  name: userData.name,
+                  email: userData.email,
+                  phone: userData.phone
+                }
+              } as BookingWithUserDetails;
+            }
+          }
+          
+          return {
+            ...booking,
+            status: typedStatus,
+            payment_status: typedPaymentStatus
+          } as BookingWithUserDetails;
+        })
+      );
+      
+      setBookings(processedBookings);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch bookings. Please try again.",
+        variant: "destructive",
+      });
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchBookings();
   }, [merchantId, toast]);
 
@@ -359,9 +360,7 @@ const CalendarManagementPage: React.FC = () => {
   // Add refresh function for availability changes
   const handleAvailabilityChange = () => {
     // Trigger a re-fetch of bookings to reflect availability changes
-    if (merchantId) {
-      fetchBookings();
-    }
+    fetchBookings();
   };
 
   return (
