@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, CreditCard, Wallet, User, MapPin, Calendar, Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import { ChevronLeft, CreditCard, Wallet, User, MapPin, Calendar, Clock, CheckCircle, AlertCircle, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -33,6 +33,17 @@ const PaymentPage: React.FC = () => {
   const [user, setUser] = useState<any>(null);
   const [processingPayment, setProcessingPayment] = useState(false);
 
+  console.log('PaymentPage state:', {
+    merchant,
+    selectedServices,
+    totalPrice,
+    totalDuration,
+    selectedStaff,
+    selectedStaffDetails,
+    bookingDate,
+    bookingTime
+  });
+
   useEffect(() => {
     const checkAuth = async () => {
       try {
@@ -43,6 +54,7 @@ const PaymentPage: React.FC = () => {
           return;
         }
         setUser(user);
+        console.log('Authenticated user:', user);
       } catch (error) {
         console.error('Auth error:', error);
         toast.error('Authentication failed');
@@ -115,16 +127,18 @@ const PaymentPage: React.FC = () => {
 
         console.log('Creating payment with data:', paymentData);
 
-        const { error: paymentError } = await supabase
+        const { data: payment, error: paymentError } = await supabase
           .from('payments')
-          .insert(paymentData);
+          .insert(paymentData)
+          .select()
+          .single();
         
         if (paymentError) {
           console.error('Payment creation error:', paymentError);
           throw paymentError;
         }
 
-        console.log('Payment record created successfully');
+        console.log('Payment record created successfully:', payment);
         return booking;
       });
 
@@ -176,191 +190,200 @@ const PaymentPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Header */}
-      <div className="bg-booqit-primary text-white p-4 sticky top-0 z-10 shadow-md">
-        <div className="relative flex items-center justify-center max-w-md mx-auto">
+      <div className="bg-white shadow-lg border-b">
+        <div className="max-w-md mx-auto relative flex items-center justify-center p-4">
           <Button 
             variant="ghost" 
             size="icon" 
-            className="absolute left-0 text-white hover:bg-white/20"
+            className="absolute left-4 text-gray-600 hover:bg-gray-100"
             onClick={() => navigate(-1)}
           >
             <ChevronLeft className="h-5 w-5" />
           </Button>
-          <h1 className="text-lg font-semibold">Booking Summary</h1>
+          <h1 className="text-xl font-bold text-gray-900">Confirm Booking</h1>
         </div>
       </div>
       
-      <div className="max-w-md mx-auto pb-24">
-        {/* Merchant Info */}
-        <div className="bg-white p-4 shadow-sm">
-          <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 bg-booqit-primary/10 rounded-full flex items-center justify-center">
-              <span className="font-bold text-booqit-primary text-lg">
-                {merchant.shop_name.charAt(0)}
-              </span>
+      <div className="max-w-md mx-auto pb-32 p-4">
+        {/* Merchant Card */}
+        <Card className="mb-6 shadow-lg border-0 bg-gradient-to-r from-booqit-primary to-booqit-primary/90">
+          <CardContent className="p-6 text-white">
+            <div className="flex items-center space-x-4">
+              <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
+                <span className="font-bold text-white text-xl">
+                  {merchant.shop_name.charAt(0)}
+                </span>
+              </div>
+              <div className="flex-1">
+                <h3 className="font-bold text-lg">{merchant.shop_name}</h3>
+                <div className="flex items-center mt-1 opacity-90">
+                  <MapPin className="h-4 w-4 mr-1" />
+                  <span className="text-sm line-clamp-1">{merchant.address}</span>
+                </div>
+                <div className="flex items-center mt-1">
+                  <Star className="h-4 w-4 mr-1 fill-current" />
+                  <span className="text-sm">{merchant.rating || '4.5'} rating</span>
+                </div>
+              </div>
             </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-gray-900">{merchant.shop_name}</h3>
-              <div className="flex items-center text-gray-500 text-sm mt-1">
-                <MapPin className="h-3 w-3 mr-1" />
-                <span className="line-clamp-1">{merchant.address}</span>
+          </CardContent>
+        </Card>
+
+        {/* Services Summary */}
+        <Card className="mb-6 shadow-lg border-0">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-lg flex items-center text-gray-900">
+              <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
+              Selected Services
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="space-y-4">
+              {selectedServices.map((service: any, index: number) => (
+                <div key={service.id || index} className="flex justify-between items-start p-4 bg-gray-50 rounded-lg">
+                  <div className="flex-1">
+                    <div className="font-semibold text-gray-900">{service.name}</div>
+                    <div className="text-sm text-gray-600 mt-1 line-clamp-2">{service.description}</div>
+                    <div className="flex items-center text-sm text-gray-500 mt-2">
+                      <Clock className="h-4 w-4 mr-1" />
+                      <span>{service.duration} minutes</span>
+                    </div>
+                  </div>
+                  <div className="text-right ml-4">
+                    <div className="font-bold text-lg text-booqit-primary">₹{service.price}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <Separator className="my-4" />
+            <div className="flex justify-between items-center p-4 bg-booqit-primary/5 rounded-lg">
+              <div>
+                <span className="font-bold text-gray-900 text-lg">Total</span>
+                <div className="text-sm text-gray-600">{totalDuration} minutes</div>
+              </div>
+              <span className="font-bold text-2xl text-booqit-primary">₹{totalPrice}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Appointment Details */}
+        <Card className="mb-6 shadow-lg border-0">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-lg text-gray-900">Appointment Details</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 bg-blue-50 rounded-lg">
+                <div className="flex items-center mb-2">
+                  <Calendar className="h-5 w-5 text-blue-600 mr-2" />
+                  <span className="text-sm font-medium text-blue-800">Date</span>
+                </div>
+                <span className="font-semibold text-blue-900">{formatDate(bookingDate)}</span>
+              </div>
+              <div className="p-4 bg-green-50 rounded-lg">
+                <div className="flex items-center mb-2">
+                  <Clock className="h-5 w-5 text-green-600 mr-2" />
+                  <span className="text-sm font-medium text-green-800">Time</span>
+                </div>
+                <span className="font-semibold text-green-900">{bookingTime}</span>
               </div>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        <div className="p-4 space-y-4">
-          {/* Selected Services */}
-          <Card className="shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center">
-                <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
-                Selected Services
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="space-y-3">
-                {selectedServices.map((service: any, index: number) => (
-                  <div key={service.id || index} className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="font-medium text-gray-900">{service.name}</div>
-                      <div className="text-sm text-gray-500 mt-1">{service.description}</div>
-                      <div className="flex items-center text-sm text-gray-500 mt-1">
-                        <Clock className="h-3 w-3 mr-1" />
-                        <span>{service.duration} minutes</span>
-                      </div>
-                    </div>
-                    <div className="text-right ml-4">
-                      <div className="font-semibold text-gray-900">₹{service.price}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <Separator className="my-4" />
-              <div className="flex justify-between items-center">
-                <span className="font-semibold text-gray-900">Total ({totalDuration} minutes)</span>
-                <span className="font-bold text-lg text-booqit-primary">₹{totalPrice}</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Date & Time */}
-          <Card className="shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Date & Time</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="space-y-3">
-                <div className="flex items-center">
-                  <Calendar className="h-5 w-5 mr-3 text-booqit-primary" />
-                  <span className="font-medium">{formatDate(bookingDate)}</span>
+        {/* Stylist Info */}
+        <Card className="mb-6 shadow-lg border-0">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-lg text-gray-900">Your Stylist</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="flex items-center p-4 bg-purple-50 rounded-lg">
+              <Avatar className="h-12 w-12 mr-4">
+                <AvatarFallback className="bg-purple-200 text-purple-700 font-semibold">
+                  {selectedStaffDetails ? selectedStaffDetails.name.charAt(0) : 'A'}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <div className="font-semibold text-gray-900">
+                  {selectedStaffDetails ? selectedStaffDetails.name : 'Any Available Stylist'}
                 </div>
-                <div className="flex items-center">
-                  <Clock className="h-5 w-5 mr-3 text-booqit-primary" />
-                  <span className="font-medium">{bookingTime} ({totalDuration} minutes)</span>
+                <div className="text-sm text-gray-600">
+                  {selectedStaffDetails ? 'Your selected stylist' : 'We\'ll assign the best available stylist'}
                 </div>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Stylist */}
-          <Card className="shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Your Stylist</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="flex items-center">
-                <Avatar className="h-12 w-12 mr-3">
-                  <AvatarFallback className="bg-booqit-primary/10 text-booqit-primary font-semibold">
-                    {selectedStaffDetails ? selectedStaffDetails.name.charAt(0) : 'A'}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <div className="font-semibold text-gray-900">
-                    {selectedStaffDetails ? selectedStaffDetails.name : 'Any Available Stylist'}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {selectedStaffDetails ? 'Your selected stylist' : 'We\'ll assign the best available stylist'}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          {/* Payment Methods */}
-          <Card className="shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Payment Method</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <RadioGroup
-                value={paymentMethod}
-                onValueChange={(value) => setPaymentMethod(value as PaymentMethod)}
-                className="space-y-3"
+            </div>
+          </CardContent>
+        </Card>
+        
+        {/* Payment Method */}
+        <Card className="mb-6 shadow-lg border-0">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-lg text-gray-900">Payment Method</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <RadioGroup
+              value={paymentMethod}
+              onValueChange={(value) => setPaymentMethod(value as PaymentMethod)}
+              className="space-y-3"
+            >
+              <Label
+                htmlFor="cash-option"
+                className="flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all border-booqit-primary bg-booqit-primary/5 hover:bg-booqit-primary/10"
               >
-                <Label
-                  htmlFor="cash-option"
-                  className="flex items-center p-3 border rounded-lg cursor-pointer transition-colors border-booqit-primary bg-booqit-primary/5"
-                >
-                  <RadioGroupItem value="cash" id="cash-option" className="mr-3" checked />
-                  <span className="mr-3 text-gray-600 font-bold text-lg">₹</span>
-                  <div>
-                    <span className="font-medium">Pay at Salon</span>
-                    <div className="text-sm text-gray-500">Cash payment on arrival</div>
-                  </div>
-                </Label>
-                
-                <Label
-                  htmlFor="card-option"
-                  className="flex items-center p-3 border rounded-lg cursor-not-allowed border-gray-200 bg-gray-50 opacity-60"
-                >
-                  <RadioGroupItem value="card" id="card-option" className="mr-3" disabled />
-                  <CreditCard className="h-5 w-5 mr-3 text-gray-400" />
-                  <div className="flex-1">
-                    <span className="text-gray-400">Credit/Debit Card</span>
-                    <div className="text-xs text-gray-400">Coming Soon</div>
-                  </div>
-                </Label>
-                
-                <Label
-                  htmlFor="upi-option"
-                  className="flex items-center p-3 border rounded-lg cursor-not-allowed border-gray-200 bg-gray-50 opacity-60"
-                >
-                  <RadioGroupItem value="upi" id="upi-option" className="mr-3" disabled />
-                  <User className="h-5 w-5 mr-3 text-gray-400" />
-                  <div className="flex-1">
-                    <span className="text-gray-400">UPI Payment</span>
-                    <div className="text-xs text-gray-400">Coming Soon</div>
-                  </div>
-                </Label>
-              </RadioGroup>
-            </CardContent>
-          </Card>
-          
-          {/* Payment Info */}
-          <Card className="border-amber-200 bg-amber-50 shadow-sm">
-            <CardContent className="p-4">
-              <div className="flex items-start">
-                <AlertCircle className="h-5 w-5 text-amber-600 mr-3 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-amber-800 font-medium">Payment on Arrival</p>
-                  <p className="text-amber-700 text-sm mt-1">
-                    You will pay ₹{totalPrice} in cash when you arrive for your appointment.
-                  </p>
+                <RadioGroupItem value="cash" id="cash-option" className="mr-4" checked />
+                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-4">
+                  <span className="text-green-600 font-bold text-lg">₹</span>
                 </div>
+                <div>
+                  <span className="font-semibold text-gray-900">Pay at Salon</span>
+                  <div className="text-sm text-gray-600">Cash payment on arrival</div>
+                </div>
+              </Label>
+              
+              <Label
+                htmlFor="card-option"
+                className="flex items-center p-4 border rounded-lg cursor-not-allowed border-gray-200 bg-gray-50 opacity-60"
+              >
+                <RadioGroupItem value="card" id="card-option" className="mr-4" disabled />
+                <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center mr-4">
+                  <CreditCard className="h-5 w-5 text-gray-400" />
+                </div>
+                <div className="flex-1">
+                  <span className="text-gray-400 font-medium">Credit/Debit Card</span>
+                  <div className="text-xs text-gray-400">Coming Soon</div>
+                </div>
+              </Label>
+            </RadioGroup>
+          </CardContent>
+        </Card>
+        
+        {/* Payment Info */}
+        <Card className="border-amber-200 bg-amber-50 shadow-lg mb-6">
+          <CardContent className="p-4">
+            <div className="flex items-start">
+              <AlertCircle className="h-5 w-5 text-amber-600 mr-3 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-amber-800 font-semibold">Payment on Arrival</p>
+                <p className="text-amber-700 text-sm mt-1">
+                  You will pay ₹{totalPrice} in cash when you arrive for your appointment.
+                </p>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
       
       {/* Fixed Bottom Button */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-2xl">
         <div className="max-w-md mx-auto p-4">
+          <div className="mb-3 text-center">
+            <div className="text-sm text-gray-600">Total Amount</div>
+            <div className="text-2xl font-bold text-booqit-primary">₹{totalPrice}</div>
+          </div>
           <Button 
-            className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-white font-semibold py-4 text-lg shadow-lg"
+            className="w-full bg-gradient-to-r from-booqit-primary to-booqit-primary/90 hover:from-booqit-primary/90 hover:to-booqit-primary text-white font-bold py-4 text-lg shadow-lg rounded-xl"
             size="lg"
             onClick={handlePayment}
             disabled={processingPayment}
@@ -368,7 +391,7 @@ const PaymentPage: React.FC = () => {
             {processingPayment ? (
               <div className="flex items-center">
                 <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full mr-3"></div>
-                Processing Booking...
+                Processing...
               </div>
             ) : (
               `Confirm Booking - ₹${totalPrice}`
