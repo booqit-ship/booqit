@@ -1,14 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Clock, MapPin, CalendarIcon, Star } from 'lucide-react';
+import { ChevronLeft, Clock, MapPin, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { Merchant, Service } from '@/types';
 import { toast } from 'sonner';
-import AssignedStaff from '@/components/merchant/AssignedStaff';
 
 const MerchantDetailPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
@@ -61,14 +60,11 @@ const MerchantDetailPage: React.FC = () => {
 
   const getMerchantImage = (merchant: Merchant) => {
     if (merchant.image_url) {
-      // Return the direct image URL if it already includes https://
       if (merchant.image_url.startsWith('http')) {
         return merchant.image_url;
       }
-      // Otherwise, construct the full Supabase storage URL
       return `https://ggclvurfcykbwmhfftkn.supabase.co/storage/v1/object/public/merchant_images/${merchant.image_url}`;
     }
-    // Fallback image
     return 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
   };
 
@@ -77,8 +73,13 @@ const MerchantDetailPage: React.FC = () => {
     setImageError(true);
   };
 
-  const handleBookService = (serviceId: string) => {
-    navigate(`/booking/${merchantId}/${serviceId}`);
+  const handleBookServices = () => {
+    navigate(`/booking/${merchantId}`, {
+      state: {
+        merchant,
+        services
+      }
+    });
   };
 
   if (loading) {
@@ -137,12 +138,6 @@ const MerchantDetailPage: React.FC = () => {
           <Clock className="h-4 w-4 mr-2" />
           <p>{getFormattedTime(merchant.open_time)} - {getFormattedTime(merchant.close_time)}</p>
         </div>
-
-        {/* Available Stylists Section */}
-        <div className="mb-4">
-          <h3 className="text-sm font-medium text-gray-700 mb-2">Available Stylists</h3>
-          <AssignedStaff merchantId={merchant.id} maxDisplay={4} />
-        </div>
         
         <Separator className="mb-6" />
         
@@ -160,24 +155,23 @@ const MerchantDetailPage: React.FC = () => {
                   
                   <p className="text-sm text-gray-500 mb-3">{service.description}</p>
                   
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center text-gray-500 text-sm">
-                      <Clock className="h-3 w-3 mr-1" />
-                      <span>{service.duration} mins</span>
-                    </div>
-                    
-                    <Button 
-                      size="sm"
-                      onClick={() => handleBookService(service.id)}
-                      className="bg-booqit-primary hover:bg-booqit-primary/90"
-                    >
-                      <CalendarIcon className="h-4 w-4 mr-1" />
-                      Book
-                    </Button>
+                  <div className="flex items-center text-gray-500 text-sm">
+                    <Clock className="h-3 w-3 mr-1" />
+                    <span>{service.duration} mins</span>
                   </div>
                 </CardContent>
               </Card>
             ))}
+            
+            <div className="pt-4">
+              <Button 
+                className="w-full bg-booqit-primary hover:bg-booqit-primary/90"
+                size="lg"
+                onClick={handleBookServices}
+              >
+                Book Services
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="text-center py-8 bg-gray-50 rounded-lg">

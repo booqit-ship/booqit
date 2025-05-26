@@ -1,28 +1,22 @@
 
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { format, addDays, isBefore, startOfToday } from 'date-fns';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { format, addDays, startOfToday } from 'date-fns';
 import { 
   CalendarIcon, 
   Clock, 
-  ChevronLeft,
-  UserIcon,
-  Users
+  ChevronLeft
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
-import { Merchant, Service, Staff } from '@/types';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
 interface TimeSlot {
   time: string;
   available: boolean;
-  staffId?: string | null;
 }
 
 interface DateOption {
@@ -32,25 +26,17 @@ interface DateOption {
 }
 
 const BookingPage: React.FC = () => {
-  const { merchantId, serviceId } = useParams<{ merchantId: string, serviceId: string }>();
+  const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
-  
-  const [merchant, setMerchant] = useState<Merchant | null>(null);
-  const [service, setService] = useState<Service | null>(null);
-  const [staff, setStaff] = useState<Staff[]>([]);
-  const [loading, setLoading] = useState(true);
-  
-  // Booking state
+  const location = useLocation();
+  const { merchant, selectedServices, totalPrice, totalDuration, selectedStaff } = location.state;
+
+  const [loading, setLoading] = useState(false);
   const [selectedDateIndex, setSelectedDateIndex] = useState<number>(0);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
-  const [selectedStaff, setSelectedStaff] = useState<string | null>(null);
-  
-  // Available dates (today + 6 days)
   const [availableDates, setAvailableDates] = useState<DateOption[]>([]);
-  
-  // Time slots generation
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
-  
+
   // Generate available dates (today + next 6 days)
   useEffect(() => {
     const today = startOfToday();
@@ -71,79 +57,23 @@ const BookingPage: React.FC = () => {
     setAvailableDates(dates);
   }, []);
 
+  // Generate time slots when date changes
   useEffect(() => {
-    const fetchMerchantAndService = async () => {
-      try {
-        setLoading(true);
-        if (!merchantId || !serviceId) return;
-        
-        // Fetch merchant details
-        const { data: merchantData, error: merchantError } = await supabase
-          .from('merchants')
-          .select('*')
-          .eq('id', merchantId)
-          .single();
-          
-        if (merchantError) throw merchantError;
-        
-        // Fetch service details
-        const { data: serviceData, error: serviceError } = await supabase
-          .from('services')
-          .select('*')
-          .eq('id', serviceId)
-          .eq('merchant_id', merchantId)
-          .single();
-          
-        if (serviceError) throw serviceError;
-        
-        // Fetch staff for this merchant that are assigned to this service
-        const { data: staffData, error: staffError } = await supabase
-          .from('staff')
-          .select('*')
-          .eq('merchant_id', merchantId)
-          .contains('assigned_service_ids', [serviceId]);
-          
-        if (staffError) throw staffError;
-        
-        setMerchant(merchantData);
-        setService(serviceData);
-        setStaff(staffData || []);
-
-        // Generate time slots for today initially
-        if (merchantData && availableDates.length > 0) {
-          generateTimeSlots(merchantData.open_time, merchantData.close_time, serviceData.duration, availableDates[0].date);
-        }
-      } catch (error) {
-        console.error('Error fetching details:', error);
-        toast.error('Could not load booking details');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchMerchantAndService();
-  }, [merchantId, serviceId, availableDates.length]);
-
-  // Regenerate time slots when date changes
-  useEffect(() => {
-    if (merchant && service && availableDates.length > 0) {
+    if (merchant && availableDates.length > 0) {
       const selectedDate = availableDates[selectedDateIndex]?.date;
       if (selectedDate) {
-        generateTimeSlots(merchant.open_time, merchant.close_time, service.duration, selectedDate);
+        generateTimeSlots(merchant.open_time, merchant.close_time, totalDuration, selectedDate);
       }
     }
-  }, [selectedDateIndex, merchant, service, availableDates]);
+  }, [selectedDateIndex, merchant, availableDates, totalDuration]);
 
-  // Generate available time slots based on opening hours, service duration, and existing bookings
   const generateTimeSlots = async (openTime: string, closeTime: string, duration: number, date: Date) => {
     const slots: TimeSlot[] = [];
     
     try {
-      // Convert opening and closing times to minutes since midnight
       const openMinutes = convertTimeToMinutes(openTime);
       const closeMinutes = convertTimeToMinutes(closeTime);
       
-      // Create slots in service duration intervals
       let currentMinute = openMinutes;
       while (currentMinute + duration <= closeMinutes) {
         const hour = Math.floor(currentMinute / 60);
@@ -152,86 +82,112 @@ const BookingPage: React.FC = () => {
         
         slots.push({ 
           time: timeString, 
-          available: true // Will check against existing bookings
+          available: true
         });
         
-        // Move to next slot based on service duration (in increments of 30 mins)
         currentMinute += 30; 
       }
 
-      // Check for existing bookings for this date
       const dateString = format(date, 'yyyy-MM-dd');
-      await checkBookedSlots(slots, dateString);
+      await checkSlotAvailability(slots, dateString);
       
-      setSelectedTimeSlot(null); // Reset selected time slot when the date changes
+      setSelectedTimeSlot(null);
     } catch (error) {
       console.error('Error generating time slots:', error);
       toast.error('Could not generate time slots');
     }
   };
 
-  const checkBookedSlots = async (slots: TimeSlot[], dateString: string) => {
+  const checkSlotAvailability = async (slots: TimeSlot[], dateString: string) => {
     try {
-      // Fetch existing bookings for this date and merchant
-      const { data: bookings, error } = await supabase
+      // Check existing bookings
+      const { data: bookings, error: bookingError } = await supabase
         .from('bookings')
+        .select('time_slot, staff_id')
+        .eq('merchant_id', merchantId)
+        .eq('date', dateString)
+        .neq('status', 'cancelled');
+
+      if (bookingError) throw bookingError;
+
+      // Check merchant holidays
+      const { data: holidays, error: holidayError } = await supabase
+        .from('shop_holidays')
         .select('*')
         .eq('merchant_id', merchantId)
-        .eq('date', dateString);
-      
-      if (error) throw error;
-      
-      if (!bookings || !service) {
-        setTimeSlots(slots);
-        return;
+        .eq('holiday_date', dateString);
+
+      if (holidayError) throw holidayError;
+
+      // Check staff holidays and blocked slots if specific staff is selected
+      let staffHolidays: any[] = [];
+      let blockedSlots: any[] = [];
+
+      if (selectedStaff) {
+        const { data: staffHolidayData, error: staffHolidayError } = await supabase
+          .from('stylist_holidays')
+          .select('*')
+          .eq('staff_id', selectedStaff)
+          .eq('holiday_date', dateString);
+
+        if (staffHolidayError) throw staffHolidayError;
+        staffHolidays = staffHolidayData || [];
+
+        const { data: blockedSlotData, error: blockedSlotError } = await supabase
+          .from('stylist_blocked_slots')
+          .select('*')
+          .eq('staff_id', selectedStaff)
+          .eq('blocked_date', dateString);
+
+        if (blockedSlotError) throw blockedSlotError;
+        blockedSlots = blockedSlotData || [];
       }
-      
-      // Mark slots as unavailable if they overlap with any existing booking
-      const serviceDuration = service.duration;
-      
+
+      // Mark slots as unavailable based on various conditions
       const updatedSlots = slots.map(slot => {
         const slotStartMinutes = convertTimeToMinutes(slot.time);
-        const slotEndMinutes = slotStartMinutes + serviceDuration;
-        
-        // Check if this slot overlaps with any existing booking
-        const isOverlapping = bookings.some(booking => {
+        const slotEndMinutes = slotStartMinutes + totalDuration;
+
+        // Check if merchant is closed (holiday)
+        if (holidays && holidays.length > 0) {
+          return { ...slot, available: false };
+        }
+
+        // Check if selected staff has holiday
+        if (staffHolidays.length > 0) {
+          return { ...slot, available: false };
+        }
+
+        // Check if slot is blocked for selected staff
+        const isBlocked = blockedSlots.some(blocked => 
+          convertTimeToMinutes(blocked.time_slot) === slotStartMinutes
+        );
+        if (isBlocked) {
+          return { ...slot, available: false };
+        }
+
+        // Check if slot overlaps with existing bookings
+        const hasConflict = bookings?.some(booking => {
           const bookingStartMinutes = convertTimeToMinutes(booking.time_slot);
-          const bookingService = booking.service_id;
-          
-          // Get the duration of the booked service
-          let bookingDuration = serviceDuration; // Default to current service duration as fallback
-          
-          // For more accurate blocking, we should fetch the actual service duration
-          // This would ideally be part of the booking record, but for now we assume it's the same
-          
-          const bookingEndMinutes = bookingStartMinutes + bookingDuration;
-          
-          // If we have a selected staff and the booking is for that staff, check for overlap
-          // We need to access staff_id safely since it might not exist in the booking type
-          const bookingStaffId = (booking as any).staff_id;
-          
-          if (selectedStaff && bookingStaffId === selectedStaff) {
+          const bookingEndMinutes = bookingStartMinutes + 60; // Assume 60 min default
+
+          if (selectedStaff && booking.staff_id === selectedStaff) {
             return (
               (slotStartMinutes < bookingEndMinutes && slotEndMinutes > bookingStartMinutes) ||
               (bookingStartMinutes < slotEndMinutes && bookingEndMinutes > slotStartMinutes)
             );
           }
-          
-          // If we don't have a selected staff yet, check if any slots are completely booked
-          // This is a simplification - ideally we would check per staff
-          return (
-            (slotStartMinutes < bookingEndMinutes && slotEndMinutes > bookingStartMinutes) ||
-            (bookingStartMinutes < slotEndMinutes && bookingEndMinutes > slotStartMinutes)
-          );
+
+          return false;
         });
-        
-        return { ...slot, available: !isOverlapping };
+
+        return { ...slot, available: !hasConflict };
       });
-      
+
       setTimeSlots(updatedSlots);
     } catch (error) {
-      console.error('Error checking booked slots:', error);
-      setTimeSlots(slots); // Use the original slots if there's an error
+      console.error('Error checking slot availability:', error);
+      setTimeSlots(slots);
     }
   };
 
@@ -255,43 +211,30 @@ const BookingPage: React.FC = () => {
       return;
     }
 
-    if (staff.length > 0 && !selectedStaff) {
-      toast.error('Please select a stylist');
-      return;
-    }
-
-    // Navigate to payment page with booking details
-    navigate(`/payment/${merchantId}/${serviceId}`, {
+    navigate(`/booking/${merchantId}/summary`, {
       state: {
+        merchant,
+        selectedServices,
+        totalPrice,
+        totalDuration,
+        selectedStaff,
         bookingDate: format(availableDates[selectedDateIndex].date, 'yyyy-MM-dd'),
-        bookingTime: selectedTimeSlot,
-        staffId: selectedStaff,
-        serviceName: service?.name,
-        servicePrice: service?.price,
-        merchantName: merchant?.shop_name
+        bookingTime: selectedTimeSlot
       }
     });
   };
 
-  if (loading) {
-    return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
-      </div>
-    );
-  }
-
-  if (!merchant || !service) {
+  if (!merchant || !selectedServices) {
     return (
       <div className="h-screen flex flex-col items-center justify-center p-4">
-        <p className="text-gray-500 mb-4">Service or merchant not found</p>
+        <p className="text-gray-500 mb-4">Booking information missing</p>
         <Button onClick={() => navigate(-1)}>Go Back</Button>
       </div>
     );
   }
 
   return (
-    <div className="pb-20 bg-white min-h-screen">
+    <div className="pb-24 bg-white min-h-screen">
       <div className="bg-booqit-primary text-white p-4 sticky top-0 z-10">
         <div className="relative flex items-center justify-center">
           <Button 
@@ -302,7 +245,7 @@ const BookingPage: React.FC = () => {
           >
             <ChevronLeft className="h-5 w-5" />
           </Button>
-          <h1 className="text-xl font-medium">Date and time</h1>
+          <h1 className="text-xl font-medium">Date and Time</h1>
         </div>
       </div>
       
@@ -328,7 +271,7 @@ const BookingPage: React.FC = () => {
                       {dateOption.label}
                     </div>
                     <div className={`${selectedDateIndex === index ? 'text-white' : 'text-gray-500'} text-xs mt-1`}>
-                      {service.duration} mins
+                      {totalDuration} mins
                     </div>
                   </div>
                 </button>
@@ -376,65 +319,8 @@ const BookingPage: React.FC = () => {
             </div>
           )}
         </div>
-        
-        {/* Staff Selection - Restyled to match the image */}
-        {staff.length > 0 && (
-          <div>
-            <h2 className="text-xl font-semibold mb-4">Choose your stylist</h2>
-            <div className="space-y-3">
-              {/* Any Stylist Option */}
-              <Card className={cn(
-                "border transition-all overflow-hidden",
-                selectedStaff === null ? "border-blue-500" : "border-gray-200"
-              )}>
-                <CardContent className="p-0">
-                  <button 
-                    onClick={() => setSelectedStaff(null)}
-                    className="w-full p-4 flex items-center text-left"
-                  >
-                    <div className="bg-blue-100 rounded-full p-3 mr-4">
-                      <Users className="h-6 w-6 text-blue-500" />
-                    </div>
-                    <div>
-                      <div className="font-semibold">Any Stylist</div>
-                      <div className="text-gray-500 text-sm">Next available stylist</div>
-                    </div>
-                  </button>
-                </CardContent>
-              </Card>
-              
-              {staff.map((stylist) => (
-                <Card 
-                  key={stylist.id}
-                  className={cn(
-                    "border transition-all overflow-hidden",
-                    selectedStaff === stylist.id ? "border-blue-500" : "border-gray-200"
-                  )}
-                >
-                  <CardContent className="p-0">
-                    <button 
-                      onClick={() => setSelectedStaff(stylist.id)}
-                      className="w-full p-4 flex items-center text-left"
-                    >
-                      <Avatar className="h-12 w-12 mr-4">
-                        <AvatarFallback className="bg-gray-200 text-gray-700">
-                          {stylist.name.charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div className="font-semibold">{stylist.name}</div>
-                        <div className="text-gray-500 text-sm">Hair Specialist</div>
-                      </div>
-                    </button>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
       
-      {/* Bottom confirm button */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
         <Button 
           className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6"
@@ -442,7 +328,7 @@ const BookingPage: React.FC = () => {
           onClick={handleContinue}
           disabled={!selectedTimeSlot}
         >
-          Confirm Appointment
+          Continue
         </Button>
       </div>
     </div>
