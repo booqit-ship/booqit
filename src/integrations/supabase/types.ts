@@ -327,21 +327,18 @@ export type Database = {
       }
       staff: {
         Row: {
-          assigned_service_ids: string[]
           created_at: string
           id: string
           merchant_id: string
           name: string
         }
         Insert: {
-          assigned_service_ids: string[]
           created_at?: string
           id?: string
           merchant_id: string
           name: string
         }
         Update: {
-          assigned_service_ids?: string[]
           created_at?: string
           id?: string
           merchant_id?: string

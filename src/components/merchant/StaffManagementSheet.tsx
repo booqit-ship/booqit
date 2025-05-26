@@ -97,8 +97,7 @@ const StaffManagementSheet: React.FC<StaffManagementSheetProps> = ({
         .from('staff')
         .insert({
           merchant_id: merchantId,
-          name: newStaffName.trim(),
-          assigned_service_ids: []
+          name: newStaffName.trim()
         })
         .select();
         
@@ -180,26 +179,6 @@ const StaffManagementSheet: React.FC<StaffManagementSheetProps> = ({
     
     setIsDeleting(true);
     try {
-      // Check if this stylist is assigned to any services
-      const { data: servicesForStaff, error: checkError } = await supabase
-        .from('staff')
-        .select('assigned_service_ids')
-        .eq('id', deleteStaffId)
-        .single();
-        
-      if (checkError) throw checkError;
-      
-      if (servicesForStaff.assigned_service_ids?.length > 0) {
-        toast({
-          title: "Cannot Delete",
-          description: "This stylist is assigned to services. Please unassign them first.",
-          variant: "destructive"
-        });
-        setIsDeleteDialogOpen(false);
-        setIsDeleting(false);
-        return;
-      }
-      
       const { error } = await supabase
         .from('staff')
         .delete()
@@ -236,7 +215,7 @@ const StaffManagementSheet: React.FC<StaffManagementSheetProps> = ({
               Manage Stylists
             </SheetTitle>
             <SheetDescription>
-              Add, edit or remove stylists who provide services at your salon
+              Add, edit or remove stylists who work at your salon
             </SheetDescription>
           </SheetHeader>
           
@@ -302,7 +281,7 @@ const StaffManagementSheet: React.FC<StaffManagementSheetProps> = ({
                 <div className="text-center py-8 px-4 border rounded-lg border-dashed border-gray-300">
                   <Users className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                   <p className="text-sm text-muted-foreground">No stylists added yet</p>
-                  <p className="text-xs text-muted-foreground mt-1 mb-3">Add your first stylist to assign them to services</p>
+                  <p className="text-xs text-muted-foreground mt-1 mb-3">Add your first stylist to start managing your team</p>
                 </div>
               ) : (
                 <ul className="space-y-2">
@@ -314,9 +293,6 @@ const StaffManagementSheet: React.FC<StaffManagementSheetProps> = ({
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-booqit-dark">
                           {staff.name}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          ({staff.assigned_service_ids?.length || 0} services)
                         </span>
                       </div>
                       <div className="flex items-center gap-1">

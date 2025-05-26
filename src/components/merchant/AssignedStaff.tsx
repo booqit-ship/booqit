@@ -2,23 +2,17 @@
 import React, { useState, useEffect } from 'react';
 import { Staff } from '@/types';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, User, MoreHorizontal } from 'lucide-react';
+import { Loader2, User } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { 
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 
 interface AssignedStaffProps {
-  serviceId: string;
+  merchantId: string;
   className?: string;
   maxDisplay?: number;
 }
 
 const AssignedStaff: React.FC<AssignedStaffProps> = ({ 
-  serviceId, 
+  merchantId, 
   className,
   maxDisplay = 2 
 }) => {
@@ -26,29 +20,28 @@ const AssignedStaff: React.FC<AssignedStaffProps> = ({
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    const fetchAssignedStaff = async () => {
-      if (!serviceId) return;
+    const fetchStaff = async () => {
+      if (!merchantId) return;
       
       setIsLoading(true);
       try {
-        // Query staff where assigned_service_ids contains the current service ID
         const { data, error } = await supabase
           .from('staff')
           .select('*')
-          .contains('assigned_service_ids', [serviceId]);
+          .eq('merchant_id', merchantId);
           
         if (error) throw error;
         
         setStaff(data as Staff[]);
       } catch (error) {
-        console.error('Error fetching assigned staff:', error);
+        console.error('Error fetching staff:', error);
       } finally {
         setIsLoading(false);
       }
     };
     
-    fetchAssignedStaff();
-  }, [serviceId]);
+    fetchStaff();
+  }, [merchantId]);
 
   if (isLoading) {
     return (
@@ -63,7 +56,7 @@ const AssignedStaff: React.FC<AssignedStaffProps> = ({
     return (
       <span className="text-sm text-amber-600 flex items-center font-medium">
         <User className="h-3.5 w-3.5 mr-1.5" />
-        No stylists assigned
+        No stylists available
       </span>
     );
   }
@@ -86,30 +79,12 @@ const AssignedStaff: React.FC<AssignedStaffProps> = ({
       ))}
       
       {hasMore && (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Badge 
-                variant="outline" 
-                className="py-1 px-2.5 text-xs flex items-center cursor-pointer bg-muted/30 hover:bg-muted/50 transition-colors"
-              >
-                <MoreHorizontal className="h-3 w-3 mr-1" />
-                +{remainingCount} more
-              </Badge>
-            </TooltipTrigger>
-            <TooltipContent className="p-2">
-              <div className="text-xs font-medium mb-1">All assigned stylists:</div>
-              <ul className="text-xs space-y-1">
-                {staff.map(s => (
-                  <li key={s.id} className="flex items-center">
-                    <User className="h-3 w-3 mr-1.5" />
-                    {s.name}
-                  </li>
-                ))}
-              </ul>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Badge 
+          variant="outline" 
+          className="py-1 px-2.5 text-xs flex items-center bg-muted/30"
+        >
+          +{remainingCount} more
+        </Badge>
       )}
     </div>
   );

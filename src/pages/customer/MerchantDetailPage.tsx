@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Clock, MapPin, CalendarIcon, Star } from 'lucide-react';
@@ -7,6 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { Merchant, Service } from '@/types';
 import { toast } from 'sonner';
+import AssignedStaff from '@/components/merchant/AssignedStaff';
 
 const MerchantDetailPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
@@ -131,9 +133,15 @@ const MerchantDetailPage: React.FC = () => {
           <p>{merchant.address}</p>
         </div>
         
-        <div className="flex items-center text-gray-500 mb-6">
+        <div className="flex items-center text-gray-500 mb-4">
           <Clock className="h-4 w-4 mr-2" />
           <p>{getFormattedTime(merchant.open_time)} - {getFormattedTime(merchant.close_time)}</p>
+        </div>
+
+        {/* Available Stylists Section */}
+        <div className="mb-4">
+          <h3 className="text-sm font-medium text-gray-700 mb-2">Available Stylists</h3>
+          <AssignedStaff merchantId={merchant.id} maxDisplay={4} />
         </div>
         
         <Separator className="mb-6" />
