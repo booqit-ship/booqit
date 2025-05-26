@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, CreditCard, Wallet, User, MapPin, Calendar, Clock, Users } from 'lucide-react';
@@ -22,6 +23,7 @@ const PaymentPage: React.FC = () => {
     totalPrice, 
     totalDuration, 
     selectedStaff, 
+    selectedStaffDetails,
     bookingDate, 
     bookingTime 
   } = location.state;
@@ -67,38 +69,36 @@ const PaymentPage: React.FC = () => {
       
       // Create bookings for each service
       const bookingPromises = selectedServices.map(async (service: any) => {
-        for (let i = 0; i < service.quantity; i++) {
-          const { data: bookingData, error: bookingError } = await supabase
-            .from('bookings')
-            .insert({
-              user_id: user.id,
-              merchant_id: merchantId,
-              service_id: service.id,
-              staff_id: selectedStaff,
-              date: bookingDate,
-              time_slot: bookingTime,
-              status: 'confirmed',
-              payment_status: 'pending',
-            })
-            .select()
-            .single();
-          
-          if (bookingError) throw bookingError;
-          
-          // Create payment record for each booking
-          const { error: paymentError } = await supabase
-            .from('payments')
-            .insert({
-              booking_id: bookingData.id,
-              method: 'cash',
-              amount: service.price,
-              status: 'pending',
-            });
-          
-          if (paymentError) throw paymentError;
-          
-          return bookingData;
-        }
+        const { data: bookingData, error: bookingError } = await supabase
+          .from('bookings')
+          .insert({
+            user_id: user.id,
+            merchant_id: merchantId,
+            service_id: service.id,
+            staff_id: selectedStaff,
+            date: bookingDate,
+            time_slot: bookingTime,
+            status: 'confirmed',
+            payment_status: 'pending',
+          })
+          .select()
+          .single();
+        
+        if (bookingError) throw bookingError;
+        
+        // Create payment record for each booking
+        const { error: paymentError } = await supabase
+          .from('payments')
+          .insert({
+            booking_id: bookingData.id,
+            method: 'cash',
+            amount: service.price,
+            status: 'pending',
+          });
+        
+        if (paymentError) throw paymentError;
+        
+        return bookingData;
       });
 
       const bookings = await Promise.all(bookingPromises);
@@ -111,6 +111,7 @@ const PaymentPage: React.FC = () => {
           totalPrice,
           totalDuration,
           selectedStaff,
+          selectedStaffDetails,
           bookingDate,
           bookingTime,
           bookingIds: bookings.map(b => b?.id).filter(Boolean),
@@ -194,18 +195,17 @@ const PaymentPage: React.FC = () => {
                     <div className="flex items-center text-sm text-gray-500 mt-1">
                       <Clock className="h-3 w-3 mr-1" />
                       <span>{service.duration} mins</span>
-                      {service.quantity > 1 && <span className="ml-2">x{service.quantity}</span>}
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-medium">₹{service.price * service.quantity}</div>
+                    <div className="font-medium">₹{service.price}</div>
                   </div>
                 </div>
               ))}
             </div>
             <Separator className="my-3" />
             <div className="flex justify-between font-semibold">
-              <span>Total</span>
+              <span>Total ({totalDuration} minutes)</span>
               <span>₹{totalPrice}</span>
             </div>
           </CardContent>
@@ -239,15 +239,15 @@ const PaymentPage: React.FC = () => {
             <div className="flex items-center">
               <Avatar className="h-10 w-10 mr-3">
                 <AvatarFallback className="bg-gray-200 text-gray-700">
-                  {selectedStaff ? 'S' : 'A'}
+                  {selectedStaffDetails ? selectedStaffDetails.name.charAt(0) : 'A'}
                 </AvatarFallback>
               </Avatar>
               <div>
                 <div className="font-medium">
-                  {selectedStaff ? 'Selected Stylist' : 'Any Available Stylist'}
+                  {selectedStaffDetails ? selectedStaffDetails.name : 'Any Available Stylist'}
                 </div>
                 <div className="text-sm text-gray-500">
-                  {selectedStaff ? 'Your preferred choice' : 'We\'ll assign the best available stylist'}
+                  {selectedStaffDetails ? 'Your preferred choice' : 'We\'ll assign the best available stylist'}
                 </div>
               </div>
             </div>

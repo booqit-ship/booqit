@@ -12,7 +12,7 @@ const BookingPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { merchant, selectedServices, totalPrice, totalDuration, selectedStaff } = location.state;
+  const { merchant, selectedServices, totalPrice, totalDuration, selectedStaff, selectedStaffDetails } = location.state;
 
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string>('');
@@ -181,6 +181,7 @@ const BookingPage: React.FC = () => {
         totalPrice,
         totalDuration,
         selectedStaff,
+        selectedStaffDetails,
         bookingDate: format(selectedDate, 'yyyy-MM-dd'),
         bookingTime: selectedTime
       }

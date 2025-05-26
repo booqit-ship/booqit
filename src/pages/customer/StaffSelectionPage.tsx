@@ -18,6 +18,7 @@ const StaffSelectionPage: React.FC = () => {
 
   const [staff, setStaff] = useState<Staff[]>([]);
   const [selectedStaff, setSelectedStaff] = useState<string>('any');
+  const [selectedStaffDetails, setSelectedStaffDetails] = useState<Staff | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -50,6 +51,16 @@ const StaffSelectionPage: React.FC = () => {
     fetchStaff();
   }, [merchantId]);
 
+  const handleStaffChange = (value: string) => {
+    setSelectedStaff(value);
+    if (value === 'any') {
+      setSelectedStaffDetails(null);
+    } else {
+      const staffMember = staff.find(s => s.id === value);
+      setSelectedStaffDetails(staffMember || null);
+    }
+  };
+
   const handleContinue = () => {
     navigate(`/booking/${merchantId}/datetime`, {
       state: {
@@ -57,7 +68,8 @@ const StaffSelectionPage: React.FC = () => {
         selectedServices,
         totalPrice,
         totalDuration,
-        selectedStaff: selectedStaff === 'any' ? null : selectedStaff
+        selectedStaff: selectedStaff === 'any' ? null : selectedStaff,
+        selectedStaffDetails
       }
     });
   };
@@ -92,7 +104,7 @@ const StaffSelectionPage: React.FC = () => {
           <p className="text-gray-500 text-sm">Choose any available stylist or let us assign one for you</p>
         </div>
 
-        <RadioGroup value={selectedStaff} onValueChange={setSelectedStaff} className="space-y-3">
+        <RadioGroup value={selectedStaff} onValueChange={handleStaffChange} className="space-y-3">
           {/* Any Stylist Option */}
           <Card className={`border transition-all overflow-hidden ${selectedStaff === 'any' ? 'border-booqit-primary' : 'border-gray-200'}`}>
             <CardContent className="p-0">

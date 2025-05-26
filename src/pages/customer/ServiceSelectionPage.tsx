@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, Clock, Plus, Minus } from 'lucide-react';
+import { ChevronLeft, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -16,7 +16,7 @@ const ServiceSelectionPage: React.FC = () => {
   const { merchant, services: initialServices } = location.state;
 
   const [services, setServices] = useState<Service[]>(initialServices || []);
-  const [selectedServices, setSelectedServices] = useState<Array<Service & { quantity: number }>>([]);
+  const [selectedServices, setSelectedServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -45,32 +45,17 @@ const ServiceSelectionPage: React.FC = () => {
     }
   };
 
-  const addService = (service: Service) => {
-    const existingIndex = selectedServices.findIndex(s => s.id === service.id);
-    if (existingIndex >= 0) {
-      const updated = [...selectedServices];
-      updated[existingIndex].quantity += 1;
-      setSelectedServices(updated);
+  const toggleService = (service: Service) => {
+    const isSelected = selectedServices.some(s => s.id === service.id);
+    if (isSelected) {
+      setSelectedServices(selectedServices.filter(s => s.id !== service.id));
     } else {
-      setSelectedServices([...selectedServices, { ...service, quantity: 1 }]);
+      setSelectedServices([...selectedServices, service]);
     }
   };
 
-  const removeService = (serviceId: string) => {
-    const existingIndex = selectedServices.findIndex(s => s.id === serviceId);
-    if (existingIndex >= 0) {
-      const updated = [...selectedServices];
-      if (updated[existingIndex].quantity > 1) {
-        updated[existingIndex].quantity -= 1;
-      } else {
-        updated.splice(existingIndex, 1);
-      }
-      setSelectedServices(updated);
-    }
-  };
-
-  const totalPrice = selectedServices.reduce((sum, service) => sum + (service.price * service.quantity), 0);
-  const totalDuration = selectedServices.reduce((sum, service) => sum + (service.duration * service.quantity), 0);
+  const totalPrice = selectedServices.reduce((sum, service) => sum + service.price, 0);
+  const totalDuration = selectedServices.reduce((sum, service) => sum + service.duration, 0);
 
   const handleContinue = () => {
     if (selectedServices.length === 0) {
@@ -121,11 +106,16 @@ const ServiceSelectionPage: React.FC = () => {
         {services.length > 0 ? (
           <div className="space-y-4 mb-6">
             {services.map(service => {
-              const selectedService = selectedServices.find(s => s.id === service.id);
-              const quantity = selectedService?.quantity || 0;
+              const isSelected = selectedServices.some(s => s.id === service.id);
 
               return (
-                <Card key={service.id} className="overflow-hidden">
+                <Card 
+                  key={service.id} 
+                  className={`overflow-hidden cursor-pointer transition-all ${
+                    isSelected ? 'border-booqit-primary bg-booqit-primary/5' : 'border-gray-200'
+                  }`}
+                  onClick={() => toggleService(service)}
+                >
                   <CardContent className="p-4">
                     <div className="flex justify-between items-start mb-2">
                       <h3 className="font-medium">{service.name}</h3>
@@ -140,35 +130,11 @@ const ServiceSelectionPage: React.FC = () => {
                         <span>{service.duration} mins</span>
                       </div>
                       
-                      {quantity > 0 ? (
-                        <div className="flex items-center space-x-2">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => removeService(service.id)}
-                          >
-                            <Minus className="h-3 w-3" />
-                          </Button>
-                          <span className="font-medium w-8 text-center">{quantity}</span>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => addService(service)}
-                          >
-                            <Plus className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => addService(service)}
-                        >
-                          Add Service
-                        </Button>
-                      )}
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                        isSelected ? 'bg-booqit-primary border-booqit-primary' : 'border-gray-300'
+                      }`}>
+                        {isSelected && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -188,8 +154,8 @@ const ServiceSelectionPage: React.FC = () => {
               <div className="space-y-2">
                 {selectedServices.map((service) => (
                   <div key={service.id} className="flex justify-between text-sm">
-                    <span>{service.name} x{service.quantity}</span>
-                    <span>₹{service.price * service.quantity}</span>
+                    <span>{service.name}</span>
+                    <span>₹{service.price}</span>
                   </div>
                 ))}
               </div>
