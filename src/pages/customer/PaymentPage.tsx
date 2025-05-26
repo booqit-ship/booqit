@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, CreditCard, Wallet, User, MapPin, Calendar, Clock, CheckCircle, AlertCircle, Star } from 'lucide-react';
+import { ChevronLeft, CreditCard, Wallet, User, MapPin, Calendar, Clock, CheckCircle, AlertCircle, Star, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -11,7 +11,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-type PaymentMethod = 'card' | 'upi' | 'wallet' | 'cash';
+type PaymentMethod = 'cash' | 'card' | 'upi' | 'wallet';
 
 const PaymentPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
@@ -71,9 +71,48 @@ const PaymentPage: React.FC = () => {
     }
   }, [navigate, merchant, selectedServices, totalPrice, bookingDate, bookingTime, merchantId]);
 
+  const checkTimeSlotAvailability = async (date: string, timeSlot: string, staffId?: string) => {
+    try {
+      let query = supabase
+        .from('bookings')
+        .select('id')
+        .eq('merchant_id', merchantId)
+        .eq('date', date)
+        .eq('time_slot', timeSlot)
+        .in('status', ['confirmed', 'pending']);
+
+      if (staffId) {
+        query = query.eq('staff_id', staffId);
+      }
+
+      const { data, error } = await query;
+      
+      if (error) {
+        console.error('Error checking availability:', error);
+        return false;
+      }
+
+      return data.length === 0; // Available if no bookings found
+    } catch (error) {
+      console.error('Error checking time slot availability:', error);
+      return false;
+    }
+  };
+
   const handlePayment = async () => {
     if (!user || !merchantId || !selectedServices || !merchant || !bookingDate || !bookingTime) {
       toast.error('Missing required booking information');
+      return;
+    }
+
+    // Validate required data
+    if (!Array.isArray(selectedServices) || selectedServices.length === 0) {
+      toast.error('No services selected');
+      return;
+    }
+
+    if (!totalPrice || totalPrice <= 0) {
+      toast.error('Invalid total price');
       return;
     }
 
@@ -88,9 +127,22 @@ const PaymentPage: React.FC = () => {
         bookingTime,
         totalPrice
       });
+
+      // Check availability before creating booking
+      const isAvailable = await checkTimeSlotAvailability(bookingDate, bookingTime, selectedStaff);
+      if (!isAvailable) {
+        toast.error('This time slot is no longer available. Please select a different time.');
+        setProcessingPayment(false);
+        return;
+      }
       
       // Create bookings for each service
       const bookingPromises = selectedServices.map(async (service: any) => {
+        // Validate service data
+        if (!service.id || !service.price) {
+          throw new Error(`Invalid service data: ${JSON.stringify(service)}`);
+        }
+
         const bookingData = {
           user_id: user.id,
           merchant_id: merchantId,
@@ -98,8 +150,8 @@ const PaymentPage: React.FC = () => {
           staff_id: selectedStaff || null,
           date: bookingDate,
           time_slot: bookingTime,
-          status: 'confirmed',
-          payment_status: 'pending',
+          status: 'confirmed' as const,
+          payment_status: 'pending' as const,
         };
 
         console.log('Creating booking with data:', bookingData);
@@ -112,7 +164,7 @@ const PaymentPage: React.FC = () => {
         
         if (bookingError) {
           console.error('Booking creation error:', bookingError);
-          throw bookingError;
+          throw new Error(`Failed to create booking: ${bookingError.message}`);
         }
 
         console.log('Booking created successfully:', booking);
@@ -122,7 +174,7 @@ const PaymentPage: React.FC = () => {
           booking_id: booking.id,
           method: paymentMethod,
           amount: service.price,
-          status: 'pending',
+          status: 'pending' as const,
         };
 
         console.log('Creating payment with data:', paymentData);
@@ -135,18 +187,22 @@ const PaymentPage: React.FC = () => {
         
         if (paymentError) {
           console.error('Payment creation error:', paymentError);
-          throw paymentError;
+          // If payment fails, delete the booking
+          await supabase.from('bookings').delete().eq('id', booking.id);
+          throw new Error(`Failed to create payment: ${paymentError.message}`);
         }
 
         console.log('Payment record created successfully:', payment);
-        return booking;
+        return { booking, payment };
       });
 
-      const bookings = await Promise.all(bookingPromises);
+      const results = await Promise.all(bookingPromises);
+      const bookings = results.map(r => r.booking);
       
       console.log('All bookings created:', bookings);
       toast.success('Booking confirmed successfully!');
       
+      // Navigate to receipt page with booking data
       navigate(`/receipt/${bookings[0]?.id}`, {
         state: {
           merchant,
@@ -161,9 +217,9 @@ const PaymentPage: React.FC = () => {
           paymentMethod
         }
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Booking error:', error);
-      toast.error('Booking failed. Please try again.');
+      toast.error(error.message || 'Booking failed. Please try again.');
       setProcessingPayment(false);
     }
   };
@@ -192,7 +248,7 @@ const PaymentPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Header */}
-      <div className="bg-white shadow-lg border-b">
+      <div className="bg-white shadow-lg border-b sticky top-0 z-50">
         <div className="max-w-md mx-auto relative flex items-center justify-center p-4">
           <Button 
             variant="ghost" 
@@ -206,10 +262,10 @@ const PaymentPage: React.FC = () => {
         </div>
       </div>
       
-      <div className="max-w-md mx-auto pb-32 p-4">
+      <div className="max-w-md mx-auto pb-32 p-4 space-y-6">
         {/* Merchant Card */}
-        <Card className="mb-6 shadow-lg border-0 bg-gradient-to-r from-booqit-primary to-booqit-primary/90">
-          <CardContent className="p-6 text-white">
+        <Card className="shadow-lg border-0 bg-gradient-to-r from-booqit-primary to-booqit-primary/90 text-white">
+          <CardContent className="p-6">
             <div className="flex items-center space-x-4">
               <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
                 <span className="font-bold text-white text-xl">
@@ -220,7 +276,7 @@ const PaymentPage: React.FC = () => {
                 <h3 className="font-bold text-lg">{merchant.shop_name}</h3>
                 <div className="flex items-center mt-1 opacity-90">
                   <MapPin className="h-4 w-4 mr-1" />
-                  <span className="text-sm line-clamp-1">{merchant.address}</span>
+                  <span className="text-sm line-clamp-2">{merchant.address}</span>
                 </div>
                 <div className="flex items-center mt-1">
                   <Star className="h-4 w-4 mr-1 fill-current" />
@@ -232,7 +288,7 @@ const PaymentPage: React.FC = () => {
         </Card>
 
         {/* Services Summary */}
-        <Card className="mb-6 shadow-lg border-0">
+        <Card className="shadow-lg border-0">
           <CardHeader className="pb-4">
             <CardTitle className="text-lg flex items-center text-gray-900">
               <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
@@ -269,7 +325,7 @@ const PaymentPage: React.FC = () => {
         </Card>
 
         {/* Appointment Details */}
-        <Card className="mb-6 shadow-lg border-0">
+        <Card className="shadow-lg border-0">
           <CardHeader className="pb-4">
             <CardTitle className="text-lg text-gray-900">Appointment Details</CardTitle>
           </CardHeader>
@@ -294,7 +350,7 @@ const PaymentPage: React.FC = () => {
         </Card>
 
         {/* Stylist Info */}
-        <Card className="mb-6 shadow-lg border-0">
+        <Card className="shadow-lg border-0">
           <CardHeader className="pb-4">
             <CardTitle className="text-lg text-gray-900">Your Stylist</CardTitle>
           </CardHeader>
@@ -318,7 +374,7 @@ const PaymentPage: React.FC = () => {
         </Card>
         
         {/* Payment Method */}
-        <Card className="mb-6 shadow-lg border-0">
+        <Card className="shadow-lg border-0">
           <CardHeader className="pb-4">
             <CardTitle className="text-lg text-gray-900">Payment Method</CardTitle>
           </CardHeader>
@@ -360,7 +416,7 @@ const PaymentPage: React.FC = () => {
         </Card>
         
         {/* Payment Info */}
-        <Card className="border-amber-200 bg-amber-50 shadow-lg mb-6">
+        <Card className="border-amber-200 bg-amber-50 shadow-lg">
           <CardContent className="p-4">
             <div className="flex items-start">
               <AlertCircle className="h-5 w-5 text-amber-600 mr-3 mt-0.5 flex-shrink-0" />
