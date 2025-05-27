@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -538,92 +539,93 @@ const CalendarManagementPage: React.FC = () => {
       </Card>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Today's Bookings with Enhanced Customer Details */}
+        {/* Today's Bookings with Enhanced UI and Customer Details */}
         <div className="lg:col-span-2">
-          <Card>
-            <CardHeader className="py-2">
-              <CardTitle className="text-base sm:text-lg flex items-center">
-                <CalendarCheck className="mr-2 h-4 w-4" />
+          <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-gray-50/30">
+            <CardHeader className="bg-gradient-to-r from-booqit-primary to-booqit-primary/80 text-white rounded-t-lg">
+              <CardTitle className="text-lg flex items-center font-semibold">
+                <CalendarCheck className="mr-3 h-5 w-5" />
                 {format(date, 'MMMM d, yyyy')} Bookings
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-6">
               {isLoading ? (
-                <div className="flex justify-center py-6">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-booqit-primary"></div>
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-10 w-10 border-3 border-booqit-primary border-t-transparent"></div>
                 </div>
               ) : isHoliday(date) ? (
-                <div className="text-center py-6 border rounded-md bg-red-50">
-                  <CalendarX className="h-8 w-8 mx-auto text-red-400 mb-2" />
-                  <p className="text-red-600 text-sm font-medium">Shop Holiday - Closed</p>
-                  <p className="text-red-500 text-xs mt-1">{getHolidayDescription(date)}</p>
+                <div className="text-center py-8 bg-red-50 rounded-xl border border-red-200">
+                  <CalendarX className="h-12 w-12 mx-auto text-red-400 mb-3" />
+                  <p className="text-red-600 text-lg font-semibold">Shop Holiday - Closed</p>
+                  <p className="text-red-500 text-sm mt-1">{getHolidayDescription(date)}</p>
                 </div>
               ) : todayBookings.length === 0 ? (
-                <div className="text-center py-6 border rounded-md bg-gray-50">
-                  <CalendarIcon className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-                  <p className="text-gray-500 text-sm">No bookings for this date</p>
+                <div className="text-center py-8 bg-gray-50 rounded-xl border border-gray-200">
+                  <CalendarIcon className="h-12 w-12 mx-auto text-gray-400 mb-3" />
+                  <p className="text-gray-600 text-lg font-medium">No bookings for this date</p>
+                  <p className="text-gray-500 text-sm">Your schedule is free today</p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {todayBookings.map(booking => (
-                    <Card key={booking.id} className="overflow-hidden border-l-4" style={{
-                      borderLeftColor: booking.status === 'confirmed' ? '#22c55e' : 
-                                      booking.status === 'pending' ? '#eab308' :
-                                      booking.status === 'completed' ? '#3b82f6' : '#ef4444'
-                    }}>
-                      <CardContent className="p-3">
-                        <div className="flex justify-between items-center mb-2">
-                          <div className="flex items-center">
-                            <div className="bg-gray-100 p-1 rounded-full mr-2">
-                              <Clock className="h-4 w-4 text-booqit-primary" />
+                    <div 
+                      key={booking.id} 
+                      className="bg-white rounded-xl shadow-md border border-gray-100 hover:shadow-lg transition-all duration-200 overflow-hidden"
+                    >
+                      <div className="p-5">
+                        <div className="flex justify-between items-start mb-4">
+                          <div className="flex items-center space-x-3">
+                            <div className="bg-booqit-primary/10 p-2 rounded-full">
+                              <Clock className="h-5 w-5 text-booqit-primary" />
                             </div>
                             <div>
-                              <h3 className="text-sm font-medium">{booking.service?.name}</h3>
-                              <p className="text-xs text-booqit-dark/60">
+                              <h3 className="text-lg font-semibold text-gray-900">{booking.service?.name}</h3>
+                              <p className="text-booqit-primary font-medium text-sm">
                                 {booking.time_slot}
                               </p>
                             </div>
                           </div>
-                          <Badge className={getStatusColor(booking.status)}>
+                          <Badge 
+                            className={`${getStatusColor(booking.status)} text-white font-medium px-3 py-1`}
+                          >
                             {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                           </Badge>
                         </div>
                         
-                        <div className="grid grid-cols-2 gap-2 mt-2">
-                          <div className="text-xs">
-                            <div className="flex items-center">
-                              <User className="h-3 w-3 mr-1 text-booqit-dark/60" />
-                              <span>{booking.user_details?.name || 'Unknown Customer'}</span>
+                        <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="flex items-center space-x-2">
+                              <User className="h-4 w-4 text-gray-500" />
+                              <span className="text-sm font-medium text-gray-700">
+                                {booking.user_details?.name || 'Unknown Customer'}
+                              </span>
                             </div>
-                          </div>
-                          <div className="text-xs">
-                            <div className="flex items-center">
-                              <Phone className="h-3 w-3 mr-1 text-booqit-dark/60" />
+                            <div className="flex items-center space-x-2">
+                              <Phone className="h-4 w-4 text-gray-500" />
                               {booking.user_details?.phone ? (
                                 <button
                                   onClick={() => handlePhoneCall(booking.user_details!.phone)}
-                                  className="text-blue-600 hover:text-blue-800 underline cursor-pointer"
+                                  className="text-sm text-booqit-primary hover:text-booqit-primary/80 font-medium underline decoration-2 underline-offset-2 transition-colors"
                                 >
                                   {booking.user_details.phone}
                                 </button>
                               ) : (
-                                <span className="text-gray-400">No phone</span>
+                                <span className="text-sm text-gray-400">No phone available</span>
                               )}
                             </div>
                           </div>
                         </div>
                         
                         {booking.status !== 'cancelled' && booking.status !== 'completed' && (
-                          <div className="flex justify-end gap-1 mt-2">
+                          <div className="flex justify-end gap-2">
                             {booking.status === 'pending' && (
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button 
-                                    variant="default"
                                     size="sm"
-                                    className="h-7 text-xs bg-green-500 hover:bg-green-600"
+                                    className="bg-green-500 hover:bg-green-600 text-white font-medium px-4"
                                   >
-                                    <Check className="mr-1 h-3 w-3" />
+                                    <Check className="mr-1 h-4 w-4" />
                                     Confirm
                                   </Button>
                                 </AlertDialogTrigger>
@@ -651,11 +653,10 @@ const CalendarManagementPage: React.FC = () => {
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button 
-                                    variant="default"
                                     size="sm"
-                                    className="h-7 text-xs bg-blue-500 hover:bg-blue-600"
+                                    className="bg-blue-500 hover:bg-blue-600 text-white font-medium px-4"
                                   >
-                                    <Check className="mr-1 h-3 w-3" />
+                                    <Check className="mr-1 h-4 w-4" />
                                     Complete
                                   </Button>
                                 </AlertDialogTrigger>
@@ -684,9 +685,9 @@ const CalendarManagementPage: React.FC = () => {
                                 <Button 
                                   variant="destructive"
                                   size="sm"
-                                  className="h-7 text-xs"
+                                  className="font-medium px-4"
                                 >
-                                  <X className="mr-1 h-3 w-3" />
+                                  <X className="mr-1 h-4 w-4" />
                                   Cancel
                                 </Button>
                               </AlertDialogTrigger>
@@ -710,8 +711,8 @@ const CalendarManagementPage: React.FC = () => {
                             </AlertDialog>
                           </div>
                         )}
-                      </CardContent>
-                    </Card>
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
