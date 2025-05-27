@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -48,19 +47,14 @@ import {
   CalendarX,
   ChevronLeft,
   ChevronRight,
-  Check,
-  Mail
+  Check
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import StylistAvailabilityWidget from '@/components/merchant/StylistAvailabilityWidget';
 
-interface BookingWithDetails extends Booking {
-  customer_name: string;
-  customer_phone: string | null;
-  customer_email: string;
-  service_name: string;
-  service_price: number;
-  service_duration: number;
+interface BookingWithUserDetails extends Booking {
+  customer_name?: string;
+  customer_phone?: string;
 }
 
 interface HolidayDate {
@@ -71,7 +65,7 @@ interface HolidayDate {
 
 const CalendarManagementPage: React.FC = () => {
   const [date, setDate] = useState<Date>(new Date());
-  const [bookings, setBookings] = useState<BookingWithDetails[]>([]);
+  const [bookings, setBookings] = useState<BookingWithUserDetails[]>([]);
   const [holidays, setHolidays] = useState<HolidayDate[]>([]);
   const [newHoliday, setNewHoliday] = useState<Date | undefined>(new Date());
   const [holidayDescription, setHolidayDescription] = useState('');
@@ -118,7 +112,7 @@ const CalendarManagementPage: React.FC = () => {
     fetchMerchantId();
   }, [userId]);
 
-  // Fetch bookings with proper JOIN to get customer and service details
+  // Fetch bookings for the merchant with customer details
   const fetchBookings = async () => {
     if (!merchantId) return;
     
@@ -126,69 +120,78 @@ const CalendarManagementPage: React.FC = () => {
     try {
       console.log('Fetching bookings for merchant:', merchantId);
       
-      // Fetch bookings with explicit joins
+      // First, get all bookings for the merchant
       const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
         .select(`
-          id,
-          date,
-          time_slot,
-          status,
-          payment_status,
-          user_id,
-          service_id,
-          created_at,
-          services!inner (
+          *,
+          service:service_id (
+            id,
             name,
             price,
             duration,
-            description
-          ),
-          profiles!inner (
-            name,
-            email,
-            phone
+            description,
+            merchant_id,
+            created_at,
+            image_url
           )
         `)
-        .eq('merchant_id', merchantId)
-        .order('date', { ascending: true })
-        .order('time_slot', { ascending: true });
+        .eq('merchant_id', merchantId);
       
-      if (bookingsError) {
-        console.error('Bookings fetch error:', bookingsError);
-        throw bookingsError;
+      if (bookingsError) throw bookingsError;
+      
+      console.log('Raw bookings data from Supabase:', bookingsData);
+      
+      // Get unique user IDs from bookings
+      const userIds = [...new Set(bookingsData.map(booking => booking.user_id))];
+      
+      // Fetch customer details for all users
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, name, phone')
+        .in('id', userIds);
+      
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError);
+        // Continue without profile data if there's an error
       }
       
-      console.log('Fetched bookings with details:', bookingsData);
+      console.log('Profiles data:', profilesData);
       
-      // Process the data to match our interface
-      const processedBookings: BookingWithDetails[] = bookingsData.map((booking: any) => ({
-        id: booking.id,
-        user_id: booking.user_id,
-        merchant_id: merchantId,
-        service_id: booking.service_id,
-        date: booking.date,
-        time_slot: booking.time_slot,
-        status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
-        payment_status: booking.payment_status as 'pending' | 'completed' | 'failed' | 'refunded',
-        created_at: booking.created_at,
-        customer_name: booking.profiles?.name || 'Unknown Customer',
-        customer_phone: booking.profiles?.phone || null,
-        customer_email: booking.profiles?.email || 'No email',
-        service_name: booking.services?.name || 'Unknown Service',
-        service_price: booking.services?.price || 0,
-        service_duration: booking.services?.duration || 0,
-      }));
+      // Create a map of user_id to profile data for easy lookup
+      const profilesMap = new Map();
+      if (profilesData) {
+        profilesData.forEach(profile => {
+          profilesMap.set(profile.id, profile);
+        });
+      }
       
-      console.log('Processed bookings:', processedBookings);
+      // Process the bookings data with customer details
+      const processedBookings = bookingsData.map((booking) => {
+        const typedPaymentStatus = booking.payment_status as "pending" | "completed" | "failed" | "refunded";
+        const typedStatus = booking.status as "pending" | "confirmed" | "completed" | "cancelled";
+        
+        const customerProfile = profilesMap.get(booking.user_id);
+        console.log('Processing booking:', booking.id, 'Customer profile:', customerProfile);
+        
+        return {
+          ...booking,
+          status: typedStatus,
+          payment_status: typedPaymentStatus,
+          customer_name: customerProfile?.name || 'Unknown Customer',
+          customer_phone: customerProfile?.phone || null
+        } as BookingWithUserDetails;
+      });
+      
+      console.log('Processed bookings with customer details:', processedBookings);
       setBookings(processedBookings);
     } catch (error: any) {
-      console.error('Error fetching bookings:', error);
       toast({
         title: "Error",
         description: "Failed to fetch bookings. Please try again.",
         variant: "destructive",
       });
+      console.error('Error fetching bookings:', error);
     } finally {
       setIsLoading(false);
     }
@@ -236,6 +239,7 @@ const CalendarManagementPage: React.FC = () => {
     }).sort((a, b) => a.time_slot.localeCompare(b.time_slot));
   }, [bookings, date]);
 
+  // Handle booking status change with confirmation
   const handleStatusChange = async (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
     try {
       const { error } = await supabase
@@ -264,6 +268,7 @@ const CalendarManagementPage: React.FC = () => {
     }
   };
 
+  // Handle phone call
   const handlePhoneCall = (phoneNumber: string | null) => {
     if (phoneNumber && phoneNumber.trim() !== '') {
       window.location.href = `tel:${phoneNumber}`;
@@ -276,6 +281,7 @@ const CalendarManagementPage: React.FC = () => {
     }
   };
 
+  // Add a new holiday date
   const addHolidayDate = async () => {
     if (!merchantId || !newHoliday) return;
     
@@ -319,6 +325,7 @@ const CalendarManagementPage: React.FC = () => {
     }
   };
 
+  // Delete a holiday date
   const deleteHolidayDate = async (holidayId: string) => {
     try {
       const { error } = await supabase
@@ -345,19 +352,23 @@ const CalendarManagementPage: React.FC = () => {
 
   const holidayDates = holidays.map(h => parseISO(h.holiday_date));
 
+  // Check if a date is a holiday
   const isHoliday = (checkDate: Date) => {
     return holidayDates.some(holiday => isSameDay(holiday, checkDate));
   };
 
+  // Get holiday description
   const getHolidayDescription = (checkDate: Date) => {
     const holiday = holidays.find(h => isSameDay(parseISO(h.holiday_date), checkDate));
     return holiday?.description || 'Shop Holiday';
   };
 
+  // Get the number of bookings for a day
   const getBookingsCountForDay = (day: Date) => {
     return bookings.filter(b => isSameDay(parseISO(b.date), day)).length;
   };
 
+  // Get status badge color
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'confirmed': return 'bg-green-500';
@@ -368,10 +379,12 @@ const CalendarManagementPage: React.FC = () => {
     }
   };
 
+  // Navigation functions
   const goToPrevious = () => setDate(subDays(date, isMobile ? 3 : 5));
   const goToNext = () => setDate(addDays(date, isMobile ? 3 : 5));
   const goToToday = () => setDate(new Date());
 
+  // Handle availability change
   const handleAvailabilityChange = () => {
     fetchBookings();
   };
@@ -544,13 +557,13 @@ const CalendarManagementPage: React.FC = () => {
       </Card>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Today's Bookings with Complete Details */}
+        {/* Today's Bookings with Enhanced UI and Customer Details */}
         <div className="lg:col-span-2">
           <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-gray-50/30">
             <CardHeader className="bg-gradient-to-r from-booqit-primary to-booqit-primary/80 text-white rounded-t-lg">
               <CardTitle className="text-lg flex items-center font-semibold">
                 <CalendarCheck className="mr-3 h-5 w-5" />
-                {format(date, 'MMMM d, yyyy')} Bookings ({todayBookings.length})
+                {format(date, 'MMMM d, yyyy')} Bookings
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
@@ -584,9 +597,9 @@ const CalendarManagementPage: React.FC = () => {
                               <Clock className="h-4 w-4 text-purple-600" />
                             </div>
                             <div>
-                              <h3 className="text-base font-medium text-gray-900">{booking.service_name}</h3>
+                              <h3 className="text-base font-medium text-gray-900">{booking.service?.name}</h3>
                               <p className="text-purple-600 font-medium text-sm">
-                                {booking.time_slot} • {booking.service_duration} min • ₹{booking.service_price}
+                                {booking.time_slot}
                               </p>
                             </div>
                           </div>
@@ -618,17 +631,6 @@ const CalendarManagementPage: React.FC = () => {
                                 <span className="text-sm text-gray-400">No phone available</span>
                               )}
                             </div>
-                            <div className="flex items-center space-x-2">
-                              <Mail className="h-4 w-4 text-gray-500" />
-                              <span className="text-sm text-gray-600">{booking.customer_email}</span>
-                            </div>
-                            <div className="mt-2 pt-2 border-t border-gray-200">
-                              <span className="text-xs text-gray-500">
-                                Payment: <span className={`font-medium ${booking.payment_status === 'completed' ? 'text-green-600' : 'text-yellow-600'}`}>
-                                  {booking.payment_status.charAt(0).toUpperCase() + booking.payment_status.slice(1)}
-                                </span>
-                              </span>
-                            </div>
                           </div>
                         </div>
                         
@@ -649,7 +651,7 @@ const CalendarManagementPage: React.FC = () => {
                                   <AlertDialogHeader>
                                     <AlertDialogTitle>Confirm Booking</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                      Are you sure you want to confirm this booking for {booking.customer_name}?
+                                      Are you sure you want to confirm this booking for {booking.customer_name || 'the customer'}?
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
@@ -680,7 +682,7 @@ const CalendarManagementPage: React.FC = () => {
                                   <AlertDialogHeader>
                                     <AlertDialogTitle>Complete Booking</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                      Mark this booking as completed for {booking.customer_name}? This action cannot be undone.
+                                      Mark this booking as completed for {booking.customer_name || 'the customer'}? This action cannot be undone.
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
@@ -711,7 +713,7 @@ const CalendarManagementPage: React.FC = () => {
                                 <AlertDialogHeader>
                                   <AlertDialogTitle>Cancel Booking</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    Are you sure you want to cancel this booking for {booking.customer_name}? This action cannot be undone.
+                                    Are you sure you want to cancel this booking for {booking.customer_name || 'the customer'}? This action cannot be undone.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
@@ -738,6 +740,7 @@ const CalendarManagementPage: React.FC = () => {
         
         {/* Right Sidebar */}
         <div className="space-y-4">
+          {/* Stylist Availability Widget */}
           {merchantId && (
             <StylistAvailabilityWidget 
               merchantId={merchantId}
@@ -746,6 +749,7 @@ const CalendarManagementPage: React.FC = () => {
             />
           )}
           
+          {/* Shop Holidays */}
           <Card>
             <CardHeader className="py-2">
               <CardTitle className="text-base sm:text-lg flex items-center">
