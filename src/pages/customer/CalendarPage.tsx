@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -5,6 +6,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { Booking } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
@@ -99,7 +111,7 @@ const CalendarPage: React.FC = () => {
 
     // Set up real-time subscription for bookings
     const channel = supabase
-      .channel('bookings-changes')
+      .channel('customer-bookings-changes')
       .on(
         'postgres_changes',
         {
@@ -109,8 +121,8 @@ const CalendarPage: React.FC = () => {
           filter: `user_id=eq.${userId}`
         },
         (payload) => {
-          console.log('Real-time update:', payload);
-          fetchBookings();
+          console.log('Real-time booking update received:', payload);
+          fetchBookings(); // Refetch bookings when changes occur
         }
       )
       .subscribe();
@@ -143,7 +155,7 @@ const CalendarPage: React.FC = () => {
         description: "Booking has been cancelled.",
       });
 
-      // Booking updated will be fetched via real-time subscription
+      // Booking update will be received via real-time subscription
     } catch (error: any) {
       toast({
         title: "Error",
@@ -281,15 +293,35 @@ const CalendarPage: React.FC = () => {
                         
                         {booking.status !== 'cancelled' && booking.status !== 'completed' && (
                           <div className="flex justify-end mt-2">
-                            <Button 
-                              variant="destructive"
-                              size="sm"
-                              className="h-7 text-xs"
-                              onClick={() => cancelBooking(booking.id)}
-                            >
-                              <X className="mr-1 h-3 w-3" />
-                              Cancel
-                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button 
+                                  variant="destructive"
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                >
+                                  <X className="mr-1 h-3 w-3" />
+                                  Cancel
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Cancel Booking</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to cancel this booking? This action cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Keep Booking</AlertDialogCancel>
+                                  <AlertDialogAction 
+                                    onClick={() => cancelBooking(booking.id)}
+                                    className="bg-red-500 hover:bg-red-600"
+                                  >
+                                    Cancel Booking
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </div>
                         )}
                       </CardContent>

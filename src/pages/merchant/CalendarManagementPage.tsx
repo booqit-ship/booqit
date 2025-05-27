@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -203,6 +204,30 @@ const CalendarManagementPage: React.FC = () => {
 
   useEffect(() => {
     fetchBookings();
+
+    // Set up real-time subscription for bookings changes
+    if (merchantId) {
+      const channel = supabase
+        .channel('merchant-bookings-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'bookings',
+            filter: `merchant_id=eq.${merchantId}`
+          },
+          (payload) => {
+            console.log('Real-time booking update received:', payload);
+            fetchBookings(); // Refetch bookings when changes occur
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
   }, [merchantId]);
 
   // Fetch holiday dates for the merchant
