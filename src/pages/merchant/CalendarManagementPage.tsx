@@ -114,7 +114,7 @@ const CalendarManagementPage: React.FC = () => {
     fetchMerchantId();
   }, [userId]);
 
-  // Fetch bookings for the merchant with customer details directly from bookings table
+  // Fetch bookings for the merchant with customer details
   const fetchBookings = async () => {
     if (!merchantId) return;
     
@@ -122,7 +122,6 @@ const CalendarManagementPage: React.FC = () => {
     try {
       console.log('Fetching bookings for merchant:', merchantId);
       
-      // Fetch bookings with customer details and service details
       const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
         .select(`
@@ -161,7 +160,6 @@ const CalendarManagementPage: React.FC = () => {
       
       console.log('Merchant bookings fetched:', bookingsData);
       
-      // Process the bookings data with customer details from the bookings table itself
       const processedBookings = bookingsData?.map((booking) => {
         console.log('Processing booking:', booking.id, 'Customer details:', {
           name: booking.customer_name,
@@ -190,43 +188,48 @@ const CalendarManagementPage: React.FC = () => {
       console.log('Processed merchant bookings:', processedBookings);
       setBookings(processedBookings);
     } catch (error: any) {
+      console.error('Error fetching merchant bookings:', error);
       toast({
         title: "Error",
         description: "Failed to fetch bookings. Please try again.",
         variant: "destructive",
       });
-      console.error('Error fetching bookings:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Set up real-time subscription
   useEffect(() => {
     fetchBookings();
 
-    // Set up real-time subscription for bookings changes
-    if (merchantId) {
-      const channel = supabase
-        .channel('merchant-bookings-realtime')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'bookings',
-            filter: `merchant_id=eq.${merchantId}`
-          },
-          (payload) => {
-            console.log('Real-time booking update received by merchant:', payload);
-            fetchBookings(); // Refetch bookings when changes occur
-          }
-        )
-        .subscribe();
+    if (!merchantId) return;
 
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }
+    // Set up real-time subscription for bookings changes
+    const channel = supabase
+      .channel('merchant-bookings-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'bookings',
+          filter: `merchant_id=eq.${merchantId}`
+        },
+        (payload) => {
+          console.log('Real-time booking update received by merchant:', payload);
+          // Immediately fetch fresh data when any change occurs
+          fetchBookings();
+        }
+      )
+      .subscribe((status) => {
+        console.log('Merchant real-time subscription status:', status);
+      });
+
+    return () => {
+      console.log('Cleaning up merchant real-time subscription');
+      supabase.removeChannel(channel);
+    };
   }, [merchantId, toast]);
 
   // Fetch holiday dates for the merchant
@@ -267,7 +270,7 @@ const CalendarManagementPage: React.FC = () => {
     }).sort((a, b) => a.time_slot.localeCompare(b.time_slot));
   }, [bookings, date]);
 
-  // Handle booking status change with proper database update
+  // Handle booking status change
   const handleStatusChange = async (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
     console.log('Merchant updating booking status:', bookingId, 'to:', newStatus);
     
@@ -275,26 +278,30 @@ const CalendarManagementPage: React.FC = () => {
       const { error } = await supabase
         .from('bookings')
         .update({ status: newStatus })
-        .eq('id', bookingId);
+        .eq('id', bookingId)
+        .eq('merchant_id', merchantId); // Ensure merchant can only update their own bookings
         
       if (error) {
-        console.error('Database update error:', error);
+        console.error('Merchant booking status update error:', error);
         throw error;
       }
+      
+      console.log('Merchant booking status updated successfully');
       
       toast({
         title: "Success",
         description: `Booking ${newStatus} successfully.`,
       });
 
-      console.log('Merchant booking status updated successfully, real-time will sync to customer');
+      // Immediately refresh bookings
+      await fetchBookings();
     } catch (error: any) {
+      console.error('Error updating merchant booking status:', error);
       toast({
         title: "Error",
         description: "Failed to update booking. Please try again.",
         variant: "destructive",
       });
-      console.error('Error updating booking status:', error);
     }
   };
 

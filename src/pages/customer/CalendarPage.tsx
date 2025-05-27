@@ -50,68 +50,71 @@ const CalendarPage: React.FC = () => {
     navigate('/search');
   };
 
-  // Fetch bookings for the user with real-time updates
-  useEffect(() => {
-    const fetchBookings = async () => {
-      if (!userId) return;
-      
-      setIsLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('bookings')
-          .select(`
-            *,
-            service:service_id (
-              id,
-              name,
-              price,
-              duration,
-              description,
-              merchant_id,
-              created_at,
-              image_url
-            ),
-            merchant:merchant_id (
-              id,
-              shop_name,
-              address,
-              image_url,
-              user_id,
-              description,
-              category,
-              gender_focus,
-              lat,
-              lng,
-              open_time,
-              close_time,
-              rating,
-              created_at
-            )
-          `)
-          .eq('user_id', userId)
-          .order('date', { ascending: true });
-          
-        if (error) throw error;
-        
-        console.log('Customer bookings fetched:', data);
-        setBookings(data as Booking[]);
-      } catch (error: any) {
-        toast({
-          title: "Error",
-          description: "Failed to fetch your bookings. Please try again.",
-          variant: "destructive",
-        });
-        console.error(error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  // Fetch bookings for the user
+  const fetchBookings = async () => {
+    if (!userId) return;
     
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select(`
+          *,
+          service:service_id (
+            id,
+            name,
+            price,
+            duration,
+            description,
+            merchant_id,
+            created_at,
+            image_url
+          ),
+          merchant:merchant_id (
+            id,
+            shop_name,
+            address,
+            image_url,
+            user_id,
+            description,
+            category,
+            gender_focus,
+            lat,
+            lng,
+            open_time,
+            close_time,
+            rating,
+            created_at
+          )
+        `)
+        .eq('user_id', userId)
+        .order('date', { ascending: true });
+        
+      if (error) throw error;
+      
+      console.log('Customer bookings fetched:', data);
+      setBookings(data as Booking[]);
+    } catch (error: any) {
+      console.error('Error fetching customer bookings:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch your bookings. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Set up real-time subscription for bookings
+  useEffect(() => {
     fetchBookings();
 
-    // Set up real-time subscription for bookings
+    if (!userId) return;
+
+    // Set up real-time subscription for bookings changes
     const channel = supabase
-      .channel('customer-bookings-realtime')
+      .channel('customer-bookings-changes')
       .on(
         'postgres_changes',
         {
@@ -122,12 +125,16 @@ const CalendarPage: React.FC = () => {
         },
         (payload) => {
           console.log('Real-time booking update received by customer:', payload);
-          fetchBookings(); // Refetch bookings when changes occur
+          // Immediately fetch fresh data when any change occurs
+          fetchBookings();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Customer real-time subscription status:', status);
+      });
 
     return () => {
+      console.log('Cleaning up customer real-time subscription');
       supabase.removeChannel(channel);
     };
   }, [userId, toast]);
@@ -140,7 +147,7 @@ const CalendarPage: React.FC = () => {
     }).sort((a, b) => a.time_slot.localeCompare(b.time_slot));
   }, [bookings, date]);
 
-  // Handle booking cancellation with proper database update
+  // Handle booking cancellation
   const cancelBooking = async (bookingId: string) => {
     console.log('Customer cancelling booking:', bookingId);
 
@@ -148,26 +155,30 @@ const CalendarPage: React.FC = () => {
       const { error } = await supabase
         .from('bookings')
         .update({ status: 'cancelled' })
-        .eq('id', bookingId);
+        .eq('id', bookingId)
+        .eq('user_id', userId); // Ensure user can only cancel their own bookings
         
       if (error) {
-        console.error('Database update error:', error);
+        console.error('Customer booking cancellation error:', error);
         throw error;
       }
+      
+      console.log('Customer booking cancelled successfully');
       
       toast({
         title: "Success",
         description: "Booking has been cancelled.",
       });
 
-      console.log('Customer booking cancelled successfully, real-time will sync to merchant');
+      // Immediately refresh bookings
+      await fetchBookings();
     } catch (error: any) {
+      console.error('Error cancelling customer booking:', error);
       toast({
         title: "Error",
         description: "Failed to cancel booking. Please try again.",
         variant: "destructive",
       });
-      console.error('Error cancelling booking:', error);
     }
   };
 
