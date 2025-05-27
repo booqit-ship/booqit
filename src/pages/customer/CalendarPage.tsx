@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -141,18 +140,9 @@ const CalendarPage: React.FC = () => {
     }).sort((a, b) => a.time_slot.localeCompare(b.time_slot));
   }, [bookings, date]);
 
-  // Handle booking cancellation with immediate UI update and real-time sync
+  // Handle booking cancellation with proper database update
   const cancelBooking = async (bookingId: string) => {
     console.log('Customer cancelling booking:', bookingId);
-    
-    // Optimistically update the UI immediately
-    setBookings(prevBookings => 
-      prevBookings.map(booking => 
-        booking.id === bookingId 
-          ? { ...booking, status: 'cancelled' as const } 
-          : booking
-      )
-    );
 
     try {
       const { error } = await supabase
@@ -160,7 +150,10 @@ const CalendarPage: React.FC = () => {
         .update({ status: 'cancelled' })
         .eq('id', bookingId);
         
-      if (error) throw error;
+      if (error) {
+        console.error('Database update error:', error);
+        throw error;
+      }
       
       toast({
         title: "Success",
@@ -169,15 +162,6 @@ const CalendarPage: React.FC = () => {
 
       console.log('Customer booking cancelled successfully, real-time will sync to merchant');
     } catch (error: any) {
-      // Revert the optimistic update on error
-      setBookings(prevBookings => 
-        prevBookings.map(booking => 
-          booking.id === bookingId 
-            ? { ...booking, status: booking.status } // Revert to original status
-            : booking
-        )
-      );
-      
       toast({
         title: "Error",
         description: "Failed to cancel booking. Please try again.",

@@ -159,7 +159,7 @@ const CalendarManagementPage: React.FC = () => {
         throw bookingsError;
       }
       
-      console.log('Raw bookings data from Supabase:', bookingsData);
+      console.log('Merchant bookings fetched:', bookingsData);
       
       // Process the bookings data with customer details from the bookings table itself
       const processedBookings = bookingsData?.map((booking) => {
@@ -187,7 +187,7 @@ const CalendarManagementPage: React.FC = () => {
         } as BookingWithCustomerDetails;
       }) || [];
       
-      console.log('Processed bookings with customer details:', processedBookings);
+      console.log('Processed merchant bookings:', processedBookings);
       setBookings(processedBookings);
     } catch (error: any) {
       toast({
@@ -217,7 +217,7 @@ const CalendarManagementPage: React.FC = () => {
             filter: `merchant_id=eq.${merchantId}`
           },
           (payload) => {
-            console.log('Real-time booking update received:', payload);
+            console.log('Real-time booking update received by merchant:', payload);
             fetchBookings(); // Refetch bookings when changes occur
           }
         )
@@ -267,44 +267,28 @@ const CalendarManagementPage: React.FC = () => {
     }).sort((a, b) => a.time_slot.localeCompare(b.time_slot));
   }, [bookings, date]);
 
-  // Handle booking status change with immediate UI update and real-time sync
+  // Handle booking status change with proper database update
   const handleStatusChange = async (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
-    console.log('Updating booking status:', bookingId, 'to:', newStatus);
+    console.log('Merchant updating booking status:', bookingId, 'to:', newStatus);
     
-    // Optimistically update the UI immediately
-    setBookings(prevBookings => 
-      prevBookings.map(booking => 
-        booking.id === bookingId 
-          ? { ...booking, status: newStatus } 
-          : booking
-      )
-    );
-
     try {
       const { error } = await supabase
         .from('bookings')
         .update({ status: newStatus })
         .eq('id', bookingId);
         
-      if (error) throw error;
+      if (error) {
+        console.error('Database update error:', error);
+        throw error;
+      }
       
       toast({
         title: "Success",
         description: `Booking ${newStatus} successfully.`,
       });
 
-      // The real-time subscription will handle syncing with other clients
-      console.log('Status updated successfully, real-time will sync to other clients');
+      console.log('Merchant booking status updated successfully, real-time will sync to customer');
     } catch (error: any) {
-      // Revert the optimistic update on error
-      setBookings(prevBookings => 
-        prevBookings.map(booking => 
-          booking.id === bookingId 
-            ? { ...booking, status: booking.status } // Revert to original status
-            : booking
-        )
-      );
-      
       toast({
         title: "Error",
         description: "Failed to update booking. Please try again.",
