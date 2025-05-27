@@ -120,7 +120,7 @@ const CalendarManagementPage: React.FC = () => {
     try {
       console.log('Fetching bookings for merchant:', merchantId);
       
-      // Use a JOIN query to get customer details directly
+      // Use a proper JOIN query to get customer details
       const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
         .select(`
@@ -135,7 +135,7 @@ const CalendarManagementPage: React.FC = () => {
             created_at,
             image_url
           ),
-          customer:profiles!bookings_user_id_fkey (
+          profiles!bookings_user_id_fkey (
             name,
             phone
           )
@@ -151,14 +151,14 @@ const CalendarManagementPage: React.FC = () => {
         const typedPaymentStatus = booking.payment_status as "pending" | "completed" | "failed" | "refunded";
         const typedStatus = booking.status as "pending" | "confirmed" | "completed" | "cancelled";
         
-        console.log('Processing booking:', booking.id, 'Customer data:', booking.customer);
+        console.log('Processing booking:', booking.id, 'Customer data:', booking.profiles);
         
         return {
           ...booking,
           status: typedStatus,
           payment_status: typedPaymentStatus,
-          customer_name: booking.customer?.name || 'Unknown Customer',
-          customer_phone: booking.customer?.phone || null
+          customer_name: booking.profiles?.name || 'Unknown Customer',
+          customer_phone: booking.profiles?.phone || null
         } as BookingWithUserDetails;
       });
       
@@ -630,7 +630,7 @@ const CalendarManagementPage: React.FC = () => {
                                   <AlertDialogHeader>
                                     <AlertDialogTitle>Confirm Booking</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                      Are you sure you want to confirm this booking for {booking.user_details?.name || 'the customer'}?
+                                      Are you sure you want to confirm this booking for {booking.customer_name || 'the customer'}?
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
@@ -661,7 +661,7 @@ const CalendarManagementPage: React.FC = () => {
                                   <AlertDialogHeader>
                                     <AlertDialogTitle>Complete Booking</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                      Mark this booking as completed for {booking.user_details?.name || 'the customer'}? This action cannot be undone.
+                                      Mark this booking as completed for {booking.customer_name || 'the customer'}? This action cannot be undone.
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
@@ -692,7 +692,7 @@ const CalendarManagementPage: React.FC = () => {
                                 <AlertDialogHeader>
                                   <AlertDialogTitle>Cancel Booking</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    Are you sure you want to cancel this booking for {booking.user_details?.name || 'the customer'}? This action cannot be undone.
+                                    Are you sure you want to cancel this booking for {booking.customer_name || 'the customer'}? This action cannot be undone.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
