@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -259,8 +258,8 @@ const CalendarManagementPage: React.FC = () => {
         throw error;
       }
 
-      // Type cast the response to our expected interface
-      const response = data as BookingStatusResponse;
+      // Type cast the response properly through unknown
+      const response = data as unknown as BookingStatusResponse;
 
       if (!response.success) {
         console.error('Booking update failed:', response.error);
