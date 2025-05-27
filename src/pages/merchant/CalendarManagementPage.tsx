@@ -55,6 +55,7 @@ import StylistAvailabilityWidget from '@/components/merchant/StylistAvailability
 interface BookingWithUserDetails extends Booking {
   customer_name?: string;
   customer_phone?: string;
+  customer_email?: string;
 }
 
 interface HolidayDate {
@@ -112,7 +113,7 @@ const CalendarManagementPage: React.FC = () => {
     fetchMerchantId();
   }, [userId]);
 
-  // Fetch bookings for the merchant with customer details
+  // Fetch bookings for the merchant with customer details using proper JOIN
   const fetchBookings = async () => {
     if (!merchantId) return;
     
@@ -120,7 +121,7 @@ const CalendarManagementPage: React.FC = () => {
     try {
       console.log('Fetching bookings for merchant:', merchantId);
       
-      // First, get all bookings for the merchant
+      // Use a proper JOIN query to get customer details with the bookings
       const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
         .select(`
@@ -134,64 +135,46 @@ const CalendarManagementPage: React.FC = () => {
             merchant_id,
             created_at,
             image_url
+          ),
+          profiles!inner (
+            id,
+            name,
+            email,
+            phone
           )
         `)
         .eq('merchant_id', merchantId);
       
       if (bookingsError) throw bookingsError;
       
-      console.log('Raw bookings data from Supabase:', bookingsData);
-      
-      // Get unique user IDs from bookings
-      const userIds = [...new Set(bookingsData.map(booking => booking.user_id))];
-      
-      // Fetch customer details for all users
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, name, phone')
-        .in('id', userIds);
-      
-      if (profilesError) {
-        console.error('Error fetching profiles:', profilesError);
-        // Continue without profile data if there's an error
-      }
-      
-      console.log('Profiles data:', profilesData);
-      
-      // Create a map of user_id to profile data for easy lookup
-      const profilesMap = new Map();
-      if (profilesData) {
-        profilesData.forEach(profile => {
-          profilesMap.set(profile.id, profile);
-        });
-      }
+      console.log('Raw bookings data with profiles:', bookingsData);
       
       // Process the bookings data with customer details
-      const processedBookings = bookingsData.map((booking) => {
+      const processedBookings = bookingsData.map((booking: any) => {
         const typedPaymentStatus = booking.payment_status as "pending" | "completed" | "failed" | "refunded";
         const typedStatus = booking.status as "pending" | "confirmed" | "completed" | "cancelled";
         
-        const customerProfile = profilesMap.get(booking.user_id);
-        console.log('Processing booking:', booking.id, 'Customer profile:', customerProfile);
+        console.log('Processing booking:', booking.id, 'Customer profile:', booking.profiles);
         
         return {
           ...booking,
           status: typedStatus,
           payment_status: typedPaymentStatus,
-          customer_name: customerProfile?.name || 'Unknown Customer',
-          customer_phone: customerProfile?.phone || null
+          customer_name: booking.profiles?.name || 'Unknown Customer',
+          customer_phone: booking.profiles?.phone || null,
+          customer_email: booking.profiles?.email || null
         } as BookingWithUserDetails;
       });
       
       console.log('Processed bookings with customer details:', processedBookings);
       setBookings(processedBookings);
     } catch (error: any) {
+      console.error('Error fetching bookings:', error);
       toast({
         title: "Error",
         description: "Failed to fetch bookings. Please try again.",
         variant: "destructive",
       });
-      console.error('Error fetching bookings:', error);
     } finally {
       setIsLoading(false);
     }
@@ -615,7 +598,7 @@ const CalendarManagementPage: React.FC = () => {
                             <div className="flex items-center space-x-2">
                               <User className="h-4 w-4 text-gray-500" />
                               <span className="text-sm font-medium text-gray-700">
-                                {booking.customer_name}
+                                {booking.customer_name || 'Unknown Customer'}
                               </span>
                             </div>
                             <div className="flex items-center space-x-2">
@@ -631,6 +614,12 @@ const CalendarManagementPage: React.FC = () => {
                                 <span className="text-sm text-gray-400">No phone available</span>
                               )}
                             </div>
+                            {booking.customer_email && (
+                              <div className="flex items-center space-x-2">
+                                <span className="h-4 w-4 text-gray-500 text-xs">@</span>
+                                <span className="text-sm text-gray-600">{booking.customer_email}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                         
