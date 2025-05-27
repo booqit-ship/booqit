@@ -12,6 +12,17 @@ import {
   DialogTrigger,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Table,
@@ -35,7 +46,8 @@ import {
   Flag, 
   CalendarX,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Check
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import StylistAvailabilityWidget from '@/components/merchant/StylistAvailabilityWidget';
@@ -103,7 +115,7 @@ const CalendarManagementPage: React.FC = () => {
     fetchMerchantId();
   }, [userId]);
 
-  // Fetch bookings for the merchant
+  // Fetch bookings for the merchant with customer details
   const fetchBookings = async () => {
     if (!merchantId) return;
     
@@ -122,46 +134,33 @@ const CalendarManagementPage: React.FC = () => {
             merchant_id,
             created_at,
             image_url
+          ),
+          user_details:user_id (
+            name,
+            email,
+            phone
           )
         `)
         .eq('merchant_id', merchantId);
       
       if (error) throw error;
       
-      // Process the bookings data
-      const processedBookings = await Promise.all(
-        data.map(async (booking) => {
-          const typedPaymentStatus = booking.payment_status as "pending" | "completed" | "failed" | "refunded";
-          const typedStatus = booking.status as "pending" | "confirmed" | "completed" | "cancelled";
-          
-          if (booking.user_id) {
-            const { data: userData, error: userError } = await supabase
-              .from('profiles')
-              .select('name, email, phone')
-              .eq('id', booking.user_id)
-              .single();
-            
-            if (!userError && userData) {
-              return {
-                ...booking,
-                status: typedStatus,
-                payment_status: typedPaymentStatus,
-                user_details: {
-                  name: userData.name,
-                  email: userData.email,
-                  phone: userData.phone
-                }
-              } as BookingWithUserDetails;
-            }
-          }
-          
-          return {
-            ...booking,
-            status: typedStatus,
-            payment_status: typedPaymentStatus
-          } as BookingWithUserDetails;
-        })
-      );
+      // Process the bookings data with proper typing
+      const processedBookings = data.map((booking) => {
+        const typedPaymentStatus = booking.payment_status as "pending" | "completed" | "failed" | "refunded";
+        const typedStatus = booking.status as "pending" | "confirmed" | "completed" | "cancelled";
+        
+        return {
+          ...booking,
+          status: typedStatus,
+          payment_status: typedPaymentStatus,
+          user_details: booking.user_details ? {
+            name: booking.user_details.name || 'Unknown Customer',
+            email: booking.user_details.email || '',
+            phone: booking.user_details.phone || ''
+          } : undefined
+        } as BookingWithUserDetails;
+      });
       
       setBookings(processedBookings);
     } catch (error: any) {
@@ -218,7 +217,7 @@ const CalendarManagementPage: React.FC = () => {
     }).sort((a, b) => a.time_slot.localeCompare(b.time_slot));
   }, [bookings, date]);
 
-  // Handle booking status change
+  // Handle booking status change with confirmation
   const handleStatusChange = async (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
     try {
       const { error } = await supabase
@@ -244,6 +243,13 @@ const CalendarManagementPage: React.FC = () => {
         description: "Failed to update booking. Please try again.",
         variant: "destructive",
       });
+    }
+  };
+
+  // Handle phone call
+  const handlePhoneCall = (phoneNumber: string) => {
+    if (phoneNumber) {
+      window.location.href = `tel:${phoneNumber}`;
     }
   };
 
@@ -523,7 +529,7 @@ const CalendarManagementPage: React.FC = () => {
       </Card>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Today's Bookings */}
+        {/* Today's Bookings with Enhanced Customer Details */}
         <div className="lg:col-span-2">
           <Card>
             <CardHeader className="py-2">
@@ -578,13 +584,22 @@ const CalendarManagementPage: React.FC = () => {
                           <div className="text-xs">
                             <div className="flex items-center">
                               <User className="h-3 w-3 mr-1 text-booqit-dark/60" />
-                              <span>{booking.user_details?.name || 'Customer'}</span>
+                              <span>{booking.user_details?.name || 'Unknown Customer'}</span>
                             </div>
                           </div>
                           <div className="text-xs">
                             <div className="flex items-center">
                               <Phone className="h-3 w-3 mr-1 text-booqit-dark/60" />
-                              <span>{booking.user_details?.phone || 'No phone'}</span>
+                              {booking.user_details?.phone ? (
+                                <button
+                                  onClick={() => handlePhoneCall(booking.user_details!.phone)}
+                                  className="text-blue-600 hover:text-blue-800 underline cursor-pointer"
+                                >
+                                  {booking.user_details.phone}
+                                </button>
+                              ) : (
+                                <span className="text-gray-400">No phone</span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -592,35 +607,98 @@ const CalendarManagementPage: React.FC = () => {
                         {booking.status !== 'cancelled' && booking.status !== 'completed' && (
                           <div className="flex justify-end gap-1 mt-2">
                             {booking.status === 'pending' && (
-                              <Button 
-                                variant="default"
-                                size="sm"
-                                className="h-7 text-xs bg-green-500 hover:bg-green-600"
-                                onClick={() => handleStatusChange(booking.id, 'confirmed')}
-                              >
-                                Confirm
-                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button 
+                                    variant="default"
+                                    size="sm"
+                                    className="h-7 text-xs bg-green-500 hover:bg-green-600"
+                                  >
+                                    <Check className="mr-1 h-3 w-3" />
+                                    Confirm
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Confirm Booking</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Are you sure you want to confirm this booking for {booking.user_details?.name || 'the customer'}?
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction 
+                                      onClick={() => handleStatusChange(booking.id, 'confirmed')}
+                                      className="bg-green-500 hover:bg-green-600"
+                                    >
+                                      Confirm Booking
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
                             )}
                             
                             {booking.status === 'confirmed' && (
-                              <Button 
-                                variant="default"
-                                size="sm"
-                                className="h-7 text-xs bg-blue-500 hover:bg-blue-600"
-                                onClick={() => handleStatusChange(booking.id, 'completed')}
-                              >
-                                Complete
-                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button 
+                                    variant="default"
+                                    size="sm"
+                                    className="h-7 text-xs bg-blue-500 hover:bg-blue-600"
+                                  >
+                                    <Check className="mr-1 h-3 w-3" />
+                                    Complete
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Complete Booking</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Mark this booking as completed for {booking.user_details?.name || 'the customer'}? This action cannot be undone.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction 
+                                      onClick={() => handleStatusChange(booking.id, 'completed')}
+                                      className="bg-blue-500 hover:bg-blue-600"
+                                    >
+                                      Mark Complete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
                             )}
                             
-                            <Button 
-                              variant="destructive"
-                              size="sm"
-                              className="h-7 text-xs"
-                              onClick={() => handleStatusChange(booking.id, 'cancelled')}
-                            >
-                              Cancel
-                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button 
+                                  variant="destructive"
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                >
+                                  <X className="mr-1 h-3 w-3" />
+                                  Cancel
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Cancel Booking</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to cancel this booking for {booking.user_details?.name || 'the customer'}? This action cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Keep Booking</AlertDialogCancel>
+                                  <AlertDialogAction 
+                                    onClick={() => handleStatusChange(booking.id, 'cancelled')}
+                                    className="bg-red-500 hover:bg-red-600"
+                                  >
+                                    Cancel Booking
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </div>
                         )}
                       </CardContent>
