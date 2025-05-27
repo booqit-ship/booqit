@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -22,6 +23,16 @@ interface HolidayDate {
   id: string;
   holiday_date: string;
   description: string | null;
+}
+
+interface BookingStatusResponse {
+  success: boolean;
+  error?: string;
+  booking?: {
+    id: string;
+    status: string;
+    updated_at: string;
+  };
 }
 
 const CalendarManagementPage: React.FC = () => {
@@ -248,12 +259,15 @@ const CalendarManagementPage: React.FC = () => {
         throw error;
       }
 
-      if (!data.success) {
-        console.error('Booking update failed:', data.error);
-        throw new Error(data.error);
+      // Type cast the response to our expected interface
+      const response = data as BookingStatusResponse;
+
+      if (!response.success) {
+        console.error('Booking update failed:', response.error);
+        throw new Error(response.error);
       }
 
-      console.log('Booking status updated successfully:', data);
+      console.log('Booking status updated successfully:', response);
 
       toast({
         title: "Success",
