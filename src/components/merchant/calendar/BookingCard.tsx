@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,6 +35,7 @@ interface BookingCardProps {
 
 const BookingCard: React.FC<BookingCardProps> = ({ booking, onStatusChange }) => {
   const { toast } = useToast();
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -55,6 +56,21 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onStatusChange }) =>
         description: "No phone number available for this customer.",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleStatusUpdate = async (newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
+    if (isUpdating) return;
+    
+    setIsUpdating(true);
+    try {
+      console.log(`BookingCard: Starting status update for booking ${booking.id} from ${booking.status} to ${newStatus}`);
+      await onStatusChange(booking.id, newStatus);
+      console.log(`BookingCard: Status update completed successfully for booking ${booking.id}`);
+    } catch (error) {
+      console.error(`BookingCard: Error updating status for booking ${booking.id}:`, error);
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -122,10 +138,11 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onStatusChange }) =>
                 <AlertDialogTrigger asChild>
                   <Button 
                     size="sm"
+                    disabled={isUpdating}
                     className="bg-green-500 hover:bg-green-600 text-white font-medium px-3 h-8"
                   >
                     <Check className="mr-1 h-3 w-3" />
-                    Confirm
+                    {isUpdating ? 'Updating...' : 'Confirm'}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -138,8 +155,9 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onStatusChange }) =>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction 
-                      onClick={() => onStatusChange(booking.id, 'confirmed')}
+                      onClick={() => handleStatusUpdate('confirmed')}
                       className="bg-green-500 hover:bg-green-600"
+                      disabled={isUpdating}
                     >
                       Confirm Booking
                     </AlertDialogAction>
@@ -153,10 +171,11 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onStatusChange }) =>
                 <AlertDialogTrigger asChild>
                   <Button 
                     size="sm"
+                    disabled={isUpdating}
                     className="bg-blue-500 hover:bg-blue-600 text-white font-medium px-3 h-8"
                   >
                     <Check className="mr-1 h-3 w-3" />
-                    Complete
+                    {isUpdating ? 'Updating...' : 'Complete'}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -169,8 +188,9 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onStatusChange }) =>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction 
-                      onClick={() => onStatusChange(booking.id, 'completed')}
+                      onClick={() => handleStatusUpdate('completed')}
                       className="bg-blue-500 hover:bg-blue-600"
+                      disabled={isUpdating}
                     >
                       Mark Complete
                     </AlertDialogAction>
@@ -184,10 +204,11 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onStatusChange }) =>
                 <Button 
                   variant="destructive"
                   size="sm"
+                  disabled={isUpdating}
                   className="font-medium px-3 h-8"
                 >
                   <X className="mr-1 h-3 w-3" />
-                  Cancel
+                  {isUpdating ? 'Updating...' : 'Cancel'}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
@@ -200,8 +221,9 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onStatusChange }) =>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Keep Booking</AlertDialogCancel>
                   <AlertDialogAction 
-                    onClick={() => onStatusChange(booking.id, 'cancelled')}
+                    onClick={() => handleStatusUpdate('cancelled')}
                     className="bg-red-500 hover:bg-red-600"
+                    disabled={isUpdating}
                   >
                     Cancel Booking
                   </AlertDialogAction>

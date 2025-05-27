@@ -56,6 +56,8 @@ const CalendarPage: React.FC = () => {
     
     setIsLoading(true);
     try {
+      console.log('Customer: Fetching bookings for user:', userId);
+      
       const { data, error } = await supabase
         .from('bookings')
         .select(`
@@ -114,7 +116,7 @@ const CalendarPage: React.FC = () => {
 
     // Set up real-time subscription for bookings changes
     const channel = supabase
-      .channel('customer-bookings-changes')
+      .channel('customer-bookings-realtime')
       .on(
         'postgres_changes',
         {
@@ -137,7 +139,7 @@ const CalendarPage: React.FC = () => {
       console.log('Cleaning up customer real-time subscription');
       supabase.removeChannel(channel);
     };
-  }, [userId, toast]);
+  }, [userId]);
 
   // Filter bookings for the selected date
   const todayBookings = useMemo(() => {

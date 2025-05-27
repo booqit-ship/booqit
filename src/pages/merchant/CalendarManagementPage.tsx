@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -120,30 +119,22 @@ const CalendarManagementPage: React.FC = () => {
       
       console.log('Merchant bookings fetched:', bookingsData);
       
-      const processedBookings = bookingsData?.map((booking) => {
-        console.log('Processing booking:', booking.id, 'Customer details:', {
-          name: booking.customer_name,
-          phone: booking.customer_phone,
-          email: booking.customer_email
-        });
-        
-        return {
-          id: booking.id,
-          user_id: booking.user_id,
-          merchant_id: booking.merchant_id,
-          service_id: booking.service_id,
-          date: booking.date,
-          time_slot: booking.time_slot,
-          status: booking.status as "pending" | "confirmed" | "completed" | "cancelled",
-          payment_status: booking.payment_status as "pending" | "completed" | "failed" | "refunded",
-          created_at: booking.created_at,
-          staff_id: booking.staff_id,
-          service: booking.service,
-          customer_name: booking.customer_name || 'Unknown Customer',
-          customer_phone: booking.customer_phone || null,
-          customer_email: booking.customer_email || null
-        } as BookingWithCustomerDetails;
-      }) || [];
+      const processedBookings = bookingsData?.map((booking) => ({
+        id: booking.id,
+        user_id: booking.user_id,
+        merchant_id: booking.merchant_id,
+        service_id: booking.service_id,
+        date: booking.date,
+        time_slot: booking.time_slot,
+        status: booking.status as "pending" | "confirmed" | "completed" | "cancelled",
+        payment_status: booking.payment_status as "pending" | "completed" | "failed" | "refunded",
+        created_at: booking.created_at,
+        staff_id: booking.staff_id,
+        service: booking.service,
+        customer_name: booking.customer_name || 'Unknown Customer',
+        customer_phone: booking.customer_phone || null,
+        customer_email: booking.customer_email || null
+      } as BookingWithCustomerDetails)) || [];
       
       console.log('Processed merchant bookings:', processedBookings);
       setBookings(processedBookings);
@@ -167,7 +158,7 @@ const CalendarManagementPage: React.FC = () => {
 
     // Set up real-time subscription for bookings changes
     const channel = supabase
-      .channel('merchant-bookings-changes')
+      .channel('merchant-bookings-realtime')
       .on(
         'postgres_changes',
         {
@@ -190,7 +181,7 @@ const CalendarManagementPage: React.FC = () => {
       console.log('Cleaning up merchant real-time subscription');
       supabase.removeChannel(channel);
     };
-  }, [merchantId, toast]);
+  }, [merchantId]);
 
   // Fetch holiday dates for the merchant
   useEffect(() => {
@@ -230,23 +221,56 @@ const CalendarManagementPage: React.FC = () => {
     }).sort((a, b) => a.time_slot.localeCompare(b.time_slot));
   }, [bookings, date]);
 
-  // Handle booking status change
+  // Handle booking status change with enhanced error handling
   const handleStatusChange = async (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
-    console.log('Merchant updating booking status:', bookingId, 'to:', newStatus);
+    console.log(`CalendarManagementPage: Starting status update for booking ${bookingId} to ${newStatus}`);
     
+    if (!merchantId) {
+      console.error('CalendarManagementPage: No merchant ID available');
+      toast({
+        title: "Error",
+        description: "Unable to update booking - merchant not identified.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
-      // Update the booking status in the database
-      const { error } = await supabase
+      // First, verify the booking belongs to this merchant
+      const { data: existingBooking, error: checkError } = await supabase
+        .from('bookings')
+        .select('id, status, merchant_id')
+        .eq('id', bookingId)
+        .eq('merchant_id', merchantId)
+        .single();
+
+      if (checkError) {
+        console.error('CalendarManagementPage: Error checking booking ownership:', checkError);
+        throw new Error('Failed to verify booking ownership');
+      }
+
+      if (!existingBooking) {
+        console.error('CalendarManagementPage: Booking not found or not owned by merchant');
+        throw new Error('Booking not found or not accessible');
+      }
+
+      console.log(`CalendarManagementPage: Verified booking ${bookingId} belongs to merchant, current status: ${existingBooking.status}`);
+
+      // Update the booking status
+      const { data: updatedBooking, error: updateError } = await supabase
         .from('bookings')
         .update({ status: newStatus })
-        .eq('id', bookingId);
-        
-      if (error) {
-        console.error('Merchant booking status update error:', error);
-        throw error;
+        .eq('id', bookingId)
+        .eq('merchant_id', merchantId)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error('CalendarManagementPage: Database update error:', updateError);
+        throw updateError;
       }
-      
-      console.log('Merchant booking status updated successfully');
+
+      console.log(`CalendarManagementPage: Successfully updated booking ${bookingId} to status ${newStatus}:`, updatedBooking);
       
       toast({
         title: "Success",
@@ -255,13 +279,15 @@ const CalendarManagementPage: React.FC = () => {
 
       // Force refresh bookings to get the latest data
       await fetchBookings();
+      
     } catch (error: any) {
-      console.error('Error updating merchant booking status:', error);
+      console.error('CalendarManagementPage: Error updating booking status:', error);
       toast({
-        title: "Error",
-        description: "Failed to update booking. Please try again.",
+        title: "Error", 
+        description: error.message || "Failed to update booking. Please try again.",
         variant: "destructive",
       });
+      throw error; // Re-throw so BookingCard can handle it
     }
   };
 
