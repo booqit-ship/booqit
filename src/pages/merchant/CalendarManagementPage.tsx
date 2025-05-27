@@ -371,24 +371,21 @@ const CalendarManagementPage: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto px-2 sm:px-4 py-4 bg-gradient-to-br from-booqit-light to-white min-h-screen">
-      <div className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold text-booqit-dark bg-gradient-to-r from-booqit-primary to-booqit-secondary bg-clip-text text-transparent">
-          Calendar Management
-        </h1>
-        <p className="text-booqit-dark/70 mt-1">Manage your appointments and bookings</p>
+    <div className="container mx-auto px-2 sm:px-4 py-4">
+      <div className="mb-4">
+        <h1 className="text-xl sm:text-2xl font-bold text-booqit-dark">Calendar Management</h1>
       </div>
       
       {/* Calendar View */}
-      <Card className="mb-6 overflow-hidden shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-        <CardHeader className="bg-gradient-to-r from-booqit-primary to-booqit-secondary py-4">
+      <Card className="mb-4 overflow-hidden shadow-sm">
+        <CardHeader className="bg-gradient-to-r from-booqit-primary/5 to-booqit-primary/10 py-2">
           <div className="flex justify-between items-center">
-            <CardTitle className="text-white text-lg sm:text-xl font-semibold">Appointments</CardTitle>
+            <CardTitle className="text-booqit-dark text-base sm:text-lg">Appointments</CardTitle>
             <div className="flex items-center space-x-2">
               <Button 
-                variant="secondary"
+                variant="outline"
                 size="sm"
-                className="h-9 w-9 p-0 rounded-full bg-white/20 hover:bg-white/30 text-white border-0"
+                className="h-8 w-8 p-0 rounded-full"
                 onClick={goToPrevious}
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -396,18 +393,18 @@ const CalendarManagementPage: React.FC = () => {
               </Button>
               
               <Button 
-                variant="secondary"
+                variant="outline"
                 size="sm"
-                className="h-9 text-sm font-medium px-3 bg-white/20 hover:bg-white/30 text-white border-0"
+                className="h-8 text-xs font-medium px-2"
                 onClick={goToToday}
               >
                 Today
               </Button>
               
               <Button 
-                variant="secondary"
+                variant="outline"
                 size="sm"
-                className="h-9 w-9 p-0 rounded-full bg-white/20 hover:bg-white/30 text-white border-0"
+                className="h-8 w-8 p-0 rounded-full"
                 onClick={goToNext}
               >
                 <ChevronRight className="h-4 w-4" />
@@ -417,16 +414,16 @@ const CalendarManagementPage: React.FC = () => {
               <Dialog open={holidayDialogOpen} onOpenChange={setHolidayDialogOpen}>
                 <DialogTrigger asChild>
                   <Button 
-                    variant="secondary"
+                    variant="outline"
                     size="sm"
-                    className="h-9 px-3 ml-2 bg-white/20 hover:bg-white/30 text-white border-0"
+                    className="h-8 px-2 ml-1"
                     onClick={() => {
                       setNewHoliday(date);
                       setHolidayDialogOpen(true);
                     }}
                   >
-                    <Flag className="h-4 w-4 mr-1" />
-                    <span className="text-sm hidden xs:inline">Holiday</span>
+                    <Flag className="h-3.5 w-3.5 mr-1" />
+                    <span className="text-xs hidden xs:inline">Holiday</span>
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-[350px] sm:max-w-md">
@@ -504,35 +501,33 @@ const CalendarManagementPage: React.FC = () => {
                   onClick={() => !isHolidayDay && setDate(day)}
                   className={`
                     flex-1 transition-all cursor-pointer border-r last:border-r-0 border-gray-100
-                    ${isSelectedDay ? 'bg-gradient-to-b from-booqit-primary/10 to-booqit-primary/5 ring-2 ring-inset ring-booqit-primary z-10' : ''}
-                    ${isHolidayDay ? 'cursor-not-allowed' : 'hover:bg-booqit-primary/5'}
+                    ${isSelectedDay ? 'bg-purple-100 ring-1 ring-inset ring-booqit-primary z-10' : ''}
+                    ${isHolidayDay ? 'cursor-not-allowed' : 'hover:bg-gray-50'}
                   `}
                 >
                   <div className={`
-                    flex flex-col items-center justify-center p-2 sm:p-3 transition-all
-                    ${isCurrentDay ? 'bg-gradient-to-r from-booqit-primary to-booqit-secondary text-white shadow-lg' : ''}
-                    ${isHolidayDay ? 'bg-gradient-to-r from-red-500 to-red-600 text-white' : ''}
+                    flex flex-col items-center justify-center p-1.5 sm:p-2
+                    ${isCurrentDay ? 'bg-booqit-primary text-white' : ''}
+                    ${isHolidayDay ? 'bg-red-500 text-white' : ''}
                   `}>
-                    <div className="text-xs sm:text-sm uppercase font-medium tracking-wider opacity-90">
+                    <div className="text-[10px] xs:text-xs sm:text-xs uppercase font-medium tracking-wider">
                       {format(day, 'EEE')}
                     </div>
-                    <div className="text-xl sm:text-2xl font-bold my-1">
+                    <div className="text-base xs:text-lg sm:text-xl font-bold my-0.5">
                       {format(day, 'd')}
                     </div>
-                    <div className="text-xs sm:text-sm opacity-90">
+                    <div className="text-[10px] xs:text-xs sm:text-xs">
                       {format(day, 'MMM')}
                     </div>
                   </div>
                   
-                  <div className="py-2 px-2 text-center text-xs sm:text-sm font-medium">
+                  <div className="py-1 px-1 text-center text-[10px] xs:text-xs sm:text-xs font-medium">
                     {isHolidayDay ? (
-                      <span className="text-red-500 font-semibold">Holiday</span>
+                      <span className="text-red-500 text-[9px] xs:text-xs">Holiday</span>
                     ) : bookingsCount > 0 ? (
-                      <div className="bg-booqit-primary/10 text-booqit-primary px-2 py-1 rounded-full">
-                        {bookingsCount} {bookingsCount === 1 ? 'appt' : 'appts'}
-                      </div>
+                      <span className="text-[9px] xs:text-xs">{bookingsCount} {bookingsCount === 1 ? 'appt' : 'appts'}</span>
                     ) : (
-                      <span className="text-gray-400">-</span>
+                      <span className="text-gray-400 text-[9px] xs:text-xs">-</span>
                     )}
                   </div>
                 </div>
@@ -542,101 +537,93 @@ const CalendarManagementPage: React.FC = () => {
         </CardContent>
       </Card>
       
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Today's Bookings with Enhanced Design */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Today's Bookings with Enhanced Customer Details */}
         <div className="lg:col-span-2">
-          <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-            <CardHeader className="bg-gradient-to-r from-booqit-teal/10 to-booqit-primary/10 py-4 border-b border-booqit-primary/10">
-              <CardTitle className="text-lg sm:text-xl flex items-center text-booqit-dark">
-                <CalendarCheck className="mr-3 h-5 w-5 text-booqit-primary" />
+          <Card>
+            <CardHeader className="py-2">
+              <CardTitle className="text-base sm:text-lg flex items-center">
+                <CalendarCheck className="mr-2 h-4 w-4" />
                 {format(date, 'MMMM d, yyyy')} Bookings
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-4">
+            <CardContent>
               {isLoading ? (
-                <div className="flex justify-center py-8">
-                  <div className="animate-spin rounded-full h-12 w-12 border-4 border-booqit-primary/20 border-t-booqit-primary"></div>
+                <div className="flex justify-center py-6">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-booqit-primary"></div>
                 </div>
               ) : isHoliday(date) ? (
-                <div className="text-center py-8 border-2 border-dashed border-red-200 rounded-xl bg-red-50">
-                  <CalendarX className="h-12 w-12 mx-auto text-red-400 mb-3" />
-                  <p className="text-red-600 text-lg font-medium">Shop Holiday - Closed</p>
-                  <p className="text-red-500 text-sm mt-1">{getHolidayDescription(date)}</p>
+                <div className="text-center py-6 border rounded-md bg-red-50">
+                  <CalendarX className="h-8 w-8 mx-auto text-red-400 mb-2" />
+                  <p className="text-red-600 text-sm font-medium">Shop Holiday - Closed</p>
+                  <p className="text-red-500 text-xs mt-1">{getHolidayDescription(date)}</p>
                 </div>
               ) : todayBookings.length === 0 ? (
-                <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50">
-                  <CalendarIcon className="h-12 w-12 mx-auto text-gray-400 mb-3" />
-                  <p className="text-gray-500 text-lg">No bookings for this date</p>
-                  <p className="text-gray-400 text-sm mt-1">Your schedule is free today</p>
+                <div className="text-center py-6 border rounded-md bg-gray-50">
+                  <CalendarIcon className="h-8 w-8 mx-auto text-gray-400 mb-2" />
+                  <p className="text-gray-500 text-sm">No bookings for this date</p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {todayBookings.map(booking => (
-                    <Card key={booking.id} className="overflow-hidden border-l-4 shadow-md hover:shadow-lg transition-all duration-200" style={{
-                      borderLeftColor: booking.status === 'confirmed' ? '#4ECDC4' : 
-                                      booking.status === 'pending' ? '#FFD166' :
-                                      booking.status === 'completed' ? '#7E57C2' : '#FF6B6B'
+                    <Card key={booking.id} className="overflow-hidden border-l-4" style={{
+                      borderLeftColor: booking.status === 'confirmed' ? '#22c55e' : 
+                                      booking.status === 'pending' ? '#eab308' :
+                                      booking.status === 'completed' ? '#3b82f6' : '#ef4444'
                     }}>
-                      <CardContent className="p-4">
-                        <div className="flex justify-between items-start mb-3">
+                      <CardContent className="p-3">
+                        <div className="flex justify-between items-center mb-2">
                           <div className="flex items-center">
-                            <div className="bg-gradient-to-r from-booqit-primary to-booqit-secondary p-2 rounded-full mr-3">
-                              <Clock className="h-4 w-4 text-white" />
+                            <div className="bg-gray-100 p-1 rounded-full mr-2">
+                              <Clock className="h-4 w-4 text-booqit-primary" />
                             </div>
                             <div>
-                              <h3 className="text-lg font-semibold text-booqit-dark">{booking.service?.name}</h3>
-                              <p className="text-booqit-primary font-medium">
+                              <h3 className="text-sm font-medium">{booking.service?.name}</h3>
+                              <p className="text-xs text-booqit-dark/60">
                                 {booking.time_slot}
                               </p>
                             </div>
                           </div>
-                          <Badge 
-                            className={`
-                              px-3 py-1 text-white font-medium rounded-full
-                              ${booking.status === 'confirmed' ? 'bg-booqit-teal' : 
-                                booking.status === 'pending' ? 'bg-booqit-yellow' :
-                                booking.status === 'completed' ? 'bg-booqit-primary' : 'bg-booqit-secondary'}
-                            `}
-                          >
+                          <Badge className={getStatusColor(booking.status)}>
                             {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                           </Badge>
                         </div>
                         
-                        <div className="bg-booqit-light/50 rounded-lg p-3 mb-3">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                          <div className="text-xs">
                             <div className="flex items-center">
-                              <User className="h-4 w-4 mr-2 text-booqit-primary" />
-                              <span className="font-medium text-booqit-dark">
-                                {booking.user_details?.name || 'Unknown Customer'}
-                              </span>
+                              <User className="h-3 w-3 mr-1 text-booqit-dark/60" />
+                              <span>{booking.user_details?.name || 'Unknown Customer'}</span>
                             </div>
+                          </div>
+                          <div className="text-xs">
                             <div className="flex items-center">
-                              <Phone className="h-4 w-4 mr-2 text-booqit-primary" />
+                              <Phone className="h-3 w-3 mr-1 text-booqit-dark/60" />
                               {booking.user_details?.phone ? (
                                 <button
                                   onClick={() => handlePhoneCall(booking.user_details!.phone)}
-                                  className="text-booqit-primary hover:text-booqit-secondary font-medium underline transition-colors duration-200 bg-white/80 px-2 py-1 rounded"
+                                  className="text-blue-600 hover:text-blue-800 underline cursor-pointer"
                                 >
                                   {booking.user_details.phone}
                                 </button>
                               ) : (
-                                <span className="text-gray-400 italic">No phone</span>
+                                <span className="text-gray-400">No phone</span>
                               )}
                             </div>
                           </div>
                         </div>
                         
                         {booking.status !== 'cancelled' && booking.status !== 'completed' && (
-                          <div className="flex justify-end gap-2 mt-3">
+                          <div className="flex justify-end gap-1 mt-2">
                             {booking.status === 'pending' && (
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button 
                                     variant="default"
                                     size="sm"
-                                    className="bg-booqit-teal hover:bg-booqit-teal/90 text-white shadow-md"
+                                    className="h-7 text-xs bg-green-500 hover:bg-green-600"
                                   >
-                                    <Check className="mr-1 h-4 w-4" />
+                                    <Check className="mr-1 h-3 w-3" />
                                     Confirm
                                   </Button>
                                 </AlertDialogTrigger>
@@ -651,7 +638,7 @@ const CalendarManagementPage: React.FC = () => {
                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                                     <AlertDialogAction 
                                       onClick={() => handleStatusChange(booking.id, 'confirmed')}
-                                      className="bg-booqit-teal hover:bg-booqit-teal/90"
+                                      className="bg-green-500 hover:bg-green-600"
                                     >
                                       Confirm Booking
                                     </AlertDialogAction>
@@ -666,9 +653,9 @@ const CalendarManagementPage: React.FC = () => {
                                   <Button 
                                     variant="default"
                                     size="sm"
-                                    className="bg-booqit-primary hover:bg-booqit-primary/90 text-white shadow-md"
+                                    className="h-7 text-xs bg-blue-500 hover:bg-blue-600"
                                   >
-                                    <Check className="mr-1 h-4 w-4" />
+                                    <Check className="mr-1 h-3 w-3" />
                                     Complete
                                   </Button>
                                 </AlertDialogTrigger>
@@ -683,7 +670,7 @@ const CalendarManagementPage: React.FC = () => {
                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                                     <AlertDialogAction 
                                       onClick={() => handleStatusChange(booking.id, 'completed')}
-                                      className="bg-booqit-primary hover:bg-booqit-primary/90"
+                                      className="bg-blue-500 hover:bg-blue-600"
                                     >
                                       Mark Complete
                                     </AlertDialogAction>
@@ -697,9 +684,9 @@ const CalendarManagementPage: React.FC = () => {
                                 <Button 
                                   variant="destructive"
                                   size="sm"
-                                  className="bg-booqit-secondary hover:bg-booqit-secondary/90 shadow-md"
+                                  className="h-7 text-xs"
                                 >
-                                  <X className="mr-1 h-4 w-4" />
+                                  <X className="mr-1 h-3 w-3" />
                                   Cancel
                                 </Button>
                               </AlertDialogTrigger>
@@ -714,7 +701,7 @@ const CalendarManagementPage: React.FC = () => {
                                   <AlertDialogCancel>Keep Booking</AlertDialogCancel>
                                   <AlertDialogAction 
                                     onClick={() => handleStatusChange(booking.id, 'cancelled')}
-                                    className="bg-booqit-secondary hover:bg-booqit-secondary/90"
+                                    className="bg-red-500 hover:bg-red-600"
                                   >
                                     Cancel Booking
                                   </AlertDialogAction>
@@ -733,7 +720,7 @@ const CalendarManagementPage: React.FC = () => {
         </div>
         
         {/* Right Sidebar */}
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* Stylist Availability Widget */}
           {merchantId && (
             <StylistAvailabilityWidget 
@@ -744,14 +731,14 @@ const CalendarManagementPage: React.FC = () => {
           )}
           
           {/* Shop Holidays */}
-          <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-            <CardHeader className="bg-gradient-to-r from-red-50 to-orange-50 py-4 border-b border-red-100">
-              <CardTitle className="text-lg flex items-center text-booqit-dark">
-                <Flag className="mr-2 h-5 w-5 text-red-500" />
+          <Card>
+            <CardHeader className="py-2">
+              <CardTitle className="text-base sm:text-lg flex items-center">
+                <Flag className="mr-2 h-4 w-4 text-red-500" />
                 Shop Holidays
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-4">
+            <CardContent>
               {isHolidayLoading ? (
                 <div className="flex justify-center py-6">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-booqit-primary"></div>
