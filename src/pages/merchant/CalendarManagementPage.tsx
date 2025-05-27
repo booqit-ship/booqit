@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -270,16 +271,16 @@ const CalendarManagementPage: React.FC = () => {
     }).sort((a, b) => a.time_slot.localeCompare(b.time_slot));
   }, [bookings, date]);
 
-  // Handle booking status change
+  // Handle booking status change - FIXED VERSION
   const handleStatusChange = async (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
     console.log('Merchant updating booking status:', bookingId, 'to:', newStatus);
     
     try {
+      // Update the booking status in the database
       const { error } = await supabase
         .from('bookings')
         .update({ status: newStatus })
-        .eq('id', bookingId)
-        .eq('merchant_id', merchantId); // Ensure merchant can only update their own bookings
+        .eq('id', bookingId);
         
       if (error) {
         console.error('Merchant booking status update error:', error);
@@ -293,7 +294,7 @@ const CalendarManagementPage: React.FC = () => {
         description: `Booking ${newStatus} successfully.`,
       });
 
-      // Immediately refresh bookings
+      // Force refresh bookings to get the latest data
       await fetchBookings();
     } catch (error: any) {
       console.error('Error updating merchant booking status:', error);
