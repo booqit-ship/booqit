@@ -8,6 +8,16 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format, addDays, isWeekend, startOfDay } from 'date-fns';
 
+interface AvailableSlot {
+  staff_id: string;
+  staff_name: string;
+  time_slot: string;
+  is_shop_holiday: boolean;
+  is_stylist_holiday: boolean;
+  shop_holiday_reason: string | null;
+  stylist_holiday_reason: string | null;
+}
+
 const BookingPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
@@ -16,10 +26,9 @@ const BookingPage: React.FC = () => {
 
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string>('');
-  const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
+  const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
   const [loading, setLoading] = useState(false);
   const [holidays, setHolidays] = useState<string[]>([]);
-  const [blockedSlots, setBlockedSlots] = useState<Array<{date: string, time_slot: string}>>([]);
 
   const getAvailableDates = () => {
     const dates: Date[] = [];
@@ -41,7 +50,7 @@ const BookingPage: React.FC = () => {
   const availableDates = getAvailableDates();
 
   useEffect(() => {
-    const fetchAvailabilityData = async () => {
+    const fetchHolidayDates = async () => {
       try {
         if (!merchantId) return;
 
@@ -51,134 +60,79 @@ const BookingPage: React.FC = () => {
           .select('holiday_date')
           .eq('merchant_id', merchantId);
 
-        // Fetch stylist holidays (if specific staff selected)
-        let stylistHolidays: any[] = [];
-        if (selectedStaff) {
-          const { data } = await supabase
-            .from('stylist_holidays')
-            .select('holiday_date')
-            .eq('staff_id', selectedStaff);
-          stylistHolidays = data || [];
-        }
-
-        // Fetch blocked slots (if specific staff selected)
-        let blockedSlotData: any[] = [];
-        if (selectedStaff) {
-          const { data } = await supabase
-            .from('stylist_blocked_slots')
-            .select('blocked_date, time_slot')
-            .eq('staff_id', selectedStaff);
-          blockedSlotData = data || [];
-        }
-
-        // Combine all holidays
-        const allHolidays = [
-          ...(shopHolidays || []).map(h => h.holiday_date),
-          ...stylistHolidays.map(h => h.holiday_date)
-        ];
-
+        const allHolidays = (shopHolidays || []).map(h => h.holiday_date);
         setHolidays(allHolidays);
-        setBlockedSlots(blockedSlotData.map(slot => ({
-          date: slot.blocked_date,
-          time_slot: slot.time_slot
-        })));
       } catch (error) {
-        console.error('Error fetching availability data:', error);
-        toast.error('Could not load availability');
+        console.error('Error fetching holiday data:', error);
       }
     };
 
-    fetchAvailabilityData();
-  }, [merchantId, selectedStaff]);
-
-  const generateTimeSlots = (serviceDuration: number) => {
-    const slots: string[] = [];
-    if (!merchant) return slots;
-
-    const openTime = merchant.open_time;
-    const closeTime = merchant.close_time;
-    
-    const [openHour, openMinute] = openTime.split(':').map(Number);
-    const [closeHour, closeMinute] = closeTime.split(':').map(Number);
-    
-    let currentTime = openHour * 60 + openMinute; // Convert to minutes
-    const closeTimeInMinutes = closeHour * 60 + closeMinute;
-    
-    while (currentTime + serviceDuration <= closeTimeInMinutes) {
-      const hours = Math.floor(currentTime / 60);
-      const minutes = currentTime % 60;
-      const timeSlot = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-      slots.push(timeSlot);
-      
-      // Move to next slot (30 minute intervals)
-      currentTime += 30;
-    }
-    
-    return slots;
-  };
+    fetchHolidayDates();
+  }, [merchantId]);
 
   useEffect(() => {
     const fetchAvailableSlots = async () => {
-      if (!selectedDate || !merchant || !selectedServices.length) return;
+      if (!selectedDate || !merchantId) return;
 
       setLoading(true);
       try {
         const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
         console.log('Fetching slots for date:', selectedDateStr);
 
-        // Generate base time slots for the total duration
-        const baseSlots = generateTimeSlots(totalDuration);
-        console.log('Base slots generated:', baseSlots);
-
-        // Fetch existing bookings for the selected date with proper error handling
-        const { data: existingBookings, error: bookingError } = await supabase
-          .from('bookings')
-          .select('time_slot, staff_id, status')
-          .eq('merchant_id', merchantId)
-          .eq('date', selectedDateStr)
-          .in('status', ['confirmed', 'pending']);
-
-        if (bookingError) {
-          console.error('Error fetching bookings:', bookingError);
-          // Don't fail completely, just log and continue with empty bookings
-        }
-
-        console.log('Existing bookings:', existingBookings);
-
-        // Filter out booked and blocked slots
-        const availableSlots = baseSlots.filter(slot => {
-          // Check if slot is not booked
-          const isBooked = existingBookings?.some(booking => {
-            // If a specific staff is selected, only check bookings for that staff
-            if (selectedStaff) {
-              return booking.time_slot === slot && booking.staff_id === selectedStaff;
-            }
-            // If any staff, check all bookings for that time slot
-            return booking.time_slot === slot;
-          });
-          
-          // Check if slot is blocked for selected staff
-          const isBlocked = blockedSlots.some(blockedSlot => 
-            blockedSlot.date === selectedDateStr && blockedSlot.time_slot === slot
-          );
-          
-          console.log(`Slot ${slot}: booked=${isBooked}, blocked=${isBlocked}`);
-          return !isBooked && !isBlocked;
+        // Generate slots for the selected date if they don't exist
+        const { error: generateError } = await supabase.rpc('generate_stylist_slots', {
+          p_merchant_id: merchantId,
+          p_date: selectedDateStr
         });
 
-        console.log('Available slots:', availableSlots);
-        setAvailableTimeSlots(availableSlots);
+        if (generateError) {
+          console.error('Error generating slots:', generateError);
+        }
+
+        // Get available slots using the new function
+        const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots', {
+          p_merchant_id: merchantId,
+          p_date: selectedDateStr,
+          p_staff_id: selectedStaff || null,
+          p_service_duration: totalDuration
+        });
+
+        if (slotsError) {
+          console.error('Error fetching available slots:', slotsError);
+          toast.error('Could not load available time slots');
+          setAvailableSlots([]);
+          return;
+        }
+
+        console.log('Available slots data:', slotsData);
+
+        // Filter out holiday slots and process the data
+        const processedSlots = (slotsData || [])
+          .filter((slot: AvailableSlot) => !slot.is_shop_holiday && !slot.is_stylist_holiday)
+          .map((slot: AvailableSlot) => ({
+            ...slot,
+            time_slot: slot.time_slot.substring(0, 5) // Format time as HH:MM
+          }));
+
+        setAvailableSlots(processedSlots);
+
+        // Check if it's a shop holiday
+        const shopHoliday = (slotsData || []).find((slot: AvailableSlot) => slot.is_shop_holiday);
+        if (shopHoliday) {
+          toast.info(`Shop is closed: ${shopHoliday.shop_holiday_reason || 'Holiday'}`);
+        }
+
       } catch (error) {
-        console.error('Error generating time slots:', error);
+        console.error('Error fetching available slots:', error);
         toast.error('Could not load time slots');
-        setAvailableTimeSlots([]);
+        setAvailableSlots([]);
       } finally {
         setLoading(false);
       }
     };
 
     fetchAvailableSlots();
-  }, [selectedDate, merchant, merchantId, blockedSlots, selectedServices, totalDuration, selectedStaff]);
+  }, [selectedDate, merchantId, selectedStaff, totalDuration]);
 
   const handleContinue = () => {
     if (!selectedDate || !selectedTime) {
@@ -186,13 +140,18 @@ const BookingPage: React.FC = () => {
       return;
     }
 
+    // Find the selected slot to get staff info
+    const selectedSlot = availableSlots.find(slot => slot.time_slot === selectedTime);
+    const finalStaffId = selectedStaff || selectedSlot?.staff_id;
+    const finalStaffDetails = selectedStaffDetails || { name: selectedSlot?.staff_name };
+
     console.log('Navigating to payment with data:', {
       merchant,
       selectedServices,
       totalPrice,
       totalDuration,
-      selectedStaff,
-      selectedStaffDetails,
+      selectedStaff: finalStaffId,
+      selectedStaffDetails: finalStaffDetails,
       bookingDate: format(selectedDate, 'yyyy-MM-dd'),
       bookingTime: selectedTime
     });
@@ -203,8 +162,8 @@ const BookingPage: React.FC = () => {
         selectedServices,
         totalPrice,
         totalDuration,
-        selectedStaff,
-        selectedStaffDetails,
+        selectedStaff: finalStaffId,
+        selectedStaffDetails: finalStaffDetails,
         bookingDate: format(selectedDate, 'yyyy-MM-dd'),
         bookingTime: selectedTime
       }
@@ -223,6 +182,9 @@ const BookingPage: React.FC = () => {
       return format(date, 'EEE, MMM d');
     }
   };
+
+  // Get unique time slots from available slots
+  const uniqueTimeSlots = Array.from(new Set(availableSlots.map(slot => slot.time_slot))).sort();
 
   if (!merchant) {
     return (
@@ -300,9 +262,9 @@ const BookingPage: React.FC = () => {
               <div className="flex justify-center py-8">
                 <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
               </div>
-            ) : availableTimeSlots.length > 0 ? (
+            ) : uniqueTimeSlots.length > 0 ? (
               <div className="grid grid-cols-3 gap-2">
-                {availableTimeSlots.map((time) => (
+                {uniqueTimeSlots.map((time) => (
                   <Button
                     key={time}
                     variant={selectedTime === time ? "default" : "outline"}

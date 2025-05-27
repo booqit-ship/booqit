@@ -467,11 +467,104 @@ export type Database = {
           },
         ]
       }
+      stylist_time_slots: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          date: string
+          id: string
+          is_available: boolean
+          merchant_id: string
+          staff_id: string
+          time_slot: string
+          updated_at: string
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          date: string
+          id?: string
+          is_available?: boolean
+          merchant_id: string
+          staff_id: string
+          time_slot: string
+          updated_at?: string
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          date?: string
+          id?: string
+          is_available?: boolean
+          merchant_id?: string
+          staff_id?: string
+          time_slot?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stylist_time_slots_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stylist_time_slots_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stylist_time_slots_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      book_stylist_slot: {
+        Args: {
+          p_staff_id: string
+          p_date: string
+          p_time_slot: string
+          p_booking_id: string
+          p_service_duration?: number
+        }
+        Returns: Json
+      }
+      generate_stylist_slots: {
+        Args: { p_merchant_id: string; p_date: string }
+        Returns: undefined
+      }
+      get_available_slots: {
+        Args: {
+          p_merchant_id: string
+          p_date: string
+          p_staff_id?: string
+          p_service_duration?: number
+        }
+        Returns: {
+          staff_id: string
+          staff_name: string
+          time_slot: string
+          is_shop_holiday: boolean
+          is_stylist_holiday: boolean
+          shop_holiday_reason: string
+          stylist_holiday_reason: string
+        }[]
+      }
+      release_stylist_slots: {
+        Args: { p_booking_id: string }
+        Returns: Json
+      }
       update_booking_status: {
         Args: {
           booking_id: string

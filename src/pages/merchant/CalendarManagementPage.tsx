@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -83,6 +84,34 @@ const CalendarManagementPage: React.FC = () => {
     
     fetchMerchantId();
   }, [userId]);
+
+  // Generate slots for visible days when merchant ID is available
+  useEffect(() => {
+    const generateSlotsForVisibleDays = async () => {
+      if (!merchantId) return;
+
+      try {
+        console.log('Generating slots for visible days');
+        
+        // Generate slots for each visible day
+        for (const day of visibleDays) {
+          const dateStr = format(day, 'yyyy-MM-dd');
+          const { error } = await supabase.rpc('generate_stylist_slots', {
+            p_merchant_id: merchantId,
+            p_date: dateStr
+          });
+          
+          if (error) {
+            console.error(`Error generating slots for ${dateStr}:`, error);
+          }
+        }
+      } catch (error) {
+        console.error('Error generating slots for visible days:', error);
+      }
+    };
+
+    generateSlotsForVisibleDays();
+  }, [merchantId, visibleDays]);
 
   // Fetch bookings for the merchant with customer details
   const fetchBookings = async () => {
@@ -180,7 +209,6 @@ const CalendarManagementPage: React.FC = () => {
         },
         (payload) => {
           console.log('Real-time booking update received:', payload);
-          // Refresh bookings when any change occurs
           fetchBookings();
         }
       )
@@ -232,7 +260,7 @@ const CalendarManagementPage: React.FC = () => {
     }).sort((a, b) => a.time_slot.localeCompare(b.time_slot));
   }, [bookings, date]);
 
-  // Handle booking status change using the new database function
+  // Handle booking status change using the database function
   const handleStatusChange = async (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
     console.log('Updating booking status:', bookingId, 'to:', newStatus);
     
@@ -246,6 +274,17 @@ const CalendarManagementPage: React.FC = () => {
     }
 
     try {
+      // If cancelling a booking, release the slots first
+      if (newStatus === 'cancelled') {
+        const { error: releaseError } = await supabase.rpc('release_stylist_slots', {
+          p_booking_id: bookingId
+        });
+
+        if (releaseError) {
+          console.error('Error releasing slots:', releaseError);
+        }
+      }
+
       // Use the database function for secure status updates
       const { data, error } = await supabase.rpc('update_booking_status', {
         booking_id: bookingId,
