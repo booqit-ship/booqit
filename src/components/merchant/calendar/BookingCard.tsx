@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,7 +35,6 @@ interface BookingCardProps {
 
 const BookingCard: React.FC<BookingCardProps> = ({ booking, onStatusChange }) => {
   const { toast } = useToast();
-  const [isUpdating, setIsUpdating] = useState(false);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -60,17 +59,13 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onStatusChange }) =>
   };
 
   const handleStatusUpdate = async (newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
-    if (isUpdating) return;
-    
-    setIsUpdating(true);
     try {
-      console.log(`BookingCard: Starting status update for booking ${booking.id} from ${booking.status} to ${newStatus}`);
+      console.log('BookingCard: Initiating status update for booking:', booking.id, 'to:', newStatus);
       await onStatusChange(booking.id, newStatus);
-      console.log(`BookingCard: Status update completed successfully for booking ${booking.id}`);
+      console.log('BookingCard: Status update completed successfully');
     } catch (error) {
-      console.error(`BookingCard: Error updating status for booking ${booking.id}:`, error);
-    } finally {
-      setIsUpdating(false);
+      console.error('BookingCard: Error during status update:', error);
+      // Error handling is done in the parent component
     }
   };
 
@@ -138,11 +133,10 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onStatusChange }) =>
                 <AlertDialogTrigger asChild>
                   <Button 
                     size="sm"
-                    disabled={isUpdating}
                     className="bg-green-500 hover:bg-green-600 text-white font-medium px-3 h-8"
                   >
                     <Check className="mr-1 h-3 w-3" />
-                    {isUpdating ? 'Updating...' : 'Confirm'}
+                    Confirm
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -157,7 +151,6 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onStatusChange }) =>
                     <AlertDialogAction 
                       onClick={() => handleStatusUpdate('confirmed')}
                       className="bg-green-500 hover:bg-green-600"
-                      disabled={isUpdating}
                     >
                       Confirm Booking
                     </AlertDialogAction>
@@ -171,11 +164,10 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onStatusChange }) =>
                 <AlertDialogTrigger asChild>
                   <Button 
                     size="sm"
-                    disabled={isUpdating}
                     className="bg-blue-500 hover:bg-blue-600 text-white font-medium px-3 h-8"
                   >
                     <Check className="mr-1 h-3 w-3" />
-                    {isUpdating ? 'Updating...' : 'Complete'}
+                    Complete
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -190,7 +182,6 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onStatusChange }) =>
                     <AlertDialogAction 
                       onClick={() => handleStatusUpdate('completed')}
                       className="bg-blue-500 hover:bg-blue-600"
-                      disabled={isUpdating}
                     >
                       Mark Complete
                     </AlertDialogAction>
@@ -204,11 +195,10 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onStatusChange }) =>
                 <Button 
                   variant="destructive"
                   size="sm"
-                  disabled={isUpdating}
                   className="font-medium px-3 h-8"
                 >
                   <X className="mr-1 h-3 w-3" />
-                  {isUpdating ? 'Updating...' : 'Cancel'}
+                  Cancel
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
@@ -223,7 +213,6 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onStatusChange }) =>
                   <AlertDialogAction 
                     onClick={() => handleStatusUpdate('cancelled')}
                     className="bg-red-500 hover:bg-red-600"
-                    disabled={isUpdating}
                   >
                     Cancel Booking
                   </AlertDialogAction>

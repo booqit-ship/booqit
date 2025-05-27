@@ -65,6 +65,7 @@ const CalendarManagementPage: React.FC = () => {
         if (error) throw error;
         
         setMerchantId(data.id);
+        console.log('Merchant ID fetched:', data.id);
       } catch (error) {
         console.error('Error fetching merchant ID:', error);
       }
@@ -117,7 +118,7 @@ const CalendarManagementPage: React.FC = () => {
         throw bookingsError;
       }
       
-      console.log('Merchant bookings fetched:', bookingsData);
+      console.log('Merchant bookings fetched successfully:', bookingsData?.length || 0, 'bookings');
       
       const processedBookings = bookingsData?.map((booking) => ({
         id: booking.id,
@@ -136,7 +137,6 @@ const CalendarManagementPage: React.FC = () => {
         customer_email: booking.customer_email || null
       } as BookingWithCustomerDetails)) || [];
       
-      console.log('Processed merchant bookings:', processedBookings);
       setBookings(processedBookings);
     } catch (error: any) {
       console.error('Error fetching merchant bookings:', error);
@@ -150,15 +150,16 @@ const CalendarManagementPage: React.FC = () => {
     }
   };
 
-  // Set up real-time subscription
+  // Set up real-time subscription for bookings
   useEffect(() => {
     fetchBookings();
 
     if (!merchantId) return;
 
-    // Set up real-time subscription for bookings changes
+    console.log('Setting up real-time subscription for merchant bookings');
+    
     const channel = supabase
-      .channel('merchant-bookings-realtime')
+      .channel(`merchant-bookings-${merchantId}`)
       .on(
         'postgres_changes',
         {
@@ -168,20 +169,20 @@ const CalendarManagementPage: React.FC = () => {
           filter: `merchant_id=eq.${merchantId}`
         },
         (payload) => {
-          console.log('Real-time booking update received by merchant:', payload);
-          // Immediately fetch fresh data when any change occurs
+          console.log('Real-time booking update received:', payload);
+          // Refresh bookings when any change occurs
           fetchBookings();
         }
       )
       .subscribe((status) => {
-        console.log('Merchant real-time subscription status:', status);
+        console.log('Real-time subscription status:', status);
       });
 
     return () => {
-      console.log('Cleaning up merchant real-time subscription');
+      console.log('Cleaning up real-time subscription');
       supabase.removeChannel(channel);
     };
-  }, [merchantId]);
+  }, [merchantId, toast]);
 
   // Fetch holiday dates for the merchant
   useEffect(() => {
@@ -221,73 +222,53 @@ const CalendarManagementPage: React.FC = () => {
     }).sort((a, b) => a.time_slot.localeCompare(b.time_slot));
   }, [bookings, date]);
 
-  // Handle booking status change with enhanced error handling
+  // Handle booking status change using the new database function
   const handleStatusChange = async (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
-    console.log(`CalendarManagementPage: Starting status update for booking ${bookingId} to ${newStatus}`);
+    console.log('Updating booking status:', bookingId, 'to:', newStatus);
     
-    if (!merchantId) {
-      console.error('CalendarManagementPage: No merchant ID available');
+    if (!userId) {
       toast({
         title: "Error",
-        description: "Unable to update booking - merchant not identified.",
+        description: "User not authenticated.",
         variant: "destructive",
       });
       return;
     }
 
     try {
-      // First, verify the booking belongs to this merchant
-      const { data: existingBooking, error: checkError } = await supabase
-        .from('bookings')
-        .select('id, status, merchant_id')
-        .eq('id', bookingId)
-        .eq('merchant_id', merchantId)
-        .single();
+      // Use the database function for secure status updates
+      const { data, error } = await supabase.rpc('update_booking_status', {
+        booking_id: bookingId,
+        new_status: newStatus,
+        merchant_user_id: userId
+      });
 
-      if (checkError) {
-        console.error('CalendarManagementPage: Error checking booking ownership:', checkError);
-        throw new Error('Failed to verify booking ownership');
+      if (error) {
+        console.error('Database function error:', error);
+        throw error;
       }
 
-      if (!existingBooking) {
-        console.error('CalendarManagementPage: Booking not found or not owned by merchant');
-        throw new Error('Booking not found or not accessible');
+      if (!data.success) {
+        console.error('Booking update failed:', data.error);
+        throw new Error(data.error);
       }
 
-      console.log(`CalendarManagementPage: Verified booking ${bookingId} belongs to merchant, current status: ${existingBooking.status}`);
+      console.log('Booking status updated successfully:', data);
 
-      // Update the booking status
-      const { data: updatedBooking, error: updateError } = await supabase
-        .from('bookings')
-        .update({ status: newStatus })
-        .eq('id', bookingId)
-        .eq('merchant_id', merchantId)
-        .select()
-        .single();
-
-      if (updateError) {
-        console.error('CalendarManagementPage: Database update error:', updateError);
-        throw updateError;
-      }
-
-      console.log(`CalendarManagementPage: Successfully updated booking ${bookingId} to status ${newStatus}:`, updatedBooking);
-      
       toast({
         title: "Success",
         description: `Booking ${newStatus} successfully.`,
       });
 
-      // Force refresh bookings to get the latest data
-      await fetchBookings();
-      
+      // The real-time subscription will automatically refresh the data
     } catch (error: any) {
-      console.error('CalendarManagementPage: Error updating booking status:', error);
+      console.error('Error updating booking status:', error);
       toast({
-        title: "Error", 
+        title: "Error",
         description: error.message || "Failed to update booking. Please try again.",
         variant: "destructive",
       });
-      throw error; // Re-throw so BookingCard can handle it
+      throw error;
     }
   };
 

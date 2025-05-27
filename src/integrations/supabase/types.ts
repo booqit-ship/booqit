@@ -472,7 +472,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      update_booking_status: {
+        Args: {
+          booking_id: string
+          new_status: string
+          merchant_user_id?: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
