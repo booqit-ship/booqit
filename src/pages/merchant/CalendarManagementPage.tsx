@@ -112,7 +112,7 @@ const CalendarManagementPage: React.FC = () => {
     fetchMerchantId();
   }, [userId]);
 
-  // Fetch bookings for the merchant with customer details using JOIN
+  // Fetch bookings for the merchant with customer details
   const fetchBookings = async () => {
     if (!merchantId) return;
     
@@ -120,7 +120,7 @@ const CalendarManagementPage: React.FC = () => {
     try {
       console.log('Fetching bookings for merchant:', merchantId);
       
-      // Use a proper JOIN query to get customer details
+      // First, get all bookings for the merchant
       const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
         .select(`
@@ -134,10 +134,6 @@ const CalendarManagementPage: React.FC = () => {
             merchant_id,
             created_at,
             image_url
-          ),
-          profiles!bookings_user_id_fkey (
-            name,
-            phone
           )
         `)
         .eq('merchant_id', merchantId);
@@ -146,19 +142,44 @@ const CalendarManagementPage: React.FC = () => {
       
       console.log('Raw bookings data from Supabase:', bookingsData);
       
+      // Get unique user IDs from bookings
+      const userIds = [...new Set(bookingsData.map(booking => booking.user_id))];
+      
+      // Fetch customer details for all users
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, name, phone')
+        .in('id', userIds);
+      
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError);
+        // Continue without profile data if there's an error
+      }
+      
+      console.log('Profiles data:', profilesData);
+      
+      // Create a map of user_id to profile data for easy lookup
+      const profilesMap = new Map();
+      if (profilesData) {
+        profilesData.forEach(profile => {
+          profilesMap.set(profile.id, profile);
+        });
+      }
+      
       // Process the bookings data with customer details
       const processedBookings = bookingsData.map((booking) => {
         const typedPaymentStatus = booking.payment_status as "pending" | "completed" | "failed" | "refunded";
         const typedStatus = booking.status as "pending" | "confirmed" | "completed" | "cancelled";
         
-        console.log('Processing booking:', booking.id, 'Customer data:', booking.profiles);
+        const customerProfile = profilesMap.get(booking.user_id);
+        console.log('Processing booking:', booking.id, 'Customer profile:', customerProfile);
         
         return {
           ...booking,
           status: typedStatus,
           payment_status: typedPaymentStatus,
-          customer_name: booking.profiles?.name || 'Unknown Customer',
-          customer_phone: booking.profiles?.phone || null
+          customer_name: customerProfile?.name || 'Unknown Customer',
+          customer_phone: customerProfile?.phone || null
         } as BookingWithUserDetails;
       });
       
