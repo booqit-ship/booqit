@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -122,6 +121,8 @@ const CalendarManagementPage: React.FC = () => {
     
     setIsLoading(true);
     try {
+      console.log('Fetching bookings for merchant:', merchantId);
+      
       // First fetch bookings
       const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
@@ -142,14 +143,25 @@ const CalendarManagementPage: React.FC = () => {
       
       if (bookingsError) throw bookingsError;
       
+      console.log('Bookings fetched:', bookingsData);
+      
       // Then fetch user profiles for all user_ids in bookings
       const userIds = [...new Set(bookingsData.map(booking => booking.user_id))];
+      console.log('User IDs to fetch:', userIds);
+      
+      if (userIds.length === 0) {
+        setBookings([]);
+        return;
+      }
+      
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('id, name, email, phone')
         .in('id', userIds);
       
       if (profilesError) throw profilesError;
+      
+      console.log('Profiles fetched:', profilesData);
       
       // Create a map of user profiles for quick lookup
       const profilesMap = new Map(profilesData.map(profile => [profile.id, profile]));
@@ -160,6 +172,8 @@ const CalendarManagementPage: React.FC = () => {
         const typedStatus = booking.status as "pending" | "confirmed" | "completed" | "cancelled";
         const userProfile = profilesMap.get(booking.user_id);
         
+        console.log(`Processing booking ${booking.id}, user_id: ${booking.user_id}, profile:`, userProfile);
+        
         return {
           ...booking,
           status: typedStatus,
@@ -168,10 +182,15 @@ const CalendarManagementPage: React.FC = () => {
             name: userProfile.name || 'Unknown Customer',
             email: userProfile.email || '',
             phone: userProfile.phone || ''
-          } : undefined
+          } : {
+            name: 'Unknown Customer',
+            email: '',
+            phone: ''
+          }
         } as BookingWithUserDetails;
       });
       
+      console.log('Processed bookings:', processedBookings);
       setBookings(processedBookings);
     } catch (error: any) {
       toast({
@@ -179,7 +198,7 @@ const CalendarManagementPage: React.FC = () => {
         description: "Failed to fetch bookings. Please try again.",
         variant: "destructive",
       });
-      console.error(error);
+      console.error('Error fetching bookings:', error);
     } finally {
       setIsLoading(false);
     }
@@ -258,8 +277,14 @@ const CalendarManagementPage: React.FC = () => {
 
   // Handle phone call
   const handlePhoneCall = (phoneNumber: string) => {
-    if (phoneNumber) {
+    if (phoneNumber && phoneNumber.trim() !== '') {
       window.location.href = `tel:${phoneNumber}`;
+    } else {
+      toast({
+        title: "No Phone Number",
+        description: "No phone number available for this customer.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -570,30 +595,30 @@ const CalendarManagementPage: React.FC = () => {
                   {todayBookings.map(booking => (
                     <div 
                       key={booking.id} 
-                      className="bg-white rounded-xl shadow-md border border-gray-100 hover:shadow-lg transition-all duration-200 overflow-hidden"
+                      className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 overflow-hidden"
                     >
-                      <div className="p-5">
-                        <div className="flex justify-between items-start mb-4">
+                      <div className="p-4">
+                        <div className="flex justify-between items-start mb-3">
                           <div className="flex items-center space-x-3">
-                            <div className="bg-booqit-primary/10 p-2 rounded-full">
-                              <Clock className="h-5 w-5 text-booqit-primary" />
+                            <div className="bg-purple-100 p-2 rounded-lg">
+                              <Clock className="h-4 w-4 text-purple-600" />
                             </div>
                             <div>
-                              <h3 className="text-lg font-semibold text-gray-900">{booking.service?.name}</h3>
-                              <p className="text-booqit-primary font-medium text-sm">
+                              <h3 className="text-base font-medium text-gray-900">{booking.service?.name}</h3>
+                              <p className="text-purple-600 font-medium text-sm">
                                 {booking.time_slot}
                               </p>
                             </div>
                           </div>
                           <Badge 
-                            className={`${getStatusColor(booking.status)} text-white font-medium px-3 py-1`}
+                            className={`${getStatusColor(booking.status)} text-white font-medium px-2 py-1 text-xs`}
                           >
                             {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                           </Badge>
                         </div>
                         
-                        <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="bg-gray-50 rounded-lg p-3 mb-3">
+                          <div className="space-y-2">
                             <div className="flex items-center space-x-2">
                               <User className="h-4 w-4 text-gray-500" />
                               <span className="text-sm font-medium text-gray-700">
@@ -602,10 +627,10 @@ const CalendarManagementPage: React.FC = () => {
                             </div>
                             <div className="flex items-center space-x-2">
                               <Phone className="h-4 w-4 text-gray-500" />
-                              {booking.user_details?.phone ? (
+                              {booking.user_details?.phone && booking.user_details.phone.trim() !== '' ? (
                                 <button
                                   onClick={() => handlePhoneCall(booking.user_details!.phone)}
-                                  className="text-sm text-booqit-primary hover:text-booqit-primary/80 font-medium underline decoration-2 underline-offset-2 transition-colors"
+                                  className="text-sm text-purple-600 hover:text-purple-700 font-medium underline decoration-2 underline-offset-2 transition-colors"
                                 >
                                   {booking.user_details.phone}
                                 </button>
@@ -623,9 +648,9 @@ const CalendarManagementPage: React.FC = () => {
                                 <AlertDialogTrigger asChild>
                                   <Button 
                                     size="sm"
-                                    className="bg-green-500 hover:bg-green-600 text-white font-medium px-4"
+                                    className="bg-green-500 hover:bg-green-600 text-white font-medium px-3 h-8"
                                   >
-                                    <Check className="mr-1 h-4 w-4" />
+                                    <Check className="mr-1 h-3 w-3" />
                                     Confirm
                                   </Button>
                                 </AlertDialogTrigger>
@@ -654,9 +679,9 @@ const CalendarManagementPage: React.FC = () => {
                                 <AlertDialogTrigger asChild>
                                   <Button 
                                     size="sm"
-                                    className="bg-blue-500 hover:bg-blue-600 text-white font-medium px-4"
+                                    className="bg-blue-500 hover:bg-blue-600 text-white font-medium px-3 h-8"
                                   >
-                                    <Check className="mr-1 h-4 w-4" />
+                                    <Check className="mr-1 h-3 w-3" />
                                     Complete
                                   </Button>
                                 </AlertDialogTrigger>
@@ -685,9 +710,9 @@ const CalendarManagementPage: React.FC = () => {
                                 <Button 
                                   variant="destructive"
                                   size="sm"
-                                  className="font-medium px-4"
+                                  className="font-medium px-3 h-8"
                                 >
-                                  <X className="mr-1 h-4 w-4" />
+                                  <X className="mr-1 h-3 w-3" />
                                   Cancel
                                 </Button>
                               </AlertDialogTrigger>
