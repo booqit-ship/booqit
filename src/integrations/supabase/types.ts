@@ -53,6 +53,9 @@ export type Database = {
       bookings: {
         Row: {
           created_at: string
+          customer_email: string | null
+          customer_name: string | null
+          customer_phone: string | null
           date: string
           id: string
           merchant_id: string
@@ -65,6 +68,9 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
           date: string
           id?: string
           merchant_id: string
@@ -77,6 +83,9 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
           date?: string
           id?: string
           merchant_id?: string

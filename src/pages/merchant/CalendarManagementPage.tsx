@@ -114,7 +114,7 @@ const CalendarManagementPage: React.FC = () => {
     fetchMerchantId();
   }, [userId]);
 
-  // Fetch bookings for the merchant with customer details
+  // Fetch bookings for the merchant with customer details directly from bookings table
   const fetchBookings = async () => {
     if (!merchantId) return;
     
@@ -122,7 +122,7 @@ const CalendarManagementPage: React.FC = () => {
     try {
       console.log('Fetching bookings for merchant:', merchantId);
       
-      // Fetch bookings with customer details using JOIN
+      // Fetch bookings with customer details and service details
       const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
         .select(`
@@ -136,6 +136,9 @@ const CalendarManagementPage: React.FC = () => {
           payment_status,
           created_at,
           staff_id,
+          customer_name,
+          customer_phone,
+          customer_email,
           service:service_id (
             id,
             name,
@@ -145,12 +148,6 @@ const CalendarManagementPage: React.FC = () => {
             merchant_id,
             created_at,
             image_url
-          ),
-          profiles:user_id (
-            id,
-            name,
-            email,
-            phone
           )
         `)
         .eq('merchant_id', merchantId)
@@ -164,10 +161,13 @@ const CalendarManagementPage: React.FC = () => {
       
       console.log('Raw bookings data from Supabase:', bookingsData);
       
-      // Process the bookings data with customer details
+      // Process the bookings data with customer details from the bookings table itself
       const processedBookings = bookingsData?.map((booking) => {
-        const customerProfile = booking.profiles;
-        console.log('Processing booking:', booking.id, 'Customer profile:', customerProfile);
+        console.log('Processing booking:', booking.id, 'Customer details:', {
+          name: booking.customer_name,
+          phone: booking.customer_phone,
+          email: booking.customer_email
+        });
         
         return {
           id: booking.id,
@@ -181,9 +181,9 @@ const CalendarManagementPage: React.FC = () => {
           created_at: booking.created_at,
           staff_id: booking.staff_id,
           service: booking.service,
-          customer_name: customerProfile?.name || 'Unknown Customer',
-          customer_phone: customerProfile?.phone || null,
-          customer_email: customerProfile?.email || null
+          customer_name: booking.customer_name || 'Unknown Customer',
+          customer_phone: booking.customer_phone || null,
+          customer_email: booking.customer_email || null
         } as BookingWithCustomerDetails;
       }) || [];
       
@@ -574,12 +574,6 @@ const CalendarManagementPage: React.FC = () => {
               {isLoading ? (
                 <div className="flex justify-center py-8">
                   <div className="animate-spin rounded-full h-10 w-10 border-3 border-booqit-primary border-t-transparent"></div>
-                </div>
-              ) : isHoliday(date) ? (
-                <div className="text-center py-8 bg-red-50 rounded-xl border border-red-200">
-                  <CalendarX className="h-12 w-12 mx-auto text-red-400 mb-3" />
-                  <p className="text-red-600 text-lg font-semibold">Shop Holiday - Closed</p>
-                  <p className="text-red-500 text-sm mt-1">{getHolidayDescription(date)}</p>
                 </div>
               ) : todayBookings.length === 0 ? (
                 <div className="text-center py-8 bg-gray-50 rounded-xl border border-gray-200">
