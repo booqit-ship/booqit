@@ -47,14 +47,16 @@ import {
   CalendarX,
   ChevronLeft,
   ChevronRight,
-  Check
+  Check,
+  Mail
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import StylistAvailabilityWidget from '@/components/merchant/StylistAvailabilityWidget';
 
-interface BookingWithUserDetails extends Booking {
+interface BookingWithCustomerDetails extends Booking {
   customer_name?: string;
   customer_phone?: string;
+  customer_email?: string;
 }
 
 interface HolidayDate {
@@ -65,7 +67,7 @@ interface HolidayDate {
 
 const CalendarManagementPage: React.FC = () => {
   const [date, setDate] = useState<Date>(new Date());
-  const [bookings, setBookings] = useState<BookingWithUserDetails[]>([]);
+  const [bookings, setBookings] = useState<BookingWithCustomerDetails[]>([]);
   const [holidays, setHolidays] = useState<HolidayDate[]>([]);
   const [newHoliday, setNewHoliday] = useState<Date | undefined>(new Date());
   const [holidayDescription, setHolidayDescription] = useState('');
@@ -120,11 +122,20 @@ const CalendarManagementPage: React.FC = () => {
     try {
       console.log('Fetching bookings for merchant:', merchantId);
       
-      // First, get all bookings for the merchant
+      // Fetch bookings with customer details using JOIN
       const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
         .select(`
-          *,
+          id,
+          user_id,
+          merchant_id,
+          service_id,
+          date,
+          time_slot,
+          status,
+          payment_status,
+          created_at,
+          staff_id,
           service:service_id (
             id,
             name,
@@ -134,54 +145,47 @@ const CalendarManagementPage: React.FC = () => {
             merchant_id,
             created_at,
             image_url
+          ),
+          profiles:user_id (
+            id,
+            name,
+            email,
+            phone
           )
         `)
-        .eq('merchant_id', merchantId);
+        .eq('merchant_id', merchantId)
+        .order('date', { ascending: true })
+        .order('time_slot', { ascending: true });
       
-      if (bookingsError) throw bookingsError;
+      if (bookingsError) {
+        console.error('Error fetching bookings:', bookingsError);
+        throw bookingsError;
+      }
       
       console.log('Raw bookings data from Supabase:', bookingsData);
       
-      // Get unique user IDs from bookings
-      const userIds = [...new Set(bookingsData.map(booking => booking.user_id))];
-      
-      // Fetch customer details for all users
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, name, phone')
-        .in('id', userIds);
-      
-      if (profilesError) {
-        console.error('Error fetching profiles:', profilesError);
-        // Continue without profile data if there's an error
-      }
-      
-      console.log('Profiles data:', profilesData);
-      
-      // Create a map of user_id to profile data for easy lookup
-      const profilesMap = new Map();
-      if (profilesData) {
-        profilesData.forEach(profile => {
-          profilesMap.set(profile.id, profile);
-        });
-      }
-      
       // Process the bookings data with customer details
-      const processedBookings = bookingsData.map((booking) => {
-        const typedPaymentStatus = booking.payment_status as "pending" | "completed" | "failed" | "refunded";
-        const typedStatus = booking.status as "pending" | "confirmed" | "completed" | "cancelled";
-        
-        const customerProfile = profilesMap.get(booking.user_id);
+      const processedBookings = bookingsData?.map((booking) => {
+        const customerProfile = booking.profiles;
         console.log('Processing booking:', booking.id, 'Customer profile:', customerProfile);
         
         return {
-          ...booking,
-          status: typedStatus,
-          payment_status: typedPaymentStatus,
+          id: booking.id,
+          user_id: booking.user_id,
+          merchant_id: booking.merchant_id,
+          service_id: booking.service_id,
+          date: booking.date,
+          time_slot: booking.time_slot,
+          status: booking.status as "pending" | "confirmed" | "completed" | "cancelled",
+          payment_status: booking.payment_status as "pending" | "completed" | "failed" | "refunded",
+          created_at: booking.created_at,
+          staff_id: booking.staff_id,
+          service: booking.service,
           customer_name: customerProfile?.name || 'Unknown Customer',
-          customer_phone: customerProfile?.phone || null
-        } as BookingWithUserDetails;
-      });
+          customer_phone: customerProfile?.phone || null,
+          customer_email: customerProfile?.email || null
+        } as BookingWithCustomerDetails;
+      }) || [];
       
       console.log('Processed bookings with customer details:', processedBookings);
       setBookings(processedBookings);
@@ -618,19 +622,30 @@ const CalendarManagementPage: React.FC = () => {
                                 {booking.customer_name}
                               </span>
                             </div>
-                            <div className="flex items-center space-x-2">
-                              <Phone className="h-4 w-4 text-gray-500" />
-                              {booking.customer_phone && booking.customer_phone.trim() !== '' ? (
+                            
+                            {booking.customer_phone && booking.customer_phone.trim() !== '' ? (
+                              <div className="flex items-center space-x-2">
+                                <Phone className="h-4 w-4 text-gray-500" />
                                 <button
                                   onClick={() => handlePhoneCall(booking.customer_phone)}
                                   className="text-sm text-purple-600 hover:text-purple-700 font-medium underline decoration-2 underline-offset-2 transition-colors"
                                 >
                                   {booking.customer_phone}
                                 </button>
-                              ) : (
+                              </div>
+                            ) : (
+                              <div className="flex items-center space-x-2">
+                                <Phone className="h-4 w-4 text-gray-400" />
                                 <span className="text-sm text-gray-400">No phone available</span>
-                              )}
-                            </div>
+                              </div>
+                            )}
+
+                            {booking.customer_email && (
+                              <div className="flex items-center space-x-2">
+                                <Mail className="h-4 w-4 text-gray-500" />
+                                <span className="text-sm text-gray-600">{booking.customer_email}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                         
