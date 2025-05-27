@@ -121,7 +121,8 @@ const CalendarManagementPage: React.FC = () => {
     
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
+      // First fetch bookings
+      const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
         .select(`
           *,
@@ -134,30 +135,38 @@ const CalendarManagementPage: React.FC = () => {
             merchant_id,
             created_at,
             image_url
-          ),
-          profiles!bookings_user_id_fkey (
-            name,
-            email,
-            phone
           )
         `)
         .eq('merchant_id', merchantId);
       
-      if (error) throw error;
+      if (bookingsError) throw bookingsError;
+      
+      // Then fetch user profiles for all user_ids in bookings
+      const userIds = [...new Set(bookingsData.map(booking => booking.user_id))];
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, name, email, phone')
+        .in('id', userIds);
+      
+      if (profilesError) throw profilesError;
+      
+      // Create a map of user profiles for quick lookup
+      const profilesMap = new Map(profilesData.map(profile => [profile.id, profile]));
       
       // Process the bookings data with proper typing
-      const processedBookings = data.map((booking) => {
+      const processedBookings = bookingsData.map((booking) => {
         const typedPaymentStatus = booking.payment_status as "pending" | "completed" | "failed" | "refunded";
         const typedStatus = booking.status as "pending" | "confirmed" | "completed" | "cancelled";
+        const userProfile = profilesMap.get(booking.user_id);
         
         return {
           ...booking,
           status: typedStatus,
           payment_status: typedPaymentStatus,
-          user_details: booking.profiles ? {
-            name: booking.profiles.name || 'Unknown Customer',
-            email: booking.profiles.email || '',
-            phone: booking.profiles.phone || ''
+          user_details: userProfile ? {
+            name: userProfile.name || 'Unknown Customer',
+            email: userProfile.email || '',
+            phone: userProfile.phone || ''
           } : undefined
         } as BookingWithUserDetails;
       });
