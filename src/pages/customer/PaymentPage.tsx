@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, CreditCard, Smartphone } from 'lucide-react';
@@ -102,8 +103,8 @@ const PaymentPage: React.FC = () => {
 
         console.log('Slots booked:', slotResult);
 
-        // Type the result properly
-        const typedResult = slotResult as SlotBookingResult;
+        // Type the result properly by first casting to unknown
+        const typedResult = slotResult as unknown as SlotBookingResult;
         
         if (!typedResult.success) {
           // Delete the booking if slot booking fails
@@ -274,7 +275,7 @@ const PaymentPage: React.FC = () => {
           onClick={handlePayment}
           disabled={processing}
         >
-          {processing ? 'Processing...' : `Pay ₹${totalPrice}`}
+          {processing ? 'Processing...' : `Pay ₹{totalPrice}`}
         </Button>
       </div>
     </div>
