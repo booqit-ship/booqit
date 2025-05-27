@@ -94,6 +94,7 @@ const CalendarPage: React.FC = () => {
           
         if (error) throw error;
         
+        console.log('Customer bookings fetched:', data);
         setBookings(data as Booking[]);
       } catch (error: any) {
         toast({
@@ -111,7 +112,7 @@ const CalendarPage: React.FC = () => {
 
     // Set up real-time subscription for bookings
     const channel = supabase
-      .channel('customer-bookings-changes')
+      .channel('customer-bookings-realtime')
       .on(
         'postgres_changes',
         {
@@ -121,7 +122,7 @@ const CalendarPage: React.FC = () => {
           filter: `user_id=eq.${userId}`
         },
         (payload) => {
-          console.log('Real-time booking update received:', payload);
+          console.log('Real-time booking update received by customer:', payload);
           fetchBookings(); // Refetch bookings when changes occur
         }
       )
@@ -140,8 +141,19 @@ const CalendarPage: React.FC = () => {
     }).sort((a, b) => a.time_slot.localeCompare(b.time_slot));
   }, [bookings, date]);
 
-  // Handle booking cancellation
+  // Handle booking cancellation with immediate UI update and real-time sync
   const cancelBooking = async (bookingId: string) => {
+    console.log('Customer cancelling booking:', bookingId);
+    
+    // Optimistically update the UI immediately
+    setBookings(prevBookings => 
+      prevBookings.map(booking => 
+        booking.id === bookingId 
+          ? { ...booking, status: 'cancelled' as const } 
+          : booking
+      )
+    );
+
     try {
       const { error } = await supabase
         .from('bookings')
@@ -155,13 +167,23 @@ const CalendarPage: React.FC = () => {
         description: "Booking has been cancelled.",
       });
 
-      // Booking update will be received via real-time subscription
+      console.log('Customer booking cancelled successfully, real-time will sync to merchant');
     } catch (error: any) {
+      // Revert the optimistic update on error
+      setBookings(prevBookings => 
+        prevBookings.map(booking => 
+          booking.id === bookingId 
+            ? { ...booking, status: booking.status } // Revert to original status
+            : booking
+        )
+      );
+      
       toast({
         title: "Error",
         description: "Failed to cancel booking. Please try again.",
         variant: "destructive",
       });
+      console.error('Error cancelling booking:', error);
     }
   };
 

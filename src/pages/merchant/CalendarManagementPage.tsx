@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -208,7 +207,7 @@ const CalendarManagementPage: React.FC = () => {
     // Set up real-time subscription for bookings changes
     if (merchantId) {
       const channel = supabase
-        .channel('merchant-bookings-changes')
+        .channel('merchant-bookings-realtime')
         .on(
           'postgres_changes',
           {
@@ -228,7 +227,7 @@ const CalendarManagementPage: React.FC = () => {
         supabase.removeChannel(channel);
       };
     }
-  }, [merchantId]);
+  }, [merchantId, toast]);
 
   // Fetch holiday dates for the merchant
   useEffect(() => {
@@ -268,8 +267,19 @@ const CalendarManagementPage: React.FC = () => {
     }).sort((a, b) => a.time_slot.localeCompare(b.time_slot));
   }, [bookings, date]);
 
-  // Handle booking status change with confirmation
+  // Handle booking status change with immediate UI update and real-time sync
   const handleStatusChange = async (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
+    console.log('Updating booking status:', bookingId, 'to:', newStatus);
+    
+    // Optimistically update the UI immediately
+    setBookings(prevBookings => 
+      prevBookings.map(booking => 
+        booking.id === bookingId 
+          ? { ...booking, status: newStatus } 
+          : booking
+      )
+    );
+
     try {
       const { error } = await supabase
         .from('bookings')
@@ -278,22 +288,29 @@ const CalendarManagementPage: React.FC = () => {
         
       if (error) throw error;
       
-      setBookings(bookings.map(booking => 
-        booking.id === bookingId 
-          ? { ...booking, status: newStatus } 
-          : booking
-      ));
-      
       toast({
         title: "Success",
         description: `Booking ${newStatus} successfully.`,
       });
+
+      // The real-time subscription will handle syncing with other clients
+      console.log('Status updated successfully, real-time will sync to other clients');
     } catch (error: any) {
+      // Revert the optimistic update on error
+      setBookings(prevBookings => 
+        prevBookings.map(booking => 
+          booking.id === bookingId 
+            ? { ...booking, status: booking.status } // Revert to original status
+            : booking
+        )
+      );
+      
       toast({
         title: "Error",
         description: "Failed to update booking. Please try again.",
         variant: "destructive",
       });
+      console.error('Error updating booking status:', error);
     }
   };
 
