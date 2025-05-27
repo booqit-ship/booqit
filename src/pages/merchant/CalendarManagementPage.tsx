@@ -135,7 +135,7 @@ const CalendarManagementPage: React.FC = () => {
             created_at,
             image_url
           ),
-          user_details:user_id (
+          profiles!bookings_user_id_fkey (
             name,
             email,
             phone
@@ -154,10 +154,10 @@ const CalendarManagementPage: React.FC = () => {
           ...booking,
           status: typedStatus,
           payment_status: typedPaymentStatus,
-          user_details: booking.user_details ? {
-            name: booking.user_details.name || 'Unknown Customer',
-            email: booking.user_details.email || '',
-            phone: booking.user_details.phone || ''
+          user_details: booking.profiles ? {
+            name: booking.profiles.name || 'Unknown Customer',
+            email: booking.profiles.email || '',
+            phone: booking.profiles.phone || ''
           } : undefined
         } as BookingWithUserDetails;
       });
