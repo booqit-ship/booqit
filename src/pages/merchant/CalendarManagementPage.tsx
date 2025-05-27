@@ -53,11 +53,8 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import StylistAvailabilityWidget from '@/components/merchant/StylistAvailabilityWidget';
 
 interface BookingWithUserDetails extends Booking {
-  user_details?: {
-    name: string;
-    email: string;
-    phone: string;
-  };
+  customer_name?: string;
+  customer_phone?: string;
 }
 
 interface HolidayDate {
@@ -115,7 +112,7 @@ const CalendarManagementPage: React.FC = () => {
     fetchMerchantId();
   }, [userId]);
 
-  // Fetch bookings for the merchant with customer details
+  // Fetch bookings for the merchant with customer details using JOIN
   const fetchBookings = async () => {
     if (!merchantId) return;
     
@@ -123,7 +120,7 @@ const CalendarManagementPage: React.FC = () => {
     try {
       console.log('Fetching bookings for merchant:', merchantId);
       
-      // First fetch bookings
+      // Use a JOIN query to get customer details directly
       const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
         .select(`
@@ -137,60 +134,35 @@ const CalendarManagementPage: React.FC = () => {
             merchant_id,
             created_at,
             image_url
+          ),
+          customer:profiles!bookings_user_id_fkey (
+            name,
+            phone
           )
         `)
         .eq('merchant_id', merchantId);
       
       if (bookingsError) throw bookingsError;
       
-      console.log('Bookings fetched:', bookingsData);
+      console.log('Raw bookings data from Supabase:', bookingsData);
       
-      // Then fetch user profiles for all user_ids in bookings
-      const userIds = [...new Set(bookingsData.map(booking => booking.user_id))];
-      console.log('User IDs to fetch:', userIds);
-      
-      if (userIds.length === 0) {
-        setBookings([]);
-        return;
-      }
-      
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, name, email, phone')
-        .in('id', userIds);
-      
-      if (profilesError) throw profilesError;
-      
-      console.log('Profiles fetched:', profilesData);
-      
-      // Create a map of user profiles for quick lookup
-      const profilesMap = new Map(profilesData.map(profile => [profile.id, profile]));
-      
-      // Process the bookings data with proper typing
+      // Process the bookings data with customer details
       const processedBookings = bookingsData.map((booking) => {
         const typedPaymentStatus = booking.payment_status as "pending" | "completed" | "failed" | "refunded";
         const typedStatus = booking.status as "pending" | "confirmed" | "completed" | "cancelled";
-        const userProfile = profilesMap.get(booking.user_id);
         
-        console.log(`Processing booking ${booking.id}, user_id: ${booking.user_id}, profile:`, userProfile);
+        console.log('Processing booking:', booking.id, 'Customer data:', booking.customer);
         
         return {
           ...booking,
           status: typedStatus,
           payment_status: typedPaymentStatus,
-          user_details: userProfile ? {
-            name: userProfile.name || 'Unknown Customer',
-            email: userProfile.email || '',
-            phone: userProfile.phone || ''
-          } : {
-            name: 'Unknown Customer',
-            email: '',
-            phone: ''
-          }
+          customer_name: booking.customer?.name || 'Unknown Customer',
+          customer_phone: booking.customer?.phone || null
         } as BookingWithUserDetails;
       });
       
-      console.log('Processed bookings:', processedBookings);
+      console.log('Processed bookings with customer details:', processedBookings);
       setBookings(processedBookings);
     } catch (error: any) {
       toast({
@@ -276,7 +248,7 @@ const CalendarManagementPage: React.FC = () => {
   };
 
   // Handle phone call
-  const handlePhoneCall = (phoneNumber: string) => {
+  const handlePhoneCall = (phoneNumber: string | null) => {
     if (phoneNumber && phoneNumber.trim() !== '') {
       window.location.href = `tel:${phoneNumber}`;
     } else {
@@ -622,17 +594,17 @@ const CalendarManagementPage: React.FC = () => {
                             <div className="flex items-center space-x-2">
                               <User className="h-4 w-4 text-gray-500" />
                               <span className="text-sm font-medium text-gray-700">
-                                {booking.user_details?.name || 'Unknown Customer'}
+                                {booking.customer_name}
                               </span>
                             </div>
                             <div className="flex items-center space-x-2">
                               <Phone className="h-4 w-4 text-gray-500" />
-                              {booking.user_details?.phone && booking.user_details.phone.trim() !== '' ? (
+                              {booking.customer_phone && booking.customer_phone.trim() !== '' ? (
                                 <button
-                                  onClick={() => handlePhoneCall(booking.user_details!.phone)}
+                                  onClick={() => handlePhoneCall(booking.customer_phone)}
                                   className="text-sm text-purple-600 hover:text-purple-700 font-medium underline decoration-2 underline-offset-2 transition-colors"
                                 >
-                                  {booking.user_details.phone}
+                                  {booking.customer_phone}
                                 </button>
                               ) : (
                                 <span className="text-sm text-gray-400">No phone available</span>
