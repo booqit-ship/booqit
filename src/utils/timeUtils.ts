@@ -46,3 +46,16 @@ export const hasTimeSlotPassed = (timeSlot: string, bufferMinutes: number = 30):
     return false;
   }
 };
+
+// Check if a booking date is today
+export const isToday = (dateString: string): boolean => {
+  const today = format(new Date(), 'yyyy-MM-dd');
+  return dateString === today;
+};
+
+// Get time with buffer for slot availability
+export const getCurrentTimeWithBuffer = (bufferMinutes: number = 30): string => {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() + bufferMinutes);
+  return format(now, 'HH:mm');
+};

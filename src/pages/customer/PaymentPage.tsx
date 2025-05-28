@@ -67,8 +67,8 @@ const PaymentPage: React.FC = () => {
         staff_id: selectedStaff,
         date: bookingDate,
         time_slot: bookingTime,
-        status: 'pending',
-        payment_status: 'pending',
+        status: 'pending' as const,
+        payment_status: 'pending' as const,
         stylist_name: selectedStaffDetails?.name || null
       };
 
@@ -85,7 +85,7 @@ const PaymentPage: React.FC = () => {
 
       console.log('Booking created:', booking);
 
-      // Book the stylist slots using the new function
+      // Book the stylist slots using the database function
       if (selectedStaff) {
         const { data: slotResult, error: slotError } = await supabase.rpc('book_stylist_slot', {
           p_staff_id: selectedStaff,
@@ -97,8 +97,9 @@ const PaymentPage: React.FC = () => {
 
         if (slotError) {
           console.error('Slot booking error:', slotError);
+          // Clean up the booking if slot booking fails
           await supabase.from('bookings').delete().eq('id', booking.id);
-          throw new Error('Failed to book time slot');
+          throw new Error('Failed to book time slot - it may no longer be available');
         }
 
         console.log('Slots booked:', slotResult);
@@ -106,6 +107,7 @@ const PaymentPage: React.FC = () => {
         const typedResult = slotResult as unknown as SlotBookingResult;
         
         if (!typedResult.success) {
+          // Clean up the booking if slot booking fails
           await supabase.from('bookings').delete().eq('id', booking.id);
           throw new Error(typedResult.error || 'Failed to book time slot');
         }
@@ -125,6 +127,7 @@ const PaymentPage: React.FC = () => {
 
       if (paymentError) {
         console.error('Payment creation error:', paymentError);
+        // Clean up booking and slots if payment creation fails
         if (selectedStaff) {
           await supabase.rpc('release_stylist_slots', { p_booking_id: booking.id });
         }

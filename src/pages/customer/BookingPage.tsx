@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
@@ -7,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format, addDays, isWeekend, startOfDay } from 'date-fns';
-import { formatTimeToAmPm } from '@/utils/timeUtils';
+import { formatTimeToAmPm, isToday } from '@/utils/timeUtils';
 
 interface AvailableSlot {
   staff_id: string;
@@ -77,8 +76,9 @@ const BookingPage: React.FC = () => {
       setLoading(true);
       try {
         const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-        console.log('Fetching slots for date:', selectedDateStr);
+        console.log('Fetching slots for date:', selectedDateStr, 'Is today:', isToday(selectedDateStr));
 
+        // Generate slots for the selected date
         const { error: generateError } = await supabase.rpc('generate_stylist_slots', {
           p_merchant_id: merchantId,
           p_date: selectedDateStr
@@ -88,6 +88,7 @@ const BookingPage: React.FC = () => {
           console.error('Error generating slots:', generateError);
         }
 
+        // Fetch available slots with improved filtering
         const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots', {
           p_merchant_id: merchantId,
           p_date: selectedDateStr,
@@ -104,18 +105,26 @@ const BookingPage: React.FC = () => {
 
         console.log('Available slots data:', slotsData);
 
+        // Process slots and filter out holidays
         const processedSlots = (slotsData || [])
           .filter((slot: AvailableSlot) => !slot.is_shop_holiday && !slot.is_stylist_holiday)
           .map((slot: AvailableSlot) => ({
             ...slot,
-            time_slot: slot.time_slot.substring(0, 5)
+            time_slot: slot.time_slot.substring(0, 5) // Ensure HH:MM format
           }));
 
+        console.log('Processed slots after filtering:', processedSlots.length);
         setAvailableSlots(processedSlots);
 
+        // Show holiday messages if applicable
         const shopHoliday = (slotsData || []).find((slot: AvailableSlot) => slot.is_shop_holiday);
         if (shopHoliday) {
           toast.info(`Shop is closed: ${shopHoliday.shop_holiday_reason || 'Holiday'}`);
+        }
+
+        const stylistHoliday = (slotsData || []).find((slot: AvailableSlot) => slot.is_stylist_holiday);
+        if (stylistHoliday) {
+          toast.info(`Stylist unavailable: ${stylistHoliday.stylist_holiday_reason || 'Holiday'}`);
         }
 
       } catch (error) {
