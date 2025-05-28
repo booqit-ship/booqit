@@ -23,6 +23,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { Staff } from '@/types';
 import { format } from 'date-fns';
+import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { User, Calendar as CalendarIcon, Settings } from 'lucide-react';
 
 interface StylistHoliday {
@@ -71,7 +72,6 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
 
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
 
-  // Fetch staff members
   useEffect(() => {
     const fetchStaff = async () => {
       try {
@@ -90,10 +90,8 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
     fetchStaff();
   }, [merchantId]);
 
-  // Fetch all stylist availability data
   const fetchAllAvailabilityData = async () => {
     try {
-      // Fetch holidays
       const { data: holidays, error: holidaysError } = await supabase
         .from('stylist_holidays')
         .select('*, staff:staff_id(name)')
@@ -102,7 +100,6 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
       if (holidaysError) throw holidaysError;
       setStylistHolidays(holidays || []);
 
-      // Fetch blocked slots
       const { data: blockedSlots, error: blockedError } = await supabase
         .from('stylist_blocked_slots')
         .select('*, staff:staff_id(name)')
@@ -119,7 +116,6 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
     fetchAllAvailabilityData();
   }, [merchantId]);
 
-  // Load existing data when staff is selected
   useEffect(() => {
     if (selectedStaff) {
       const existingHoliday = stylistHolidays.find(
@@ -161,7 +157,6 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
 
     setIsLoading(true);
     try {
-      // First, clear existing data for this staff member and date
       await supabase
         .from('stylist_holidays')
         .delete()
@@ -175,7 +170,6 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
         .eq('blocked_date', selectedDateStr);
 
       if (isFullDayHoliday) {
-        // Add full day holiday
         const { error } = await supabase
           .from('stylist_holidays')
           .insert({
@@ -187,7 +181,6 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
           
         if (error) throw error;
       } else if (selectedTimeSlots.length > 0) {
-        // Add blocked time slots
         const blockedSlots = selectedTimeSlots.map(slot => ({
           staff_id: selectedStaff,
           merchant_id: merchantId,
@@ -203,7 +196,6 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
         if (error) throw error;
       }
 
-      // Refresh data
       await fetchAllAvailabilityData();
       
       toast({
@@ -259,17 +251,14 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
     }
   };
 
-  // Helper function to check if an item is a holiday
   const isHoliday = (item: StylistHoliday | StylistBlockedSlot): item is StylistHoliday => {
     return 'holiday_date' in item;
   };
 
-  // Helper function to get the date from either type
   const getItemDate = (item: StylistHoliday | StylistBlockedSlot): string => {
     return isHoliday(item) ? item.holiday_date : item.blocked_date;
   };
 
-  // Group data by staff and date for display
   const groupedData = [...stylistHolidays, ...stylistBlockedSlots].reduce((acc: any, item) => {
     const itemDate = getItemDate(item);
     const key = `${item.staff_id}_${itemDate}`;
@@ -310,7 +299,6 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
               </DialogHeader>
               
               <div className="space-y-4">
-                {/* Staff Selector */}
                 <div>
                   <label className="text-sm font-medium mb-2 block">Select Stylist</label>
                   <Select value={selectedStaff} onValueChange={setSelectedStaff}>
@@ -332,7 +320,6 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
 
                 {selectedStaff && (
                   <>
-                    {/* Full Day Holiday Toggle */}
                     <div className="space-y-2">
                       <div className="flex items-center space-x-2">
                         <input
@@ -353,7 +340,6 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
                       </div>
                     </div>
 
-                    {/* Time Slots Grid */}
                     {!isFullDayHoliday && (
                       <div>
                         <label className="text-sm font-medium mb-2 block">Block Specific Time Slots</label>
@@ -369,7 +355,7 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
                                 className="text-xs h-8"
                                 onClick={() => handleTimeSlotToggle(slot)}
                               >
-                                {slot}
+                                {formatTimeToAmPm(slot)}
                               </Button>
                             );
                           })}
@@ -383,7 +369,6 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
                       </div>
                     )}
 
-                    {/* Description */}
                     <div>
                       <label className="text-sm font-medium mb-2 block">Description (Optional)</label>
                       <Textarea 

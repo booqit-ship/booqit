@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format, addDays, isWeekend, startOfDay } from 'date-fns';
+import { formatTimeToAmPm } from '@/utils/timeUtils';
 
 interface AvailableSlot {
   staff_id: string;
@@ -54,7 +55,6 @@ const BookingPage: React.FC = () => {
       try {
         if (!merchantId) return;
 
-        // Fetch shop holidays
         const { data: shopHolidays } = await supabase
           .from('shop_holidays')
           .select('holiday_date')
@@ -79,7 +79,6 @@ const BookingPage: React.FC = () => {
         const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
         console.log('Fetching slots for date:', selectedDateStr);
 
-        // Generate slots for the selected date if they don't exist
         const { error: generateError } = await supabase.rpc('generate_stylist_slots', {
           p_merchant_id: merchantId,
           p_date: selectedDateStr
@@ -89,7 +88,6 @@ const BookingPage: React.FC = () => {
           console.error('Error generating slots:', generateError);
         }
 
-        // Get available slots using the new function
         const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots', {
           p_merchant_id: merchantId,
           p_date: selectedDateStr,
@@ -106,17 +104,15 @@ const BookingPage: React.FC = () => {
 
         console.log('Available slots data:', slotsData);
 
-        // Filter out holiday slots and process the data
         const processedSlots = (slotsData || [])
           .filter((slot: AvailableSlot) => !slot.is_shop_holiday && !slot.is_stylist_holiday)
           .map((slot: AvailableSlot) => ({
             ...slot,
-            time_slot: slot.time_slot.substring(0, 5) // Format time as HH:MM
+            time_slot: slot.time_slot.substring(0, 5)
           }));
 
         setAvailableSlots(processedSlots);
 
-        // Check if it's a shop holiday
         const shopHoliday = (slotsData || []).find((slot: AvailableSlot) => slot.is_shop_holiday);
         if (shopHoliday) {
           toast.info(`Shop is closed: ${shopHoliday.shop_holiday_reason || 'Holiday'}`);
@@ -140,7 +136,6 @@ const BookingPage: React.FC = () => {
       return;
     }
 
-    // Find the selected slot to get staff info
     const selectedSlot = availableSlots.find(slot => slot.time_slot === selectedTime);
     const finalStaffId = selectedStaff || selectedSlot?.staff_id;
     const finalStaffDetails = selectedStaffDetails || { name: selectedSlot?.staff_name };
@@ -183,7 +178,6 @@ const BookingPage: React.FC = () => {
     }
   };
 
-  // Get unique time slots from available slots
   const uniqueTimeSlots = Array.from(new Set(availableSlots.map(slot => slot.time_slot))).sort();
 
   if (!merchant) {
@@ -217,7 +211,6 @@ const BookingPage: React.FC = () => {
           <p className="text-gray-500 text-sm">Select your preferred date and time slot</p>
         </div>
 
-        {/* Date Selection - 3 Day Format */}
         <div className="mb-6">
           <h3 className="font-medium mb-3 flex items-center">
             <CalendarIcon className="h-4 w-4 mr-2" />
@@ -251,7 +244,6 @@ const BookingPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Time Selection */}
         {selectedDate && (
           <div className="mb-6">
             <h3 className="font-medium mb-3 flex items-center">
@@ -273,7 +265,7 @@ const BookingPage: React.FC = () => {
                     }`}
                     onClick={() => setSelectedTime(time)}
                   >
-                    <span className="font-medium">{time}</span>
+                    <span className="font-medium">{formatTimeToAmPm(time)}</span>
                   </Button>
                 ))}
               </div>

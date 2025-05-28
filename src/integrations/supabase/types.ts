@@ -63,6 +63,7 @@ export type Database = {
           service_id: string
           staff_id: string | null
           status: string
+          stylist_name: string | null
           time_slot: string
           user_id: string
         }
@@ -78,6 +79,7 @@ export type Database = {
           service_id: string
           staff_id?: string | null
           status: string
+          stylist_name?: string | null
           time_slot: string
           user_id: string
         }
@@ -93,6 +95,7 @@ export type Database = {
           service_id?: string
           staff_id?: string | null
           status?: string
+          stylist_name?: string | null
           time_slot?: string
           user_id?: string
         }

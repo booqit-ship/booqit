@@ -1,12 +1,13 @@
 
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, CreditCard, Smartphone } from 'lucide-react';
+import { ChevronLeft, Store, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { formatTimeToAmPm } from '@/utils/timeUtils';
 
 interface SlotBookingResult {
   success: boolean;
@@ -20,7 +21,6 @@ const PaymentPage: React.FC = () => {
   const location = useLocation();
   const { userId } = useAuth();
   const [processing, setProcessing] = useState(false);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'card' | 'upi'>('card');
 
   const {
     merchant,
@@ -63,12 +63,13 @@ const PaymentPage: React.FC = () => {
       const bookingData = {
         user_id: userId,
         merchant_id: merchantId,
-        service_id: selectedServices[0].id, // Use first service for now
+        service_id: selectedServices[0].id,
         staff_id: selectedStaff,
         date: bookingDate,
         time_slot: bookingTime,
         status: 'pending',
-        payment_status: 'pending'
+        payment_status: 'pending',
+        stylist_name: selectedStaffDetails?.name || null
       };
 
       const { data: booking, error: bookingError } = await supabase
@@ -96,29 +97,26 @@ const PaymentPage: React.FC = () => {
 
         if (slotError) {
           console.error('Slot booking error:', slotError);
-          // Delete the booking if slot booking fails
           await supabase.from('bookings').delete().eq('id', booking.id);
           throw new Error('Failed to book time slot');
         }
 
         console.log('Slots booked:', slotResult);
 
-        // Type the result properly by first casting to unknown
         const typedResult = slotResult as unknown as SlotBookingResult;
         
         if (!typedResult.success) {
-          // Delete the booking if slot booking fails
           await supabase.from('bookings').delete().eq('id', booking.id);
           throw new Error(typedResult.error || 'Failed to book time slot');
         }
       }
 
-      // Create payment record
+      // Create payment record for "Pay on Shop"
       const paymentData = {
         booking_id: booking.id,
         amount: totalPrice,
-        method: selectedPaymentMethod,
-        status: 'completed'
+        method: 'pay_on_shop',
+        status: 'pending'
       };
 
       const { error: paymentError } = await supabase
@@ -127,7 +125,6 @@ const PaymentPage: React.FC = () => {
 
       if (paymentError) {
         console.error('Payment creation error:', paymentError);
-        // Release slots and delete booking if payment fails
         if (selectedStaff) {
           await supabase.rpc('release_stylist_slots', { p_booking_id: booking.id });
         }
@@ -135,12 +132,12 @@ const PaymentPage: React.FC = () => {
         throw new Error('Failed to process payment');
       }
 
-      // Update booking status to confirmed and payment status to completed
+      // Update booking status to confirmed
       const { error: updateError } = await supabase
         .from('bookings')
         .update({ 
           status: 'confirmed',
-          payment_status: 'completed' 
+          payment_status: 'pending'
         })
         .eq('id', booking.id);
 
@@ -155,7 +152,7 @@ const PaymentPage: React.FC = () => {
           booking: {
             ...booking,
             status: 'confirmed',
-            payment_status: 'completed'
+            payment_status: 'pending'
           },
           merchant,
           selectedServices,
@@ -182,7 +179,7 @@ const PaymentPage: React.FC = () => {
   }
 
   return (
-    <div className="pb-24 bg-white min-h-screen">
+    <div className="pb-24 bg-gray-50 min-h-screen">
       <div className="bg-booqit-primary text-white p-4 sticky top-0 z-10">
         <div className="relative flex items-center justify-center">
           <Button 
@@ -197,31 +194,37 @@ const PaymentPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="p-4">
+      <div className="p-4 space-y-6">
         {/* Booking Summary */}
-        <Card className="mb-6">
-          <CardContent className="p-4">
-            <h3 className="font-semibold mb-3">Booking Summary</h3>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
+        <Card className="shadow-lg">
+          <CardContent className="p-6">
+            <h3 className="font-semibold mb-4 text-lg flex items-center">
+              <Store className="h-5 w-5 mr-2 text-booqit-primary" />
+              Booking Summary
+            </h3>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
                 <span className="text-gray-600">Shop:</span>
                 <span className="font-medium">{merchant.shop_name}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between items-center">
                 <span className="text-gray-600">Date:</span>
                 <span className="font-medium">{bookingDate}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between items-center">
                 <span className="text-gray-600">Time:</span>
-                <span className="font-medium">{bookingTime}</span>
+                <span className="font-medium flex items-center">
+                  <Clock className="h-4 w-4 mr-1" />
+                  {formatTimeToAmPm(bookingTime)}
+                </span>
               </div>
               {selectedStaffDetails && (
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span className="text-gray-600">Stylist:</span>
                   <span className="font-medium">{selectedStaffDetails.name}</span>
                 </div>
               )}
-              <div className="flex justify-between">
+              <div className="flex justify-between items-start">
                 <span className="text-gray-600">Services:</span>
                 <div className="text-right">
                   {selectedServices.map((service: any) => (
@@ -229,53 +232,84 @@ const PaymentPage: React.FC = () => {
                   ))}
                 </div>
               </div>
-              <div className="flex justify-between border-t pt-2 font-semibold">
-                <span>Total:</span>
-                <span>₹{totalPrice}</span>
+              <div className="border-t pt-3 mt-3">
+                <div className="flex justify-between items-center font-semibold text-lg">
+                  <span>Total Amount:</span>
+                  <span className="text-booqit-primary">₹{totalPrice}</span>
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Payment Method Selection */}
-        <div className="mb-6">
-          <h3 className="font-semibold mb-3">Select Payment Method</h3>
-          <div className="space-y-3">
-            <Card 
-              className={`cursor-pointer transition-colors ${
-                selectedPaymentMethod === 'card' ? 'ring-2 ring-booqit-primary' : ''
-              }`}
-              onClick={() => setSelectedPaymentMethod('card')}
-            >
-              <CardContent className="p-4 flex items-center">
-                <CreditCard className="h-6 w-6 mr-3 text-booqit-primary" />
-                <span className="font-medium">Credit/Debit Card</span>
+        <Card className="shadow-lg">
+          <CardContent className="p-6">
+            <h3 className="font-semibold mb-4 text-lg">Payment Method</h3>
+            
+            {/* Pay on Shop - Available */}
+            <Card className="border-2 border-booqit-primary bg-booqit-primary/5 mb-3">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center">
+                  <Store className="h-6 w-6 mr-3 text-booqit-primary" />
+                  <div>
+                    <span className="font-medium">Pay at Shop</span>
+                    <p className="text-sm text-gray-600">Pay when you visit the shop</p>
+                  </div>
+                </div>
+                <div className="bg-booqit-primary text-white px-3 py-1 rounded-full text-xs font-medium">
+                  Available
+                </div>
               </CardContent>
             </Card>
             
-            <Card 
-              className={`cursor-pointer transition-colors ${
-                selectedPaymentMethod === 'upi' ? 'ring-2 ring-booqit-primary' : ''
-              }`}
-              onClick={() => setSelectedPaymentMethod('upi')}
-            >
-              <CardContent className="p-4 flex items-center">
-                <Smartphone className="h-6 w-6 mr-3 text-booqit-primary" />
-                <span className="font-medium">UPI</span>
+            {/* Online Payment - Coming Soon */}
+            <Card className="border border-gray-200 bg-gray-50 opacity-60">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="h-6 w-6 mr-3 bg-gray-300 rounded flex items-center justify-center">
+                    <span className="text-xs text-gray-500">💳</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-500">Online Payment</span>
+                    <p className="text-sm text-gray-400">UPI, Cards, Wallets</p>
+                  </div>
+                </div>
+                <div className="bg-gray-300 text-gray-600 px-3 py-1 rounded-full text-xs font-medium">
+                  Coming Soon
+                </div>
               </CardContent>
             </Card>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
+
+        {/* Important Note */}
+        <Card className="border-orange-200 bg-orange-50">
+          <CardContent className="p-4">
+            <h4 className="font-medium text-orange-800 mb-2">📋 Important Note</h4>
+            <p className="text-sm text-orange-700">
+              Your booking is confirmed! Please arrive on time and pay the amount at the shop. 
+              You can cancel or reschedule up to 2 hours before your appointment.
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t shadow-lg">
         <Button 
-          className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6"
+          className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6 shadow-lg"
           size="lg"
           onClick={handlePayment}
           disabled={processing}
         >
-          {processing ? 'Processing...' : `Pay ₹{totalPrice}`}
+          {processing ? (
+            <div className="flex items-center">
+              <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full mr-2"></div>
+              Processing...
+            </div>
+          ) : (
+            `Confirm Booking - ₹${totalPrice}`
+          )}
         </Button>
       </div>
     </div>
