@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -418,6 +417,29 @@ const CalendarManagementPage: React.FC = () => {
     fetchBookings();
   };
 
+  // Handle holiday added callback
+  const handleHolidayAdded = () => {
+    // Refetch holidays after adding a new one
+    const fetchHolidays = async () => {
+      if (!merchantId) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('shop_holidays')
+          .select('*')
+          .eq('merchant_id', merchantId);
+          
+        if (error) throw error;
+        
+        setHolidays(data);
+      } catch (error: any) {
+        console.error('Error fetching holidays:', error);
+      }
+    };
+    
+    fetchHolidays();
+  };
+
   return (
     <div className="container mx-auto px-2 sm:px-4 py-4">
       <div className="mb-4">
@@ -476,11 +498,15 @@ const CalendarManagementPage: React.FC = () => {
           )}
           
           {/* Shop Holidays */}
-          <HolidayManager
-            holidays={holidays}
-            isLoading={isHolidayLoading}
-            onDeleteHoliday={deleteHolidayDate}
-          />
+          {merchantId && (
+            <HolidayManager
+              holidays={holidays}
+              isLoading={isHolidayLoading}
+              onDeleteHoliday={deleteHolidayDate}
+              onHolidayAdded={handleHolidayAdded}
+              merchantId={merchantId}
+            />
+          )}
         </div>
       </div>
     </div>
