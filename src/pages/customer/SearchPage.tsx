@@ -15,7 +15,10 @@ const SearchPage: React.FC = () => {
   const [filteredMerchants, setFilteredMerchants] = useState<Merchant[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [userCity, setUserCity] = useState<string>('');
   const [selectedMerchant, setSelectedMerchant] = useState<Merchant | null>(null);
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>({ lat: 12.9716, lng: 77.5946 });
+  const [mapZoom, setMapZoom] = useState(11);
   const [filters, setFilters] = useState({
     sortBy: 'distance',
     priceRange: 'all',
@@ -32,17 +35,25 @@ const SearchPage: React.FC = () => {
       // Get user's current location with high accuracy
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
-          (position) => {
+          async (position) => {
             const newLocation = {
               lat: position.coords.latitude,
               lng: position.coords.longitude
             };
             setUserLocation(newLocation);
+            setMapCenter(newLocation);
+            setMapZoom(14);
+            
+            // Get user's city using reverse geocoding
+            await getUserCity(newLocation.lat, newLocation.lng);
           },
           (error) => {
             console.error('Error getting location:', error);
             // Default to Bangalore if location access is denied
-            setUserLocation({ lat: 12.9716, lng: 77.5946 });
+            const defaultLocation = { lat: 12.9716, lng: 77.5946 };
+            setUserLocation(defaultLocation);
+            setMapCenter(defaultLocation);
+            setUserCity('Bangalore');
             toast({
               title: "Location Access",
               description: "Please enable location access for better results",
@@ -56,7 +67,10 @@ const SearchPage: React.FC = () => {
           }
         );
       } else {
-        setUserLocation({ lat: 12.9716, lng: 77.5946 });
+        const defaultLocation = { lat: 12.9716, lng: 77.5946 };
+        setUserLocation(defaultLocation);
+        setMapCenter(defaultLocation);
+        setUserCity('Bangalore');
       }
 
       await fetchMerchants();
@@ -64,6 +78,29 @@ const SearchPage: React.FC = () => {
     
     initializeSearch();
   }, []);
+
+  // Get user's city using reverse geocoding
+  const getUserCity = async (lat: number, lng: number) => {
+    try {
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=AIzaSyB28nWHDBaEoMGIEoqfWDh6L2VRkM5AMwc`
+      );
+      const data = await response.json();
+      
+      if (data.results && data.results.length > 0) {
+        const addressComponents = data.results[0].address_components;
+        const cityComponent = addressComponents.find(component => 
+          component.types.includes('locality') || component.types.includes('administrative_area_level_2')
+        );
+        
+        if (cityComponent) {
+          setUserCity(cityComponent.long_name);
+        }
+      }
+    } catch (error) {
+      console.error('Error getting user city:', error);
+    }
+  };
 
   // Fetch merchants from database with services and apply initial filters
   const fetchMerchants = async () => {
@@ -125,15 +162,43 @@ const SearchPage: React.FC = () => {
     if (merchants.length > 0) {
       let filtered = [...merchants];
       
+      // Filter by user's city first
+      if (userCity) {
+        filtered = filtered.filter(merchant => 
+          merchant.address.toLowerCase().includes(userCity.toLowerCase())
+        );
+      }
+      
       // Apply search filter
       if (searchTerm) {
-        filtered = filtered.filter(merchant => 
+        const searchFiltered = filtered.filter(merchant => 
           merchant.shop_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
           merchant.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
           merchant.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
           (merchant.services && merchant.services.some(service => 
             service.name.toLowerCase().includes(searchTerm.toLowerCase())
           ))
+        );
+        
+        // Auto-focus on search results
+        if (searchFiltered.length > 0) {
+          const firstResult = searchFiltered[0];
+          setMapCenter({ lat: firstResult.lat, lng: firstResult.lng });
+          setMapZoom(16);
+          
+          // If only one result, select it
+          if (searchFiltered.length === 1) {
+            setSelectedMerchant(firstResult);
+          }
+        }
+        
+        filtered = searchFiltered;
+      }
+      
+      // Apply category filter
+      if (filters.category !== 'all') {
+        filtered = filtered.filter(merchant => 
+          merchant.category.toLowerCase() === filters.category.toLowerCase()
         );
       }
       
@@ -185,7 +250,7 @@ const SearchPage: React.FC = () => {
       
       setFilteredMerchants(filtered);
     }
-  }, [merchants, searchTerm, filters.sortBy, filters.priceRange, userLocation]);
+  }, [merchants, searchTerm, filters, userLocation, userCity]);
 
   // Calculate distance using Haversine formula
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -229,7 +294,7 @@ const SearchPage: React.FC = () => {
             <Input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="All treatments • Current location"
+              placeholder={`Search salons in ${userCity}...`}
               className="pl-12 pr-4 py-4 rounded-2xl border-0 shadow-lg bg-white/95 backdrop-blur-sm text-base placeholder:text-gray-600 focus:ring-2 focus:ring-booqit-primary font-medium"
             />
           </div>
@@ -239,8 +304,8 @@ const SearchPage: React.FC = () => {
       {/* Map View - Full Height */}
       <div className="flex-1 w-full">
         <GoogleMapComponent 
-          center={userLocation || { lat: 12.9716, lng: 77.5946 }}
-          zoom={userLocation ? 14 : 11}
+          center={mapCenter}
+          zoom={mapZoom}
           markers={mapMarkers}
           className="h-full w-full"
           onMarkerClick={handleMarkerClick}
@@ -256,6 +321,7 @@ const SearchPage: React.FC = () => {
         onFiltersChange={setFilters}
         isLoading={isLoading}
         onMerchantSelect={(merchant) => navigate(`/merchant/${merchant.id}`)}
+        userCity={userCity}
       />
     </div>
   );

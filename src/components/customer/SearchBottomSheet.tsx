@@ -20,6 +20,7 @@ interface SearchBottomSheetProps {
   onFiltersChange: (filters: any) => void;
   isLoading: boolean;
   onMerchantSelect: (merchant: Merchant) => void;
+  userCity: string;
 }
 
 const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
@@ -27,7 +28,8 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
   filters,
   onFiltersChange,
   isLoading,
-  onMerchantSelect
+  onMerchantSelect,
+  userCity
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
@@ -73,7 +75,7 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
         
         {/* Filter and Sort controls - Fixed, no scrolling */}
         <div className="flex items-center justify-between w-full px-4 mb-3">
-          <div className="flex gap-2 items-center w-full">
+          <div className="flex gap-2 items-center w-full overflow-x-auto">
             {/* Filter Button */}
             <Button
               variant="outline"
@@ -97,6 +99,19 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
                 <SelectItem value="distance">Distance</SelectItem>
                 <SelectItem value="rating">Rating</SelectItem>
                 <SelectItem value="name">Name</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Category Filter */}
+            <Select value={filters.category} onValueChange={(value) => handleFilterChange('category', value)}>
+              <SelectTrigger className="w-24 h-9 rounded-full text-sm flex-shrink-0 border-gray-300">
+                <SelectValue placeholder="Category" />
+              </SelectTrigger>
+              <SelectContent className="bg-white z-50">
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="barber_shop">Salon</SelectItem>
+                <SelectItem value="beauty_parlour">Beauty</SelectItem>
+                <SelectItem value="spa">Spa</SelectItem>
               </SelectContent>
             </Select>
 
@@ -125,7 +140,7 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
         {/* Venue count */}
         <div className="px-4 w-full">
           <p className="text-sm text-gray-500 text-left">
-            {merchants.length} salons & spas found
+            {merchants.length} salons & spas found {userCity && `in ${userCity}`}
           </p>
         </div>
       </div>
@@ -194,7 +209,7 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
             </div>
           ) : merchants.length === 0 ? (
             <div className="text-center py-10">
-              <p className="text-gray-500">No salons found matching your criteria</p>
+              <p className="text-gray-500">No salons found matching your criteria {userCity && `in ${userCity}`}</p>
             </div>
           ) : (
             <div className="space-y-6">
