@@ -1,3 +1,4 @@
+
 export type UserRole = 'customer' | 'merchant';
 
 export interface User {
@@ -63,6 +64,7 @@ export interface Booking {
   payment_status: 'pending' | 'completed' | 'failed' | 'refunded';
   created_at: string;
   staff_id?: string | null;
+  stylist_name?: string | null; // Added stylist_name property
   service?: Service;
   merchant?: Merchant;
   customer_name?: string;
