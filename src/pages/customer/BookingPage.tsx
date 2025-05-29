@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
@@ -6,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format, addDays, isWeekend, startOfDay } from 'date-fns';
-import { formatTimeToAmPm, isToday } from '@/utils/timeUtils';
+import { formatTimeToAmPm, isToday, isTimeSlotInPast } from '@/utils/timeUtils';
 
 interface AvailableSlot {
   staff_id: string;
@@ -103,11 +104,25 @@ const BookingPage: React.FC = () => {
           return;
         }
 
-        console.log('Available slots data:', slotsData);
+        console.log('Available slots data from backend:', slotsData);
 
-        // Process slots and filter out holidays (backend handles time filtering)
+        // Process slots and filter out holidays and past times (additional frontend filtering)
         const processedSlots = (slotsData || [])
-          .filter((slot: AvailableSlot) => !slot.is_shop_holiday && !slot.is_stylist_holiday)
+          .filter((slot: AvailableSlot) => {
+            // Filter out holidays
+            if (slot.is_shop_holiday || slot.is_stylist_holiday) {
+              return false;
+            }
+            
+            // Additional frontend filtering for past time slots
+            if (isToday(selectedDateStr)) {
+              const isPast = isTimeSlotInPast(slot.time_slot, selectedDateStr, 30);
+              console.log(`Slot ${slot.time_slot} is past:`, isPast);
+              return !isPast;
+            }
+            
+            return true;
+          })
           .map((slot: AvailableSlot) => ({
             ...slot,
             time_slot: slot.time_slot.substring(0, 5) // Ensure HH:MM format

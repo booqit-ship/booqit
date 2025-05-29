@@ -59,3 +59,31 @@ export const getCurrentTimeWithBuffer = (bufferMinutes: number = 30): string => 
   now.setMinutes(now.getMinutes() + bufferMinutes);
   return format(now, 'HH:mm');
 };
+
+// Check if current time has passed a specific time slot (more accurate check)
+export const isTimeSlotInPast = (timeSlot: string, dateString: string, bufferMinutes: number = 30): boolean => {
+  try {
+    const now = new Date();
+    const slotDate = new Date(dateString);
+    const [hours, minutes] = timeSlot.split(':').map(Number);
+    
+    // Set the slot time
+    slotDate.setHours(hours, minutes, 0, 0);
+    
+    // Add buffer to current time
+    const currentTimeWithBuffer = new Date(now.getTime() + (bufferMinutes * 60 * 1000));
+    
+    console.log('Checking time slot:', {
+      timeSlot,
+      dateString,
+      slotDateTime: slotDate,
+      currentTimeWithBuffer,
+      isPast: slotDate <= currentTimeWithBuffer
+    });
+    
+    return slotDate <= currentTimeWithBuffer;
+  } catch (error) {
+    console.error('Error checking if time slot is in past:', error);
+    return false;
+  }
+};

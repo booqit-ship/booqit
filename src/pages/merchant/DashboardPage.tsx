@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Booking } from '@/types';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { formatTimeToAmPm } from '@/utils/timeUtils';
 
 const DashboardPage: React.FC = () => {
   const { userId } = useAuth();
@@ -123,7 +124,6 @@ const DashboardPage: React.FC = () => {
           .from('bookings')
           .select('user_id')
           .eq('merchant_id', mId);
-          // Fix: removed the .is() call that was causing the type error
 
         if (customersError) {
           console.error('Error fetching unique customers:', customersError);
@@ -145,7 +145,7 @@ const DashboardPage: React.FC = () => {
           setServicesCount(servicesCount || 0);
         }
 
-        // Fetch recent bookings for today
+        // Fetch recent bookings for today with better customer and stylist name fetching
         const { data: recentBookingsData, error: recentBookingsError } = await supabase
           .from('bookings')
           .select(`
@@ -154,6 +154,10 @@ const DashboardPage: React.FC = () => {
             time_slot,
             status,
             payment_status,
+            customer_name,
+            customer_phone,
+            customer_email,
+            stylist_name,
             service:service_id (name),
             user_id
           `)
@@ -165,23 +169,33 @@ const DashboardPage: React.FC = () => {
         if (recentBookingsError) {
           console.error('Error fetching recent bookings:', recentBookingsError);
         } else if (recentBookingsData) {
-          // Fetch customer names for each booking
-          const bookingsWithCustomers = await Promise.all(
+          // Process bookings and ensure we have customer names
+          const bookingsWithDetails = await Promise.all(
             recentBookingsData.map(async (booking) => {
-              const { data: userData, error: userError } = await supabase
-                .from('profiles')
-                .select('name')
-                .eq('id', booking.user_id)
-                .single();
+              let customerName = booking.customer_name || 'Unknown Customer';
+              
+              // If no customer name in booking, try to fetch from profiles
+              if (!booking.customer_name && booking.user_id) {
+                const { data: userData, error: userError } = await supabase
+                  .from('profiles')
+                  .select('name')
+                  .eq('id', booking.user_id)
+                  .single();
+
+                if (!userError && userData?.name) {
+                  customerName = userData.name;
+                }
+              }
 
               return {
                 ...booking,
-                customer_name: userError ? 'Unknown Customer' : userData?.name || 'Unknown Customer'
+                customer_name: customerName,
+                stylist_name: booking.stylist_name || 'Unassigned'
               };
             })
           );
           
-          setRecentBookings(bookingsWithCustomers as Booking[]);
+          setRecentBookings(bookingsWithDetails as Booking[]);
         }
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
@@ -319,19 +333,29 @@ const DashboardPage: React.FC = () => {
                       className="flex items-center justify-between p-3 bg-gray-50 rounded-md"
                     >
                       <div>
-                        <h4 className="font-medium">{booking.customer_name}</h4>
+                        <h4 className="font-medium">{booking.customer_name || 'Walk-in Customer'}</h4>
                         <div className="flex gap-2 items-center">
                           <span className="text-sm text-gray-500">{booking.service?.name}</span>
                           <span className="text-sm text-gray-400">•</span>
-                          <span className="text-sm text-gray-500">{booking.time_slot}</span>
+                          <span className="text-sm text-gray-500">{formatTimeToAmPm(booking.time_slot)}</span>
+                          {booking.stylist_name && (
+                            <>
+                              <span className="text-sm text-gray-400">•</span>
+                              <span className="text-sm text-gray-500">{booking.stylist_name}</span>
+                            </>
+                          )}
                         </div>
                       </div>
                       <span className={`text-sm px-2 py-1 rounded-full ${
                         booking.status === 'confirmed'
                           ? 'bg-green-100 text-green-700'
+                          : booking.status === 'completed'
+                          ? 'bg-blue-100 text-blue-700'
+                          : booking.status === 'cancelled'
+                          ? 'bg-red-100 text-red-700'
                           : 'bg-amber-100 text-amber-700'
                       }`}>
-                        {booking.status === 'confirmed' ? 'Confirmed' : 'Pending'}
+                        {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                       </span>
                     </div>
                   ))
