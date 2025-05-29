@@ -30,14 +30,14 @@ export const getCurrentTime24 = (): string => {
   return format(new Date(), 'HH:mm');
 };
 
-// Check if a time slot has passed for today
+// Check if a time slot has passed for today (using 30 minute buffer like backend)
 export const hasTimeSlotPassed = (timeSlot: string, bufferMinutes: number = 30): boolean => {
   try {
     const now = new Date();
     const slotTime = parse(timeSlot, 'HH:mm', now);
     const currentTime = new Date();
     
-    // Add buffer time to current time
+    // Add buffer time to current time (same as backend)
     currentTime.setMinutes(currentTime.getMinutes() + bufferMinutes);
     
     return slotTime <= currentTime;
@@ -53,7 +53,7 @@ export const isToday = (dateString: string): boolean => {
   return dateString === today;
 };
 
-// Get time with buffer for slot availability
+// Get time with buffer for slot availability (consistent with backend)
 export const getCurrentTimeWithBuffer = (bufferMinutes: number = 30): string => {
   const now = new Date();
   now.setMinutes(now.getMinutes() + bufferMinutes);

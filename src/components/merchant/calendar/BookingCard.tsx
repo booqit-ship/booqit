@@ -15,6 +15,7 @@ interface BookingWithCustomerDetails {
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   customer_name?: string;
   customer_phone?: string;
+  customer_email?: string;
   stylist_name?: string;
 }
 
@@ -120,15 +121,26 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onStatusChange }) =>
             )}
             
             {booking.status === 'confirmed' && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleStatusChange('completed')}
-                disabled={isLoading}
-                className="text-xs h-7 px-2 border-green-300 text-green-700 hover:bg-green-50"
-              >
-                Complete
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleStatusChange('completed')}
+                  disabled={isLoading}
+                  className="text-xs h-7 px-2 border-green-300 text-green-700 hover:bg-green-50"
+                >
+                  Complete
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleStatusChange('cancelled')}
+                  disabled={isLoading}
+                  className="text-xs h-7 px-2 border-red-300 text-red-700 hover:bg-red-50"
+                >
+                  Cancel
+                </Button>
+              </>
             )}
           </div>
         </div>

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -26,9 +27,11 @@ import {
   Store,
   Check,
   X,
-  CalendarX
+  CalendarX,
+  Scissors
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { formatTimeToAmPm } from '@/utils/timeUtils';
 
 const CalendarPage: React.FC = () => {
   const [date, setDate] = useState<Date>(new Date());
@@ -50,7 +53,7 @@ const CalendarPage: React.FC = () => {
     navigate('/search');
   };
 
-  // Fetch bookings for the user
+  // Fetch bookings for the user with stylist names
   const fetchBookings = async () => {
     if (!userId) return;
     
@@ -62,6 +65,7 @@ const CalendarPage: React.FC = () => {
         .from('bookings')
         .select(`
           *,
+          stylist_name,
           service:service_id (
             id,
             name,
@@ -296,7 +300,7 @@ const CalendarPage: React.FC = () => {
                             <div>
                               <h3 className="text-sm font-medium">{booking.service?.name}</h3>
                               <p className="text-xs text-booqit-dark/60">
-                                {booking.time_slot}
+                                {formatTimeToAmPm(booking.time_slot)}
                               </p>
                             </div>
                           </div>
@@ -305,9 +309,18 @@ const CalendarPage: React.FC = () => {
                           </Badge>
                         </div>
                         
-                        <div className="flex items-center mt-2">
-                          <Store className="h-3 w-3 mr-1 text-booqit-dark/60" />
-                          <span className="text-xs">{booking.merchant?.shop_name}</span>
+                        <div className="space-y-1">
+                          <div className="flex items-center">
+                            <Store className="h-3 w-3 mr-1 text-booqit-dark/60" />
+                            <span className="text-xs">{booking.merchant?.shop_name}</span>
+                          </div>
+                          
+                          {booking.stylist_name && (
+                            <div className="flex items-center">
+                              <Scissors className="h-3 w-3 mr-1 text-booqit-dark/60" />
+                              <span className="text-xs">Stylist: {booking.stylist_name}</span>
+                            </div>
+                          )}
                         </div>
                         
                         {booking.status !== 'cancelled' && booking.status !== 'completed' && (
@@ -384,7 +397,7 @@ const CalendarPage: React.FC = () => {
                       <div className="col-span-12 md:col-span-2">
                         <div className="h-full flex flex-col justify-center items-center bg-gray-50 p-2 rounded-md">
                           <span className="text-xs text-gray-500">{format(parseISO(booking.date), 'MMM dd')}</span>
-                          <span className="mt-1 text-sm font-medium">{booking.time_slot}</span>
+                          <span className="mt-1 text-sm font-medium">{formatTimeToAmPm(booking.time_slot)}</span>
                         </div>
                       </div>
                       
@@ -394,6 +407,12 @@ const CalendarPage: React.FC = () => {
                           <Store className="h-4 w-4 mr-1" />
                           <span>{booking.merchant?.shop_name}</span>
                         </div>
+                        {booking.stylist_name && (
+                          <div className="flex items-center text-sm text-gray-600 mt-1">
+                            <Scissors className="h-4 w-4 mr-1" />
+                            <span>Stylist: {booking.stylist_name}</span>
+                          </div>
+                        )}
                       </div>
                       
                       <div className="col-span-12 md:col-span-3 flex items-center justify-end">

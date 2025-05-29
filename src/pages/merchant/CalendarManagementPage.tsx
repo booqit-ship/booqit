@@ -16,6 +16,7 @@ interface BookingWithCustomerDetails extends Booking {
   customer_name?: string;
   customer_phone?: string;
   customer_email?: string;
+  stylist_name?: string;
 }
 
 interface HolidayDate {
@@ -112,7 +113,7 @@ const CalendarManagementPage: React.FC = () => {
     generateSlotsForVisibleDays();
   }, [merchantId, visibleDays]);
 
-  // Fetch bookings for the merchant with customer details
+  // Fetch bookings for the merchant with customer details and stylist names
   const fetchBookings = async () => {
     if (!merchantId) return;
     
@@ -136,6 +137,7 @@ const CalendarManagementPage: React.FC = () => {
           customer_name,
           customer_phone,
           customer_email,
+          stylist_name,
           service:service_id (
             id,
             name,
@@ -170,9 +172,10 @@ const CalendarManagementPage: React.FC = () => {
         created_at: booking.created_at,
         staff_id: booking.staff_id,
         service: booking.service,
-        customer_name: booking.customer_name || 'Unknown Customer',
+        customer_name: booking.customer_name || 'Walk-in Customer',
         customer_phone: booking.customer_phone || null,
-        customer_email: booking.customer_email || null
+        customer_email: booking.customer_email || null,
+        stylist_name: booking.stylist_name || 'Unassigned'
       } as BookingWithCustomerDetails)) || [];
       
       setBookings(processedBookings);

@@ -88,7 +88,7 @@ const BookingPage: React.FC = () => {
           console.error('Error generating slots:', generateError);
         }
 
-        // Fetch available slots with improved filtering
+        // Fetch available slots with improved filtering (backend now handles past time filtering)
         const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots', {
           p_merchant_id: merchantId,
           p_date: selectedDateStr,
@@ -105,7 +105,7 @@ const BookingPage: React.FC = () => {
 
         console.log('Available slots data:', slotsData);
 
-        // Process slots and filter out holidays
+        // Process slots and filter out holidays (backend handles time filtering)
         const processedSlots = (slotsData || [])
           .filter((slot: AvailableSlot) => !slot.is_shop_holiday && !slot.is_stylist_holiday)
           .map((slot: AvailableSlot) => ({
