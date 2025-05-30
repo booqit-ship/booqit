@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -106,6 +105,30 @@ const SettingsPage: React.FC = () => {
     fetchMerchantData();
   }, [userId]);
 
+  const generateSlotsForNext30Days = async (merchantId: string) => {
+    try {
+      // Generate slots for the next 30 days
+      for (let i = 0; i < 30; i++) {
+        const date = new Date();
+        date.setDate(date.getDate() + i);
+        const dateStr = date.toISOString().split('T')[0];
+        
+        // Call the generate_stylist_slots function
+        const { error } = await supabase.rpc('generate_stylist_slots', {
+          p_merchant_id: merchantId,
+          p_date: dateStr
+        });
+        
+        if (error) {
+          console.error(`Error generating slots for ${dateStr}:`, error);
+        }
+      }
+      console.log('Successfully generated slots for next 30 days');
+    } catch (error) {
+      console.error('Error in slot generation:', error);
+    }
+  };
+
   const handleUpdateMerchant = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -151,11 +174,17 @@ const SettingsPage: React.FC = () => {
         setIsUploading(false);
       }
       
+      // Convert times from 12-hour to 24-hour format
+      const open24 = formatTimeFrom12To24(openTime);
+      const close24 = formatTimeFrom12To24(closeTime);
+      
+      console.log('Converting times:', { openTime, closeTime, open24, close24 });
+      
       // Use the SQL function to update merchant hours
       const { data: hoursResult, error: hoursError } = await supabase.rpc('update_merchant_hours', {
         p_merchant_id: merchant.id,
-        p_open_time: formatTimeFrom12To24(openTime),
-        p_close_time: formatTimeFrom12To24(closeTime)
+        p_open_time: open24,
+        p_close_time: close24
       });
 
       if (hoursError) {
@@ -183,8 +212,11 @@ const SettingsPage: React.FC = () => {
         
       if (error) throw error;
       
+      // Generate slots for the next 30 days after updating hours
+      await generateSlotsForNext30Days(merchant.id);
+      
       toast('Business information updated', {
-        description: 'Your changes have been saved successfully'
+        description: 'Your changes have been saved successfully and booking slots have been generated'
       });
       
       // Update local state
@@ -196,8 +228,8 @@ const SettingsPage: React.FC = () => {
           description: description,
           category: category,
           gender_focus: genderFocus,
-          open_time: formatTimeFrom12To24(openTime),
-          close_time: formatTimeFrom12To24(closeTime),
+          open_time: open24,
+          close_time: close24,
           address: address,
           image_url: imageUrl
         };

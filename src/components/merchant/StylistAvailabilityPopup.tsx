@@ -111,6 +111,26 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
     );
   };
 
+  const regenerateSlots = async () => {
+    try {
+      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+      
+      // Call the generate_stylist_slots function to regenerate slots
+      const { error } = await supabase.rpc('generate_stylist_slots', {
+        p_merchant_id: merchantId,
+        p_date: selectedDateStr
+      });
+      
+      if (error) {
+        console.error('Error regenerating slots:', error);
+      } else {
+        console.log('Successfully regenerated slots for', selectedDateStr);
+      }
+    } catch (error) {
+      console.error('Error in slot regeneration:', error);
+    }
+  };
+
   const handleSave = async () => {
     if (!selectedStaff) {
       toast({
@@ -149,6 +169,9 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
       if (!response.success) {
         throw new Error(response.message || 'Failed to update availability');
       }
+      
+      // Regenerate slots to ensure consistency
+      await regenerateSlots();
       
       toast({
         title: "Success",
