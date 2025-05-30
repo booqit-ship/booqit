@@ -79,6 +79,8 @@ const BookingPage: React.FC = () => {
 
       setLoading(true);
       setConflictMessage('');
+      setSelectedTime(''); // Reset selected time when date changes
+      
       try {
         const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
         console.log('Fetching slots for date:', selectedDateStr, 'Duration:', totalDuration, 'Staff:', selectedStaff);

@@ -39,6 +39,9 @@ export const useCancelBooking = () => {
       console.log('Booking cancelled successfully:', result);
       toast.success(`${result.message || 'Booking cancelled successfully'} (${result.slots_released || 0} slots released)`);
       
+      // Force a small delay to ensure database consistency
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       return true;
     } catch (error: any) {
       console.error('Cancel booking error:', error);

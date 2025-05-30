@@ -59,6 +59,11 @@ const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
     if (success) {
       setIsDialogOpen(false);
       onCancelSuccess?.();
+      
+      // Force a page refresh after a short delay to ensure all slots are updated
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     }
   };
 
