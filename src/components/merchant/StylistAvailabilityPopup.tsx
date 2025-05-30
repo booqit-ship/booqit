@@ -34,7 +34,8 @@ import {
   Calendar as CalendarIcon, 
   Clock, 
   ChevronDown,
-  Edit
+  Edit,
+  Trash2
 } from 'lucide-react';
 
 interface StylistAvailabilityPopupProps {
@@ -44,10 +45,16 @@ interface StylistAvailabilityPopupProps {
   onAvailabilityChange: () => void;
 }
 
-interface SqlResponse {
-  success: boolean;
-  message?: string;
-  error?: string;
+interface TimeRange {
+  start_time: string;
+  end_time: string;
+}
+
+interface ExistingBlockedRange {
+  id: string;
+  start_time: string;
+  end_time: string;
+  description: string | null;
 }
 
 interface StylistHoliday {
@@ -56,21 +63,6 @@ interface StylistHoliday {
   holiday_date: string;
   description: string | null;
 }
-
-interface StylistBlockedSlot {
-  id: string;
-  staff_id: string;
-  blocked_date: string;
-  time_slot: string;
-  description: string | null;
-}
-
-const timeSlots = [
-  '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-  '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
-  '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
-  '18:00', '18:30', '19:00', '19:30', '20:00'
-];
 
 const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
   open,
@@ -82,32 +74,73 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
   const [selectedStaff, setSelectedStaff] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isFullDayHoliday, setIsFullDayHoliday] = useState(false);
-  const [selectedTimeSlots, setSelectedTimeSlots] = useState<string[]>([]);
+  const [selectedTimeRanges, setSelectedTimeRanges] = useState<TimeRange[]>([]);
   const [description, setDescription] = useState('');
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [existingHoliday, setExistingHoliday] = useState<StylistHoliday | null>(null);
-  const [existingBlockedSlots, setExistingBlockedSlots] = useState<StylistBlockedSlot[]>([]);
+  const [existingBlockedRanges, setExistingBlockedRanges] = useState<ExistingBlockedRange[]>([]);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [availableTimeRanges, setAvailableTimeRanges] = useState<TimeRange[]>([]);
+  const [merchantHours, setMerchantHours] = useState<{ open_time: string; close_time: string } | null>(null);
   const { toast } = useToast();
 
+  // Generate time ranges based on merchant hours
+  const generateTimeRanges = (openTime: string, closeTime: string): TimeRange[] => {
+    const ranges: TimeRange[] = [];
+    const start = new Date(`2000-01-01T${openTime}`);
+    const end = new Date(`2000-01-01T${closeTime}`);
+    
+    let current = new Date(start);
+    
+    while (current < end) {
+      const next = new Date(current.getTime() + 30 * 60000); // Add 30 minutes
+      if (next <= end) {
+        ranges.push({
+          start_time: current.toTimeString().substring(0, 5),
+          end_time: next.toTimeString().substring(0, 5)
+        });
+      }
+      current = next;
+    }
+    
+    return ranges;
+  };
+
   useEffect(() => {
-    const fetchStaff = async () => {
+    const fetchMerchantAndStaff = async () => {
       try {
-        const { data, error } = await supabase
+        // Fetch merchant hours
+        const { data: merchantData, error: merchantError } = await supabase
+          .from('merchants')
+          .select('open_time, close_time')
+          .eq('id', merchantId)
+          .single();
+          
+        if (merchantError) throw merchantError;
+        
+        setMerchantHours(merchantData);
+        
+        if (merchantData) {
+          const ranges = generateTimeRanges(merchantData.open_time, merchantData.close_time);
+          setAvailableTimeRanges(ranges);
+        }
+
+        // Fetch staff
+        const { data: staffData, error: staffError } = await supabase
           .from('staff')
           .select('*')
           .eq('merchant_id', merchantId);
           
-        if (error) throw error;
-        setStaff(data || []);
+        if (staffError) throw staffError;
+        setStaff(staffData || []);
       } catch (error) {
-        console.error('Error fetching staff:', error);
+        console.error('Error fetching data:', error);
       }
     };
     
     if (open) {
-      fetchStaff();
+      fetchMerchantAndStaff();
     }
   }, [merchantId, open]);
 
@@ -117,10 +150,10 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
       setSelectedStaff('');
       setSelectedDate(new Date());
       setIsFullDayHoliday(false);
-      setSelectedTimeSlots([]);
+      setSelectedTimeRanges([]);
       setDescription('');
       setExistingHoliday(null);
-      setExistingBlockedSlots([]);
+      setExistingBlockedRanges([]);
       setIsEditMode(false);
     }
   }, [open]);
@@ -147,32 +180,34 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
           setExistingHoliday(holidayData);
           setIsFullDayHoliday(true);
           setDescription(holidayData.description || '');
-          setSelectedTimeSlots([]);
+          setSelectedTimeRanges([]);
           setIsEditMode(true);
           return;
         }
 
-        // Check for existing blocked slots
-        const { data: slotsData, error: slotsError } = await supabase
-          .from('stylist_blocked_slots')
-          .select('*')
-          .eq('staff_id', selectedStaff)
-          .eq('blocked_date', selectedDateStr);
+        // Check for existing blocked ranges
+        const { data: rangesData, error: rangesError } = await supabase.rpc('get_stylist_blocked_ranges', {
+          p_staff_id: selectedStaff,
+          p_date: selectedDateStr
+        });
 
-        if (slotsError) {
-          console.error('Error fetching blocked slots:', slotsError);
-        } else if (slotsData && slotsData.length > 0) {
-          setExistingBlockedSlots(slotsData);
-          setSelectedTimeSlots(slotsData.map(slot => slot.time_slot));
-          setDescription(slotsData[0]?.description || '');
+        if (rangesError) {
+          console.error('Error fetching blocked ranges:', rangesError);
+        } else if (rangesData && rangesData.length > 0) {
+          setExistingBlockedRanges(rangesData);
+          setSelectedTimeRanges(rangesData.map(range => ({
+            start_time: range.start_time,
+            end_time: range.end_time
+          })));
+          setDescription(rangesData[0]?.description || '');
           setIsFullDayHoliday(false);
           setIsEditMode(true);
         } else {
           // No existing data
           setExistingHoliday(null);
-          setExistingBlockedSlots([]);
+          setExistingBlockedRanges([]);
           setIsFullDayHoliday(false);
-          setSelectedTimeSlots([]);
+          setSelectedTimeRanges([]);
           setDescription('');
           setIsEditMode(false);
         }
@@ -184,32 +219,15 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
     loadExistingData();
   }, [selectedStaff, selectedDate]);
 
-  const handleTimeSlotToggle = (timeSlot: string) => {
-    setSelectedTimeSlots(prev => 
-      prev.includes(timeSlot) 
-        ? prev.filter(slot => slot !== timeSlot)
-        : [...prev, timeSlot]
-    );
-  };
-
-  const regenerateSlots = async () => {
-    try {
-      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-      
-      // Call the generate_stylist_slots function to regenerate slots
-      const { error } = await supabase.rpc('generate_stylist_slots', {
-        p_merchant_id: merchantId,
-        p_date: selectedDateStr
-      });
-      
-      if (error) {
-        console.error('Error regenerating slots:', error);
+  const handleTimeRangeToggle = (range: TimeRange) => {
+    setSelectedTimeRanges(prev => {
+      const isSelected = prev.some(r => r.start_time === range.start_time && r.end_time === range.end_time);
+      if (isSelected) {
+        return prev.filter(r => !(r.start_time === range.start_time && r.end_time === range.end_time));
       } else {
-        console.log('Successfully regenerated slots for', selectedDateStr);
+        return [...prev, range];
       }
-    } catch (error) {
-      console.error('Error in slot regeneration:', error);
-    }
+    });
   };
 
   const handleSave = async () => {
@@ -222,10 +240,10 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
       return;
     }
 
-    if (!isFullDayHoliday && selectedTimeSlots.length === 0) {
+    if (!isFullDayHoliday && selectedTimeRanges.length === 0) {
       toast({
         title: "Error",
-        description: "Please select time slots to block or mark as full day holiday.",
+        description: "Please select time ranges to block or mark as full day holiday.",
         variant: "destructive",
       });
       return;
@@ -235,24 +253,21 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
     try {
       const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
       
-      const { data, error } = await supabase.rpc('manage_stylist_availability', {
+      const { data, error } = await supabase.rpc('manage_stylist_availability_ranges', {
         p_staff_id: selectedStaff,
         p_merchant_id: merchantId,
         p_date: selectedDateStr,
         p_is_full_day: isFullDayHoliday,
-        p_blocked_slots: isFullDayHoliday ? null : selectedTimeSlots,
+        p_blocked_ranges: isFullDayHoliday ? null : selectedTimeRanges,
         p_description: description || null
       });
 
       if (error) throw error;
 
-      const response = data as unknown as SqlResponse;
+      const response = data as { success: boolean; message?: string };
       if (!response.success) {
         throw new Error(response.message || 'Failed to update availability');
       }
-      
-      // Regenerate slots to ensure consistency
-      await regenerateSlots();
       
       toast({
         title: "Success",
@@ -286,20 +301,17 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
 
       if (error) throw error;
 
-      const response = data as unknown as SqlResponse;
+      const response = data as { success: boolean; message?: string };
       if (!response.success) {
         throw new Error(response.message || 'Failed to clear availability');
       }
       
-      // Regenerate slots to ensure consistency
-      await regenerateSlots();
-      
       // Reset form
       setIsFullDayHoliday(false);
-      setSelectedTimeSlots([]);
+      setSelectedTimeRanges([]);
       setDescription('');
       setExistingHoliday(null);
-      setExistingBlockedSlots([]);
+      setExistingBlockedRanges([]);
       setIsEditMode(false);
       
       toast({
@@ -330,7 +342,7 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
             {isEditMode ? 'Edit' : 'Manage'} Stylist Availability
           </DialogTitle>
           <DialogDescription>
-            {isEditMode ? 'Edit existing availability restrictions.' : 'Block time slots or mark full day holidays for stylists.'}
+            {isEditMode ? 'Edit existing availability restrictions.' : 'Block time ranges or mark full day holidays for stylists.'}
           </DialogDescription>
         </DialogHeader>
         
@@ -396,6 +408,7 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
                       disabled={isLoading}
                       className="text-red-600 border-red-200 hover:bg-red-50"
                     >
+                      <Trash2 className="h-3 w-3 mr-1" />
                       Clear All
                     </Button>
                   </div>
@@ -409,7 +422,7 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
                   onCheckedChange={(checked) => {
                     setIsFullDayHoliday(checked as boolean);
                     if (checked) {
-                      setSelectedTimeSlots([]);
+                      setSelectedTimeRanges([]);
                     }
                   }}
                 />
@@ -418,33 +431,35 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
                 </label>
               </div>
 
-              {!isFullDayHoliday && (
+              {!isFullDayHoliday && availableTimeRanges.length > 0 && (
                 <div>
                   <label className="text-sm font-medium mb-2 block flex items-center">
                     <Clock className="h-4 w-4 mr-1" />
-                    Block Specific Time Slots
+                    Block Time Ranges
                   </label>
-                  <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto">
-                    {timeSlots.map((slot) => {
-                      const isSelected = selectedTimeSlots.includes(slot);
+                  <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto">
+                    {availableTimeRanges.map((range, index) => {
+                      const isSelected = selectedTimeRanges.some(r => 
+                        r.start_time === range.start_time && r.end_time === range.end_time
+                      );
                       
                       return (
                         <Button
-                          key={slot}
+                          key={index}
                           variant={isSelected ? "destructive" : "outline"}
                           size="sm"
-                          className="text-xs h-8"
-                          onClick={() => handleTimeSlotToggle(slot)}
+                          className="text-xs h-8 justify-start"
+                          onClick={() => handleTimeRangeToggle(range)}
                         >
-                          {formatTimeToAmPm(slot)}
+                          {formatTimeToAmPm(range.start_time)} - {formatTimeToAmPm(range.end_time)}
                         </Button>
                       );
                     })}
                   </div>
                   
-                  {selectedTimeSlots.length > 0 && (
+                  {selectedTimeRanges.length > 0 && (
                     <div className="mt-2 text-xs text-muted-foreground">
-                      {selectedTimeSlots.length} slot(s) selected
+                      {selectedTimeRanges.length} range(s) selected
                     </div>
                   )}
                 </div>
@@ -470,7 +485,7 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
           </Button>
           <Button
             onClick={handleSave}
-            disabled={isLoading || !selectedStaff || (!isFullDayHoliday && selectedTimeSlots.length === 0)}
+            disabled={isLoading || !selectedStaff || (!isFullDayHoliday && selectedTimeRanges.length === 0)}
           >
             {isLoading ? 'Saving...' : isEditMode ? 'Update' : 'Save Changes'}
           </Button>

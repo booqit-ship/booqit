@@ -403,27 +403,33 @@ export type Database = {
           blocked_date: string
           created_at: string
           description: string | null
+          end_time: string | null
           id: string
           merchant_id: string
           staff_id: string
+          start_time: string | null
           time_slot: string
         }
         Insert: {
           blocked_date: string
           created_at?: string
           description?: string | null
+          end_time?: string | null
           id?: string
           merchant_id: string
           staff_id: string
+          start_time?: string | null
           time_slot: string
         }
         Update: {
           blocked_date?: string
           created_at?: string
           description?: string | null
+          end_time?: string | null
           id?: string
           merchant_id?: string
           staff_id?: string
+          start_time?: string | null
           time_slot?: string
         }
         Relationships: [
@@ -583,6 +589,30 @@ export type Database = {
           stylist_holiday_reason: string
         }[]
       }
+      get_available_slots_with_validation: {
+        Args: {
+          p_merchant_id: string
+          p_date: string
+          p_staff_id?: string
+          p_service_duration?: number
+        }
+        Returns: {
+          staff_id: string
+          staff_name: string
+          time_slot: string
+          is_available: boolean
+          conflict_reason: string
+        }[]
+      }
+      get_stylist_blocked_ranges: {
+        Args: { p_staff_id: string; p_date: string }
+        Returns: {
+          id: string
+          start_time: string
+          end_time: string
+          description: string
+        }[]
+      }
       manage_stylist_availability: {
         Args: {
           p_staff_id: string
@@ -590,6 +620,17 @@ export type Database = {
           p_date: string
           p_is_full_day: boolean
           p_blocked_slots?: string[]
+          p_description?: string
+        }
+        Returns: Json
+      }
+      manage_stylist_availability_ranges: {
+        Args: {
+          p_staff_id: string
+          p_merchant_id: string
+          p_date: string
+          p_is_full_day: boolean
+          p_blocked_ranges?: Json
           p_description?: string
         }
         Returns: Json
