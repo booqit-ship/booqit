@@ -81,9 +81,15 @@ const BookingPage: React.FC = () => {
       setConflictMessage('');
       try {
         const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-        console.log('Fetching slots for date:', selectedDateStr, 'Duration:', totalDuration);
+        console.log('Fetching slots for date:', selectedDateStr, 'Duration:', totalDuration, 'Staff:', selectedStaff);
 
-        // Use the updated validation function that checks for time range conflicts
+        // First ensure slots are generated for this date
+        await supabase.rpc('generate_stylist_slots', {
+          p_merchant_id: merchantId,
+          p_date: selectedDateStr
+        });
+
+        // Then get available slots with validation
         const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_validation', {
           p_merchant_id: merchantId,
           p_date: selectedDateStr,
@@ -100,11 +106,15 @@ const BookingPage: React.FC = () => {
 
         console.log('Available slots with validation:', slotsData);
 
-        const processedSlots = (slotsData || []).map((slot: AvailableSlot) => ({
-          ...slot,
-          time_slot: slot.time_slot.substring(0, 5) // Ensure HH:MM format
+        const processedSlots = (slotsData || []).map((slot: any) => ({
+          staff_id: slot.staff_id,
+          staff_name: slot.staff_name,
+          time_slot: typeof slot.time_slot === 'string' ? slot.time_slot.substring(0, 5) : format(new Date(`2000-01-01T${slot.time_slot}`), 'HH:mm'),
+          is_available: slot.is_available,
+          conflict_reason: slot.conflict_reason
         }));
 
+        console.log('Processed slots:', processedSlots);
         setAvailableSlots(processedSlots);
 
       } catch (error) {
