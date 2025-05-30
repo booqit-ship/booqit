@@ -21,7 +21,18 @@ import {
   DialogTrigger,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Flag, CalendarX, X, Plus } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { CalendarX, X, Plus } from 'lucide-react';
 import { format, parseISO, isBefore, startOfDay } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -116,6 +127,10 @@ const HolidayManager: React.FC<HolidayManagerProps> = ({
     }
   };
 
+  const handleConfirmDelete = (holidayId: string) => {
+    onDeleteHoliday(holidayId);
+  };
+
   // Filter out past holidays for display (only show today and future)
   const today = startOfDay(new Date());
   const futureHolidays = holidays.filter(holiday => 
@@ -127,7 +142,7 @@ const HolidayManager: React.FC<HolidayManagerProps> = ({
       <CardHeader className="py-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base sm:text-lg flex items-center">
-            <Flag className="mr-2 h-4 w-4 text-red-500" />
+            <CalendarX className="mr-2 h-4 w-4 text-red-500" />
             Shop Holidays
           </CardTitle>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -218,15 +233,35 @@ const HolidayManager: React.FC<HolidayManagerProps> = ({
                         </div>
                       </TableCell>
                       <TableCell className="text-right py-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onDeleteHoliday(holiday.id)}
-                          className="h-6 w-6 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
-                        >
-                          <X className="h-3 w-3" />
-                          <span className="sr-only">Delete</span>
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
+                            >
+                              <X className="h-3 w-3" />
+                              <span className="sr-only">Delete</span>
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Holiday</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete this holiday? This action cannot be undone and will make the date available for bookings again.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleConfirmDelete(holiday.id)}
+                                className="bg-red-500 hover:bg-red-600"
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </TableCell>
                     </TableRow>
                   ))}

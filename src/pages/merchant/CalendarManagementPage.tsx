@@ -363,6 +363,33 @@ const CalendarManagementPage: React.FC = () => {
     fetchHolidays();
   };
 
+  // Handle holiday deletion
+  const handleDeleteHoliday = async (holidayId: string) => {
+    try {
+      const { error } = await supabase
+        .from('shop_holidays')
+        .delete()
+        .eq('id', holidayId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Holiday deleted successfully.",
+      });
+
+      // Refresh holidays list
+      handleHolidayAdded();
+    } catch (error: any) {
+      console.error('Error deleting holiday:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete holiday. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="container mx-auto px-2 sm:px-4 py-4">
       <div className="mb-4">
@@ -425,7 +452,7 @@ const CalendarManagementPage: React.FC = () => {
             <HolidayManager
               holidays={holidays}
               isLoading={isHolidayLoading}
-              onDeleteHoliday={() => {}}
+              onDeleteHoliday={handleDeleteHoliday}
               onHolidayAdded={handleHolidayAdded}
               merchantId={merchantId}
             />
