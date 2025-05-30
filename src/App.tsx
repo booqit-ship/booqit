@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -30,7 +29,6 @@ import MerchantLayout from '@/layouts/MerchantLayout';
 import DashboardPage from '@/pages/merchant/DashboardPage';
 import ServicesPage from '@/pages/merchant/ServicesPage';
 import CalendarManagementPage from '@/pages/merchant/CalendarManagementPage';
-import CustomersPage from '@/pages/merchant/CustomersPage';
 import SettingsPage from '@/pages/merchant/SettingsPage';
 import OnboardingPage from '@/pages/merchant/OnboardingPage';
 
@@ -106,7 +104,6 @@ const router = createBrowserRouter([
           { index: true, element: <DashboardPage /> },
           { path: "services", element: <ServicesPage /> },
           { path: "calendar", element: <CalendarManagementPage /> },
-          { path: "customers", element: <CustomersPage /> },
           { path: "settings", element: <SettingsPage /> },
         ],
       },

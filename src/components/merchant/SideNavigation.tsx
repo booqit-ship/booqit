@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -8,7 +7,6 @@ import {
   Home, 
   List, 
   Calendar, 
-  Users, 
   Settings, 
   LogOut 
 } from 'lucide-react';
@@ -39,11 +37,6 @@ const SideNavigation: React.FC = () => {
       path: '/merchant/calendar',
       label: 'Calendar',
       icon: <Calendar className="w-5 h-5" />
-    },
-    {
-      path: '/merchant/customers',
-      label: 'Customers',
-      icon: <Users className="w-5 h-5" />
     },
     {
       path: '/merchant/settings',
