@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -162,7 +163,7 @@ const SettingsPage: React.FC = () => {
         throw hoursError;
       }
 
-      const hoursResponse = hoursResult as SqlResponse;
+      const hoursResponse = hoursResult as unknown as SqlResponse;
       if (!hoursResponse.success) {
         throw new Error(hoursResponse.error || 'Failed to update hours');
       }

@@ -145,7 +145,7 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
 
       if (error) throw error;
 
-      const response = data as SqlResponse;
+      const response = data as unknown as SqlResponse;
       if (!response.success) {
         throw new Error(response.message || 'Failed to update availability');
       }
