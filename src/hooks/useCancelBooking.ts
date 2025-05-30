@@ -29,10 +29,11 @@ export const useCancelBooking = () => {
         throw new Error(error.message);
       }
 
-      const result = data as CancelBookingResult;
+      // Safely handle the response data
+      const result = data as unknown as CancelBookingResult;
       
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to cancel booking');
+      if (!result || !result.success) {
+        throw new Error(result?.error || 'Failed to cancel booking');
       }
 
       console.log('Booking cancelled successfully:', result);
