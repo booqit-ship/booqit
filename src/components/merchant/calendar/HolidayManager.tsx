@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,7 +22,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Flag, CalendarX, X, Plus } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isBefore, startOfDay } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -51,6 +51,39 @@ const HolidayManager: React.FC<HolidayManagerProps> = ({
   const [newHolidayDate, setNewHolidayDate] = useState('');
   const [newHolidayDescription, setNewHolidayDescription] = useState('');
   const [addingHoliday, setAddingHoliday] = useState(false);
+
+  // Auto-delete past holidays
+  useEffect(() => {
+    const deletePastHolidays = async () => {
+      if (!merchantId || holidays.length === 0) return;
+
+      const today = startOfDay(new Date());
+      const pastHolidays = holidays.filter(holiday => 
+        isBefore(parseISO(holiday.holiday_date), today)
+      );
+
+      if (pastHolidays.length > 0) {
+        try {
+          const pastHolidayIds = pastHolidays.map(h => h.id);
+          const { error } = await supabase
+            .from('shop_holidays')
+            .delete()
+            .in('id', pastHolidayIds);
+
+          if (error) {
+            console.error('Error deleting past holidays:', error);
+          } else {
+            console.log(`Deleted ${pastHolidays.length} past holidays`);
+            onHolidayAdded(); // Refresh the list
+          }
+        } catch (error) {
+          console.error('Error in auto-delete past holidays:', error);
+        }
+      }
+    };
+
+    deletePastHolidays();
+  }, [holidays, merchantId, onHolidayAdded]);
 
   const handleAddHoliday = async () => {
     if (!newHolidayDate) {
@@ -82,6 +115,12 @@ const HolidayManager: React.FC<HolidayManagerProps> = ({
       setAddingHoliday(false);
     }
   };
+
+  // Filter out past holidays for display (only show today and future)
+  const today = startOfDay(new Date());
+  const futureHolidays = holidays.filter(holiday => 
+    !isBefore(parseISO(holiday.holiday_date), today)
+  );
 
   return (
     <Card>
@@ -147,10 +186,10 @@ const HolidayManager: React.FC<HolidayManagerProps> = ({
           <div className="flex justify-center py-6">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-booqit-primary"></div>
           </div>
-        ) : holidays.length === 0 ? (
+        ) : futureHolidays.length === 0 ? (
           <div className="text-center py-6 border rounded-md">
             <CalendarX className="h-8 w-8 mx-auto text-booqit-dark/30 mb-2" />
-            <p className="text-booqit-dark/60 text-sm">No holidays marked</p>
+            <p className="text-booqit-dark/60 text-sm">No upcoming holidays</p>
           </div>
         ) : (
           <div className="rounded-md border overflow-hidden">
@@ -162,7 +201,7 @@ const HolidayManager: React.FC<HolidayManagerProps> = ({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {holidays
+                {futureHolidays
                   .sort((a, b) => new Date(a.holiday_date).getTime() - new Date(b.holiday_date).getTime())
                   .map((holiday) => (
                     <TableRow key={holiday.id}>

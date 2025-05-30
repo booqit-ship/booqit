@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { Staff } from '@/types';
-import { format } from 'date-fns';
+import { format, isBefore, startOfDay } from 'date-fns';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { User, Calendar as CalendarIcon, Settings } from 'lucide-react';
 
@@ -115,6 +115,56 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
   useEffect(() => {
     fetchAllAvailabilityData();
   }, [merchantId]);
+
+  // Auto-delete past entries
+  useEffect(() => {
+    const deletePastEntries = async () => {
+      if (!merchantId) return;
+
+      const today = startOfDay(new Date());
+      
+      // Delete past holidays
+      const pastHolidays = stylistHolidays.filter(holiday => 
+        isBefore(new Date(holiday.holiday_date), today)
+      );
+
+      // Delete past blocked slots
+      const pastBlockedSlots = stylistBlockedSlots.filter(slot => 
+        isBefore(new Date(slot.blocked_date), today)
+      );
+
+      try {
+        if (pastHolidays.length > 0) {
+          const pastHolidayIds = pastHolidays.map(h => h.id);
+          await supabase
+            .from('stylist_holidays')
+            .delete()
+            .in('id', pastHolidayIds);
+          console.log(`Deleted ${pastHolidays.length} past stylist holidays`);
+        }
+
+        if (pastBlockedSlots.length > 0) {
+          const pastSlotIds = pastBlockedSlots.map(s => s.id);
+          await supabase
+            .from('stylist_blocked_slots')
+            .delete()
+            .in('id', pastSlotIds);
+          console.log(`Deleted ${pastBlockedSlots.length} past stylist blocked slots`);
+        }
+
+        if (pastHolidays.length > 0 || pastBlockedSlots.length > 0) {
+          await fetchAllAvailabilityData(); // Refresh data after deletion
+          onAvailabilityChange();
+        }
+      } catch (error) {
+        console.error('Error deleting past entries:', error);
+      }
+    };
+
+    if (stylistHolidays.length > 0 || stylistBlockedSlots.length > 0) {
+      deletePastEntries();
+    }
+  }, [stylistHolidays.length, stylistBlockedSlots.length, merchantId, onAvailabilityChange]);
 
   useEffect(() => {
     if (selectedStaff) {
@@ -259,7 +309,16 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
     return isHoliday(item) ? item.holiday_date : item.blocked_date;
   };
 
-  const groupedData = [...stylistHolidays, ...stylistBlockedSlots].reduce((acc: any, item) => {
+  // Filter out past entries for display (only show today and future)
+  const today = startOfDay(new Date());
+  const futureHolidays = stylistHolidays.filter(holiday => 
+    !isBefore(new Date(holiday.holiday_date), today)
+  );
+  const futureBlockedSlots = stylistBlockedSlots.filter(slot => 
+    !isBefore(new Date(slot.blocked_date), today)
+  );
+
+  const groupedData = [...futureHolidays, ...futureBlockedSlots].reduce((acc: any, item) => {
     const itemDate = getItemDate(item);
     const key = `${item.staff_id}_${itemDate}`;
     if (!acc[key]) {
@@ -401,7 +460,7 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
         {Object.keys(groupedData).length === 0 ? (
           <div className="text-center py-4 border rounded-md bg-gray-50">
             <CalendarIcon className="h-6 w-6 mx-auto text-gray-400 mb-2" />
-            <p className="text-gray-500 text-sm">No stylist availability restrictions</p>
+            <p className="text-gray-500 text-sm">No upcoming availability restrictions</p>
           </div>
         ) : (
           <div className="space-y-2">

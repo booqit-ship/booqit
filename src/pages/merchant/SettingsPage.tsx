@@ -10,6 +10,7 @@ import SettingsBusinessForm from '@/components/merchant/SettingsBusinessForm';
 import SettingsBankingForm from '@/components/merchant/SettingsBankingForm';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
+import { formatTimeToAmPm, formatTimeFrom12To24 } from '@/utils/timeUtils';
 
 const SettingsPage: React.FC = () => {
   const { userId, logout } = useAuth();
@@ -23,7 +24,7 @@ const SettingsPage: React.FC = () => {
   const [shopName, setShopName] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
-  const [genderFocus, setGenderFocus] = useState('unisex'); // Added gender focus state
+  const [genderFocus, setGenderFocus] = useState('unisex');
   const [openTime, setOpenTime] = useState('');
   const [closeTime, setCloseTime] = useState('');
   const [address, setAddress] = useState('');
@@ -62,9 +63,10 @@ const SettingsPage: React.FC = () => {
           setShopName(merchantData.shop_name);
           setDescription(merchantData.description || '');
           setCategory(merchantData.category);
-          setGenderFocus(merchantData.gender_focus || 'unisex'); // Set gender focus from merchant data
-          setOpenTime(merchantData.open_time);
-          setCloseTime(merchantData.close_time);
+          setGenderFocus(merchantData.gender_focus || 'unisex');
+          // Convert 24-hour format to 12-hour format for display
+          setOpenTime(formatTimeToAmPm(merchantData.open_time));
+          setCloseTime(formatTimeToAmPm(merchantData.close_time));
           setAddress(merchantData.address);
           setShopImageUrl(merchantData.image_url);
           
@@ -149,9 +151,10 @@ const SettingsPage: React.FC = () => {
           shop_name: shopName,
           description: description,
           category: category,
-          gender_focus: genderFocus, // Include gender focus in the update
-          open_time: openTime,
-          close_time: closeTime,
+          gender_focus: genderFocus,
+          // Convert 12-hour format back to 24-hour format for storage
+          open_time: formatTimeFrom12To24(openTime),
+          close_time: formatTimeFrom12To24(closeTime),
           address: address,
           image_url: imageUrl
         })
@@ -171,9 +174,9 @@ const SettingsPage: React.FC = () => {
           shop_name: shopName,
           description: description,
           category: category,
-          gender_focus: genderFocus, // Update gender focus in local state
-          open_time: openTime,
-          close_time: closeTime,
+          gender_focus: genderFocus,
+          open_time: formatTimeFrom12To24(openTime),
+          close_time: formatTimeFrom12To24(closeTime),
           address: address,
           image_url: imageUrl
         };
