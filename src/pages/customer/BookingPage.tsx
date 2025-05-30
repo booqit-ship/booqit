@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
@@ -34,15 +33,19 @@ const BookingPage: React.FC = () => {
   const getAvailableDates = () => {
     const dates: Date[] = [];
     let currentDate = new Date();
+    let daysChecked = 0;
+    const maxDaysToCheck = 30; // Check up to 30 days to find available dates
     
-    while (dates.length < 3) {
+    while (dates.length < 7 && daysChecked < maxDaysToCheck) { // Show up to 7 days
       const dateStr = format(currentDate, 'yyyy-MM-dd');
       
-      if (!isWeekend(currentDate) && !holidays.includes(dateStr)) {
+      // Include all days that are not holidays (including weekends for some businesses)
+      if (!holidays.includes(dateStr)) {
         dates.push(new Date(currentDate));
       }
       
       currentDate = addDays(currentDate, 1);
+      daysChecked++;
     }
     
     return dates;
@@ -240,7 +243,7 @@ const BookingPage: React.FC = () => {
             <CalendarIcon className="h-4 w-4 mr-2" />
             Select Date
           </h3>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-7 gap-1 overflow-x-auto">
             {availableDates.map((date) => {
               const isSelected = selectedDate && format(selectedDate, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd');
               
@@ -248,7 +251,7 @@ const BookingPage: React.FC = () => {
                 <Button
                   key={format(date, 'yyyy-MM-dd')}
                   variant={isSelected ? "default" : "outline"}
-                  className={`h-auto p-3 flex flex-col items-center space-y-1 ${
+                  className={`h-auto p-2 flex flex-col items-center space-y-1 min-w-[60px] ${
                     isSelected ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
                   }`}
                   onClick={() => setSelectedDate(date)}

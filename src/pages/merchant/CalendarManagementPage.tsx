@@ -39,9 +39,6 @@ const CalendarManagementPage: React.FC = () => {
   const [date, setDate] = useState<Date>(new Date());
   const [bookings, setBookings] = useState<BookingWithCustomerDetails[]>([]);
   const [holidays, setHolidays] = useState<HolidayDate[]>([]);
-  const [newHoliday, setNewHoliday] = useState<Date | undefined>(new Date());
-  const [holidayDescription, setHolidayDescription] = useState('');
-  const [holidayDialogOpen, setHolidayDialogOpen] = useState(false);
   const [merchantId, setMerchantId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isHolidayLoading, setIsHolidayLoading] = useState(false);
@@ -326,83 +323,6 @@ const CalendarManagementPage: React.FC = () => {
     }
   };
 
-  // Holiday management functions
-  const addHolidayDate = async () => {
-    if (!merchantId || !newHoliday) return;
-    
-    try {
-      const { error } = await supabase
-        .from('shop_holidays')
-        .insert({
-          merchant_id: merchantId,
-          holiday_date: format(newHoliday, 'yyyy-MM-dd'),
-          description: holidayDescription || null
-        });
-        
-      if (error) {
-        if (error.code === '23505') {
-          throw new Error('This date is already marked as a holiday');
-        }
-        throw error;
-      }
-      
-      const { data, error: fetchError } = await supabase
-        .from('shop_holidays')
-        .select('*')
-        .eq('merchant_id', merchantId);
-        
-      if (fetchError) throw fetchError;
-      
-      setHolidays(data);
-      setHolidayDescription('');
-      setHolidayDialogOpen(false);
-      
-      toast({
-        title: "Success",
-        description: "Holiday date added successfully.",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to add holiday date. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const deleteHolidayDate = async (holidayId: string) => {
-    try {
-      const { error } = await supabase
-        .from('shop_holidays')
-        .delete()
-        .eq('id', holidayId);
-        
-      if (error) throw error;
-      
-      setHolidays(holidays.filter(holiday => holiday.id !== holidayId));
-      
-      toast({
-        title: "Success",
-        description: "Holiday date removed successfully.",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: "Failed to remove holiday date. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const removeCurrentHolidayDate = () => {
-    const holiday = holidays.find(h => 
-      isSameDay(parseISO(h.holiday_date), date)
-    );
-    if (holiday) {
-      deleteHolidayDate(holiday.id);
-    }
-  };
-
   const holidayDates = holidays.map(h => parseISO(h.holiday_date));
 
   // Check if a date is a holiday
@@ -457,12 +377,12 @@ const CalendarManagementPage: React.FC = () => {
             onDateChange={setDate}
             isMobile={isMobile}
             isHoliday={isHoliday}
-            holidayDialogOpen={holidayDialogOpen}
-            setHolidayDialogOpen={setHolidayDialogOpen}
-            holidayDescription={holidayDescription}
-            setHolidayDescription={setHolidayDescription}
-            onAddHoliday={addHolidayDate}
-            onRemoveHoliday={removeCurrentHolidayDate}
+            holidayDialogOpen={false}
+            setHolidayDialogOpen={() => {}}
+            holidayDescription=""
+            setHolidayDescription={() => {}}
+            onAddHoliday={() => {}}
+            onRemoveHoliday={() => {}}
           />
         </CardHeader>
         
@@ -505,7 +425,7 @@ const CalendarManagementPage: React.FC = () => {
             <HolidayManager
               holidays={holidays}
               isLoading={isHolidayLoading}
-              onDeleteHoliday={deleteHolidayDate}
+              onDeleteHoliday={() => {}}
               onHolidayAdded={handleHolidayAdded}
               merchantId={merchantId}
             />
