@@ -87,3 +87,49 @@ export const isTimeSlotInPast = (timeSlot: string, dateString: string, bufferMin
     return false;
   }
 };
+
+// Convert time string to minutes for calculation
+export const timeToMinutes = (timeStr: string): number => {
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  return hours * 60 + minutes;
+};
+
+// Convert minutes back to time string
+export const minutesToTime = (minutes: number): string => {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+};
+
+// Check if enough consecutive slots are available for a service duration
+export const hasEnoughConsecutiveSlots = (
+  startTime: string, 
+  serviceDuration: number, 
+  availableSlots: string[],
+  bufferMinutes: number = 10
+): boolean => {
+  const startMinutes = timeToMinutes(startTime);
+  const endMinutes = startMinutes + serviceDuration;
+  const slotInterval = 10; // 10-minute intervals
+  
+  // Check if all required slots are available
+  for (let currentMinutes = startMinutes; currentMinutes < endMinutes; currentMinutes += slotInterval) {
+    const currentTimeStr = minutesToTime(currentMinutes);
+    if (!availableSlots.includes(currentTimeStr)) {
+      return false;
+    }
+  }
+  
+  return true;
+};
+
+// Get next available slot after service duration with buffer
+export const getNextAvailableSlot = (
+  startTime: string, 
+  serviceDuration: number, 
+  bufferMinutes: number = 10
+): string => {
+  const startMinutes = timeToMinutes(startTime);
+  const endMinutes = startMinutes + serviceDuration + bufferMinutes;
+  return minutesToTime(endMinutes);
+};

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
@@ -72,6 +73,75 @@ const BookingPage: React.FC = () => {
 
     fetchHolidayDates();
   }, [merchantId]);
+
+  // Convert time string to minutes for calculation
+  const timeToMinutes = (timeStr: string): number => {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return hours * 60 + minutes;
+  };
+
+  // Convert minutes back to time string
+  const minutesToTime = (minutes: number): string => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+  };
+
+  // Check if a time slot conflicts with service duration
+  const hasConflictWithDuration = (startTime: string, allSlots: AvailableSlot[], serviceDuration: number): boolean => {
+    const startMinutes = timeToMinutes(startTime);
+    const endMinutes = startMinutes + serviceDuration;
+    const bufferMinutes = 10; // 10 minute buffer between appointments
+    
+    // Check if there are any unavailable slots within the service duration + buffer
+    const conflictingSlots = allSlots.filter(slot => {
+      const slotMinutes = timeToMinutes(slot.time_slot);
+      return slotMinutes >= startMinutes && slotMinutes < endMinutes + bufferMinutes;
+    });
+    
+    // If we have fewer available slots than needed for the duration, there's a conflict
+    const slotsNeeded = Math.ceil(serviceDuration / 10); // 10-minute slots
+    const availableSlotsInRange = conflictingSlots.length;
+    
+    return availableSlotsInRange < slotsNeeded;
+  };
+
+  // Filter slots to ensure service duration can be accommodated
+  const filterSlotsForServiceDuration = (slots: AvailableSlot[]): string[] => {
+    const timeSlots = Array.from(new Set(slots.map(slot => slot.time_slot))).sort();
+    const validStartTimes: string[] = [];
+    
+    for (const startTime of timeSlots) {
+      const startMinutes = timeToMinutes(startTime);
+      const endMinutes = startMinutes + totalDuration;
+      
+      // Check if we have continuous availability for the service duration
+      let canAccommodate = true;
+      let currentMinutes = startMinutes;
+      
+      while (currentMinutes < endMinutes) {
+        const currentTimeStr = minutesToTime(currentMinutes);
+        const hasAvailableSlot = slots.some(slot => 
+          slot.time_slot === currentTimeStr && 
+          !slot.is_shop_holiday && 
+          !slot.is_stylist_holiday
+        );
+        
+        if (!hasAvailableSlot) {
+          canAccommodate = false;
+          break;
+        }
+        
+        currentMinutes += 10; // Move to next 10-minute slot
+      }
+      
+      if (canAccommodate) {
+        validStartTimes.push(startTime);
+      }
+    }
+    
+    return validStartTimes;
+  };
 
   useEffect(() => {
     const fetchAvailableSlots = async () => {
@@ -205,7 +275,8 @@ const BookingPage: React.FC = () => {
     }
   };
 
-  const uniqueTimeSlots = Array.from(new Set(availableSlots.map(slot => slot.time_slot))).sort();
+  // Filter time slots to ensure service duration can be accommodated with proper buffering
+  const validTimeSlots = filterSlotsForServiceDuration(availableSlots);
 
   if (!merchant) {
     return (
@@ -281,9 +352,9 @@ const BookingPage: React.FC = () => {
               <div className="flex justify-center py-8">
                 <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
               </div>
-            ) : uniqueTimeSlots.length > 0 ? (
+            ) : validTimeSlots.length > 0 ? (
               <div className="grid grid-cols-3 gap-2">
-                {uniqueTimeSlots.map((time) => (
+                {validTimeSlots.map((time) => (
                   <Button
                     key={time}
                     variant={selectedTime === time ? "default" : "outline"}
