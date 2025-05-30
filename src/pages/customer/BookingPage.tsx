@@ -36,7 +36,7 @@ const BookingPage: React.FC = () => {
     let daysChecked = 0;
     const maxDaysToCheck = 30; // Check up to 30 days to find available dates
     
-    while (dates.length < 7 && daysChecked < maxDaysToCheck) { // Show up to 7 days
+    while (dates.length < 3 && daysChecked < maxDaysToCheck) { // Show only 3 days
       const dateStr = format(currentDate, 'yyyy-MM-dd');
       
       // Include all days that are not holidays (including weekends for some businesses)
@@ -243,7 +243,7 @@ const BookingPage: React.FC = () => {
             <CalendarIcon className="h-4 w-4 mr-2" />
             Select Date
           </h3>
-          <div className="grid grid-cols-7 gap-1 overflow-x-auto">
+          <div className="grid grid-cols-3 gap-2">
             {availableDates.map((date) => {
               const isSelected = selectedDate && format(selectedDate, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd');
               
@@ -251,7 +251,7 @@ const BookingPage: React.FC = () => {
                 <Button
                   key={format(date, 'yyyy-MM-dd')}
                   variant={isSelected ? "default" : "outline"}
-                  className={`h-auto p-2 flex flex-col items-center space-y-1 min-w-[60px] ${
+                  className={`h-auto p-3 flex flex-col items-center space-y-1 ${
                     isSelected ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
                   }`}
                   onClick={() => setSelectedDate(date)}
