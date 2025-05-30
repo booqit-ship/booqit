@@ -285,8 +285,11 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
         description: description
       });
       
-      // Prepare blocked ranges for the function call
-      const blockedRangesJson = isFullDayHoliday ? null : selectedTimeRanges;
+      // Convert TimeRange[] to JSON-compatible format for the function call
+      const blockedRangesJson = isFullDayHoliday ? null : selectedTimeRanges.map(range => ({
+        start_time: range.start_time,
+        end_time: range.end_time
+      }));
       
       const { data, error } = await supabase.rpc('manage_stylist_availability_ranges', {
         p_staff_id: selectedStaff,
