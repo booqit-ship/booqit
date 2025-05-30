@@ -37,7 +37,7 @@ export const useCancelBooking = () => {
       }
 
       console.log('Booking cancelled successfully:', result);
-      toast.success(result.message || 'Booking cancelled successfully');
+      toast.success(`${result.message || 'Booking cancelled successfully'} (${result.slots_released || 0} slots released)`);
       
       return true;
     } catch (error: any) {

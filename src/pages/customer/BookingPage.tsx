@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon, AlertTriangle } from 'lucide-react';
@@ -37,7 +36,7 @@ const BookingPage: React.FC = () => {
     let daysChecked = 0;
     const maxDaysToCheck = 30;
     
-    while (dates.length < 3 && daysChecked < maxDaysToCheck) {
+    while (dates.length < 7 && daysChecked < maxDaysToCheck) {
       const dateStr = format(currentDate, 'yyyy-MM-dd');
       
       if (!holidays.includes(dateStr)) {
@@ -89,7 +88,7 @@ const BookingPage: React.FC = () => {
           p_date: selectedDateStr
         });
 
-        // Then get available slots with validation
+        // Then get available slots with proper validation and filtering
         const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_validation', {
           p_merchant_id: merchantId,
           p_date: selectedDateStr,
@@ -228,7 +227,9 @@ const BookingPage: React.FC = () => {
       <div className="p-4">
         <div className="mb-6">
           <h2 className="text-lg font-semibold mb-2">Choose Your Appointment</h2>
-          <p className="text-gray-500 text-sm">Select your preferred date and time slot</p>
+          <p className="text-gray-500 text-sm">
+            Select your preferred date and time slot. Service duration: {totalDuration} minutes
+          </p>
         </div>
 
         <div className="mb-6">
@@ -237,7 +238,7 @@ const BookingPage: React.FC = () => {
             Select Date
           </h3>
           <div className="grid grid-cols-3 gap-2">
-            {availableDates.map((date) => {
+            {availableDates.slice(0, 7).map((date) => {
               const isSelected = selectedDate && format(selectedDate, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd');
               
               return (
@@ -268,7 +269,7 @@ const BookingPage: React.FC = () => {
           <div className="mb-6">
             <h3 className="font-medium mb-3 flex items-center">
               <Clock className="h-4 w-4 mr-2" />
-              Select Time
+              Available Time Slots
             </h3>
             
             {conflictMessage && (
@@ -330,7 +331,11 @@ const BookingPage: React.FC = () => {
               <div className="text-center py-8 bg-gray-50 rounded-lg">
                 <Clock className="h-12 w-12 mx-auto text-gray-400 mb-2" />
                 <p className="text-gray-500">No available time slots</p>
-                <p className="text-gray-400 text-sm">Please select a different date</p>
+                <p className="text-gray-400 text-sm">
+                  {isToday(format(selectedDate, 'yyyy-MM-dd')) 
+                    ? 'Please select a future time (slots available 1 hour from now)' 
+                    : 'Please select a different date'}
+                </p>
               </div>
             )}
           </div>
