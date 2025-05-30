@@ -85,7 +85,7 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
   const [merchantHours, setMerchantHours] = useState<{ open_time: string; close_time: string } | null>(null);
   const { toast } = useToast();
 
-  // Generate time ranges based on merchant hours
+  // Generate time ranges based on merchant hours (30-minute intervals)
   const generateTimeRanges = (openTime: string, closeTime: string): TimeRange[] => {
     const ranges: TimeRange[] = [];
     const start = new Date(`2000-01-01T${openTime}`);
@@ -110,6 +110,8 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
   useEffect(() => {
     const fetchMerchantAndStaff = async () => {
       try {
+        console.log('Fetching merchant and staff data for:', merchantId);
+        
         // Fetch merchant hours
         const { data: merchantData, error: merchantError } = await supabase
           .from('merchants')
@@ -117,12 +119,17 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
           .eq('id', merchantId)
           .single();
           
-        if (merchantError) throw merchantError;
+        if (merchantError) {
+          console.error('Error fetching merchant:', merchantError);
+          throw merchantError;
+        }
         
+        console.log('Loaded merchant hours:', merchantData);
         setMerchantHours(merchantData);
         
         if (merchantData) {
           const ranges = generateTimeRanges(merchantData.open_time, merchantData.close_time);
+          console.log('Generated time ranges:', ranges);
           setAvailableTimeRanges(ranges);
         }
 
@@ -132,17 +139,27 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
           .select('*')
           .eq('merchant_id', merchantId);
           
-        if (staffError) throw staffError;
+        if (staffError) {
+          console.error('Error fetching staff:', staffError);
+          throw staffError;
+        }
+        
+        console.log('Loaded staff:', staffData);
         setStaff(staffData || []);
       } catch (error) {
         console.error('Error fetching data:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load merchant and staff data.",
+          variant: "destructive",
+        });
       }
     };
     
-    if (open) {
+    if (open && merchantId) {
       fetchMerchantAndStaff();
     }
-  }, [merchantId, open]);
+  }, [merchantId, open, toast]);
 
   // Reset form when dialog opens
   useEffect(() => {
@@ -164,6 +181,7 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
       if (!selectedStaff || !selectedDate) return;
 
       const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+      console.log('Loading existing data for staff:', selectedStaff, 'date:', selectedDateStr);
       
       try {
         // Check for existing holiday
@@ -177,6 +195,7 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
         if (holidayError && holidayError.code !== 'PGRST116') {
           console.error('Error fetching holiday:', holidayError);
         } else if (holidayData) {
+          console.log('Found existing holiday:', holidayData);
           setExistingHoliday(holidayData);
           setIsFullDayHoliday(true);
           setDescription(holidayData.description || '');
@@ -194,6 +213,7 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
         if (rangesError) {
           console.error('Error fetching blocked ranges:', rangesError);
         } else if (rangesData && rangesData.length > 0) {
+          console.log('Found existing blocked ranges:', rangesData);
           setExistingBlockedRanges(rangesData);
           setSelectedTimeRanges(rangesData.map(range => ({
             start_time: range.start_time,
@@ -204,6 +224,7 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
           setIsEditMode(true);
         } else {
           // No existing data
+          console.log('No existing availability restrictions found');
           setExistingHoliday(null);
           setExistingBlockedRanges([]);
           setIsFullDayHoliday(false);
@@ -252,6 +273,14 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
     setIsLoading(true);
     try {
       const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+      console.log('Saving availability data:', {
+        staff_id: selectedStaff,
+        merchant_id: merchantId,
+        date: selectedDateStr,
+        is_full_day: isFullDayHoliday,
+        blocked_ranges: selectedTimeRanges,
+        description: description
+      });
       
       // Convert TimeRange[] to Json-compatible format
       const blockedRangesJson = isFullDayHoliday ? null : selectedTimeRanges.map(range => ({
@@ -268,8 +297,12 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
         p_description: description || null
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error saving availability:', error);
+        throw error;
+      }
 
+      console.log('Save response:', data);
       const response = data as { success: boolean; message?: string };
       if (!response.success) {
         throw new Error(response.message || 'Failed to update availability');
@@ -283,6 +316,7 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
       onOpenChange(false);
       onAvailabilityChange();
     } catch (error: any) {
+      console.error('Save error:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to update availability. Please try again.",
@@ -299,14 +333,19 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
     setIsLoading(true);
     try {
       const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+      console.log('Clearing availability for staff:', selectedStaff, 'date:', selectedDateStr);
       
       const { data, error } = await supabase.rpc('clear_stylist_availability', {
         p_staff_id: selectedStaff,
         p_date: selectedDateStr
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error clearing availability:', error);
+        throw error;
+      }
 
+      console.log('Clear response:', data);
       const response = data as { success: boolean; message?: string };
       if (!response.success) {
         throw new Error(response.message || 'Failed to clear availability');
@@ -327,6 +366,7 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
       
       onAvailabilityChange();
     } catch (error: any) {
+      console.error('Clear error:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to clear availability. Please try again.",
@@ -441,7 +481,7 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
                 <div>
                   <label className="text-sm font-medium mb-2 block flex items-center">
                     <Clock className="h-4 w-4 mr-1" />
-                    Block Time Ranges
+                    Block Time Ranges (30-minute slots)
                   </label>
                   <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto">
                     {availableTimeRanges.map((range, index) => {

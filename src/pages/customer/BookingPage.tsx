@@ -83,7 +83,7 @@ const BookingPage: React.FC = () => {
         const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
         console.log('Fetching slots for date:', selectedDateStr, 'Duration:', totalDuration);
 
-        // Use the new validation function that checks for conflicts
+        // Use the updated validation function that checks for time range conflicts
         const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_validation', {
           p_merchant_id: merchantId,
           p_date: selectedDateStr,

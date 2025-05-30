@@ -21,7 +21,8 @@ interface StylistBlockedSlot {
   id: string;
   staff_id: string;
   blocked_date: string;
-  time_slot: string;
+  start_time: string;
+  end_time: string;
   description: string | null;
   staff?: { name: string };
 }
@@ -44,6 +45,8 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
 
   const fetchAllAvailabilityData = async () => {
     try {
+      console.log('Fetching availability data for merchant:', merchantId);
+      
       const { data: holidays, error: holidaysError } = await supabase
         .from('stylist_holidays')
         .select(`
@@ -52,26 +55,46 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
         `)
         .eq('merchant_id', merchantId);
         
-      if (holidaysError) throw holidaysError;
+      if (holidaysError) {
+        console.error('Error fetching holidays:', holidaysError);
+        throw holidaysError;
+      }
+      
+      console.log('Fetched holidays:', holidays);
       setStylistHolidays(holidays || []);
 
+      // Updated query to fetch blocked slots with time ranges
       const { data: blockedSlots, error: blockedError } = await supabase
         .from('stylist_blocked_slots')
         .select(`
           *,
           staff:staff_id(name)
         `)
-        .eq('merchant_id', merchantId);
+        .eq('merchant_id', merchantId)
+        .not('start_time', 'is', null)
+        .not('end_time', 'is', null);
         
-      if (blockedError) throw blockedError;
+      if (blockedError) {
+        console.error('Error fetching blocked slots:', blockedError);
+        throw blockedError;
+      }
+      
+      console.log('Fetched blocked slots:', blockedSlots);
       setStylistBlockedSlots(blockedSlots || []);
     } catch (error) {
       console.error('Error fetching availability data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch availability data.",
+        variant: "destructive",
+      });
     }
   };
 
   useEffect(() => {
-    fetchAllAvailabilityData();
+    if (merchantId) {
+      fetchAllAvailabilityData();
+    }
   }, [merchantId]);
 
   // Auto-delete past entries
@@ -165,6 +188,7 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
     !isBefore(new Date(slot.blocked_date), today)
   );
 
+  // Group data by staff and date
   const groupedData = [...futureHolidays, ...futureBlockedSlots].reduce((acc: any, item) => {
     const itemDate = getItemDate(item);
     const key = `${item.staff_id}_${itemDate}`;
@@ -184,6 +208,13 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
   const handleAvailabilityChangeAndRefresh = () => {
     fetchAllAvailabilityData();
     onAvailabilityChange();
+  };
+
+  const formatTimeRange = (slot: StylistBlockedSlot) => {
+    if (slot.start_time && slot.end_time) {
+      return `${formatTimeToAmPm(slot.start_time)} - ${formatTimeToAmPm(slot.end_time)}`;
+    }
+    return 'Time range';
   };
 
   return (
@@ -223,11 +254,18 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
                     </div>
                     <div className="text-xs text-gray-500">
                       {format(new Date(group.date), 'MMM dd, yyyy')} • 
-                      {group.type === 'holiday' ? ' Full Day Holiday' : ` ${group.items.length} slots blocked`}
+                      {group.type === 'holiday' ? ' Full Day Holiday' : ` ${group.items.length} time range(s) blocked`}
                     </div>
                     {group.type === 'slots' && group.items.length <= 3 && (
                       <div className="text-xs text-gray-400 mt-1">
-                        {group.items.map((item: any) => formatTimeToAmPm(item.time_slot)).join(', ')}
+                        {group.items.map((item: StylistBlockedSlot, index: number) => (
+                          <div key={index}>{formatTimeRange(item)}</div>
+                        ))}
+                      </div>
+                    )}
+                    {group.items[0]?.description && (
+                      <div className="text-xs text-gray-400 mt-1 italic">
+                        "{group.items[0].description}"
                       </div>
                     )}
                   </div>
