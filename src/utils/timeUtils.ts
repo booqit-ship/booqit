@@ -87,3 +87,34 @@ export const generateTimeSlots = (startTime: string, endTime: string, intervalMi
   
   return slots;
 };
+
+export const isToday = (dateString: string): boolean => {
+  const today = new Date();
+  const checkDate = new Date(dateString);
+  
+  return (
+    today.getDate() === checkDate.getDate() &&
+    today.getMonth() === checkDate.getMonth() &&
+    today.getFullYear() === checkDate.getFullYear()
+  );
+};
+
+export const isTimeSlotInPast = (timeSlot: string, dateString: string, bufferMinutes: number = 0): boolean => {
+  const now = new Date();
+  const slotDate = new Date(dateString);
+  
+  // If the date is in the future, the time slot is not in the past
+  if (slotDate.toDateString() !== now.toDateString()) {
+    return slotDate < now;
+  }
+  
+  // If it's today, check if the time slot is in the past
+  const [hours, minutes] = timeSlot.split(':').map(Number);
+  const slotTime = new Date(slotDate);
+  slotTime.setHours(hours, minutes, 0, 0);
+  
+  // Add buffer time to current time
+  const currentTimeWithBuffer = new Date(now.getTime() + bufferMinutes * 60 * 1000);
+  
+  return slotTime < currentTimeWithBuffer;
+};
