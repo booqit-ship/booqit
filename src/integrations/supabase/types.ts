@@ -543,6 +543,10 @@ export type Database = {
         }
         Returns: Json
       }
+      clear_stylist_availability: {
+        Args: { p_staff_id: string; p_date: string }
+        Returns: Json
+      }
       generate_stylist_slots: {
         Args: { p_merchant_id: string; p_date: string }
         Returns: undefined
@@ -564,6 +568,17 @@ export type Database = {
           stylist_holiday_reason: string
         }[]
       }
+      manage_stylist_availability: {
+        Args: {
+          p_staff_id: string
+          p_merchant_id: string
+          p_date: string
+          p_is_full_day: boolean
+          p_blocked_slots?: string[]
+          p_description?: string
+        }
+        Returns: Json
+      }
       release_stylist_slots: {
         Args: { p_booking_id: string }
         Returns: Json
@@ -573,6 +588,14 @@ export type Database = {
           booking_id: string
           new_status: string
           merchant_user_id?: string
+        }
+        Returns: Json
+      }
+      update_merchant_hours: {
+        Args: {
+          p_merchant_id: string
+          p_open_time: string
+          p_close_time: string
         }
         Returns: Json
       }

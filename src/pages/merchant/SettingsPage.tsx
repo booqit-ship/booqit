@@ -145,6 +145,23 @@ const SettingsPage: React.FC = () => {
         setIsUploading(false);
       }
       
+      // Use the SQL function to update merchant hours
+      const { data: hoursResult, error: hoursError } = await supabase.rpc('update_merchant_hours', {
+        p_merchant_id: merchant.id,
+        p_open_time: formatTimeFrom12To24(openTime),
+        p_close_time: formatTimeFrom12To24(closeTime)
+      });
+
+      if (hoursError) {
+        console.error('Error updating hours:', hoursError);
+        throw hoursError;
+      }
+
+      if (!hoursResult.success) {
+        throw new Error(hoursResult.error || 'Failed to update hours');
+      }
+      
+      // Update other merchant fields
       const { error } = await supabase
         .from('merchants')
         .update({
@@ -152,9 +169,6 @@ const SettingsPage: React.FC = () => {
           description: description,
           category: category,
           gender_focus: genderFocus,
-          // Convert 12-hour format back to 24-hour format for storage
-          open_time: formatTimeFrom12To24(openTime),
-          close_time: formatTimeFrom12To24(closeTime),
           address: address,
           image_url: imageUrl
         })

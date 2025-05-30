@@ -3,13 +3,11 @@ import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
-import { Staff } from '@/types';
 import { format, isBefore, startOfDay } from 'date-fns';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
-import { Settings, Calendar as CalendarIcon, User } from 'lucide-react';
-import StylistAvailabilityManager from './StylistAvailabilityManager';
+import { Settings, Calendar as CalendarIcon, User, Plus } from 'lucide-react';
+import StylistAvailabilityPopup from './StylistAvailabilityPopup';
 
 interface StylistHoliday {
   id: string;
@@ -39,29 +37,10 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
   selectedDate,
   onAvailabilityChange
 }) => {
-  const [staff, setStaff] = useState<Staff[]>([]);
   const [stylistHolidays, setStylistHolidays] = useState<StylistHoliday[]>([]);
   const [stylistBlockedSlots, setStylistBlockedSlots] = useState<StylistBlockedSlot[]>([]);
-  const [showManager, setShowManager] = useState(false);
+  const [showPopup, setShowPopup] = useState(false);
   const { toast } = useToast();
-
-  useEffect(() => {
-    const fetchStaff = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('staff')
-          .select('*')
-          .eq('merchant_id', merchantId);
-          
-        if (error) throw error;
-        setStaff(data || []);
-      } catch (error) {
-        console.error('Error fetching staff:', error);
-      }
-    };
-    
-    fetchStaff();
-  }, [merchantId]);
 
   const fetchAllAvailabilityData = async () => {
     try {
@@ -102,12 +81,10 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
 
       const today = startOfDay(new Date());
       
-      // Delete past holidays
       const pastHolidays = stylistHolidays.filter(holiday => 
         isBefore(new Date(holiday.holiday_date), today)
       );
 
-      // Delete past blocked slots
       const pastBlockedSlots = stylistBlockedSlots.filter(slot => 
         isBefore(new Date(slot.blocked_date), today)
       );
@@ -132,7 +109,7 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
         }
 
         if (pastHolidays.length > 0 || pastBlockedSlots.length > 0) {
-          await fetchAllAvailabilityData(); // Refresh data after deletion
+          await fetchAllAvailabilityData();
           onAvailabilityChange();
         }
       } catch (error) {
@@ -209,87 +186,77 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
     onAvailabilityChange();
   };
 
-  if (showManager) {
-    return (
-      <div className="space-y-4">
-        <Button 
-          variant="outline" 
-          onClick={() => setShowManager(false)}
-          className="w-full"
-        >
-          ← Back to Overview
-        </Button>
-        <StylistAvailabilityManager
-          merchantId={merchantId}
-          selectedDate={selectedDate}
-          onAvailabilityChange={handleAvailabilityChangeAndRefresh}
-        />
-      </div>
-    );
-  }
-
   return (
-    <Card>
-      <CardHeader className="py-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base flex items-center">
-            <Settings className="mr-2 h-4 w-4" />
-            Stylist Availability
-          </CardTitle>
-          <Button 
-            size="sm" 
-            variant="outline"
-            onClick={() => setShowManager(true)}
-          >
-            <Settings className="h-4 w-4 mr-1" />
-            Manage
-          </Button>
-        </div>
-      </CardHeader>
-      
-      <CardContent>
-        {Object.keys(groupedData).length === 0 ? (
-          <div className="text-center py-4 border rounded-md bg-gray-50">
-            <CalendarIcon className="h-6 w-6 mx-auto text-gray-400 mb-2" />
-            <p className="text-gray-500 text-sm">No upcoming availability restrictions</p>
+    <>
+      <Card>
+        <CardHeader className="py-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center">
+              <Settings className="mr-2 h-4 w-4" />
+              Stylist Availability
+            </CardTitle>
+            <Button 
+              size="sm" 
+              variant="outline"
+              onClick={() => setShowPopup(true)}
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Manage
+            </Button>
           </div>
-        ) : (
-          <div className="space-y-2">
-            {Object.values(groupedData).map((group: any) => (
-              <div key={`${group.staffId}_${group.date}`} className="flex items-center justify-between p-2 border rounded-md bg-gray-50">
-                <div className="flex-1">
-                  <div className="font-medium text-sm flex items-center">
-                    <User className="h-3 w-3 mr-1" />
-                    {group.staffName}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {format(new Date(group.date), 'MMM dd, yyyy')} • 
-                    {group.type === 'holiday' ? ' Full Day Holiday' : ` ${group.items.length} slots blocked`}
-                  </div>
-                  {group.type === 'slots' && group.items.length <= 3 && (
-                    <div className="text-xs text-gray-400 mt-1">
-                      {group.items.map((item: any) => formatTimeToAmPm(item.time_slot)).join(', ')}
+        </CardHeader>
+        
+        <CardContent>
+          {Object.keys(groupedData).length === 0 ? (
+            <div className="text-center py-4 border rounded-md bg-gray-50">
+              <CalendarIcon className="h-6 w-6 mx-auto text-gray-400 mb-2" />
+              <p className="text-gray-500 text-sm">No upcoming availability restrictions</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {Object.values(groupedData).map((group: any) => (
+                <div key={`${group.staffId}_${group.date}`} className="flex items-center justify-between p-2 border rounded-md bg-gray-50">
+                  <div className="flex-1">
+                    <div className="font-medium text-sm flex items-center">
+                      <User className="h-3 w-3 mr-1" />
+                      {group.staffName}
                     </div>
-                  )}
+                    <div className="text-xs text-gray-500">
+                      {format(new Date(group.date), 'MMM dd, yyyy')} • 
+                      {group.type === 'holiday' ? ' Full Day Holiday' : ` ${group.items.length} slots blocked`}
+                    </div>
+                    {group.type === 'slots' && group.items.length <= 3 && (
+                      <div className="text-xs text-gray-400 mt-1">
+                        {group.items.map((item: any) => formatTimeToAmPm(item.time_slot)).join(', ')}
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      group.items.forEach((item: any) => {
+                        handleDelete(group.type === 'holiday' ? 'holiday' : 'slot', item.id);
+                      });
+                    }}
+                    className="h-6 w-6 p-0 text-red-500 hover:text-red-600"
+                  >
+                    ×
+                  </Button>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    group.items.forEach((item: any) => {
-                      handleDelete(group.type === 'holiday' ? 'holiday' : 'slot', item.id);
-                    });
-                  }}
-                  className="h-6 w-6 p-0 text-red-500 hover:text-red-600"
-                >
-                  ×
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <StylistAvailabilityPopup
+        open={showPopup}
+        onOpenChange={setShowPopup}
+        merchantId={merchantId}
+        onAvailabilityChange={handleAvailabilityChangeAndRefresh}
+      />
+    </>
   );
 };
 
