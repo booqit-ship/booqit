@@ -33,7 +33,8 @@ import {
   User, 
   Calendar as CalendarIcon, 
   Clock, 
-  ChevronDown
+  ChevronDown,
+  Edit
 } from 'lucide-react';
 
 interface StylistAvailabilityPopupProps {
@@ -47,6 +48,21 @@ interface SqlResponse {
   success: boolean;
   message?: string;
   error?: string;
+}
+
+interface StylistHoliday {
+  id: string;
+  staff_id: string;
+  holiday_date: string;
+  description: string | null;
+}
+
+interface StylistBlockedSlot {
+  id: string;
+  staff_id: string;
+  blocked_date: string;
+  time_slot: string;
+  description: string | null;
 }
 
 const timeSlots = [
@@ -70,6 +86,9 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
   const [description, setDescription] = useState('');
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [existingHoliday, setExistingHoliday] = useState<StylistHoliday | null>(null);
+  const [existingBlockedSlots, setExistingBlockedSlots] = useState<StylistBlockedSlot[]>([]);
+  const [isEditMode, setIsEditMode] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -100,8 +119,70 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
       setIsFullDayHoliday(false);
       setSelectedTimeSlots([]);
       setDescription('');
+      setExistingHoliday(null);
+      setExistingBlockedSlots([]);
+      setIsEditMode(false);
     }
   }, [open]);
+
+  // Load existing availability data when staff and date change
+  useEffect(() => {
+    const loadExistingData = async () => {
+      if (!selectedStaff || !selectedDate) return;
+
+      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+      
+      try {
+        // Check for existing holiday
+        const { data: holidayData, error: holidayError } = await supabase
+          .from('stylist_holidays')
+          .select('*')
+          .eq('staff_id', selectedStaff)
+          .eq('holiday_date', selectedDateStr)
+          .single();
+
+        if (holidayError && holidayError.code !== 'PGRST116') {
+          console.error('Error fetching holiday:', holidayError);
+        } else if (holidayData) {
+          setExistingHoliday(holidayData);
+          setIsFullDayHoliday(true);
+          setDescription(holidayData.description || '');
+          setSelectedTimeSlots([]);
+          setIsEditMode(true);
+          return;
+        }
+
+        // Check for existing blocked slots
+        const { data: slotsData, error: slotsError } = await supabase
+          .from('stylist_blocked_slots')
+          .select('*')
+          .eq('staff_id', selectedStaff)
+          .eq('blocked_date', selectedDateStr);
+
+        if (slotsError) {
+          console.error('Error fetching blocked slots:', slotsError);
+        } else if (slotsData && slotsData.length > 0) {
+          setExistingBlockedSlots(slotsData);
+          setSelectedTimeSlots(slotsData.map(slot => slot.time_slot));
+          setDescription(slotsData[0]?.description || '');
+          setIsFullDayHoliday(false);
+          setIsEditMode(true);
+        } else {
+          // No existing data
+          setExistingHoliday(null);
+          setExistingBlockedSlots([]);
+          setIsFullDayHoliday(false);
+          setSelectedTimeSlots([]);
+          setDescription('');
+          setIsEditMode(false);
+        }
+      } catch (error) {
+        console.error('Error loading existing data:', error);
+      }
+    };
+
+    loadExistingData();
+  }, [selectedStaff, selectedDate]);
 
   const handleTimeSlotToggle = (timeSlot: string) => {
     setSelectedTimeSlots(prev => 
@@ -175,7 +256,7 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
       
       toast({
         title: "Success",
-        description: "Stylist availability updated successfully.",
+        description: isEditMode ? "Stylist availability updated successfully." : "Stylist availability saved successfully.",
       });
       
       onOpenChange(false);
@@ -191,15 +272,65 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
     }
   };
 
+  const handleClear = async () => {
+    if (!selectedStaff || !selectedDate) return;
+
+    setIsLoading(true);
+    try {
+      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+      
+      const { data, error } = await supabase.rpc('clear_stylist_availability', {
+        p_staff_id: selectedStaff,
+        p_date: selectedDateStr
+      });
+
+      if (error) throw error;
+
+      const response = data as unknown as SqlResponse;
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to clear availability');
+      }
+      
+      // Regenerate slots to ensure consistency
+      await regenerateSlots();
+      
+      // Reset form
+      setIsFullDayHoliday(false);
+      setSelectedTimeSlots([]);
+      setDescription('');
+      setExistingHoliday(null);
+      setExistingBlockedSlots([]);
+      setIsEditMode(false);
+      
+      toast({
+        title: "Success",
+        description: "Availability restrictions cleared successfully.",
+      });
+      
+      onAvailabilityChange();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to clear availability. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const selectedStaffMember = staff.find(s => s.id === selectedStaff);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Manage Stylist Availability</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            {isEditMode ? <Edit className="h-4 w-4" /> : null}
+            {isEditMode ? 'Edit' : 'Manage'} Stylist Availability
+          </DialogTitle>
           <DialogDescription>
-            Block time slots or mark full day holidays for stylists.
+            {isEditMode ? 'Edit existing availability restrictions.' : 'Block time slots or mark full day holidays for stylists.'}
           </DialogDescription>
         </DialogHeader>
         
@@ -252,6 +383,25 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
 
           {selectedStaff && (
             <>
+              {isEditMode && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-blue-800">
+                      Editing existing restrictions for {selectedStaffMember?.name}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleClear}
+                      disabled={isLoading}
+                      className="text-red-600 border-red-200 hover:bg-red-50"
+                    >
+                      Clear All
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center space-x-2">
                 <Checkbox
                   id="fullDayHoliday"
@@ -322,7 +472,7 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
             onClick={handleSave}
             disabled={isLoading || !selectedStaff || (!isFullDayHoliday && selectedTimeSlots.length === 0)}
           >
-            {isLoading ? 'Saving...' : 'Save Changes'}
+            {isLoading ? 'Saving...' : isEditMode ? 'Update' : 'Save Changes'}
           </Button>
         </DialogFooter>
       </DialogContent>

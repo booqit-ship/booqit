@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
@@ -162,7 +161,7 @@ const BookingPage: React.FC = () => {
           console.error('Error generating slots:', generateError);
         }
 
-        // Fetch available slots with improved filtering (backend now handles past time filtering)
+        // Fetch available slots - this now properly filters blocked slots
         const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots', {
           p_merchant_id: merchantId,
           p_date: selectedDateStr,
@@ -179,14 +178,9 @@ const BookingPage: React.FC = () => {
 
         console.log('Available slots data from backend:', slotsData);
 
-        // Process slots and filter out holidays and past times (additional frontend filtering)
+        // Process slots and filter out past times for today
         const processedSlots = (slotsData || [])
           .filter((slot: AvailableSlot) => {
-            // Filter out holidays
-            if (slot.is_shop_holiday || slot.is_stylist_holiday) {
-              return false;
-            }
-            
             // Additional frontend filtering for past time slots
             if (isToday(selectedDateStr)) {
               const isPast = isTimeSlotInPast(slot.time_slot, selectedDateStr, 30);
@@ -203,17 +197,6 @@ const BookingPage: React.FC = () => {
 
         console.log('Processed slots after filtering:', processedSlots.length);
         setAvailableSlots(processedSlots);
-
-        // Show holiday messages if applicable
-        const shopHoliday = (slotsData || []).find((slot: AvailableSlot) => slot.is_shop_holiday);
-        if (shopHoliday) {
-          toast.info(`Shop is closed: ${shopHoliday.shop_holiday_reason || 'Holiday'}`);
-        }
-
-        const stylistHoliday = (slotsData || []).find((slot: AvailableSlot) => slot.is_stylist_holiday);
-        if (stylistHoliday) {
-          toast.info(`Stylist unavailable: ${stylistHoliday.stylist_holiday_reason || 'Holiday'}`);
-        }
 
       } catch (error) {
         console.error('Error fetching available slots:', error);
