@@ -39,6 +39,7 @@ const CalendarManagementPage: React.FC = () => {
   const [date, setDate] = useState<Date>(new Date());
   const [bookings, setBookings] = useState<BookingWithCustomerDetails[]>([]);
   const [holidays, setHolidays] = useState<HolidayDate[]>([]);
+  const [newHoliday, setNewHoliday] = useState<Date | undefined>(new Date());
   const [holidayDescription, setHolidayDescription] = useState('');
   const [holidayDialogOpen, setHolidayDialogOpen] = useState(false);
   const [merchantId, setMerchantId] = useState<string | null>(null);
@@ -325,18 +326,16 @@ const CalendarManagementPage: React.FC = () => {
     }
   };
 
-  // Holiday management functions - Fixed to use the selected date instead of newHoliday
+  // Holiday management functions
   const addHolidayDate = async () => {
-    if (!merchantId) return;
+    if (!merchantId || !newHoliday) return;
     
     try {
-      const selectedDateStr = format(date, 'yyyy-MM-dd');
-      
       const { error } = await supabase
         .from('shop_holidays')
         .insert({
           merchant_id: merchantId,
-          holiday_date: selectedDateStr,
+          holiday_date: format(newHoliday, 'yyyy-MM-dd'),
           description: holidayDescription || null
         });
         
@@ -360,7 +359,7 @@ const CalendarManagementPage: React.FC = () => {
       
       toast({
         title: "Success",
-        description: `Holiday marked for ${format(date, 'MMMM d, yyyy')}.`,
+        description: "Holiday date added successfully.",
       });
     } catch (error: any) {
       toast({
