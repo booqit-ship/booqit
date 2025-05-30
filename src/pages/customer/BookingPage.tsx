@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
@@ -6,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { format, addDays, isWeekend, startOfDay } from 'date-fns';
+import { format, addDays, isWeekend, startOfDay, isBefore } from 'date-fns';
 import { formatTimeToAmPm, isToday, isTimeSlotInPast } from '@/utils/timeUtils';
 
 interface AvailableSlot {
@@ -29,20 +28,61 @@ const BookingPage: React.FC = () => {
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
   const [loading, setLoading] = useState(false);
-  const [holidays, setHolidays] = useState<string[]>([]);
+  const [shopHolidays, setShopHolidays] = useState<string[]>([]);
+  const [merchantTiming, setMerchantTiming] = useState<{open_time: string, close_time: string} | null>(null);
+
+  // Fetch merchant timing and shop holidays
+  useEffect(() => {
+    const fetchMerchantData = async () => {
+      try {
+        if (!merchantId) return;
+
+        // Fetch merchant timing
+        const { data: merchantData } = await supabase
+          .from('merchants')
+          .select('open_time, close_time')
+          .eq('id', merchantId)
+          .single();
+
+        if (merchantData) {
+          setMerchantTiming(merchantData);
+        }
+
+        // Fetch shop holidays
+        const { data: shopHolidays } = await supabase
+          .from('shop_holidays')
+          .select('holiday_date')
+          .eq('merchant_id', merchantId)
+          .gte('holiday_date', format(new Date(), 'yyyy-MM-dd')); // Only future and today's holidays
+
+        const holidayDates = (shopHolidays || []).map(h => h.holiday_date);
+        setShopHolidays(holidayDates);
+      } catch (error) {
+        console.error('Error fetching merchant data:', error);
+      }
+    };
+
+    fetchMerchantData();
+  }, [merchantId]);
 
   const getAvailableDates = () => {
     const dates: Date[] = [];
     let currentDate = new Date();
+    let attempts = 0;
+    const maxAttempts = 30; // Look ahead 30 days maximum
     
-    while (dates.length < 3) {
+    while (dates.length < 7 && attempts < maxAttempts) {
       const dateStr = format(currentDate, 'yyyy-MM-dd');
       
-      if (!isWeekend(currentDate) && !holidays.includes(dateStr)) {
+      // Check if it's not a weekend, not a shop holiday, and not in the past
+      if (!isWeekend(currentDate) && 
+          !shopHolidays.includes(dateStr) && 
+          !isBefore(currentDate, startOfDay(new Date()))) {
         dates.push(new Date(currentDate));
       }
       
       currentDate = addDays(currentDate, 1);
+      attempts++;
     }
     
     return dates;
@@ -51,28 +91,8 @@ const BookingPage: React.FC = () => {
   const availableDates = getAvailableDates();
 
   useEffect(() => {
-    const fetchHolidayDates = async () => {
-      try {
-        if (!merchantId) return;
-
-        const { data: shopHolidays } = await supabase
-          .from('shop_holidays')
-          .select('holiday_date')
-          .eq('merchant_id', merchantId);
-
-        const allHolidays = (shopHolidays || []).map(h => h.holiday_date);
-        setHolidays(allHolidays);
-      } catch (error) {
-        console.error('Error fetching holiday data:', error);
-      }
-    };
-
-    fetchHolidayDates();
-  }, [merchantId]);
-
-  useEffect(() => {
     const fetchAvailableSlots = async () => {
-      if (!selectedDate || !merchantId) return;
+      if (!selectedDate || !merchantId || !merchantTiming) return;
 
       setLoading(true);
       try {
@@ -89,7 +109,7 @@ const BookingPage: React.FC = () => {
           console.error('Error generating slots:', generateError);
         }
 
-        // Fetch available slots with improved filtering (backend now handles past time filtering)
+        // Fetch available slots with improved filtering
         const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots', {
           p_merchant_id: merchantId,
           p_date: selectedDateStr,
@@ -106,18 +126,27 @@ const BookingPage: React.FC = () => {
 
         console.log('Available slots data from backend:', slotsData);
 
-        // Process slots and filter out holidays and past times (additional frontend filtering)
+        // Process slots and filter out holidays, past times, and times outside business hours
         const processedSlots = (slotsData || [])
           .filter((slot: AvailableSlot) => {
-            // Filter out holidays
+            // Filter out shop holidays and stylist holidays
             if (slot.is_shop_holiday || slot.is_stylist_holiday) {
+              return false;
+            }
+            
+            // Filter out times outside business hours
+            const slotTime = slot.time_slot.substring(0, 5); // Ensure HH:MM format
+            const openTime = merchantTiming.open_time;
+            const closeTime = merchantTiming.close_time;
+            
+            if (slotTime < openTime || slotTime >= closeTime) {
               return false;
             }
             
             // Additional frontend filtering for past time slots
             if (isToday(selectedDateStr)) {
-              const isPast = isTimeSlotInPast(slot.time_slot, selectedDateStr, 30);
-              console.log(`Slot ${slot.time_slot} is past:`, isPast);
+              const isPast = isTimeSlotInPast(slotTime, selectedDateStr, 30);
+              console.log(`Slot ${slotTime} is past:`, isPast);
               return !isPast;
             }
             
@@ -131,14 +160,15 @@ const BookingPage: React.FC = () => {
         console.log('Processed slots after filtering:', processedSlots.length);
         setAvailableSlots(processedSlots);
 
-        // Show holiday messages if applicable
-        const shopHoliday = (slotsData || []).find((slot: AvailableSlot) => slot.is_shop_holiday);
-        if (shopHoliday) {
+        // Show holiday messages if applicable but no slots were found due to holidays
+        const allSlots = slotsData || [];
+        const shopHoliday = allSlots.find((slot: AvailableSlot) => slot.is_shop_holiday);
+        if (shopHoliday && processedSlots.length === 0) {
           toast.info(`Shop is closed: ${shopHoliday.shop_holiday_reason || 'Holiday'}`);
         }
 
-        const stylistHoliday = (slotsData || []).find((slot: AvailableSlot) => slot.is_stylist_holiday);
-        if (stylistHoliday) {
+        const stylistHoliday = allSlots.find((slot: AvailableSlot) => slot.is_stylist_holiday);
+        if (stylistHoliday && processedSlots.length === 0) {
           toast.info(`Stylist unavailable: ${stylistHoliday.stylist_holiday_reason || 'Holiday'}`);
         }
 
@@ -152,7 +182,7 @@ const BookingPage: React.FC = () => {
     };
 
     fetchAvailableSlots();
-  }, [selectedDate, merchantId, selectedStaff, totalDuration]);
+  }, [selectedDate, merchantId, selectedStaff, totalDuration, merchantTiming]);
 
   const handleContinue = () => {
     if (!selectedDate || !selectedTime) {
@@ -240,32 +270,40 @@ const BookingPage: React.FC = () => {
             <CalendarIcon className="h-4 w-4 mr-2" />
             Select Date
           </h3>
-          <div className="grid grid-cols-3 gap-2">
-            {availableDates.map((date) => {
-              const isSelected = selectedDate && format(selectedDate, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd');
-              
-              return (
-                <Button
-                  key={format(date, 'yyyy-MM-dd')}
-                  variant={isSelected ? "default" : "outline"}
-                  className={`h-auto p-3 flex flex-col items-center space-y-1 ${
-                    isSelected ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
-                  }`}
-                  onClick={() => setSelectedDate(date)}
-                >
-                  <div className="text-xs font-medium">
-                    {formatDateDisplay(date)}
-                  </div>
-                  <div className="text-lg font-bold">
-                    {format(date, 'd')}
-                  </div>
-                  <div className="text-xs opacity-70">
-                    {format(date, 'MMM')}
-                  </div>
-                </Button>
-              );
-            })}
-          </div>
+          {availableDates.length === 0 ? (
+            <div className="text-center py-8 bg-gray-50 rounded-lg">
+              <CalendarIcon className="h-12 w-12 mx-auto text-gray-400 mb-2" />
+              <p className="text-gray-500">No available dates</p>
+              <p className="text-gray-400 text-sm">Shop is closed or no working days available</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-2">
+              {availableDates.slice(0, 6).map((date) => {
+                const isSelected = selectedDate && format(selectedDate, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd');
+                
+                return (
+                  <Button
+                    key={format(date, 'yyyy-MM-dd')}
+                    variant={isSelected ? "default" : "outline"}
+                    className={`h-auto p-3 flex flex-col items-center space-y-1 ${
+                      isSelected ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
+                    }`}
+                    onClick={() => setSelectedDate(date)}
+                  >
+                    <div className="text-xs font-medium">
+                      {formatDateDisplay(date)}
+                    </div>
+                    <div className="text-lg font-bold">
+                      {format(date, 'd')}
+                    </div>
+                    <div className="text-xs opacity-70">
+                      {format(date, 'MMM')}
+                    </div>
+                  </Button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {selectedDate && (

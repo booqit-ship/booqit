@@ -1,7 +1,8 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -11,13 +12,12 @@ import {
   DialogTrigger,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
+import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
 import { format, addDays, subDays } from 'date-fns';
-import { ChevronLeft, ChevronRight, Flag } from 'lucide-react';
 
 interface CalendarNavigationProps {
   date: Date;
-  onDateChange: (newDate: Date) => void;
+  onDateChange: (date: Date) => void;
   isMobile: boolean;
   isHoliday: (date: Date) => boolean;
   holidayDialogOpen: boolean;
@@ -40,107 +40,100 @@ const CalendarNavigation: React.FC<CalendarNavigationProps> = ({
   onAddHoliday,
   onRemoveHoliday,
 }) => {
-  const goToPrevious = () => onDateChange(subDays(date, isMobile ? 3 : 5));
-  const goToNext = () => onDateChange(addDays(date, isMobile ? 3 : 5));
-  const goToToday = () => onDateChange(new Date());
+  const handlePrevDay = () => {
+    onDateChange(subDays(date, 1));
+  };
+
+  const handleNextDay = () => {
+    onDateChange(addDays(date, 1));
+  };
+
+  const handleAddHoliday = () => {
+    onAddHoliday();
+  };
 
   return (
-    <div className="flex justify-between items-center">
-      <CardTitle className="text-booqit-dark text-base sm:text-lg">Appointments</CardTitle>
+    <div className="flex items-center justify-between px-2 sm:px-4 py-2">
       <div className="flex items-center space-x-2">
-        <Button 
-          variant="outline"
+        <Button
+          variant="ghost"
           size="sm"
-          className="h-8 w-8 p-0 rounded-full"
-          onClick={goToPrevious}
+          onClick={handlePrevDay}
+          className="h-8 w-8 p-0"
         >
           <ChevronLeft className="h-4 w-4" />
-          <span className="sr-only">Previous</span>
         </Button>
         
-        <Button 
-          variant="outline"
-          size="sm"
-          className="h-8 text-xs font-medium px-2"
-          onClick={goToToday}
-        >
-          Today
-        </Button>
+        <h2 className="text-sm sm:text-base font-semibold text-booqit-dark min-w-[120px] sm:min-w-[140px] text-center">
+          {format(date, isMobile ? 'MMM d' : 'MMMM d, yyyy')}
+        </h2>
         
-        <Button 
-          variant="outline"
+        <Button
+          variant="ghost"
           size="sm"
-          className="h-8 w-8 p-0 rounded-full"
-          onClick={goToNext}
+          onClick={handleNextDay}
+          className="h-8 w-8 p-0"
         >
           <ChevronRight className="h-4 w-4" />
-          <span className="sr-only">Next</span>
         </Button>
-        
-        <Dialog open={holidayDialogOpen} onOpenChange={setHolidayDialogOpen}>
-          <DialogTrigger asChild>
-            <Button 
-              variant="outline"
-              size="sm"
-              className="h-8 px-2 ml-1"
-              onClick={() => setHolidayDialogOpen(true)}
-            >
-              <Flag className="h-3.5 w-3.5 mr-1" />
-              <span className="text-xs hidden xs:inline">Holiday</span>
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-[350px] sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Mark Shop Holiday</DialogTitle>
-              <DialogDescription>
-                {isHoliday(date) 
-                  ? "This date is already marked as a holiday."
-                  : "Mark this date as a shop holiday. Customers won't be able to book on this date."}
-              </DialogDescription>
-            </DialogHeader>
-            
-            <div className="mt-2 space-y-3">
-              <div className="space-y-1">
-                <label className="text-sm font-medium">Date</label>
-                <div className="p-2 bg-gray-50 rounded-md text-center">
-                  {format(date, 'MMMM d, yyyy')}
-                </div>
-              </div>
+      </div>
+
+      <div className="flex items-center space-x-2">
+        {isHoliday(date) ? (
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={onRemoveHoliday}
+            className="h-8"
+          >
+            <X className="h-3 w-3 mr-1" />
+            Remove Holiday
+          </Button>
+        ) : (
+          <Dialog open={holidayDialogOpen} onOpenChange={setHolidayDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8">
+                <Plus className="h-3 w-3 mr-1" />
+                Mark Holiday
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Mark Shop Holiday</DialogTitle>
+                <DialogDescription>
+                  Mark {format(date, 'MMMM d, yyyy')} as a shop holiday.
+                </DialogDescription>
+              </DialogHeader>
               
-              <div className="space-y-1">
-                <label className="text-sm font-medium">Description (Optional)</label>
-                <Textarea 
-                  placeholder="Add description for this holiday"
-                  value={holidayDescription}
-                  onChange={(e) => setHolidayDescription(e.target.value)}
-                  className="resize-none"
+              <div>
+                <label className="text-sm font-medium mb-2 block">Holiday Date</label>
+                <Input
+                  type="date"
+                  value={format(date, 'yyyy-MM-dd')}
+                  readOnly
+                  className="bg-gray-100"
                 />
               </div>
               
-              <DialogFooter className="flex gap-2">
-                {isHoliday(date) && (
-                  <Button 
-                    variant="destructive" 
-                    size="sm"
-                    onClick={() => {
-                      onRemoveHoliday();
-                      setHolidayDialogOpen(false);
-                    }}
-                  >
-                    Remove
-                  </Button>
-                )}
-                
-                <Button
-                  size="sm"
-                  onClick={onAddHoliday}
-                >
-                  {isHoliday(date) ? 'Update' : 'Save'}
+              <div>
+                <label className="text-sm font-medium mb-2 block">Description (Optional)</label>
+                <Textarea 
+                  placeholder="e.g., Festival holiday, Personal leave, etc."
+                  value={holidayDescription}
+                  onChange={(e) => setHolidayDescription(e.target.value)}
+                  className="resize-none"
+                  rows={2}
+                />
+              </div>
+              
+              <DialogFooter>
+                <Button onClick={handleAddHoliday} className="w-full">
+                  Mark as Holiday
                 </Button>
               </DialogFooter>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     </div>
   );
