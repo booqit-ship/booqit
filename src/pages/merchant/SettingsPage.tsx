@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -9,7 +10,6 @@ import SettingsBusinessForm from '@/components/merchant/SettingsBusinessForm';
 import SettingsBankingForm from '@/components/merchant/SettingsBankingForm';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { formatTimeToAmPm, formatTimeFrom12To24 } from '@/utils/timeUtils';
 
 interface SqlResponse {
   success: boolean;
@@ -69,11 +69,16 @@ const SettingsPage: React.FC = () => {
           setDescription(merchantData.description || '');
           setCategory(merchantData.category);
           setGenderFocus(merchantData.gender_focus || 'unisex');
-          // Convert 24-hour format to 12-hour format for display
-          setOpenTime(formatTimeToAmPm(merchantData.open_time));
-          setCloseTime(formatTimeToAmPm(merchantData.close_time));
+          // Store times in 24-hour format for HTML time inputs
+          setOpenTime(merchantData.open_time || '');
+          setCloseTime(merchantData.close_time || '');
           setAddress(merchantData.address);
           setShopImageUrl(merchantData.image_url);
+          
+          console.log('Loaded merchant hours:', {
+            open_time: merchantData.open_time,
+            close_time: merchantData.close_time
+          });
           
           // Fetch bank info
           const { data: bankData, error: bankError } = await supabase
@@ -107,11 +112,14 @@ const SettingsPage: React.FC = () => {
 
   const generateSlotsForNext30Days = async (merchantId: string) => {
     try {
+      console.log('Starting slot generation for next 30 days...');
       // Generate slots for the next 30 days
       for (let i = 0; i < 30; i++) {
         const date = new Date();
         date.setDate(date.getDate() + i);
         const dateStr = date.toISOString().split('T')[0];
+        
+        console.log(`Generating slots for date: ${dateStr}`);
         
         // Call the generate_stylist_slots function
         const { error } = await supabase.rpc('generate_stylist_slots', {
@@ -135,6 +143,14 @@ const SettingsPage: React.FC = () => {
     if (!merchant || !userId) {
       toast('Error', {
         description: 'Merchant data not found',
+        style: { backgroundColor: 'red', color: 'white' }
+      });
+      return;
+    }
+    
+    if (!openTime || !closeTime) {
+      toast('Error', {
+        description: 'Please select both opening and closing times',
         style: { backgroundColor: 'red', color: 'white' }
       });
       return;
@@ -174,17 +190,13 @@ const SettingsPage: React.FC = () => {
         setIsUploading(false);
       }
       
-      // Convert times from 12-hour to 24-hour format
-      const open24 = formatTimeFrom12To24(openTime);
-      const close24 = formatTimeFrom12To24(closeTime);
-      
-      console.log('Converting times:', { openTime, closeTime, open24, close24 });
+      console.log('Updating merchant with times:', { openTime, closeTime });
       
       // Use the SQL function to update merchant hours
       const { data: hoursResult, error: hoursError } = await supabase.rpc('update_merchant_hours', {
         p_merchant_id: merchant.id,
-        p_open_time: open24,
-        p_close_time: close24
+        p_open_time: openTime,
+        p_close_time: closeTime
       });
 
       if (hoursError) {
@@ -196,6 +208,8 @@ const SettingsPage: React.FC = () => {
       if (!hoursResponse.success) {
         throw new Error(hoursResponse.error || 'Failed to update hours');
       }
+      
+      console.log('Hours updated successfully');
       
       // Update other merchant fields
       const { error } = await supabase
@@ -219,7 +233,7 @@ const SettingsPage: React.FC = () => {
         description: 'Your changes have been saved successfully and booking slots have been generated'
       });
       
-      // Update local state
+      // Update local state with the new values
       setMerchant(prev => {
         if (!prev) return null;
         return {
@@ -228,8 +242,8 @@ const SettingsPage: React.FC = () => {
           description: description,
           category: category,
           gender_focus: genderFocus,
-          open_time: open24,
-          close_time: close24,
+          open_time: openTime,
+          close_time: closeTime,
           address: address,
           image_url: imageUrl
         };

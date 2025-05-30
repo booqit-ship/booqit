@@ -242,6 +242,9 @@ const SettingsBusinessForm: React.FC<SettingsBusinessFormProps> = ({
                 onChange={(e) => setOpenTime(e.target.value)}
                 required
               />
+              <p className="text-xs text-muted-foreground">
+                Current: {openTime || 'Not set'}
+              </p>
             </div>
             
             <div className="space-y-2">
@@ -253,6 +256,9 @@ const SettingsBusinessForm: React.FC<SettingsBusinessFormProps> = ({
                 onChange={(e) => setCloseTime(e.target.value)}
                 required
               />
+              <p className="text-xs text-muted-foreground">
+                Current: {closeTime || 'Not set'}
+              </p>
             </div>
           </div>
           
