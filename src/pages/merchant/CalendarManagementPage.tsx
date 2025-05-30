@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -273,43 +274,54 @@ const CalendarManagementPage: React.FC = () => {
     }
 
     try {
-      // If cancelling a booking, release the slots first
+      // If cancelling a booking, use the cancel function to properly release slots
       if (newStatus === 'cancelled') {
-        const { error: releaseError } = await supabase.rpc('release_stylist_slots', {
-          p_booking_id: bookingId
+        const { data, error } = await supabase.rpc('cancel_booking_and_release_slots', {
+          p_booking_id: bookingId,
+          p_user_id: null // Merchant cancellation, don't restrict by user
         });
 
-        if (releaseError) {
-          console.error('Error releasing slots:', releaseError);
+        if (error) {
+          console.error('Cancel booking error:', error);
+          throw error;
         }
+
+        const result = data as unknown as { success: boolean; error?: string; message?: string };
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to cancel booking');
+        }
+
+        toast({
+          title: "Success",
+          description: result.message || "Booking cancelled successfully.",
+        });
+      } else {
+        // Use the database function for other status updates
+        const { data, error } = await supabase.rpc('update_booking_status', {
+          booking_id: bookingId,
+          new_status: newStatus,
+          merchant_user_id: userId
+        });
+
+        if (error) {
+          console.error('Database function error:', error);
+          throw error;
+        }
+
+        const response = data as unknown as BookingStatusResponse;
+
+        if (!response.success) {
+          console.error('Booking update failed:', response.error);
+          throw new Error(response.error);
+        }
+
+        console.log('Booking status updated successfully:', response);
+
+        toast({
+          title: "Success",
+          description: `Booking ${newStatus} successfully.`,
+        });
       }
-
-      // Use the database function for secure status updates
-      const { data, error } = await supabase.rpc('update_booking_status', {
-        booking_id: bookingId,
-        new_status: newStatus,
-        merchant_user_id: userId
-      });
-
-      if (error) {
-        console.error('Database function error:', error);
-        throw error;
-      }
-
-      // Type cast the response properly through unknown
-      const response = data as unknown as BookingStatusResponse;
-
-      if (!response.success) {
-        console.error('Booking update failed:', response.error);
-        throw new Error(response.error);
-      }
-
-      console.log('Booking status updated successfully:', response);
-
-      toast({
-        title: "Success",
-        description: `Booking ${newStatus} successfully.`,
-      });
 
       // The real-time subscription will automatically refresh the data
     } catch (error: any) {
