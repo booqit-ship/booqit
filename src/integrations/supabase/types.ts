@@ -564,6 +564,10 @@ export type Database = {
         }
         Returns: Json
       }
+      cancel_booking_and_release_slots: {
+        Args: { p_booking_id: string; p_user_id?: string }
+        Returns: Json
+      }
       clear_stylist_availability: {
         Args: { p_staff_id: string; p_date: string }
         Returns: Json

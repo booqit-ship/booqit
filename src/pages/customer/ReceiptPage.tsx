@@ -1,169 +1,70 @@
 
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { Check, Download, ChevronLeft, Calendar } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import { ChevronLeft, Store, Clock, User, CheckCircle2, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { Booking, Service, Merchant } from '@/types';
-
-interface ReceiptDetails {
-  bookingId: string;
-  bookingDate: string;
-  bookingTime: string;
-  serviceName: string;
-  servicePrice: number;
-  merchantName: string;
-  paymentMethod: string;
-  staffId?: string;
-}
+import { useAuth } from '@/contexts/AuthContext';
+import { formatTimeToAmPm } from '@/utils/timeUtils';
+import { format } from 'date-fns';
+import CancelBookingButton from '@/components/customer/CancelBookingButton';
 
 const ReceiptPage: React.FC = () => {
   const { bookingId } = useParams<{ bookingId: string }>();
-  const navigate = useNavigate();
   const location = useLocation();
+  const navigate = useNavigate();
+  const { userId } = useAuth();
+  const [booking, setBooking] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [booking, setBooking] = useState<Booking | null>(null);
-  const [service, setService] = useState<Service | null>(null);
-  const [merchant, setMerchant] = useState<Merchant | null>(null);
-  
-  // Use location state if available, otherwise fetch from API
-  const receiptDetails = location.state as ReceiptDetails;
+
+  // Get data from navigation state if available
+  const stateData = location.state;
 
   useEffect(() => {
     const fetchBookingDetails = async () => {
-      try {
-        setLoading(true);
-        if (!bookingId) return;
+      if (!bookingId) return;
 
-        // Fetch booking details
-        const { data: bookingData, error: bookingError } = await supabase
+      try {
+        const { data: bookingData, error } = await supabase
           .from('bookings')
           .select(`
             *,
-            service:service_id(*),
-            merchant:merchant_id(*)
+            merchants (shop_name, address),
+            services (name, price),
+            staff (name)
           `)
           .eq('id', bookingId)
           .single();
 
-        if (bookingError) throw bookingError;
-        
-        if (bookingData) {
-          const typedBooking = {
-            ...bookingData,
-            status: bookingData.status as "pending" | "confirmed" | "completed" | "cancelled",
-            payment_status: bookingData.payment_status as "pending" | "completed" | "failed" | "refunded"
-          } as Booking;
-          
-          setBooking(typedBooking);
-          setService(bookingData.service as Service);
-          setMerchant(bookingData.merchant as Merchant);
+        if (error) {
+          console.error('Error fetching booking:', error);
+          return;
         }
+
+        setBooking(bookingData);
       } catch (error) {
         console.error('Error fetching booking details:', error);
-        toast.error('Could not load booking details');
       } finally {
         setLoading(false);
       }
     };
 
-    if (!receiptDetails) {
-      fetchBookingDetails();
-    } else {
+    // Use state data if available, otherwise fetch from database
+    if (stateData && stateData.booking) {
+      setBooking(stateData.booking);
       setLoading(false);
+    } else {
+      fetchBookingDetails();
     }
-  }, [bookingId, receiptDetails]);
+  }, [bookingId, stateData]);
 
-  const handleAddToCalendar = () => {
-    try {
-      // Get data either from state or fetched data
-      const bookingDate = receiptDetails?.bookingDate || booking?.date;
-      const bookingTime = receiptDetails?.bookingTime || booking?.time_slot;
-      const serviceName = receiptDetails?.serviceName || service?.name;
-      const merchantName = receiptDetails?.merchantName || merchant?.shop_name;
-      const merchantAddress = merchant?.address || '';
-      
-      if (!bookingDate || !bookingTime || !serviceName || !merchantName) {
-        toast.error("Couldn't create calendar event");
-        return;
-      }
-
-      // Create start date/time
-      const [hours, minutes] = bookingTime.split(':').map(Number);
-      const startDate = new Date(bookingDate);
-      startDate.setHours(hours, minutes, 0, 0);
-      
-      const endDate = new Date(startDate);
-      endDate.setMinutes(endDate.getMinutes() + (service?.duration || 60));
-      
-      // Format dates for Google Calendar (YYYYMMDDTHHMMSSZ)
-      const formatForGCal = (date: Date) => {
-        return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-      };
-      
-      const eventTitle = `${serviceName} appointment`;
-      const eventDetails = `Appointment at ${merchantName}`;
-      const eventLocation = merchantAddress;
-      
-      const googleCalUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventTitle)}&details=${encodeURIComponent(eventDetails)}&location=${encodeURIComponent(eventLocation)}&dates=${formatForGCal(startDate)}/${formatForGCal(endDate)}`;
-      
-      window.open(googleCalUrl, '_blank');
-      toast.success('Calendar event created!');
-    } catch (error) {
-      console.error('Error creating calendar event:', error);
-      toast.error("Couldn't create calendar event");
-    }
-  };
-  
-  const handleDownloadReceipt = () => {
-    try {
-      // Get data for receipt
-      const bookingDate = receiptDetails?.bookingDate || booking?.date;
-      const bookingTime = receiptDetails?.bookingTime || booking?.time_slot;
-      const serviceName = receiptDetails?.serviceName || service?.name;
-      const merchantName = receiptDetails?.merchantName || merchant?.shop_name;
-      const servicePrice = receiptDetails?.servicePrice || service?.price;
-      const bookingRef = receiptDetails?.bookingId || booking?.id;
-
-      // Create receipt content
-      const receiptContent = `
-BOOKING RECEIPT
-===============
-
-Booking ID: ${bookingRef?.substring(0, 8)}
-Date: ${bookingDate}
-Time: ${bookingTime}
-
-Service: ${serviceName}
-Merchant: ${merchantName}
-Amount: ₹${servicePrice}
-
-Thank you for your booking!
-`;
-
-      // Create and download file
-      const blob = new Blob([receiptContent], { type: 'text/plain' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `receipt-${bookingRef?.substring(0, 8)}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      
-      toast.success('Receipt downloaded successfully!');
-    } catch (error) {
-      console.error('Error downloading receipt:', error);
-      toast.error("Couldn't download receipt");
-    }
-  };
-  
-  const handleGoToHome = () => {
-    navigate('/');
+  const handleCancelSuccess = () => {
+    // Update booking status locally
+    setBooking((prev: any) => ({
+      ...prev,
+      status: 'cancelled'
+    }));
   };
 
   if (loading) {
@@ -174,112 +75,195 @@ Thank you for your booking!
     );
   }
 
-  // Use data from either location state or fetched data
-  const displayData = {
-    bookingId: receiptDetails?.bookingId || booking?.id || '',
-    bookingDate: receiptDetails?.bookingDate || booking?.date || '',
-    bookingTime: receiptDetails?.bookingTime || booking?.time_slot || '',
-    serviceName: receiptDetails?.serviceName || service?.name || '',
-    servicePrice: receiptDetails?.servicePrice || service?.price || 0,
-    merchantName: receiptDetails?.merchantName || merchant?.shop_name || '',
-    paymentMethod: receiptDetails?.paymentMethod || 'cash',
-  };
+  if (!booking) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center p-4">
+        <p className="text-gray-500 mb-4">Booking not found</p>
+        <Button onClick={() => navigate('/calendar')}>Go to My Bookings</Button>
+      </div>
+    );
+  }
+
+  const merchant = stateData?.merchant || booking.merchants;
+  const selectedServices = stateData?.selectedServices || [booking.services];
+  const selectedStaffDetails = stateData?.selectedStaffDetails || { name: booking.staff?.name || booking.stylist_name };
+  const payment = stateData?.payment;
 
   return (
-    <div className="pb-20 bg-gray-50 min-h-screen">
-      <div className="relative bg-booqit-primary text-white p-4">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="absolute top-4 left-4 text-white hover:bg-white/20"
-          onClick={handleGoToHome}
-        >
-          <ChevronLeft className="h-5 w-5" />
-        </Button>
-        <h1 className="text-center text-xl font-medium">Receipt</h1>
-      </div>
-      
-      <div className="p-4 space-y-6">
-        {/* Success message */}
-        <div className="text-center py-6">
-          <div className="flex items-center justify-center w-16 h-16 mx-auto bg-green-100 rounded-full">
-            <Check className="h-8 w-8 text-green-600" />
-          </div>
-          <h2 className="mt-4 text-xl font-medium">Booking Confirmed!</h2>
-          <p className="text-gray-500 mt-1">Your appointment has been successfully booked</p>
+    <div className="pb-24 bg-gray-50 min-h-screen">
+      <div className="bg-booqit-primary text-white p-4 sticky top-0 z-10">
+        <div className="relative flex items-center justify-center">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="absolute left-0 text-white hover:bg-white/20"
+            onClick={() => navigate('/calendar')}
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-xl font-medium">Booking Receipt</h1>
         </div>
-        
-        {/* Receipt Card */}
-        <Card className="overflow-hidden">
-          <div className="bg-booqit-primary text-white p-4">
-            <h3 className="font-medium">Booking #{displayData.bookingId.substring(0, 8)}</h3>
-          </div>
-          <CardContent className="p-4">
+      </div>
+
+      <div className="p-4 space-y-6">
+        {/* Booking Status */}
+        <Card className="shadow-lg border-0">
+          <CardContent className="p-6 text-center">
+            {booking.status === 'cancelled' ? (
+              <>
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle2 className="h-8 w-8 text-red-600" />
+                </div>
+                <h2 className="text-xl font-semibold text-red-600 mb-2">Booking Cancelled</h2>
+                <p className="text-gray-600">Your booking has been cancelled successfully</p>
+              </>
+            ) : (
+              <>
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle2 className="h-8 w-8 text-green-600" />
+                </div>
+                <h2 className="text-xl font-semibold text-green-600 mb-2">Booking Confirmed!</h2>
+                <p className="text-gray-600">Your appointment has been successfully booked</p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Booking Details */}
+        <Card className="shadow-lg">
+          <CardContent className="p-6">
+            <h3 className="font-semibold mb-4 text-lg flex items-center">
+              <Store className="h-5 w-5 mr-2 text-booqit-primary" />
+              Booking Details
+            </h3>
             <div className="space-y-3">
-              <div>
-                <h4 className="text-sm text-gray-500">Service</h4>
-                <p className="font-medium">{displayData.serviceName}</p>
-              </div>
-              
-              <div>
-                <h4 className="text-sm text-gray-500">Merchant</h4>
-                <p className="font-medium">{displayData.merchantName}</p>
-              </div>
-              
-              <div className="flex space-x-6">
-                <div>
-                  <h4 className="text-sm text-gray-500">Date</h4>
-                  <p className="font-medium">{displayData.bookingDate}</p>
-                </div>
-                
-                <div>
-                  <h4 className="text-sm text-gray-500">Time</h4>
-                  <p className="font-medium">{displayData.bookingTime}</p>
-                </div>
-              </div>
-              
-              <Separator />
-              
-              <div>
-                <h4 className="text-sm text-gray-500">Payment Method</h4>
-                <p className="font-medium capitalize">{displayData.paymentMethod}</p>
-              </div>
-              
               <div className="flex justify-between items-center">
-                <h4 className="text-sm text-gray-500">Amount Paid</h4>
-                <p className="font-medium text-lg">₹{displayData.servicePrice}</p>
+                <span className="text-gray-600">Booking ID:</span>
+                <span className="font-medium text-sm">{booking.id.substring(0, 8)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Shop:</span>
+                <span className="font-medium">{merchant?.shop_name}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Date:</span>
+                <span className="font-medium">{format(new Date(booking.date), 'MMM d, yyyy')}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Time:</span>
+                <span className="font-medium flex items-center">
+                  <Clock className="h-4 w-4 mr-1" />
+                  {formatTimeToAmPm(booking.time_slot)}
+                </span>
+              </div>
+              {selectedStaffDetails && (
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Stylist:</span>
+                  <span className="font-medium flex items-center">
+                    <User className="h-4 w-4 mr-1" />
+                    {selectedStaffDetails.name}
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between items-start">
+                <span className="text-gray-600">Services:</span>
+                <div className="text-right">
+                  {selectedServices.map((service: any) => (
+                    <div key={service.id} className="font-medium">{service.name}</div>
+                  ))}
+                </div>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Status:</span>
+                <span className={`font-medium capitalize ${
+                  booking.status === 'confirmed' ? 'text-green-600' : 
+                  booking.status === 'cancelled' ? 'text-red-600' : 
+                  'text-yellow-600'
+                }`}>
+                  {booking.status}
+                </span>
+              </div>
+              <div className="border-t pt-3 mt-3">
+                <div className="flex justify-between items-center font-semibold text-lg">
+                  <span>Total Amount:</span>
+                  <span className="text-booqit-primary">
+                    ₹{selectedServices.reduce((sum: number, service: any) => sum + service.price, 0)}
+                  </span>
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
-        
+
+        {/* Payment Info */}
+        <Card className="shadow-lg">
+          <CardContent className="p-6">
+            <h3 className="font-semibold mb-4 text-lg flex items-center">
+              <CreditCard className="h-5 w-5 mr-2 text-booqit-primary" />
+              Payment Information
+            </h3>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Payment Method:</span>
+                <span className="font-medium">Pay at Shop</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Payment Status:</span>
+                <span className={`font-medium capitalize ${
+                  booking.payment_status === 'completed' ? 'text-green-600' : 'text-yellow-600'
+                }`}>
+                  {booking.payment_status}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Action Buttons */}
         <div className="space-y-3">
-          <Button 
-            className="w-full flex items-center justify-center"
-            variant="outline"
-            onClick={handleAddToCalendar}
-          >
-            <Calendar className="h-4 w-4 mr-2" />
-            Add to Calendar
-          </Button>
+          {booking.status !== 'cancelled' && (
+            <CancelBookingButton
+              bookingId={booking.id}
+              bookingDate={booking.date}
+              bookingTime={booking.time_slot}
+              bookingStatus={booking.status}
+              userId={userId}
+              onCancelSuccess={handleCancelSuccess}
+              className="w-full"
+            />
+          )}
           
           <Button 
-            className="w-full flex items-center justify-center"
-            variant="outline"
-            onClick={handleDownloadReceipt}
+            variant="outline" 
+            className="w-full"
+            onClick={() => navigate('/calendar')}
           >
-            <Download className="h-4 w-4 mr-2" />
-            Download Receipt
-          </Button>
-          
-          <Button 
-            className="w-full bg-booqit-primary hover:bg-booqit-primary/90"
-            onClick={handleGoToHome}
-          >
-            Back to Home
+            View All Bookings
           </Button>
         </div>
+
+        {/* Shop Address */}
+        {merchant?.address && (
+          <Card className="shadow-lg border-blue-200 bg-blue-50">
+            <CardContent className="p-4">
+              <h4 className="font-medium text-blue-800 mb-2">📍 Shop Address</h4>
+              <p className="text-sm text-blue-700">{merchant.address}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Important Note */}
+        {booking.status === 'confirmed' && (
+          <Card className="border-orange-200 bg-orange-50">
+            <CardContent className="p-4">
+              <h4 className="font-medium text-orange-800 mb-2">📋 Important Note</h4>
+              <p className="text-sm text-orange-700">
+                Please arrive on time and pay the amount at the shop. 
+                You can cancel or reschedule up to 2 hours before your appointment.
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
