@@ -43,6 +43,12 @@ interface StylistAvailabilityPopupProps {
   onAvailabilityChange: () => void;
 }
 
+interface SqlResponse {
+  success: boolean;
+  message?: string;
+  error?: string;
+}
+
 const timeSlots = [
   '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
   '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
@@ -139,8 +145,9 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
 
       if (error) throw error;
 
-      if (!data.success) {
-        throw new Error(data.message || 'Failed to update availability');
+      const response = data as SqlResponse;
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to update availability');
       }
       
       toast({

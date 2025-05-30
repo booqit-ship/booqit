@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -11,6 +10,12 @@ import SettingsBankingForm from '@/components/merchant/SettingsBankingForm';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { formatTimeToAmPm, formatTimeFrom12To24 } from '@/utils/timeUtils';
+
+interface SqlResponse {
+  success: boolean;
+  message?: string;
+  error?: string;
+}
 
 const SettingsPage: React.FC = () => {
   const { userId, logout } = useAuth();
@@ -157,8 +162,9 @@ const SettingsPage: React.FC = () => {
         throw hoursError;
       }
 
-      if (!hoursResult.success) {
-        throw new Error(hoursResult.error || 'Failed to update hours');
+      const hoursResponse = hoursResult as SqlResponse;
+      if (!hoursResponse.success) {
+        throw new Error(hoursResponse.error || 'Failed to update hours');
       }
       
       // Update other merchant fields
