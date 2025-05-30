@@ -204,11 +204,14 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
           return;
         }
 
-        // Check for existing blocked ranges
-        const { data: rangesData, error: rangesError } = await supabase.rpc('get_stylist_blocked_ranges', {
-          p_staff_id: selectedStaff,
-          p_date: selectedDateStr
-        });
+        // Check for existing blocked ranges using direct query
+        const { data: rangesData, error: rangesError } = await supabase
+          .from('stylist_blocked_slots')
+          .select('id, start_time, end_time, description')
+          .eq('staff_id', selectedStaff)
+          .eq('blocked_date', selectedDateStr)
+          .not('start_time', 'is', null)
+          .not('end_time', 'is', null);
 
         if (rangesError) {
           console.error('Error fetching blocked ranges:', rangesError);
@@ -282,11 +285,8 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
         description: description
       });
       
-      // Convert TimeRange[] to Json-compatible format
-      const blockedRangesJson = isFullDayHoliday ? null : selectedTimeRanges.map(range => ({
-        start_time: range.start_time,
-        end_time: range.end_time
-      }));
+      // Prepare blocked ranges for the function call
+      const blockedRangesJson = isFullDayHoliday ? null : selectedTimeRanges;
       
       const { data, error } = await supabase.rpc('manage_stylist_availability_ranges', {
         p_staff_id: selectedStaff,
@@ -310,7 +310,7 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
       
       toast({
         title: "Success",
-        description: isEditMode ? "Stylist availability updated successfully." : "Stylist availability saved successfully.",
+        description: response.message || (isEditMode ? "Stylist availability updated successfully." : "Stylist availability saved successfully."),
       });
       
       onOpenChange(false);

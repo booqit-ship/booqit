@@ -63,7 +63,7 @@ const StylistAvailabilityWidget: React.FC<StylistAvailabilityWidgetProps> = ({
       console.log('Fetched holidays:', holidays);
       setStylistHolidays(holidays || []);
 
-      // Updated query to fetch blocked slots with time ranges
+      // Fetch blocked slots with time ranges that have both start_time and end_time
       const { data: blockedSlots, error: blockedError } = await supabase
         .from('stylist_blocked_slots')
         .select(`
