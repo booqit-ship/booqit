@@ -253,12 +253,18 @@ const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
     try {
       const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
       
+      // Convert TimeRange[] to Json-compatible format
+      const blockedRangesJson = isFullDayHoliday ? null : selectedTimeRanges.map(range => ({
+        start_time: range.start_time,
+        end_time: range.end_time
+      }));
+      
       const { data, error } = await supabase.rpc('manage_stylist_availability_ranges', {
         p_staff_id: selectedStaff,
         p_merchant_id: merchantId,
         p_date: selectedDateStr,
         p_is_full_day: isFullDayHoliday,
-        p_blocked_ranges: isFullDayHoliday ? null : selectedTimeRanges,
+        p_blocked_ranges: blockedRangesJson,
         p_description: description || null
       });
 
