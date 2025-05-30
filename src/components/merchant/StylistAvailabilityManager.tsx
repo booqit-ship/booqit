@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Calendar } from '@/components/ui/calendar';
 import {
   Dialog,
   DialogContent,
@@ -16,6 +17,11 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -24,14 +30,15 @@ import {
 } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { Staff } from '@/types';
-import { format } from 'date-fns';
-import { formatTimeToAmPm, formatTimeFrom12To24 } from '@/utils/timeUtils';
+import { format, addDays, isBefore, startOfDay } from 'date-fns';
+import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { 
   User, 
   Calendar as CalendarIcon, 
   Clock, 
   X,
-  UserX
+  UserX,
+  ChevronDown
 } from 'lucide-react';
 
 interface StylistHoliday {
@@ -64,21 +71,28 @@ const timeSlots = [
 
 const StylistAvailabilityManager: React.FC<StylistAvailabilityManagerProps> = ({
   merchantId,
-  selectedDate,
+  selectedDate: initialSelectedDate,
   onAvailabilityChange
 }) => {
   const [staff, setStaff] = useState<Staff[]>([]);
   const [selectedStaff, setSelectedStaff] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useState<Date>(initialSelectedDate);
   const [stylistHolidays, setStylistHolidays] = useState<StylistHoliday[]>([]);
   const [stylistBlockedSlots, setStylistBlockedSlots] = useState<StylistBlockedSlot[]>([]);
   const [isFullDayHoliday, setIsFullDayHoliday] = useState(false);
   const [selectedTimeSlots, setSelectedTimeSlots] = useState<string[]>([]);
   const [description, setDescription] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+
+  // Update selectedDate when initialSelectedDate changes
+  useEffect(() => {
+    setSelectedDate(initialSelectedDate);
+  }, [initialSelectedDate]);
 
   useEffect(() => {
     const fetchStaff = async () => {
@@ -124,38 +138,82 @@ const StylistAvailabilityManager: React.FC<StylistAvailabilityManagerProps> = ({
     };
     
     fetchAvailabilityData();
-  }, [selectedStaff]);
+  }, [selectedStaff, selectedDate]);
+
+  // Check current status for selected date and staff
+  useEffect(() => {
+    if (selectedStaff && selectedDateStr) {
+      const existingHoliday = stylistHolidays.find(
+        h => h.staff_id === selectedStaff && h.holiday_date === selectedDateStr
+      );
+      
+      if (existingHoliday) {
+        setIsFullDayHoliday(true);
+        setDescription(existingHoliday.description || '');
+        setSelectedTimeSlots([]);
+      } else {
+        setIsFullDayHoliday(false);
+        const existingSlots = stylistBlockedSlots
+          .filter(s => s.staff_id === selectedStaff && s.blocked_date === selectedDateStr)
+          .map(s => s.time_slot);
+        setSelectedTimeSlots(existingSlots);
+        
+        // Get description from first blocked slot if any
+        const firstBlockedSlot = stylistBlockedSlots.find(
+          s => s.staff_id === selectedStaff && s.blocked_date === selectedDateStr
+        );
+        setDescription(firstBlockedSlot?.description || '');
+      }
+    } else {
+      setIsFullDayHoliday(false);
+      setSelectedTimeSlots([]);
+      setDescription('');
+    }
+  }, [selectedStaff, selectedDateStr, stylistHolidays, stylistBlockedSlots]);
 
   const isDateHoliday = stylistHolidays.some(
-    holiday => holiday.holiday_date === selectedDateStr
+    holiday => holiday.staff_id === selectedStaff && holiday.holiday_date === selectedDateStr
   );
 
   const blockedSlotsForDate = stylistBlockedSlots.filter(
-    slot => slot.blocked_date === selectedDateStr
+    slot => slot.staff_id === selectedStaff && slot.blocked_date === selectedDateStr
   );
 
-  const handleFullDayHoliday = async () => {
-    if (!selectedStaff) return;
-    
+  const handleTimeSlotToggle = (timeSlot: string) => {
+    setSelectedTimeSlots(prev => 
+      prev.includes(timeSlot) 
+        ? prev.filter(slot => slot !== timeSlot)
+        : [...prev, timeSlot]
+    );
+  };
+
+  const handleSave = async () => {
+    if (!selectedStaff) {
+      toast({
+        title: "Error",
+        description: "Please select a stylist first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
-      if (isDateHoliday) {
-        const holiday = stylistHolidays.find(h => h.holiday_date === selectedDateStr);
-        if (holiday) {
-          const { error } = await supabase
-            .from('stylist_holidays')
-            .delete()
-            .eq('id', holiday.id);
-            
-          if (error) throw error;
-          
-          setStylistHolidays(prev => prev.filter(h => h.id !== holiday.id));
-          toast({
-            title: "Success",
-            description: "Holiday removed successfully.",
-          });
-        }
-      } else {
+      // First, remove any existing entries for this staff member and date
+      await supabase
+        .from('stylist_holidays')
+        .delete()
+        .eq('staff_id', selectedStaff)
+        .eq('holiday_date', selectedDateStr);
+
+      await supabase
+        .from('stylist_blocked_slots')
+        .delete()
+        .eq('staff_id', selectedStaff)
+        .eq('blocked_date', selectedDateStr);
+
+      if (isFullDayHoliday) {
+        // Add full day holiday
         const { error } = await supabase
           .from('stylist_holidays')
           .insert({
@@ -166,27 +224,49 @@ const StylistAvailabilityManager: React.FC<StylistAvailabilityManagerProps> = ({
           });
           
         if (error) throw error;
-        
-        const { data: holidays } = await supabase
-          .from('stylist_holidays')
-          .select('*')
-          .eq('staff_id', selectedStaff);
+      } else if (selectedTimeSlots.length > 0) {
+        // Add blocked time slots
+        const blockedSlots = selectedTimeSlots.map(slot => ({
+          staff_id: selectedStaff,
+          merchant_id: merchantId,
+          blocked_date: selectedDateStr,
+          time_slot: slot,
+          description: description || null
+        }));
+
+        const { error } = await supabase
+          .from('stylist_blocked_slots')
+          .insert(blockedSlots);
           
-        setStylistHolidays(holidays || []);
-        
-        toast({
-          title: "Success",
-          description: "Full day holiday added successfully.",
-        });
+        if (error) throw error;
       }
+
+      // Refresh data
+      const { data: holidays } = await supabase
+        .from('stylist_holidays')
+        .select('*')
+        .eq('staff_id', selectedStaff);
+        
+      setStylistHolidays(holidays || []);
+
+      const { data: blockedSlots } = await supabase
+        .from('stylist_blocked_slots')
+        .select('*')
+        .eq('staff_id', selectedStaff);
+        
+      setStylistBlockedSlots(blockedSlots || []);
       
-      setDescription('');
+      toast({
+        title: "Success",
+        description: "Stylist availability updated successfully.",
+      });
+      
       setDialogOpen(false);
       onAvailabilityChange();
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to update holiday. Please try again.",
+        description: error.message || "Failed to update availability. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -194,53 +274,77 @@ const StylistAvailabilityManager: React.FC<StylistAvailabilityManagerProps> = ({
     }
   };
 
-  const handleTimeSlotToggle = async (timeSlot: string) => {
+  const handleClearAvailability = async () => {
     if (!selectedStaff) return;
-    
-    const existingSlot = blockedSlotsForDate.find(slot => slot.time_slot === timeSlot);
-    
+
+    setIsLoading(true);
     try {
-      if (existingSlot) {
-        const { error } = await supabase
-          .from('stylist_blocked_slots')
-          .delete()
-          .eq('id', existingSlot.id);
-          
-        if (error) throw error;
+      // Remove all entries for this staff member and date
+      await supabase
+        .from('stylist_holidays')
+        .delete()
+        .eq('staff_id', selectedStaff)
+        .eq('holiday_date', selectedDateStr);
+
+      await supabase
+        .from('stylist_blocked_slots')
+        .delete()
+        .eq('staff_id', selectedStaff)
+        .eq('blocked_date', selectedDateStr);
+
+      // Refresh data
+      const { data: holidays } = await supabase
+        .from('stylist_holidays')
+        .select('*')
+        .eq('staff_id', selectedStaff);
         
-        setStylistBlockedSlots(prev => prev.filter(slot => slot.id !== existingSlot.id));
-      } else {
-        const { error } = await supabase
-          .from('stylist_blocked_slots')
-          .insert({
-            staff_id: selectedStaff,
-            merchant_id: merchantId,
-            blocked_date: selectedDateStr,
-            time_slot: timeSlot,
-            description: description || null
-          });
-          
-        if (error) throw error;
+      setStylistHolidays(holidays || []);
+
+      const { data: blockedSlots } = await supabase
+        .from('stylist_blocked_slots')
+        .select('*')
+        .eq('staff_id', selectedStaff);
         
-        const { data: blockedSlots } = await supabase
-          .from('stylist_blocked_slots')
-          .select('*')
-          .eq('staff_id', selectedStaff);
-          
-        setStylistBlockedSlots(blockedSlots || []);
-      }
+      setStylistBlockedSlots(blockedSlots || []);
+
+      // Reset form
+      setIsFullDayHoliday(false);
+      setSelectedTimeSlots([]);
+      setDescription('');
+      
+      toast({
+        title: "Success",
+        description: "Availability restrictions cleared successfully.",
+      });
       
       onAvailabilityChange();
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to update time slot. Please try again.",
+        description: error.message || "Failed to clear availability. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const selectedStaffMember = staff.find(s => s.id === selectedStaff);
+  const hasExistingRestrictions = isDateHoliday || blockedSlotsForDate.length > 0;
+
+  // Get available dates (next 30 days)
+  const getAvailableDates = () => {
+    const dates: Date[] = [];
+    const today = startOfDay(new Date());
+    
+    for (let i = 0; i < 30; i++) {
+      dates.push(addDays(today, i));
+    }
+    
+    return dates;
+  };
+
+  const availableDates = getAvailableDates();
 
   return (
     <Card>
@@ -270,83 +374,79 @@ const StylistAvailabilityManager: React.FC<StylistAvailabilityManagerProps> = ({
           </Select>
         </div>
 
+        <div>
+          <label className="text-sm font-medium mb-2 block">Select Date</label>
+          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="w-full justify-start text-left font-normal">
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {format(selectedDate, 'PPP')}
+                <ChevronDown className="ml-auto h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={(date) => {
+                  if (date) {
+                    setSelectedDate(date);
+                    setCalendarOpen(false);
+                  }
+                }}
+                disabled={(date) => isBefore(date, startOfDay(new Date()))}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+
         {selectedStaff && (
           <>
             <div className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
               <div className="flex items-center">
-                <CalendarIcon className="h-4 w-4 mr-2" />
                 <span className="text-sm font-medium">
-                  {format(selectedDate, 'MMMM d, yyyy')}
+                  {selectedStaffMember?.name} - {format(selectedDate, 'MMM dd, yyyy')}
                 </span>
               </div>
-              {isDateHoliday && (
-                <Badge variant="destructive" className="text-xs">
-                  Holiday
+              {hasExistingRestrictions && (
+                <Badge variant={isDateHoliday ? "destructive" : "secondary"} className="text-xs">
+                  {isDateHoliday ? 'Holiday' : `${blockedSlotsForDate.length} slots blocked`}
                 </Badge>
               )}
             </div>
 
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Full Day Holiday</span>
-                <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button 
-                      variant={isDateHoliday ? "destructive" : "default"}
-                      size="sm"
-                    >
-                      {isDateHoliday ? 'Remove Holiday' : 'Mark Holiday'}
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-md">
-                    <DialogHeader>
-                      <DialogTitle>
-                        {isDateHoliday ? 'Remove Holiday' : 'Mark Full Day Holiday'}
-                      </DialogTitle>
-                      <DialogDescription>
-                        {isDateHoliday 
-                          ? `Remove holiday for ${selectedStaffMember?.name} on ${format(selectedDate, 'MMMM d, yyyy')}`
-                          : `Mark ${selectedStaffMember?.name} as unavailable for the entire day on ${format(selectedDate, 'MMMM d, yyyy')}`
-                        }
-                      </DialogDescription>
-                    </DialogHeader>
-                    
-                    {!isDateHoliday && (
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Description (Optional)</label>
-                        <Textarea 
-                          placeholder="Add a reason for the holiday"
-                          value={description}
-                          onChange={(e) => setDescription(e.target.value)}
-                          className="resize-none"
-                        />
-                      </div>
-                    )}
-                    
-                    <DialogFooter>
-                      <Button
-                        onClick={handleFullDayHoliday}
-                        disabled={isLoading}
-                        variant={isDateHoliday ? "destructive" : "default"}
-                      >
-                        {isLoading ? 'Processing...' : (isDateHoliday ? 'Remove Holiday' : 'Mark Holiday')}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="fullDayHoliday"
+                  checked={isFullDayHoliday}
+                  onCheckedChange={(checked) => {
+                    setIsFullDayHoliday(checked as boolean);
+                    if (checked) {
+                      setSelectedTimeSlots([]);
+                    }
+                  }}
+                />
+                <label htmlFor="fullDayHoliday" className="text-sm font-medium">
+                  Full Day Holiday
+                </label>
               </div>
 
-              {!isDateHoliday && (
+              {!isFullDayHoliday && (
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Block Specific Time Slots</label>
+                  <label className="text-sm font-medium mb-2 block flex items-center">
+                    <Clock className="h-4 w-4 mr-1" />
+                    Block Specific Time Slots
+                  </label>
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                     {timeSlots.map((slot) => {
-                      const isBlocked = blockedSlotsForDate.some(blockedSlot => blockedSlot.time_slot === slot);
+                      const isSelected = selectedTimeSlots.includes(slot);
                       
                       return (
                         <Button
                           key={slot}
-                          variant={isBlocked ? "destructive" : "outline"}
+                          variant={isSelected ? "destructive" : "outline"}
                           size="sm"
                           className="text-xs h-8"
                           onClick={() => handleTimeSlotToggle(slot)}
@@ -357,13 +457,45 @@ const StylistAvailabilityManager: React.FC<StylistAvailabilityManagerProps> = ({
                     })}
                   </div>
                   
-                  {blockedSlotsForDate.length > 0 && (
+                  {selectedTimeSlots.length > 0 && (
                     <div className="mt-2 text-xs text-muted-foreground">
-                      {blockedSlotsForDate.length} slot(s) blocked
+                      {selectedTimeSlots.length} slot(s) selected
                     </div>
                   )}
                 </div>
               )}
+
+              <div>
+                <label className="text-sm font-medium mb-2 block">Description (Optional)</label>
+                <Textarea 
+                  placeholder="Add a reason for the restriction"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="resize-none"
+                  rows={2}
+                />
+              </div>
+
+              <div className="flex space-x-2">
+                <Button
+                  onClick={handleSave}
+                  disabled={isLoading || (!isFullDayHoliday && selectedTimeSlots.length === 0)}
+                  className="flex-1"
+                >
+                  {isLoading ? 'Saving...' : 'Save Changes'}
+                </Button>
+                
+                {hasExistingRestrictions && (
+                  <Button
+                    onClick={handleClearAvailability}
+                    disabled={isLoading}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    {isLoading ? 'Clearing...' : 'Clear All'}
+                  </Button>
+                )}
+              </div>
             </div>
           </>
         )}
