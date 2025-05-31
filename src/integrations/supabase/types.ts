@@ -651,6 +651,14 @@ export type Database = {
         }
         Returns: Json
       }
+      update_booking_status_and_release_slots: {
+        Args: {
+          p_booking_id: string
+          p_new_status: string
+          p_merchant_user_id?: string
+        }
+        Returns: Json
+      }
       update_merchant_hours: {
         Args: {
           p_merchant_id: string

@@ -31,21 +31,18 @@ const BookingPage: React.FC = () => {
   const [holidays, setHolidays] = useState<string[]>([]);
   const [conflictMessage, setConflictMessage] = useState<string>('');
 
+  // Only allow booking for 3 days: today, tomorrow, and day after tomorrow
   const getAvailableDates = () => {
     const dates: Date[] = [];
-    let currentDate = new Date();
-    let daysChecked = 0;
-    const maxDaysToCheck = 30;
+    const today = new Date();
     
-    while (dates.length < 7 && daysChecked < maxDaysToCheck) {
-      const dateStr = format(currentDate, 'yyyy-MM-dd');
+    for (let i = 0; i < 3; i++) {
+      const date = addDays(today, i);
+      const dateStr = format(date, 'yyyy-MM-dd');
       
       if (!holidays.includes(dateStr)) {
-        dates.push(new Date(currentDate));
+        dates.push(date);
       }
-      
-      currentDate = addDays(currentDate, 1);
-      daysChecked++;
     }
     
     return dates;
@@ -185,11 +182,14 @@ const BookingPage: React.FC = () => {
   const formatDateDisplay = (date: Date) => {
     const today = new Date();
     const tomorrow = addDays(today, 1);
+    const dayAfterTomorrow = addDays(today, 2);
     
     if (format(date, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')) {
       return 'Today';
     } else if (format(date, 'yyyy-MM-dd') === format(tomorrow, 'yyyy-MM-dd')) {
       return 'Tomorrow';
+    } else if (format(date, 'yyyy-MM-dd') === format(dayAfterTomorrow, 'yyyy-MM-dd')) {
+      return format(date, 'EEE, MMM d');
     } else {
       return format(date, 'EEE, MMM d');
     }
@@ -233,6 +233,9 @@ const BookingPage: React.FC = () => {
           <p className="text-gray-500 text-sm">
             Select your preferred date and time slot. Service duration: {totalDuration} minutes
           </p>
+          <p className="text-gray-400 text-xs mt-1">
+            Booking available for today, tomorrow, and the day after only
+          </p>
         </div>
 
         <div className="mb-6">
@@ -241,7 +244,7 @@ const BookingPage: React.FC = () => {
             Select Date
           </h3>
           <div className="grid grid-cols-3 gap-2">
-            {availableDates.slice(0, 7).map((date) => {
+            {availableDates.map((date) => {
               const isSelected = selectedDate && format(selectedDate, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd');
               
               return (
