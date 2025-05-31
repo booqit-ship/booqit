@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -6,17 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { Booking } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
@@ -32,6 +20,8 @@ import {
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
+import { useCancelBooking } from '@/hooks/useCancelBooking';
+import CancelBookingButton from '@/components/customer/CancelBookingButton';
 
 const CalendarPage: React.FC = () => {
   const [date, setDate] = useState<Date>(new Date());
@@ -41,6 +31,7 @@ const CalendarPage: React.FC = () => {
   const { userId } = useAuth();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const { cancelBooking, isCancelling } = useCancelBooking();
 
   // Calculate the visible days based on the selected date (today + next 6 days)
   const visibleDays = useMemo(() => {
@@ -153,37 +144,18 @@ const CalendarPage: React.FC = () => {
     }).sort((a, b) => a.time_slot.localeCompare(b.time_slot));
   }, [bookings, date]);
 
-  // Handle booking cancellation
-  const cancelBooking = async (bookingId: string) => {
-    console.log('Customer cancelling booking:', bookingId);
+  // Handle booking cancellation with proper function
+  const handleCancelBooking = async (bookingId: string) => {
+    console.log('Customer cancelling booking via direct function:', bookingId);
 
-    try {
-      const { error } = await supabase
-        .from('bookings')
-        .update({ status: 'cancelled' })
-        .eq('id', bookingId)
-        .eq('user_id', userId); // Ensure user can only cancel their own bookings
-        
-      if (error) {
-        console.error('Customer booking cancellation error:', error);
-        throw error;
-      }
-      
-      console.log('Customer booking cancelled successfully');
+    const success = await cancelBooking(bookingId, userId);
+    if (success) {
+      // Refresh bookings immediately
+      await fetchBookings();
       
       toast({
         title: "Success",
-        description: "Booking has been cancelled.",
-      });
-
-      // Immediately refresh bookings
-      await fetchBookings();
-    } catch (error: any) {
-      console.error('Error cancelling customer booking:', error);
-      toast({
-        title: "Error",
-        description: "Failed to cancel booking. Please try again.",
-        variant: "destructive",
+        description: "Booking has been cancelled and slots have been released.",
       });
     }
   };
@@ -325,35 +297,15 @@ const CalendarPage: React.FC = () => {
                         
                         {booking.status !== 'cancelled' && booking.status !== 'completed' && (
                           <div className="flex justify-end mt-2">
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button 
-                                  variant="destructive"
-                                  size="sm"
-                                  className="h-7 text-xs"
-                                >
-                                  <X className="mr-1 h-3 w-3" />
-                                  Cancel
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Cancel Booking</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you want to cancel this booking? This action cannot be undone.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Keep Booking</AlertDialogCancel>
-                                  <AlertDialogAction 
-                                    onClick={() => cancelBooking(booking.id)}
-                                    className="bg-red-500 hover:bg-red-600"
-                                  >
-                                    Cancel Booking
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
+                            <CancelBookingButton
+                              bookingId={booking.id}
+                              bookingDate={booking.date}
+                              bookingTime={booking.time_slot}
+                              bookingStatus={booking.status}
+                              userId={userId}
+                              onCancelSuccess={() => fetchBookings()}
+                              className="h-7 text-xs"
+                            />
                           </div>
                         )}
                       </CardContent>

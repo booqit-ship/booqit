@@ -55,15 +55,17 @@ const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
   };
 
   const handleCancel = async () => {
+    console.log('Attempting to cancel booking:', bookingId, 'for user:', userId);
+    
     const success = await cancelBooking(bookingId, userId);
     if (success) {
       setIsDialogOpen(false);
       onCancelSuccess?.();
       
-      // Force a page refresh after a short delay to ensure all slots are updated
+      // Force a page refresh after a short delay to ensure all data is updated
       setTimeout(() => {
         window.location.reload();
-      }, 1000);
+      }, 1500);
     }
   };
 
@@ -80,7 +82,7 @@ const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
           disabled={isCancelling}
         >
           <X className="h-4 w-4 mr-2" />
-          Cancel Booking
+          {isCancelling ? 'Cancelling...' : 'Cancel Booking'}
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>

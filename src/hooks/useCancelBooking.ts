@@ -17,8 +17,9 @@ export const useCancelBooking = () => {
     setIsCancelling(true);
     
     try {
-      console.log('Cancelling booking:', bookingId);
+      console.log('Cancelling booking:', bookingId, 'for user:', userId);
       
+      // Use the cancel_booking_and_release_slots function to properly cancel and release slots
       const { data, error } = await supabase.rpc('cancel_booking_and_release_slots', {
         p_booking_id: bookingId,
         p_user_id: userId || null
@@ -29,6 +30,8 @@ export const useCancelBooking = () => {
         throw new Error(error.message);
       }
 
+      console.log('Cancel booking response:', data);
+      
       // Safely handle the response data
       const result = data as unknown as CancelBookingResult;
       
@@ -40,7 +43,7 @@ export const useCancelBooking = () => {
       toast.success(`${result.message || 'Booking cancelled successfully'} (${result.slots_released || 0} slots released)`);
       
       // Force a small delay to ensure database consistency
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       return true;
     } catch (error: any) {
