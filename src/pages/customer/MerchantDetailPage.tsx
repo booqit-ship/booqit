@@ -6,9 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { Merchant, Service, Staff } from '@/types';
 import { toast } from 'sonner';
+import ReviewsSection from '@/components/customer/ReviewsSection';
 
 const MerchantDetailPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
@@ -168,7 +170,7 @@ const MerchantDetailPage: React.FC = () => {
         
         <Separator className="mb-6" />
 
-        {/* Book Services Button - Moved above services */}
+        {/* Book Services Button */}
         {services.length > 0 && (
           <div className="mb-6">
             <Button 
@@ -181,33 +183,45 @@ const MerchantDetailPage: React.FC = () => {
           </div>
         )}
         
-        <h2 className="text-xl font-semibold mb-4">Services</h2>
-        
-        {services.length > 0 ? (
-          <div className="space-y-4">
-            {services.map(service => (
-              <Card key={service.id} className="overflow-hidden">
-                <CardContent className="p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-medium">{service.name}</h3>
-                    <span className="font-medium">₹{service.price}</span>
-                  </div>
-                  
-                  <p className="text-sm text-gray-500 mb-3">{service.description}</p>
-                  
-                  <div className="flex items-center text-gray-500 text-sm">
-                    <Clock className="h-3 w-3 mr-1" />
-                    <span>{service.duration} mins</span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-8 bg-gray-50 rounded-lg">
-            <p className="text-gray-500">No services available</p>
-          </div>
-        )}
+        {/* Services and Reviews Tabs */}
+        <Tabs defaultValue="services" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="services">Services</TabsTrigger>
+            <TabsTrigger value="reviews">Reviews</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="services" className="mt-6">
+            {services.length > 0 ? (
+              <div className="space-y-4">
+                {services.map(service => (
+                  <Card key={service.id} className="overflow-hidden">
+                    <CardContent className="p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="font-medium">{service.name}</h3>
+                        <span className="font-medium">₹{service.price}</span>
+                      </div>
+                      
+                      <p className="text-sm text-gray-500 mb-3">{service.description}</p>
+                      
+                      <div className="flex items-center text-gray-500 text-sm">
+                        <Clock className="h-3 w-3 mr-1" />
+                        <span>{service.duration} mins</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 bg-gray-50 rounded-lg">
+                <p className="text-gray-500">No services available</p>
+              </div>
+            )}
+          </TabsContent>
+          
+          <TabsContent value="reviews" className="mt-6">
+            <ReviewsSection merchantId={merchantId!} />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
