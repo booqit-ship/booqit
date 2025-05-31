@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Star, Edit2, Trash2, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -21,7 +20,7 @@ interface Review {
   rating: number;
   review: string | null;
   created_at: string;
-  profiles?: ReviewProfile;
+  profiles?: ReviewProfile | null;
 }
 
 interface ReviewsSectionProps {
@@ -72,7 +71,7 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
         .from('reviews')
         .select(`
           *,
-          profiles!reviews_user_id_fkey (name, avatar_url)
+          profiles (name, avatar_url)
         `)
         .in('booking_id', await getBookingIdsForMerchant())
         .order('created_at', { ascending: false });
