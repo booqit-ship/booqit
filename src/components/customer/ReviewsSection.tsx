@@ -66,23 +66,39 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
     try {
       setLoading(true);
       
-      // Fetch all reviews for this merchant
+      // Get booking IDs for this merchant first
+      const bookingIds = await getBookingIdsForMerchant();
+      
+      // Fetch reviews with a manual join to profiles
       const { data: reviewsData, error: reviewsError } = await supabase
         .from('reviews')
-        .select(`
-          *,
-          profiles (name, avatar_url)
-        `)
-        .in('booking_id', await getBookingIdsForMerchant())
+        .select('*')
+        .in('booking_id', bookingIds)
         .order('created_at', { ascending: false });
         
       if (reviewsError) throw reviewsError;
       
-      setReviews(reviewsData || []);
+      // Fetch profile data separately for each review
+      const reviewsWithProfiles: Review[] = [];
+      
+      for (const review of reviewsData || []) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('name, avatar_url')
+          .eq('id', review.user_id)
+          .single();
+          
+        reviewsWithProfiles.push({
+          ...review,
+          profiles: profileData || null
+        });
+      }
+      
+      setReviews(reviewsWithProfiles);
       
       // Find user's review if they're logged in
       if (userId) {
-        const userReviewData = reviewsData?.find(review => review.user_id === userId);
+        const userReviewData = reviewsWithProfiles.find(review => review.user_id === userId);
         setUserReview(userReviewData || null);
       }
     } catch (error) {
