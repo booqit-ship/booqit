@@ -9,6 +9,11 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
 
+interface ReviewProfile {
+  name: string;
+  avatar_url?: string;
+}
+
 interface Review {
   id: string;
   user_id: string;
@@ -16,10 +21,7 @@ interface Review {
   rating: number;
   review: string | null;
   created_at: string;
-  profiles?: {
-    name: string;
-    avatar_url?: string;
-  };
+  profiles?: ReviewProfile;
 }
 
 interface ReviewsSectionProps {
@@ -27,7 +29,7 @@ interface ReviewsSectionProps {
 }
 
 const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
-  const { user } = useAuth();
+  const { userId } = useAuth();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [userReview, setUserReview] = useState<Review | null>(null);
   const [loading, setLoading] = useState(true);
@@ -38,19 +40,19 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
 
   useEffect(() => {
     fetchReviews();
-    if (user) {
+    if (userId) {
       fetchUserBookings();
     }
-  }, [merchantId, user]);
+  }, [merchantId, userId]);
 
   const fetchUserBookings = async () => {
-    if (!user) return;
+    if (!userId) return;
     
     try {
       const { data, error } = await supabase
         .from('bookings')
         .select('id')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('merchant_id', merchantId)
         .eq('status', 'completed');
         
@@ -70,7 +72,7 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
         .from('reviews')
         .select(`
           *,
-          profiles:user_id (name, avatar_url)
+          profiles!reviews_user_id_fkey (name, avatar_url)
         `)
         .in('booking_id', await getBookingIdsForMerchant())
         .order('created_at', { ascending: false });
@@ -80,8 +82,8 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
       setReviews(reviewsData || []);
       
       // Find user's review if they're logged in
-      if (user) {
-        const userReviewData = reviewsData?.find(review => review.user_id === user.id);
+      if (userId) {
+        const userReviewData = reviewsData?.find(review => review.user_id === userId);
         setUserReview(userReviewData || null);
       }
     } catch (error) {
@@ -107,14 +109,14 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
   };
 
   const handleSubmitReview = async () => {
-    if (!user || userBookings.length === 0) {
+    if (!userId || userBookings.length === 0) {
       toast.error('You need to complete a booking before leaving a review');
       return;
     }
 
     try {
       const reviewData = {
-        user_id: user.id,
+        user_id: userId,
         booking_id: userBookings[0], // Use the first completed booking
         rating: editingRating,
         review: editingReview.trim() || null
@@ -198,7 +200,7 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
     );
   };
 
-  const canReview = user && userBookings.length > 0;
+  const canReview = userId && userBookings.length > 0;
   const averageRating = reviews.length > 0 
     ? (reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1)
     : '0';
@@ -292,7 +294,7 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
       <div className="space-y-4">
         {reviews.length > 0 ? (
           reviews
-            .filter(review => review.user_id !== user?.id) // Don't show user's own review in the list
+            .filter(review => review.user_id !== userId) // Don't show user's own review in the list
             .map((review) => (
               <Card key={review.id}>
                 <CardContent className="p-4">
