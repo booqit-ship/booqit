@@ -9,7 +9,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Clock, ChevronLeft, MapPin, Star, CalendarIcon } from 'lucide-react';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { toast } from 'sonner';
-import { addDays, format, isSameDay } from 'date-fns';
+import { addDays, format } from 'date-fns';
 
 interface SlotData {
   staff_id: string;
@@ -38,7 +38,6 @@ const DateTimeSelectionPage: React.FC = () => {
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [availableSlots, setAvailableSlots] = useState<SlotData[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
-  const [step, setStep] = useState<'date' | 'time'>('date');
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -99,7 +98,6 @@ const DateTimeSelectionPage: React.FC = () => {
       setSelectedDate(date);
       setSelectedTime('');
       fetchAvailableSlots(date);
-      setStep('time');
     }
   };
 
@@ -130,19 +128,14 @@ const DateTimeSelectionPage: React.FC = () => {
   };
 
   const handleBack = () => {
-    if (step === 'time') {
-      setStep('date');
-      setSelectedTime('');
-    } else {
-      navigate(`/booking/${merchantId}/staff`, {
-        state: {
-          merchant,
-          selectedServices,
-          totalPrice,
-          totalDuration
-        }
-      });
-    }
+    navigate(`/booking/${merchantId}/staff`, {
+      state: {
+        merchant,
+        selectedServices,
+        totalPrice,
+        totalDuration
+      }
+    });
   };
 
   // Don't allow past dates
@@ -177,15 +170,13 @@ const DateTimeSelectionPage: React.FC = () => {
           >
             <ChevronLeft className="h-5 w-5" />
           </Button>
-          <h1 className="text-xl font-medium">
-            {step === 'date' ? 'Select Date' : 'Select Time'}
-          </h1>
+          <h1 className="text-xl font-medium">Select Date & Time</h1>
         </div>
       </div>
 
-      <div className="p-4">
+      <div className="p-4 space-y-6">
         {/* Merchant & Service Info */}
-        <Card className="mb-6">
+        <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-2">
               <MapPin className="h-4 w-4 text-booqit-primary" />
@@ -229,31 +220,29 @@ const DateTimeSelectionPage: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Date Selection Step */}
-        {step === 'date' && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CalendarIcon className="h-5 w-5" />
-                Choose Date
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6">
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={handleDateSelect}
-                disabled={isDateDisabled}
-                fromDate={new Date()}
-                toDate={addDays(new Date(), 30)}
-                className="w-full flex justify-center"
-              />
-            </CardContent>
-          </Card>
-        )}
+        {/* Date Selection */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarIcon className="h-5 w-5" />
+              Choose Date
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={handleDateSelect}
+              disabled={isDateDisabled}
+              fromDate={new Date()}
+              toDate={addDays(new Date(), 30)}
+              className="w-full flex justify-center"
+            />
+          </CardContent>
+        </Card>
 
-        {/* Time Selection Step */}
-        {step === 'time' && selectedDate && (
+        {/* Time Selection - Only show when date is selected */}
+        {selectedDate && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -273,7 +262,7 @@ const DateTimeSelectionPage: React.FC = () => {
                   <Button 
                     variant="outline" 
                     className="mt-4"
-                    onClick={() => setStep('date')}
+                    onClick={() => setSelectedDate(undefined)}
                   >
                     Choose Different Date
                   </Button>
@@ -306,8 +295,8 @@ const DateTimeSelectionPage: React.FC = () => {
         )}
       </div>
 
-      {/* Continue Button */}
-      {step === 'time' && selectedTime && (
+      {/* Continue Button - Only show when both date and time are selected */}
+      {selectedDate && selectedTime && (
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
           <Button
             onClick={handleContinueToPayment}
