@@ -110,33 +110,6 @@ const SettingsPage: React.FC = () => {
     fetchMerchantData();
   }, [userId]);
 
-  const generateSlotsForNext30Days = async (merchantId: string) => {
-    try {
-      console.log('Starting slot generation for next 30 days...');
-      // Generate slots for the next 30 days
-      for (let i = 0; i < 30; i++) {
-        const date = new Date();
-        date.setDate(date.getDate() + i);
-        const dateStr = date.toISOString().split('T')[0];
-        
-        console.log(`Generating slots for date: ${dateStr}`);
-        
-        // Call the generate_stylist_slots function
-        const { error } = await supabase.rpc('generate_stylist_slots', {
-          p_merchant_id: merchantId,
-          p_date: dateStr
-        });
-        
-        if (error) {
-          console.error(`Error generating slots for ${dateStr}:`, error);
-        }
-      }
-      console.log('Successfully generated slots for next 30 days');
-    } catch (error) {
-      console.error('Error in slot generation:', error);
-    }
-  };
-
   const handleUpdateMerchant = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -226,11 +199,8 @@ const SettingsPage: React.FC = () => {
         
       if (error) throw error;
       
-      // Generate slots for the next 30 days after updating hours
-      await generateSlotsForNext30Days(merchant.id);
-      
       toast('Business information updated', {
-        description: 'Your changes have been saved successfully and booking slots have been generated'
+        description: 'Your changes have been saved successfully. Booking slots will be generated dynamically.'
       });
       
       // Update local state with the new values
