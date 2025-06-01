@@ -14,7 +14,7 @@ const StaffSelectionPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { merchant, selectedServices, totalPrice, totalDuration } = location.state;
+  const { merchant, selectedServices, totalPrice, totalDuration } = location.state || {};
 
   const [staff, setStaff] = useState<Staff[]>([]);
   const [selectedStaff, setSelectedStaff] = useState<string>('any');
@@ -22,6 +22,13 @@ const StaffSelectionPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Check if we have the required state
+    if (!merchant || !selectedServices || !totalPrice) {
+      console.error('Missing required state in StaffSelectionPage');
+      navigate(`/merchant/${merchantId}`);
+      return;
+    }
+
     const fetchStaff = async () => {
       try {
         if (!merchantId) return;
@@ -49,7 +56,7 @@ const StaffSelectionPage: React.FC = () => {
     };
 
     fetchStaff();
-  }, [merchantId]);
+  }, [merchantId, merchant, selectedServices, totalPrice, navigate]);
 
   const handleStaffChange = (value: string) => {
     setSelectedStaff(value);
@@ -62,6 +69,15 @@ const StaffSelectionPage: React.FC = () => {
   };
 
   const handleContinue = () => {
+    console.log('Navigating to datetime selection with state:', {
+      merchant,
+      selectedServices,
+      totalPrice,
+      totalDuration,
+      selectedStaff: selectedStaff === 'any' ? null : selectedStaff,
+      selectedStaffDetails
+    });
+
     navigate(`/booking/${merchantId}/datetime`, {
       state: {
         merchant,
@@ -74,10 +90,32 @@ const StaffSelectionPage: React.FC = () => {
     });
   };
 
+  const handleBack = () => {
+    navigate(`/booking/${merchantId}`, {
+      state: {
+        merchant
+      }
+    });
+  };
+
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center">
         <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
+      </div>
+    );
+  }
+
+  // If missing required state, show error
+  if (!merchant || !selectedServices) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-500 mb-4">Session expired. Please start again.</p>
+          <Button onClick={() => navigate(`/merchant/${merchantId}`)}>
+            Back to Merchant
+          </Button>
+        </div>
       </div>
     );
   }
@@ -90,7 +128,7 @@ const StaffSelectionPage: React.FC = () => {
             variant="ghost" 
             size="icon" 
             className="absolute left-0 text-white hover:bg-white/20"
-            onClick={() => navigate(-1)}
+            onClick={handleBack}
           >
             <ChevronLeft className="h-5 w-5" />
           </Button>
@@ -160,7 +198,7 @@ const StaffSelectionPage: React.FC = () => {
           size="lg"
           onClick={handleContinue}
         >
-          Continue
+          Continue to Date & Time
         </Button>
       </div>
     </div>
