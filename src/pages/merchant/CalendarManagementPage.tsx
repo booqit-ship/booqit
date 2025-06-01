@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -11,6 +12,7 @@ import CalendarNavigation from '@/components/merchant/calendar/CalendarNavigatio
 import CalendarDays from '@/components/merchant/calendar/CalendarDays';
 import BookingsList from '@/components/merchant/calendar/BookingsList';
 import HolidayManager from '@/components/merchant/calendar/HolidayManager';
+import { useBookingStatus } from '@/hooks/useBookingStatus';
 
 interface BookingWithCustomerDetails extends Booking {
   customer_name?: string;
@@ -25,18 +27,6 @@ interface HolidayDate {
   description: string | null;
 }
 
-interface BookingStatusResponse {
-  success: boolean;
-  error?: string;
-  message?: string;
-  slots_released?: number;
-  booking?: {
-    id: string;
-    status: string;
-    updated_at: string;
-  };
-}
-
 const CalendarManagementPage: React.FC = () => {
   const [date, setDate] = useState<Date>(new Date());
   const [bookings, setBookings] = useState<BookingWithCustomerDetails[]>([]);
@@ -47,6 +37,7 @@ const CalendarManagementPage: React.FC = () => {
   const { toast } = useToast();
   const { userId } = useAuth();
   const isMobile = useIsMobile();
+  const { updateBookingStatus } = useBookingStatus();
 
   // Calculate the 5 day range centered on the selected date
   const visibleDays = useMemo(() => {
@@ -83,34 +74,6 @@ const CalendarManagementPage: React.FC = () => {
     
     fetchMerchantId();
   }, [userId]);
-
-  // Generate slots for visible days when merchant ID is available
-  useEffect(() => {
-    const generateSlotsForVisibleDays = async () => {
-      if (!merchantId) return;
-
-      try {
-        console.log('Generating slots for visible days');
-        
-        // Generate slots for each visible day
-        for (const day of visibleDays) {
-          const dateStr = format(day, 'yyyy-MM-dd');
-          const { error } = await supabase.rpc('generate_stylist_slots', {
-            p_merchant_id: merchantId,
-            p_date: dateStr
-          });
-          
-          if (error) {
-            console.error(`Error generating slots for ${dateStr}:`, error);
-          }
-        }
-      } catch (error) {
-        console.error('Error generating slots for visible days:', error);
-      }
-    };
-
-    generateSlotsForVisibleDays();
-  }, [merchantId, visibleDays]);
 
   // Fetch bookings for the merchant with customer details and stylist names
   const fetchBookings = async () => {
@@ -261,58 +224,14 @@ const CalendarManagementPage: React.FC = () => {
     }).sort((a, b) => a.time_slot.localeCompare(b.time_slot));
   }, [bookings, date]);
 
-  // Handle booking status change using the new database function
+  // Handle booking status change using the new system
   const handleStatusChange = async (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
     console.log('Updating booking status:', bookingId, 'to:', newStatus);
     
-    if (!userId) {
-      toast({
-        title: "Error",
-        description: "User not authenticated.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      // Use the new function that handles both status updates and slot releases
-      const { data, error } = await supabase.rpc('update_booking_status_and_release_slots', {
-        p_booking_id: bookingId,
-        p_new_status: newStatus,
-        p_merchant_user_id: userId
-      });
-
-      if (error) {
-        console.error('Update booking status error:', error);
-        throw error;
-      }
-
-      const result = data as unknown as BookingStatusResponse;
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to update booking');
-      }
-
-      console.log('Booking status updated successfully:', result);
-      
-      let message = result.message || `Booking ${newStatus} successfully.`;
-      if (newStatus === 'cancelled' && result.slots_released) {
-        message += ` (${result.slots_released} slots released)`;
-      }
-
-      toast({
-        title: "Success",
-        description: message,
-      });
-
+    const success = await updateBookingStatus(bookingId, newStatus, userId);
+    if (success) {
       // The real-time subscription will automatically refresh the data
-    } catch (error: any) {
-      console.error('Error updating booking status:', error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update booking. Please try again.",
-        variant: "destructive",
-      });
-      throw error;
+      await fetchBookings();
     }
   };
 

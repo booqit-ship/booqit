@@ -31,7 +31,6 @@ const CalendarPage: React.FC = () => {
   const { userId } = useAuth();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const { cancelBooking, isCancelling } = useCancelBooking();
 
   // Calculate the visible days based on the selected date (today + next 6 days)
   const visibleDays = useMemo(() => {
@@ -143,22 +142,6 @@ const CalendarPage: React.FC = () => {
       return isSameDay(bookingDate, date);
     }).sort((a, b) => a.time_slot.localeCompare(b.time_slot));
   }, [bookings, date]);
-
-  // Handle booking cancellation with proper function
-  const handleCancelBooking = async (bookingId: string) => {
-    console.log('Customer cancelling booking via direct function:', bookingId);
-
-    const success = await cancelBooking(bookingId, userId);
-    if (success) {
-      // Refresh bookings immediately
-      await fetchBookings();
-      
-      toast({
-        title: "Success",
-        description: "Booking has been cancelled and slots have been released.",
-      });
-    }
-  };
 
   // Get status badge color
   const getStatusColor = (status: string) => {
