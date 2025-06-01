@@ -1,9 +1,20 @@
 
-import React from 'react';
+import React, { useState } from 'react';
+import { AlertTriangle, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { X } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { useCancelBooking } from '@/hooks/useCancelBooking';
-import { parseISO, differenceInHours } from 'date-fns';
+import { format, parseISO, isBefore, subHours } from 'date-fns';
 
 interface CancelBookingButtonProps {
   bookingId: string;
@@ -22,59 +33,85 @@ const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
   bookingStatus,
   userId,
   onCancelSuccess,
-  className = ""
+  className = ''
 }) => {
   const { cancelBooking, isCancelling } = useCancelBooking();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  const handleCancel = async () => {
-    // Check if booking can be cancelled (must be at least 2 hours before appointment)
+  // Check if booking can be cancelled (not cancelled/completed and at least 2 hours before appointment)
+  const canCancel = () => {
+    if (['cancelled', 'completed'].includes(bookingStatus)) {
+      return false;
+    }
+
     try {
-      const bookingDateTime = parseISO(`${bookingDate}T${bookingTime}`);
-      const hoursUntilBooking = differenceInHours(bookingDateTime, new Date());
-      
-      if (hoursUntilBooking < 2) {
-        alert('You can only cancel bookings at least 2 hours in advance.');
-        return;
-      }
-
-      if (window.confirm('Are you sure you want to cancel this booking?')) {
-        const success = await cancelBooking(bookingId, userId);
-        if (success && onCancelSuccess) {
-          onCancelSuccess();
-        }
-      }
+      const appointmentDateTime = parseISO(`${bookingDate}T${bookingTime}`);
+      const twoHoursBefore = subHours(appointmentDateTime, 2);
+      return !isBefore(new Date(), twoHoursBefore);
     } catch (error) {
-      console.error('Error parsing booking date/time:', error);
-      alert('Error processing cancellation. Please try again.');
+      console.error('Error checking cancellation eligibility:', error);
+      return false;
     }
   };
 
-  // Don't show cancel button for already cancelled or completed bookings
-  if (bookingStatus === 'cancelled' || bookingStatus === 'completed') {
+  const handleCancel = async () => {
+    console.log('Attempting to cancel booking:', bookingId, 'for user:', userId);
+    
+    const success = await cancelBooking(bookingId, userId);
+    if (success) {
+      setIsDialogOpen(false);
+      onCancelSuccess?.();
+      
+      // Force a page refresh after a short delay to ensure all data is updated
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    }
+  };
+
+  if (!canCancel()) {
     return null;
   }
 
-  // Check if cancellation is allowed (2 hours before)
-  let canCancel = false;
-  try {
-    const bookingDateTime = parseISO(`${bookingDate}T${bookingTime}`);
-    const hoursUntilBooking = differenceInHours(bookingDateTime, new Date());
-    canCancel = hoursUntilBooking >= 2;
-  } catch (error) {
-    console.error('Error parsing booking date/time for cancellation check:', error);
-  }
-
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={handleCancel}
-      disabled={isCancelling || !canCancel}
-      className={`text-red-600 border-red-200 hover:bg-red-50 ${className}`}
-    >
-      <X className="h-3 w-3 mr-1" />
-      {isCancelling ? 'Cancelling...' : canCancel ? 'Cancel' : 'Cannot Cancel'}
-    </Button>
+    <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <AlertDialogTrigger asChild>
+        <Button
+          variant="outline"
+          className={`border-red-200 text-red-600 hover:bg-red-50 ${className}`}
+          disabled={isCancelling}
+        >
+          <X className="h-4 w-4 mr-2" />
+          {isCancelling ? 'Cancelling...' : 'Cancel Booking'}
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center">
+            <AlertTriangle className="h-5 w-5 text-red-600 mr-2" />
+            Cancel Booking
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to cancel this booking for{' '}
+            <strong>{format(parseISO(bookingDate), 'MMM d, yyyy')}</strong> at{' '}
+            <strong>{bookingTime}</strong>?
+            <br />
+            <br />
+            This action cannot be undone and your time slot will be released for other customers.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Keep Booking</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleCancel}
+            disabled={isCancelling}
+            className="bg-red-600 hover:bg-red-700"
+          >
+            {isCancelling ? 'Cancelling...' : 'Yes, Cancel Booking'}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 };
 

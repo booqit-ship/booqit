@@ -1,19 +1,15 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Clock, User, Phone, Mail, Check, X, CircleCheck } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Clock, User, Phone, Scissors } from 'lucide-react';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
-import { useBookingStatus } from '@/hooks/useBookingStatus';
-import { useAuth } from '@/contexts/AuthContext';
 
 interface BookingWithCustomerDetails {
   id: string;
   service?: {
     name: string;
-    price: number;
-    duration: number;
   };
   time_slot: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
@@ -29,102 +25,96 @@ interface BookingCardProps {
 }
 
 const BookingCard: React.FC<BookingCardProps> = ({ booking, onStatusChange }) => {
-  const { updateBookingStatus, isUpdating } = useBookingStatus();
-  const { userId } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleStatusUpdate = async (newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
-    const success = await updateBookingStatus(booking.id, newStatus, userId);
-    if (success) {
-      // Trigger parent refresh
+  const handleStatusChange = async (newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
+    setIsLoading(true);
+    try {
       await onStatusChange(booking.id, newStatus);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'confirmed': return 'bg-green-500 hover:bg-green-600';
-      case 'pending': return 'bg-yellow-500 hover:bg-yellow-600';
-      case 'completed': return 'bg-blue-500 hover:bg-blue-600';
-      case 'cancelled': return 'bg-red-500 hover:bg-red-600';
-      default: return 'bg-gray-500 hover:bg-gray-600';
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'confirmed':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'completed':
+        return 'bg-green-100 text-green-800 border-green-200';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800 border-red-200';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
   return (
     <Card className="border-l-4 border-l-booqit-primary hover:shadow-md transition-shadow">
       <CardContent className="p-4">
-        <div className="flex justify-between items-start mb-3">
-          <div className="flex items-center space-x-3">
-            <div className="bg-booqit-primary/10 p-2 rounded-full">
-              <Clock className="h-4 w-4 text-booqit-primary" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex-1 space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center text-booqit-primary font-semibold">
+                <Clock className="h-4 w-4 mr-1" />
+                {formatTimeToAmPm(booking.time_slot)}
+              </div>
+              <Badge className={`text-xs ${getStatusColor(booking.status)}`}>
+                {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+              </Badge>
             </div>
-            <div>
-              <h3 className="font-semibold text-gray-900">{booking.service?.name || 'Service'}</h3>
-              <p className="text-sm text-gray-600">{formatTimeToAmPm(booking.time_slot)}</p>
-              {booking.service?.duration && (
-                <p className="text-xs text-gray-500">{booking.service.duration} mins</p>
+            
+            <div className="space-y-1 text-sm">
+              {booking.customer_name && (
+                <div className="flex items-center text-gray-700">
+                  <User className="h-3 w-3 mr-2 text-gray-500" />
+                  <span className="font-medium">{booking.customer_name}</span>
+                </div>
+              )}
+              
+              {booking.customer_phone && (
+                <div className="flex items-center text-gray-600">
+                  <Phone className="h-3 w-3 mr-2 text-gray-500" />
+                  <span>{booking.customer_phone}</span>
+                </div>
+              )}
+              
+              {booking.stylist_name && (
+                <div className="flex items-center text-gray-700">
+                  <Scissors className="h-3 w-3 mr-2 text-gray-500" />
+                  <span className="font-medium">Stylist: {booking.stylist_name}</span>
+                </div>
+              )}
+              
+              {booking.service?.name && (
+                <div className="text-gray-600 text-xs">
+                  Service: {booking.service.name}
+                </div>
               )}
             </div>
           </div>
-          <div className="text-right">
-            <Badge className={`${getStatusColor(booking.status)} text-white mb-2`}>
-              {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-            </Badge>
-            {booking.service?.price && (
-              <p className="text-sm font-semibold text-booqit-primary">₹{booking.service.price}</p>
-            )}
-          </div>
-        </div>
 
-        <div className="space-y-2 mb-4">
-          <div className="flex items-center text-sm text-gray-600">
-            <User className="h-4 w-4 mr-2" />
-            <span>{booking.customer_name || 'Walk-in Customer'}</span>
-          </div>
-          
-          {booking.customer_phone && (
-            <div className="flex items-center text-sm text-gray-600">
-              <Phone className="h-4 w-4 mr-2" />
-              <span>{booking.customer_phone}</span>
-            </div>
-          )}
-          
-          {booking.customer_email && (
-            <div className="flex items-center text-sm text-gray-600">
-              <Mail className="h-4 w-4 mr-2" />
-              <span className="truncate">{booking.customer_email}</span>
-            </div>
-          )}
-
-          {booking.stylist_name && (
-            <div className="flex items-center text-sm text-gray-600">
-              <User className="h-4 w-4 mr-2" />
-              <span>Stylist: {booking.stylist_name}</span>
-            </div>
-          )}
-        </div>
-
-        {booking.status !== 'cancelled' && (
-          <div className="flex space-x-2">
+          <div className="flex gap-1 flex-wrap">
             {booking.status === 'pending' && (
               <>
                 <Button
                   size="sm"
-                  onClick={() => handleStatusUpdate('confirmed')}
-                  disabled={isUpdating}
-                  className="bg-green-600 hover:bg-green-700 text-white"
+                  variant="outline"
+                  onClick={() => handleStatusChange('confirmed')}
+                  disabled={isLoading}
+                  className="text-xs h-7 px-2 border-green-300 text-green-700 hover:bg-green-50"
                 >
-                  <Check className="h-3 w-3 mr-1" />
                   Confirm
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => handleStatusUpdate('cancelled')}
-                  disabled={isUpdating}
-                  className="border-red-200 text-red-600 hover:bg-red-50"
+                  onClick={() => handleStatusChange('cancelled')}
+                  disabled={isLoading}
+                  className="text-xs h-7 px-2 border-red-300 text-red-700 hover:bg-red-50"
                 >
-                  <X className="h-3 w-3 mr-1" />
                   Cancel
                 </Button>
               </>
@@ -134,27 +124,26 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onStatusChange }) =>
               <>
                 <Button
                   size="sm"
-                  onClick={() => handleStatusUpdate('completed')}
-                  disabled={isUpdating}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  variant="outline"
+                  onClick={() => handleStatusChange('completed')}
+                  disabled={isLoading}
+                  className="text-xs h-7 px-2 border-green-300 text-green-700 hover:bg-green-50"
                 >
-                  <CircleCheck className="h-3 w-3 mr-1" />
                   Complete
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => handleStatusUpdate('cancelled')}
-                  disabled={isUpdating}
-                  className="border-red-200 text-red-600 hover:bg-red-50"
+                  onClick={() => handleStatusChange('cancelled')}
+                  disabled={isLoading}
+                  className="text-xs h-7 px-2 border-red-300 text-red-700 hover:bg-red-50"
                 >
-                  <X className="h-3 w-3 mr-1" />
                   Cancel
                 </Button>
               </>
             )}
           </div>
-        )}
+        </div>
       </CardContent>
     </Card>
   );
