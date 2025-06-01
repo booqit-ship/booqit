@@ -19,6 +19,11 @@ interface BookingWithCustomerDetails extends Booking {
   customer_phone?: string;
   customer_email?: string;
   stylist_name?: string;
+  service?: {
+    name: string;
+    price: number;
+    duration: number;
+  };
 }
 
 interface HolidayDate {
@@ -122,7 +127,7 @@ const CalendarManagementPage: React.FC = () => {
       
       console.log('Merchant bookings fetched successfully:', bookingsData?.length || 0, 'bookings');
       
-      const processedBookings = bookingsData?.map((booking) => ({
+      const processedBookings: BookingWithCustomerDetails[] = bookingsData?.map((booking) => ({
         id: booking.id,
         user_id: booking.user_id,
         merchant_id: booking.merchant_id,
@@ -133,12 +138,16 @@ const CalendarManagementPage: React.FC = () => {
         payment_status: booking.payment_status as "pending" | "completed" | "failed" | "refunded",
         created_at: booking.created_at,
         staff_id: booking.staff_id,
-        service: booking.service,
         customer_name: booking.customer_name || 'Walk-in Customer',
         customer_phone: booking.customer_phone || null,
         customer_email: booking.customer_email || null,
-        stylist_name: booking.stylist_name || 'Unassigned'
-      } as BookingWithCustomerDetails)) || [];
+        stylist_name: booking.stylist_name || 'Unassigned',
+        service: booking.service ? {
+          name: booking.service.name,
+          price: booking.service.price,
+          duration: booking.service.duration
+        } : undefined
+      })) || [];
       
       setBookings(processedBookings);
     } catch (error: any) {

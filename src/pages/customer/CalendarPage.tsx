@@ -103,8 +103,16 @@ const CalendarPage: React.FC = () => {
 
       if (error) throw error;
 
-      const processedBookings = (data || []).map(booking => ({
-        ...booking,
+      const processedBookings: BookingWithDetails[] = (data || []).map(booking => ({
+        id: booking.id,
+        date: booking.date,
+        time_slot: booking.time_slot,
+        status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
+        payment_status: booking.payment_status,
+        customer_name: booking.customer_name,
+        customer_phone: booking.customer_phone,
+        customer_email: booking.customer_email,
+        stylist_name: booking.stylist_name,
         service: booking.service as BookingWithDetails['service'],
         merchant: booking.merchant as BookingWithDetails['merchant']
       }));

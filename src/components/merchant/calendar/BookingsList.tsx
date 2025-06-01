@@ -9,12 +9,15 @@ interface BookingWithCustomerDetails {
   id: string;
   service?: {
     name: string;
+    price: number;
+    duration: number;
   };
   time_slot: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   customer_name?: string;
   customer_phone?: string;
   customer_email?: string;
+  stylist_name?: string;
 }
 
 interface BookingsListProps {
