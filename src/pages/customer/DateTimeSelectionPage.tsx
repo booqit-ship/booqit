@@ -3,13 +3,21 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { useSlotGeneration } from '@/hooks/useSlotGeneration';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Clock, User, Calendar, ChevronLeft, MapPin, Star } from 'lucide-react';
+import { Calendar } from '@/components/ui/calendar';
+import { Clock, ChevronLeft, MapPin, Star, CalendarIcon } from 'lucide-react';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { toast } from 'sonner';
+import { addDays, format, isSameDay } from 'date-fns';
+
+interface SlotData {
+  staff_id: string;
+  staff_name: string;
+  time_slot: string;
+  slot_status: 'Available' | 'Shop Closed' | 'Stylist not available' | 'Booked';
+  status_reason: string | null;
+}
 
 const DateTimeSelectionPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
@@ -26,14 +34,11 @@ const DateTimeSelectionPage: React.FC = () => {
     selectedStaffDetails 
   } = location.state || {};
 
-  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [selectedTime, setSelectedTime] = useState<string>('');
-  const [isBooking, setIsBooking] = useState(false);
-
-  const { slots, loading: slotsLoading, error: slotsError } = useSlotGeneration(
-    merchantId || '', 
-    selectedStaff || undefined
-  );
+  const [availableSlots, setAvailableSlots] = useState<SlotData[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [step, setStep] = useState<'date' | 'time'>('date');
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -48,96 +53,103 @@ const DateTimeSelectionPage: React.FC = () => {
     }
   }, [merchantId, isAuthenticated, merchant, selectedServices, navigate]);
 
-  const handleBooking = async () => {
-    if (!selectedDate || !selectedTime || !userId) {
+  const fetchAvailableSlots = async (date: Date) => {
+    if (!merchantId) return;
+    
+    setLoadingSlots(true);
+    try {
+      const dateStr = format(date, 'yyyy-MM-dd');
+      console.log('Fetching slots for date:', dateStr);
+
+      const { data: slotData, error } = await supabase.rpc('get_dynamic_available_slots', {
+        p_merchant_id: merchantId,
+        p_date: dateStr,
+        p_staff_id: selectedStaff || null
+      });
+
+      if (error) {
+        console.error('Error fetching slots:', error);
+        throw error;
+      }
+
+      const formattedSlots: SlotData[] = (slotData || []).map((slot: any) => ({
+        staff_id: slot.staff_id,
+        staff_name: slot.staff_name,
+        time_slot: slot.time_slot,
+        slot_status: slot.slot_status as SlotData['slot_status'],
+        status_reason: slot.status_reason
+      }));
+
+      // Filter available slots only
+      const availableOnly = formattedSlots.filter(slot => slot.slot_status === 'Available');
+      setAvailableSlots(availableOnly);
+      
+      console.log('Available slots:', availableOnly);
+    } catch (error: any) {
+      console.error('Error fetching slots:', error);
+      toast.error('Failed to load available time slots');
+      setAvailableSlots([]);
+    } finally {
+      setLoadingSlots(false);
+    }
+  };
+
+  const handleDateSelect = (date: Date | undefined) => {
+    if (date) {
+      setSelectedDate(date);
+      setSelectedTime('');
+      fetchAvailableSlots(date);
+      setStep('time');
+    }
+  };
+
+  const handleTimeSelect = (timeSlot: string) => {
+    setSelectedTime(timeSlot);
+  };
+
+  const handleContinueToPayment = () => {
+    if (!selectedDate || !selectedTime) {
       toast.error('Please select date and time');
       return;
     }
 
-    if (!selectedServices || selectedServices.length === 0) {
-      toast.error('No services selected');
-      return;
-    }
-
-    setIsBooking(true);
+    const bookingDate = format(selectedDate, 'yyyy-MM-dd');
     
-    try {
-      // For now, we'll book the first service. In a full implementation,
-      // you might want to handle multiple services differently
-      const firstService = selectedServices[0];
-      
-      // Create the booking
-      const { data: bookingData, error: bookingError } = await supabase
-        .from('bookings')
-        .insert({
-          user_id: userId,
-          merchant_id: merchantId!,
-          service_id: firstService.id,
-          staff_id: selectedStaff,
-          date: selectedDate,
-          time_slot: selectedTime,
-          status: 'pending',
-          payment_status: 'pending'
-        })
-        .select()
-        .single();
-
-      if (bookingError) throw bookingError;
-
-      // Book the stylist slot if we have a specific staff member
-      if (selectedStaff) {
-        const { data: slotResult, error: slotError } = await supabase.rpc('book_stylist_slot', {
-          p_staff_id: selectedStaff,
-          p_date: selectedDate,
-          p_time_slot: selectedTime,
-          p_booking_id: bookingData.id,
-          p_service_duration: totalDuration || firstService.duration
-        });
-
-        if (slotError) {
-          // If slot booking fails, delete the booking
-          await supabase.from('bookings').delete().eq('id', bookingData.id);
-          throw slotError;
-        }
-
-        const result = slotResult as any;
-        if (!result.success) {
-          // If slot booking fails, delete the booking
-          await supabase.from('bookings').delete().eq('id', bookingData.id);
-          throw new Error(result.error || 'Failed to book time slot');
-        }
-      }
-
-      toast.success('Booking created successfully!');
-      navigate(`/booking/${merchantId}/summary`, {
-        state: {
-          bookingId: bookingData.id,
-          merchant,
-          selectedServices,
-          totalPrice,
-          selectedDate,
-          selectedTime,
-          selectedStaffDetails
-        }
-      });
-
-    } catch (error: any) {
-      console.error('Booking error:', error);
-      toast.error(error.message || 'Failed to create booking');
-    } finally {
-      setIsBooking(false);
-    }
-  };
-
-  const handleBack = () => {
-    navigate(`/booking/${merchantId}/staff`, {
+    navigate(`/payment/${merchantId}`, {
       state: {
         merchant,
         selectedServices,
         totalPrice,
-        totalDuration
+        totalDuration,
+        selectedStaff,
+        selectedStaffDetails,
+        bookingDate,
+        bookingTime: selectedTime
       }
     });
+  };
+
+  const handleBack = () => {
+    if (step === 'time') {
+      setStep('date');
+      setSelectedTime('');
+    } else {
+      navigate(`/booking/${merchantId}/staff`, {
+        state: {
+          merchant,
+          selectedServices,
+          totalPrice,
+          totalDuration
+        }
+      });
+    }
+  };
+
+  // Don't allow past dates
+  const isDateDisabled = (date: Date) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return date < today;
   };
 
   if (!merchant || !selectedServices) {
@@ -165,7 +177,9 @@ const DateTimeSelectionPage: React.FC = () => {
           >
             <ChevronLeft className="h-5 w-5" />
           </Button>
-          <h1 className="text-xl font-medium">Select Date & Time</h1>
+          <h1 className="text-xl font-medium">
+            {step === 'date' ? 'Select Date' : 'Select Time'}
+          </h1>
         </div>
       </div>
 
@@ -203,133 +217,107 @@ const DateTimeSelectionPage: React.FC = () => {
                 ))}
                 {selectedStaffDetails && (
                   <div className="flex items-center gap-2 text-sm text-gray-600 pt-2 border-t">
-                    <User className="h-3 w-3" />
                     <span>Stylist: {selectedStaffDetails.name}</span>
                   </div>
                 )}
+                <div className="flex justify-between items-center font-semibold text-lg border-t pt-2">
+                  <span>Total:</span>
+                  <span className="text-booqit-primary">₹{totalPrice}</span>
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Time Slot Selection */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Available Times
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {slotsError && (
-              <div className="text-red-600 mb-4">
-                Error loading slots: {slotsError}
-              </div>
-            )}
-            
-            {slotsLoading ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-booqit-primary mx-auto"></div>
-                <p className="mt-2 text-gray-600">Loading available times...</p>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {slots.map((daySlots) => (
-                  <div key={daySlots.date}>
-                    <h3 className="font-semibold mb-3">{daySlots.displayDate}</h3>
+        {/* Date Selection Step */}
+        {step === 'date' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CalendarIcon className="h-5 w-5" />
+                Choose Date
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={handleDateSelect}
+                disabled={isDateDisabled}
+                fromDate={new Date()}
+                toDate={addDays(new Date(), 30)}
+                className="w-full flex justify-center"
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Time Selection Step */}
+        {step === 'time' && selectedDate && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Available Times - {format(selectedDate, 'MMMM d, yyyy')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingSlots ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-booqit-primary mx-auto"></div>
+                  <p className="mt-2 text-gray-600">Loading available times...</p>
+                </div>
+              ) : availableSlots.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">No available time slots for this date</p>
+                  <Button 
+                    variant="outline" 
+                    className="mt-4"
+                    onClick={() => setStep('date')}
+                  >
+                    Choose Different Date
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {availableSlots.map((slot, index) => {
+                    const isSelected = selectedTime === slot.time_slot;
                     
-                    {daySlots.slots.length === 0 ? (
-                      <p className="text-gray-500 italic">No slots available</p>
-                    ) : (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                        {daySlots.slots.map((slot, index) => {
-                          const isSelected = selectedDate === daySlots.date && selectedTime === slot.time_slot;
-                          const isAvailable = slot.slot_status === 'Available';
-                          
-                          return (
-                            <Button
-                              key={`${slot.staff_id}-${slot.time_slot}-${index}`}
-                              variant={isSelected ? "default" : "outline"}
-                              disabled={!isAvailable || isBooking}
-                              onClick={() => {
-                                if (isAvailable) {
-                                  setSelectedDate(daySlots.date);
-                                  setSelectedTime(slot.time_slot);
-                                }
-                              }}
-                              className="h-auto p-2 flex flex-col items-center"
-                            >
-                              <div className="text-sm font-medium">
-                                {formatTimeToAmPm(slot.time_slot)}
-                              </div>
-                              <div className="text-xs opacity-75">
-                                {slot.staff_name}
-                              </div>
-                              {!isAvailable && (
-                                <Badge variant="secondary" className="text-xs mt-1">
-                                  {slot.slot_status}
-                                </Badge>
-                              )}
-                            </Button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Booking Summary */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Booking Summary</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 mb-6">
-              <div className="flex justify-between">
-                <span>Services:</span>
-                <span className="font-medium">{selectedServices.length} service(s)</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Total Duration:</span>
-                <span>{totalDuration} minutes</span>
-              </div>
-              {selectedStaffDetails && (
-                <div className="flex justify-between">
-                  <span>Stylist:</span>
-                  <span>{selectedStaffDetails.name}</span>
+                    return (
+                      <Button
+                        key={`${slot.staff_id}-${slot.time_slot}-${index}`}
+                        variant={isSelected ? "default" : "outline"}
+                        onClick={() => handleTimeSelect(slot.time_slot)}
+                        className="h-auto p-3 flex flex-col items-center"
+                      >
+                        <div className="text-sm font-medium">
+                          {formatTimeToAmPm(slot.time_slot)}
+                        </div>
+                        <div className="text-xs opacity-75 mt-1">
+                          {slot.staff_name}
+                        </div>
+                      </Button>
+                    );
+                  })}
                 </div>
               )}
-              {selectedDate && selectedTime && (
-                <div className="flex justify-between">
-                  <span>Date & Time:</span>
-                  <span>
-                    {selectedDate} at {formatTimeToAmPm(selectedTime)}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between text-lg font-bold border-t pt-3">
-                <span>Total:</span>
-                <span>₹{totalPrice}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
-        <Button
-          onClick={handleBooking}
-          disabled={!selectedDate || !selectedTime || isBooking}
-          className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6"
-          size="lg"
-        >
-          {isBooking ? 'Creating Booking...' : 'Book Now'}
-        </Button>
-      </div>
+      {/* Continue Button */}
+      {step === 'time' && selectedTime && (
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
+          <Button
+            onClick={handleContinueToPayment}
+            className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6"
+            size="lg"
+          >
+            Continue to Payment - ₹{totalPrice}
+          </Button>
+        </div>
+      )}
     </div>
   );
 };

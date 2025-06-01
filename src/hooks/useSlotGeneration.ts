@@ -15,6 +15,7 @@ interface DaySlots {
   date: string;
   displayDate: string;
   slots: SlotData[];
+  availableCount: number;
 }
 
 export const useSlotGeneration = (merchantId: string, selectedStaff?: string) => {
@@ -63,10 +64,14 @@ export const useSlotGeneration = (merchantId: string, selectedStaff?: string) =>
           status_reason: slot.status_reason
         }));
 
+        // Count available slots
+        const availableCount = formattedSlots.filter(slot => slot.slot_status === 'Available').length;
+
         threeDaySlots.push({
           date: dateStr,
           displayDate,
-          slots: formattedSlots
+          slots: formattedSlots,
+          availableCount
         });
       }
 
