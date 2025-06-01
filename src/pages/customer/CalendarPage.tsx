@@ -1,149 +1,122 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useToast } from '@/hooks/use-toast';
+
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import { supabase } from '@/integrations/supabase/client';
-import { Booking } from '@/types';
-import { useAuth } from '@/contexts/AuthContext';
-import { format, parseISO, addDays, isSameDay } from 'date-fns';
-import {
-  Calendar as CalendarIcon,
-  Clock,
-  Store,
-  Check,
-  X,
-  CalendarX,
-  Scissors
-} from 'lucide-react';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { Calendar, Clock, MapPin, User, Star } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
-import { useCancelBooking } from '@/hooks/useCancelBooking';
 import CancelBookingButton from '@/components/customer/CancelBookingButton';
 
-const CalendarPage: React.FC = () => {
-  const [date, setDate] = useState<Date>(new Date());
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
-  const { userId } = useAuth();
-  const navigate = useNavigate();
-  const isMobile = useIsMobile();
-
-  // Calculate the visible days based on the selected date (today + next 6 days)
-  const visibleDays = useMemo(() => {
-    const today = new Date();
-    return Array.from({ length: 7 }, (_, i) => addDays(today, i));
-  }, []);
-
-  // Navigate to search page
-  const handleExploreServices = () => {
-    navigate('/search');
+interface BookingWithDetails {
+  id: string;
+  date: string;
+  time_slot: string;
+  status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
+  payment_status: string;
+  customer_name?: string;
+  customer_phone?: string;
+  customer_email?: string;
+  stylist_name?: string;
+  service?: {
+    id: string;
+    name: string;
+    price: number;
+    duration: number;
+    description?: string;
   };
+  merchant?: {
+    shop_name: string;
+    address: string;
+    rating?: number;
+  };
+}
 
-  // Fetch bookings for the user with stylist names
+const CalendarPage: React.FC = () => {
+  const { userId } = useAuth();
+  const [bookings, setBookings] = useState<BookingWithDetails[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (userId) {
+      fetchBookings();
+      
+      // Set up real-time subscription
+      const channel = supabase
+        .channel(`user-bookings-${userId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'bookings',
+            filter: `user_id=eq.${userId}`
+          },
+          () => {
+            console.log('Booking update received');
+            fetchBookings();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [userId]);
+
   const fetchBookings = async () => {
     if (!userId) return;
-    
-    setIsLoading(true);
+
     try {
-      console.log('Customer: Fetching bookings for user:', userId);
+      setIsLoading(true);
       
       const { data, error } = await supabase
         .from('bookings')
         .select(`
-          *,
+          id,
+          date,
+          time_slot,
+          status,
+          payment_status,
+          customer_name,
+          customer_phone,
+          customer_email,
           stylist_name,
           service:service_id (
             id,
             name,
             price,
             duration,
-            description,
-            merchant_id,
-            created_at,
-            image_url
+            description
           ),
           merchant:merchant_id (
-            id,
             shop_name,
             address,
-            image_url,
-            user_id,
-            description,
-            category,
-            gender_focus,
-            lat,
-            lng,
-            open_time,
-            close_time,
-            rating,
-            created_at
+            rating
           )
         `)
         .eq('user_id', userId)
-        .order('date', { ascending: true });
-        
+        .order('date', { ascending: false })
+        .order('time_slot', { ascending: false });
+
       if (error) throw error;
-      
-      console.log('Customer bookings fetched:', data);
-      setBookings(data as Booking[]);
+
+      const processedBookings = (data || []).map(booking => ({
+        ...booking,
+        service: booking.service as BookingWithDetails['service'],
+        merchant: booking.merchant as BookingWithDetails['merchant']
+      }));
+
+      setBookings(processedBookings);
     } catch (error: any) {
-      console.error('Error fetching customer bookings:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch your bookings. Please try again.",
-        variant: "destructive",
-      });
+      console.error('Error fetching bookings:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Set up real-time subscription for bookings
-  useEffect(() => {
-    fetchBookings();
-
-    if (!userId) return;
-
-    // Set up real-time subscription for bookings changes
-    const channel = supabase
-      .channel('customer-bookings-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'bookings',
-          filter: `user_id=eq.${userId}`
-        },
-        (payload) => {
-          console.log('Real-time booking update received by customer:', payload);
-          // Immediately fetch fresh data when any change occurs
-          fetchBookings();
-        }
-      )
-      .subscribe((status) => {
-        console.log('Customer real-time subscription status:', status);
-      });
-
-    return () => {
-      console.log('Cleaning up customer real-time subscription');
-      supabase.removeChannel(channel);
-    };
-  }, [userId]);
-
-  // Filter bookings for the selected date
-  const todayBookings = useMemo(() => {
-    return bookings.filter(booking => {
-      const bookingDate = parseISO(booking.date);
-      return isSameDay(bookingDate, date);
-    }).sort((a, b) => a.time_slot.localeCompare(b.time_slot));
-  }, [bookings, date]);
-
-  // Get status badge color
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'confirmed': return 'bg-green-500';
@@ -153,227 +126,120 @@ const CalendarPage: React.FC = () => {
       default: return 'bg-gray-500';
     }
   };
-  
-  // Go to today
-  const goToToday = () => setDate(new Date());
+
+  const handleCancelSuccess = () => {
+    fetchBookings();
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-booqit-primary"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="container mx-auto px-2 sm:px-4 py-4">
-      <div className="mb-4">
-        <h1 className="text-xl sm:text-2xl font-bold text-booqit-dark">Your Calendar</h1>
+    <div className="container mx-auto px-4 py-6 pb-20 md:pb-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <Calendar className="h-6 w-6" />
+          My Bookings
+        </h1>
+        <p className="text-gray-600">View and manage your appointments</p>
       </div>
-      
-      {/* Compact Calendar View with improved mobile layout and touch targets */}
-      <Card className="mb-4 overflow-hidden shadow-sm">
-        <CardHeader className="bg-gradient-to-r from-booqit-primary/5 to-booqit-primary/10 py-2">
-          <div className="flex justify-between items-center">
-            <CardTitle className="text-booqit-dark text-base sm:text-lg">Your Appointments</CardTitle>
-            <div className="flex items-center space-x-2">
-              <Button 
-                variant="outline"
-                size="sm"
-                className="h-8 text-xs font-medium px-2"
-                onClick={goToToday}
-              >
-                Today
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        
-        <CardContent className="p-0">
-          <div className="flex w-full">
-            {visibleDays.map((day, index) => {
-              const isCurrentDay = isSameDay(day, new Date());
-              const isSelectedDay = isSameDay(day, date);
+
+      {bookings.length === 0 ? (
+        <Card>
+          <CardContent className="text-center py-12">
+            <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No bookings found</h3>
+            <p className="text-gray-600">You haven't made any bookings yet.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {bookings.map((booking) => (
+            <Card key={booking.id} className="border-l-4 border-l-booqit-primary">
+              <CardHeader className="pb-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <CardTitle className="text-lg">{booking.service?.name}</CardTitle>
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
+                      <MapPin className="h-4 w-4" />
+                      <span>{booking.merchant?.shop_name}</span>
+                      {booking.merchant?.rating && (
+                        <div className="flex items-center gap-1">
+                          <Star className="h-3 w-3 text-yellow-500 fill-current" />
+                          <span>{booking.merchant.rating.toFixed(1)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <Badge className={`${getStatusColor(booking.status)} text-white`}>
+                    {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                  </Badge>
+                </div>
+              </CardHeader>
               
-              return (
-                <div 
-                  key={index}
-                  onClick={() => setDate(day)}
-                  className={`
-                    flex-1 transition-all cursor-pointer border-r last:border-r-0 border-gray-100
-                    ${isSelectedDay ? 'bg-purple-100 ring-1 ring-inset ring-booqit-primary z-10' : ''}
-                    hover:bg-gray-50
-                  `}
-                >
-                  <div className={`
-                    flex flex-col items-center justify-center p-1.5 sm:p-2
-                    ${isCurrentDay ? 'bg-booqit-primary text-white' : ''}
-                  `}>
-                    <div className="text-[10px] xs:text-xs sm:text-xs uppercase font-medium tracking-wider">
-                      {format(day, 'EEE')}
+              <CardContent className="pt-0">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Calendar className="h-4 w-4 text-booqit-primary" />
+                      <span>{format(parseISO(booking.date), 'EEEE, MMMM d, yyyy')}</span>
                     </div>
-                    <div className="text-base xs:text-lg sm:text-xl font-bold my-0.5">
-                      {format(day, 'd')}
+                    <div className="flex items-center gap-2 text-sm">
+                      <Clock className="h-4 w-4 text-booqit-primary" />
+                      <span>{formatTimeToAmPm(booking.time_slot)}</span>
                     </div>
-                    <div className="text-[10px] xs:text-xs sm:text-xs">
-                      {format(day, 'MMM')}
+                    {booking.stylist_name && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <User className="h-4 w-4 text-booqit-primary" />
+                        <span>{booking.stylist_name}</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="text-sm">
+                      <span className="text-gray-600">Duration: </span>
+                      <span>{booking.service?.duration} minutes</span>
+                    </div>
+                    <div className="text-sm">
+                      <span className="text-gray-600">Price: </span>
+                      <span className="font-semibold text-booqit-primary">₹{booking.service?.price}</span>
+                    </div>
+                    <div className="text-sm">
+                      <span className="text-gray-600">Payment: </span>
+                      <Badge variant="outline" className="text-xs">
+                        {booking.payment_status}
+                      </Badge>
                     </div>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-      
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {/* Today's Bookings */}
-        <div className="sm:col-span-3">
-          <Card>
-            <CardHeader className="py-2">
-              <CardTitle className="text-base sm:text-lg flex items-center">
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {format(date, 'MMMM d, yyyy')} Bookings
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="flex justify-center py-6">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-booqit-primary"></div>
+
+                {booking.merchant?.address && (
+                  <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                    <p className="text-sm text-gray-600">{booking.merchant.address}</p>
+                  </div>
+                )}
+
+                <div className="flex justify-end">
+                  <CancelBookingButton
+                    bookingId={booking.id}
+                    bookingDate={booking.date}
+                    bookingTime={booking.time_slot}
+                    bookingStatus={booking.status}
+                    userId={userId}
+                    onCancelSuccess={handleCancelSuccess}
+                  />
                 </div>
-              ) : todayBookings.length === 0 ? (
-                <div className="text-center py-6 border rounded-md bg-gray-50">
-                  <CalendarX className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-                  <p className="text-gray-500 text-sm">No bookings for this date</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {todayBookings.map(booking => (
-                    <Card key={booking.id} className="overflow-hidden border-l-4" style={{
-                      borderLeftColor: booking.status === 'confirmed' ? '#22c55e' : 
-                                      booking.status === 'pending' ? '#eab308' :
-                                      booking.status === 'completed' ? '#3b82f6' : '#ef4444'
-                    }}>
-                      <CardContent className="p-3">
-                        <div className="flex justify-between items-center mb-2">
-                          <div className="flex items-center">
-                            <div className="bg-gray-100 p-1 rounded-full mr-2">
-                              <Clock className="h-4 w-4 text-booqit-primary" />
-                            </div>
-                            <div>
-                              <h3 className="text-sm font-medium">{booking.service?.name}</h3>
-                              <p className="text-xs text-booqit-dark/60">
-                                {formatTimeToAmPm(booking.time_slot)}
-                              </p>
-                            </div>
-                          </div>
-                          <Badge className={getStatusColor(booking.status)}>
-                            {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-                          </Badge>
-                        </div>
-                        
-                        <div className="space-y-1">
-                          <div className="flex items-center">
-                            <Store className="h-3 w-3 mr-1 text-booqit-dark/60" />
-                            <span className="text-xs">{booking.merchant?.shop_name}</span>
-                          </div>
-                          
-                          {booking.stylist_name && (
-                            <div className="flex items-center">
-                              <Scissors className="h-3 w-3 mr-1 text-booqit-dark/60" />
-                              <span className="text-xs">Stylist: {booking.stylist_name}</span>
-                            </div>
-                          )}
-                        </div>
-                        
-                        {booking.status !== 'cancelled' && booking.status !== 'completed' && (
-                          <div className="flex justify-end mt-2">
-                            <CancelBookingButton
-                              bookingId={booking.id}
-                              bookingDate={booking.date}
-                              bookingTime={booking.time_slot}
-                              bookingStatus={booking.status}
-                              userId={userId}
-                              onCancelSuccess={() => fetchBookings()}
-                              className="h-7 text-xs"
-                            />
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          ))}
         </div>
-      </div>
-      
-      <div className="mt-6">
-        <h2 className="text-lg font-semibold mb-4">Upcoming Bookings</h2>
-        
-        {bookings.length === 0 ? (
-          <div className="text-center py-10 border rounded-md">
-            <CalendarX className="h-8 w-8 mx-auto text-booqit-dark/30 mb-2" />
-            <p className="text-booqit-dark/60 text-sm">You don't have any bookings yet.</p>
-            <Button 
-              className="mt-4 bg-booqit-primary" 
-              onClick={handleExploreServices}
-            >
-              Explore Services
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {bookings
-              .filter(booking => booking.status !== 'cancelled' && booking.status !== 'completed')
-              .sort((a, b) => {
-                const dateA = new Date(`${a.date}T${a.time_slot}`);
-                const dateB = new Date(`${b.date}T${b.time_slot}`);
-                return dateA.getTime() - dateB.getTime();
-              })
-              .slice(0, 3)
-              .map(booking => (
-                <Card key={booking.id} className="overflow-hidden">
-                  <CardContent className="p-0">
-                    <div className="p-4 grid grid-cols-12 gap-4">
-                      <div className="col-span-12 md:col-span-2">
-                        <div className="h-full flex flex-col justify-center items-center bg-gray-50 p-2 rounded-md">
-                          <span className="text-xs text-gray-500">{format(parseISO(booking.date), 'MMM dd')}</span>
-                          <span className="mt-1 text-sm font-medium">{formatTimeToAmPm(booking.time_slot)}</span>
-                        </div>
-                      </div>
-                      
-                      <div className="col-span-12 md:col-span-7">
-                        <h3 className="font-medium">{booking.service?.name}</h3>
-                        <div className="flex items-center text-sm text-gray-600 mt-1">
-                          <Store className="h-4 w-4 mr-1" />
-                          <span>{booking.merchant?.shop_name}</span>
-                        </div>
-                        {booking.stylist_name && (
-                          <div className="flex items-center text-sm text-gray-600 mt-1">
-                            <Scissors className="h-4 w-4 mr-1" />
-                            <span>Stylist: {booking.stylist_name}</span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div className="col-span-12 md:col-span-3 flex items-center justify-end">
-                        <Badge className={`${getStatusColor(booking.status)}`}>
-                          {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-                        </Badge>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-              
-            {bookings.filter(booking => booking.status !== 'cancelled' && booking.status !== 'completed').length > 0 && (
-              <div className="flex justify-center mt-4">
-                <Button 
-                  variant="outline" 
-                  className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary/10"
-                  onClick={handleExploreServices}
-                >
-                  Explore More Services
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 };

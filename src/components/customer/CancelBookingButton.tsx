@@ -2,8 +2,8 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
-import { useBookingStatus } from '@/hooks/useBookingStatus';
-import { format, parseISO, differenceInHours } from 'date-fns';
+import { useCancelBooking } from '@/hooks/useCancelBooking';
+import { parseISO, differenceInHours } from 'date-fns';
 
 interface CancelBookingButtonProps {
   bookingId: string;
@@ -24,23 +24,28 @@ const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
   onCancelSuccess,
   className = ""
 }) => {
-  const { updateBookingStatus, isUpdating } = useBookingStatus();
+  const { cancelBooking, isCancelling } = useCancelBooking();
 
   const handleCancel = async () => {
     // Check if booking can be cancelled (must be at least 2 hours before appointment)
-    const bookingDateTime = parseISO(`${bookingDate}T${bookingTime}`);
-    const hoursUntilBooking = differenceInHours(bookingDateTime, new Date());
-    
-    if (hoursUntilBooking < 2) {
-      alert('You can only cancel bookings at least 2 hours in advance.');
-      return;
-    }
-
-    if (window.confirm('Are you sure you want to cancel this booking?')) {
-      const success = await updateBookingStatus(bookingId, 'cancelled', userId);
-      if (success && onCancelSuccess) {
-        onCancelSuccess();
+    try {
+      const bookingDateTime = parseISO(`${bookingDate}T${bookingTime}`);
+      const hoursUntilBooking = differenceInHours(bookingDateTime, new Date());
+      
+      if (hoursUntilBooking < 2) {
+        alert('You can only cancel bookings at least 2 hours in advance.');
+        return;
       }
+
+      if (window.confirm('Are you sure you want to cancel this booking?')) {
+        const success = await cancelBooking(bookingId, userId);
+        if (success && onCancelSuccess) {
+          onCancelSuccess();
+        }
+      }
+    } catch (error) {
+      console.error('Error parsing booking date/time:', error);
+      alert('Error processing cancellation. Please try again.');
     }
   };
 
@@ -50,20 +55,25 @@ const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
   }
 
   // Check if cancellation is allowed (2 hours before)
-  const bookingDateTime = parseISO(`${bookingDate}T${bookingTime}`);
-  const hoursUntilBooking = differenceInHours(bookingDateTime, new Date());
-  const canCancel = hoursUntilBooking >= 2;
+  let canCancel = false;
+  try {
+    const bookingDateTime = parseISO(`${bookingDate}T${bookingTime}`);
+    const hoursUntilBooking = differenceInHours(bookingDateTime, new Date());
+    canCancel = hoursUntilBooking >= 2;
+  } catch (error) {
+    console.error('Error parsing booking date/time for cancellation check:', error);
+  }
 
   return (
     <Button
       variant="outline"
       size="sm"
       onClick={handleCancel}
-      disabled={isUpdating || !canCancel}
+      disabled={isCancelling || !canCancel}
       className={`text-red-600 border-red-200 hover:bg-red-50 ${className}`}
     >
       <X className="h-3 w-3 mr-1" />
-      {isUpdating ? 'Cancelling...' : canCancel ? 'Cancel' : 'Cannot Cancel'}
+      {isCancelling ? 'Cancelling...' : canCancel ? 'Cancel' : 'Cannot Cancel'}
     </Button>
   );
 };

@@ -12,12 +12,15 @@ interface BookingWithCustomerDetails {
   id: string;
   service?: {
     name: string;
+    price: number;
+    duration: number;
   };
   time_slot: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   customer_name?: string;
   customer_phone?: string;
   customer_email?: string;
+  stylist_name?: string;
 }
 
 interface BookingCardProps {
@@ -58,11 +61,19 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onStatusChange }) =>
             <div>
               <h3 className="font-semibold text-gray-900">{booking.service?.name || 'Service'}</h3>
               <p className="text-sm text-gray-600">{formatTimeToAmPm(booking.time_slot)}</p>
+              {booking.service?.duration && (
+                <p className="text-xs text-gray-500">{booking.service.duration} mins</p>
+              )}
             </div>
           </div>
-          <Badge className={`${getStatusColor(booking.status)} text-white`}>
-            {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-          </Badge>
+          <div className="text-right">
+            <Badge className={`${getStatusColor(booking.status)} text-white mb-2`}>
+              {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+            </Badge>
+            {booking.service?.price && (
+              <p className="text-sm font-semibold text-booqit-primary">₹{booking.service.price}</p>
+            )}
+          </div>
         </div>
 
         <div className="space-y-2 mb-4">
@@ -81,7 +92,14 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onStatusChange }) =>
           {booking.customer_email && (
             <div className="flex items-center text-sm text-gray-600">
               <Mail className="h-4 w-4 mr-2" />
-              <span>{booking.customer_email}</span>
+              <span className="truncate">{booking.customer_email}</span>
+            </div>
+          )}
+
+          {booking.stylist_name && (
+            <div className="flex items-center text-sm text-gray-600">
+              <User className="h-4 w-4 mr-2" />
+              <span>Stylist: {booking.stylist_name}</span>
             </div>
           )}
         </div>

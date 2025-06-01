@@ -59,7 +59,7 @@ export const useSlotGeneration = (merchantId: string, selectedStaff?: string) =>
           staff_id: slot.staff_id,
           staff_name: slot.staff_name,
           time_slot: slot.time_slot,
-          slot_status: slot.slot_status,
+          slot_status: slot.slot_status as SlotData['slot_status'],
           status_reason: slot.status_reason
         }));
 
