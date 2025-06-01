@@ -1,10 +1,8 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { Booking } from '@/types';
 import { format, parseISO, addDays, subDays, isSameDay } from 'date-fns';
 import { useIsMobile } from '@/hooks/use-mobile';
 import StylistAvailabilityWidget from '@/components/merchant/StylistAvailabilityWidget';
@@ -14,7 +12,17 @@ import BookingsList from '@/components/merchant/calendar/BookingsList';
 import HolidayManager from '@/components/merchant/calendar/HolidayManager';
 import { useBookingStatus } from '@/hooks/useBookingStatus';
 
-interface BookingWithCustomerDetails extends Booking {
+interface BookingWithCustomerDetails {
+  id: string;
+  user_id: string;
+  merchant_id: string;
+  service_id: string;
+  date: string;
+  time_slot: string;
+  status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
+  payment_status: 'pending' | 'completed' | 'failed' | 'refunded';
+  created_at: string;
+  staff_id?: string | null;
   customer_name?: string;
   customer_phone?: string;
   customer_email?: string;
