@@ -27,39 +27,28 @@ interface AvailabilityResponse {
   conflicting_slot?: string;
 }
 
-// Helper function to get current IST time reliably
+// Get current IST time using the exact method specified
 const getCurrentISTTime = (): Date => {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
 };
 
-// Helper function to check if a slot is valid (40 minutes ahead of current IST time)
+// Check if a slot is valid (40 minutes ahead of current IST time)
 const isSlotValid = (slotTimeString: string, nowIST: Date): boolean => {
   try {
-    // Handle both 24-hour format (HH:MM) and 12-hour format
-    let hour: number, minute: number;
-    
-    if (slotTimeString.toLowerCase().includes('am') || slotTimeString.toLowerCase().includes('pm')) {
-      // 12-hour format
-      const [time, period] = slotTimeString.split(' ');
-      const [slotHour, slotMinPart] = time.split(':');
-      minute = parseInt(slotMinPart) || 0;
-      const isPM = period.toLowerCase() === 'pm';
-      hour = isPM && slotHour !== "12" ? parseInt(slotHour) + 12 : parseInt(slotHour);
-      if (!isPM && slotHour === "12") hour = 0;
-    } else {
-      // 24-hour format (HH:MM)
-      const [slotHour, slotMinPart] = slotTimeString.split(':');
-      hour = parseInt(slotHour);
-      minute = parseInt(slotMinPart) || 0;
-    }
+    // Parse the time slot (assuming 24-hour format HH:MM)
+    const [slotHour, slotMinPart] = slotTimeString.split(':');
+    const hour = parseInt(slotHour);
+    const minute = parseInt(slotMinPart) || 0;
 
+    // Create slot date in IST
     const slotDate = new Date(nowIST);
     slotDate.setHours(hour);
     slotDate.setMinutes(minute);
     slotDate.setSeconds(0);
     slotDate.setMilliseconds(0);
 
-    const buffer = 40 * 60 * 1000; // 40 minutes in ms
+    // Check if slot is at least 40 minutes ahead
+    const buffer = 40 * 60 * 1000; // 40 minutes in milliseconds
     const isValid = slotDate.getTime() >= nowIST.getTime() + buffer;
     
     console.log(`Slot ${slotTimeString} (${hour}:${minute}) vs IST ${nowIST.toLocaleTimeString()}: ${isValid}`);
