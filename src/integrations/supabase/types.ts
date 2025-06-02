@@ -130,7 +130,7 @@ export type Database = {
           },
         ]
       }
-      inome: {
+      income_report: {
         Row: {
           created_at: string
           id: number
@@ -572,40 +572,28 @@ export type Database = {
         Args: { p_staff_id: string; p_date: string }
         Returns: Json
       }
-      generate_stylist_slots: {
-        Args: { p_merchant_id: string; p_date: string }
+      generate_all_shop_income_reports: {
+        Args: { report_date: string; report_type: string }
         Returns: undefined
       }
-      get_available_slots: {
-        Args: {
-          p_merchant_id: string
-          p_date: string
-          p_staff_id?: string
-          p_service_duration?: number
-        }
-        Returns: {
-          staff_id: string
-          staff_name: string
-          time_slot: string
-          is_shop_holiday: boolean
-          is_stylist_holiday: boolean
-          shop_holiday_reason: string
-          stylist_holiday_reason: string
-        }[]
+      generate_shop_income_report: {
+        Args:
+          | {
+              in_merchant_id: string
+              in_report_date: string
+              in_report_type: string
+            }
+          | { p_report_date: string; p_report_type: string }
+        Returns: undefined
       }
-      get_available_slots_with_validation: {
-        Args: {
-          p_merchant_id: string
-          p_date: string
-          p_staff_id?: string
-          p_service_duration?: number
-        }
+      get_dynamic_available_slots: {
+        Args: { p_merchant_id: string; p_date: string; p_staff_id?: string }
         Returns: {
           staff_id: string
           staff_name: string
           time_slot: string
-          is_available: boolean
-          conflict_reason: string
+          slot_status: string
+          status_reason: string
         }[]
       }
       get_stylist_blocked_ranges: {
@@ -657,6 +645,10 @@ export type Database = {
           p_new_status: string
           p_merchant_user_id?: string
         }
+        Returns: Json
+      }
+      update_booking_status_with_slot_management: {
+        Args: { p_booking_id: string; p_new_status: string; p_user_id?: string }
         Returns: Json
       }
       update_merchant_hours: {

@@ -13,7 +13,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { useCancelBooking } from '@/hooks/useCancelBooking';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import { format, parseISO, isBefore, subHours } from 'date-fns';
 
 interface CancelBookingButtonProps {
@@ -35,7 +36,7 @@ const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
   onCancelSuccess,
   className = ''
 }) => {
-  const { cancelBooking, isCancelling } = useCancelBooking();
+  const [isCancelling, setIsCancelling] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   // Check if booking can be cancelled (not cancelled/completed and at least 2 hours before appointment)
@@ -55,10 +56,28 @@ const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
   };
 
   const handleCancel = async () => {
-    console.log('Attempting to cancel booking:', bookingId, 'for user:', userId);
+    setIsCancelling(true);
     
-    const success = await cancelBooking(bookingId, userId);
-    if (success) {
+    try {
+      console.log('Cancelling booking:', bookingId, 'for user:', userId);
+      
+      // Update booking status to cancelled
+      const { error: updateError } = await supabase
+        .from('bookings')
+        .update({ 
+          status: 'cancelled',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', bookingId);
+
+      if (updateError) {
+        console.error('Error updating booking status:', updateError);
+        throw new Error('Failed to cancel booking');
+      }
+
+      console.log('Booking cancelled successfully');
+      toast.success('Booking cancelled successfully');
+      
       setIsDialogOpen(false);
       onCancelSuccess?.();
       
@@ -66,6 +85,12 @@ const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
       setTimeout(() => {
         window.location.reload();
       }, 1500);
+
+    } catch (error: any) {
+      console.error('Cancel booking error:', error);
+      toast.error(error.message || 'Failed to cancel booking. Please try again.');
+    } finally {
+      setIsCancelling(false);
     }
   };
 

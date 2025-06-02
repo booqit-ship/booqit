@@ -9,12 +9,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 
-interface SlotBookingResult {
-  success: boolean;
-  error?: string;
-  slots_booked?: number;
-}
-
 const PaymentPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
@@ -59,7 +53,7 @@ const PaymentPage: React.FC = () => {
         totalDuration
       });
 
-      // Create the booking first
+      // Create the booking directly as "confirmed"
       const bookingData = {
         user_id: userId,
         merchant_id: merchantId,
@@ -67,7 +61,7 @@ const PaymentPage: React.FC = () => {
         staff_id: selectedStaff,
         date: bookingDate,
         time_slot: bookingTime,
-        status: 'pending' as const,
+        status: 'confirmed' as const,
         payment_status: 'pending' as const,
         stylist_name: selectedStaffDetails?.name || null
       };
@@ -85,34 +79,6 @@ const PaymentPage: React.FC = () => {
 
       console.log('Booking created:', booking);
 
-      // Book the stylist slots using the database function
-      if (selectedStaff) {
-        const { data: slotResult, error: slotError } = await supabase.rpc('book_stylist_slot', {
-          p_staff_id: selectedStaff,
-          p_date: bookingDate,
-          p_time_slot: bookingTime,
-          p_booking_id: booking.id,
-          p_service_duration: totalDuration
-        });
-
-        if (slotError) {
-          console.error('Slot booking error:', slotError);
-          // Clean up the booking if slot booking fails
-          await supabase.from('bookings').delete().eq('id', booking.id);
-          throw new Error('Failed to book time slot - it may no longer be available');
-        }
-
-        console.log('Slots booked:', slotResult);
-
-        const typedResult = slotResult as unknown as SlotBookingResult;
-        
-        if (!typedResult.success) {
-          // Clean up the booking if slot booking fails
-          await supabase.from('bookings').delete().eq('id', booking.id);
-          throw new Error(typedResult.error || 'Failed to book time slot');
-        }
-      }
-
       // Create payment record for "Pay on Shop"
       const paymentData = {
         booking_id: booking.id,
@@ -127,25 +93,9 @@ const PaymentPage: React.FC = () => {
 
       if (paymentError) {
         console.error('Payment creation error:', paymentError);
-        // Clean up booking and slots if payment creation fails
-        if (selectedStaff) {
-          await supabase.rpc('release_stylist_slots', { p_booking_id: booking.id });
-        }
+        // Clean up booking if payment creation fails
         await supabase.from('bookings').delete().eq('id', booking.id);
         throw new Error('Failed to process payment');
-      }
-
-      // Update booking status to confirmed
-      const { error: updateError } = await supabase
-        .from('bookings')
-        .update({ 
-          status: 'confirmed',
-          payment_status: 'pending'
-        })
-        .eq('id', booking.id);
-
-      if (updateError) {
-        console.error('Booking update error:', updateError);
       }
 
       toast.success('Booking confirmed successfully!');
@@ -291,7 +241,7 @@ const PaymentPage: React.FC = () => {
           <CardContent className="p-4">
             <h4 className="font-medium text-orange-800 mb-2">📋 Important Note</h4>
             <p className="text-sm text-orange-700">
-              Your booking is confirmed! Please arrive on time and pay the amount at the shop. 
+              Your booking will be confirmed immediately! Please arrive on time and pay the amount at the shop. 
               You can cancel or reschedule up to 2 hours before your appointment.
             </p>
           </CardContent>

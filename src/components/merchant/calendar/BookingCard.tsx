@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Clock, User, Phone, Scissors } from 'lucide-react';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface BookingWithCustomerDetails {
   id: string;
@@ -30,7 +32,36 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onStatusChange }) =>
   const handleStatusChange = async (newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
     setIsLoading(true);
     try {
+      // Update booking status directly
+      const { error } = await supabase
+        .from('bookings')
+        .update({ 
+          status: newStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', booking.id);
+
+      if (error) {
+        console.error('Error updating booking status:', error);
+        toast.error('Failed to update booking status');
+        return;
+      }
+
+      // Show success message
+      const statusMessages = {
+        confirmed: 'Booking confirmed successfully',
+        completed: 'Booking marked as completed',
+        cancelled: 'Booking cancelled successfully'
+      };
+
+      toast.success(statusMessages[newStatus] || 'Booking updated successfully');
+      
+      // Call the parent's onStatusChange to refresh data
       await onStatusChange(booking.id, newStatus);
+
+    } catch (error) {
+      console.error('Error updating booking status:', error);
+      toast.error('Failed to update booking status');
     } finally {
       setIsLoading(false);
     }
