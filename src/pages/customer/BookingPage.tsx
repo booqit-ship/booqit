@@ -14,8 +14,8 @@ interface AvailableSlot {
   staff_id: string;
   staff_name: string;
   time_slot: string;
-  is_available: boolean;
-  conflict_reason: string | null;
+  slot_status: string;
+  status_reason: string | null;
 }
 
 const BookingPage: React.FC = () => {
@@ -82,18 +82,11 @@ const BookingPage: React.FC = () => {
         const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
         console.log('Fetching slots for date:', selectedDateStr, 'Duration:', totalDuration, 'Staff:', selectedStaff);
 
-        // First ensure slots are generated for this date
-        await supabase.rpc('generate_stylist_slots', {
-          p_merchant_id: merchantId,
-          p_date: selectedDateStr
-        });
-
-        // Then get available slots with proper validation and filtering
-        const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_validation', {
+        // Get available slots using the existing function
+        const { data: slotsData, error: slotsError } = await supabase.rpc('get_dynamic_available_slots', {
           p_merchant_id: merchantId,
           p_date: selectedDateStr,
-          p_staff_id: selectedStaff || null,
-          p_service_duration: totalDuration
+          p_staff_id: selectedStaff || null
         });
 
         if (slotsError) {
@@ -103,15 +96,16 @@ const BookingPage: React.FC = () => {
           return;
         }
 
-        console.log('Available slots with validation:', slotsData);
+        console.log('Available slots:', slotsData);
 
-        const processedSlots = (slotsData || []).map((slot: any) => ({
+        // Type guard and process the slots data
+        const processedSlots = Array.isArray(slotsData) ? slotsData.map((slot: any) => ({
           staff_id: slot.staff_id,
           staff_name: slot.staff_name,
           time_slot: typeof slot.time_slot === 'string' ? slot.time_slot.substring(0, 5) : format(new Date(`2000-01-01T${slot.time_slot}`), 'HH:mm'),
-          is_available: slot.is_available,
-          conflict_reason: slot.conflict_reason
-        }));
+          slot_status: slot.slot_status,
+          status_reason: slot.status_reason
+        })) : [];
 
         console.log('Processed slots:', processedSlots);
         setAvailableSlots(processedSlots);
@@ -129,8 +123,8 @@ const BookingPage: React.FC = () => {
   }, [selectedDate, merchantId, selectedStaff, totalDuration]);
 
   const handleTimeSlotClick = (slot: AvailableSlot) => {
-    if (!slot.is_available) {
-      setConflictMessage(slot.conflict_reason || 'This time slot is not available');
+    if (slot.slot_status !== 'Available') {
+      setConflictMessage(slot.status_reason || 'This time slot is not available');
       setSelectedTime('');
       return;
     }
@@ -145,7 +139,7 @@ const BookingPage: React.FC = () => {
       return;
     }
 
-    const selectedSlot = availableSlots.find(slot => slot.time_slot === selectedTime && slot.is_available);
+    const selectedSlot = availableSlots.find(slot => slot.time_slot === selectedTime && slot.slot_status === 'Available');
     if (!selectedSlot) {
       toast.error('Selected time slot is not available');
       return;
@@ -197,10 +191,10 @@ const BookingPage: React.FC = () => {
 
   // Group slots by availability and get unique times
   const availableTimeSlots = Array.from(new Set(
-    availableSlots.filter(slot => slot.is_available).map(slot => slot.time_slot)
+    availableSlots.filter(slot => slot.slot_status === 'Available').map(slot => slot.time_slot)
   )).sort();
 
-  const unavailableTimeSlots = availableSlots.filter(slot => !slot.is_available);
+  const unavailableTimeSlots = availableSlots.filter(slot => slot.slot_status !== 'Available');
 
   if (!merchant) {
     return (

@@ -113,7 +113,7 @@ const SettingsPage: React.FC = () => {
   const generateSlotsForNext30Days = async (merchantId: string) => {
     try {
       console.log('Starting slot generation for next 30 days...');
-      // Generate slots for the next 30 days
+      // Generate slots for the next 30 days using the existing function
       for (let i = 0; i < 30; i++) {
         const date = new Date();
         date.setDate(date.getDate() + i);
@@ -121,14 +121,17 @@ const SettingsPage: React.FC = () => {
         
         console.log(`Generating slots for date: ${dateStr}`);
         
-        // Call the generate_stylist_slots function
-        const { error } = await supabase.rpc('generate_stylist_slots', {
+        // Use the existing dynamic slots function
+        const { data, error } = await supabase.rpc('get_dynamic_available_slots', {
           p_merchant_id: merchantId,
-          p_date: dateStr
+          p_date: dateStr,
+          p_staff_id: null
         });
         
         if (error) {
           console.error(`Error generating slots for ${dateStr}:`, error);
+        } else {
+          console.log(`Slots generated for ${dateStr}`);
         }
       }
       console.log('Successfully generated slots for next 30 days');
