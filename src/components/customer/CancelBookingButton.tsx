@@ -13,8 +13,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { useCancelBooking } from '@/hooks/useCancelBooking';
 import { format, parseISO, isBefore, subHours } from 'date-fns';
 
 interface CancelBookingButtonProps {
@@ -36,8 +35,8 @@ const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
   onCancelSuccess,
   className = ''
 }) => {
-  const [isCancelling, setIsCancelling] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const { cancelBooking, isCancelling } = useCancelBooking();
 
   // Check if booking can be cancelled (not cancelled/completed and at least 2 hours before appointment)
   const canCancel = () => {
@@ -56,32 +55,8 @@ const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
   };
 
   const handleCancel = async () => {
-    setIsCancelling(true);
-    
-    try {
-      console.log('Cancelling booking with proper slot release:', bookingId, 'for user:', userId);
-      
-      // Use the enhanced cancel function that properly releases all slots
-      const { data, error } = await supabase.rpc('cancel_booking_and_release_all_slots', {
-        p_booking_id: bookingId,
-        p_user_id: userId
-      });
-
-      if (error) {
-        console.error('Error cancelling booking:', error);
-        throw new Error(error.message);
-      }
-
-      console.log('Cancel booking response:', data);
-      
-      // Check if the cancellation was successful
-      if (!data || !data.success) {
-        throw new Error(data?.error || 'Failed to cancel booking');
-      }
-
-      console.log('Booking cancelled successfully:', data);
-      toast.success(`${data.message} (${data.slots_released} slots released)`);
-      
+    const success = await cancelBooking(bookingId, userId);
+    if (success) {
       setIsDialogOpen(false);
       onCancelSuccess?.();
       
@@ -89,12 +64,6 @@ const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
       setTimeout(() => {
         window.location.reload();
       }, 1500);
-
-    } catch (error: any) {
-      console.error('Cancel booking error:', error);
-      toast.error(error.message || 'Failed to cancel booking. Please try again.');
-    } finally {
-      setIsCancelling(false);
     }
   };
 
