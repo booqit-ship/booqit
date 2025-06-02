@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
@@ -67,32 +68,46 @@ const DateTimeSelectionPage: React.FC = () => {
     }
   }, []);
 
-  // Real-time slot filtering - runs every minute for today's slots
-  useEffect(() => {
-    if (!selectedDate || !isTodayIST(selectedDate) || availableSlots.length === 0) {
-      setFilteredSlots(availableSlots.filter(slot => slot.slot_status === 'Available'));
-      return;
-    }
+  // Filter slots based on IST time for today, or show all slots for future dates
+  const filterSlotsBasedOnTime = (slots: AvailableSlot[]) => {
+    if (!selectedDate) return [];
 
-    const updateFilteredSlots = () => {
-      console.log('Running real-time slot filtering for today...');
+    // Only filter for today's date
+    if (isTodayIST(selectedDate)) {
+      console.log('Filtering slots for today with IST time logic...');
       const currentTimeWithBuffer = getCurrentTimeISTWithBuffer(40);
+      console.log('Current IST time with 40-min buffer:', currentTimeWithBuffer);
       
-      const filtered = availableSlots.filter(slot => {
+      const filtered = slots.filter(slot => {
         if (slot.slot_status !== 'Available') {
           return false;
         }
         // Compare time strings directly since they're in HH:MM format
-        return slot.time_slot >= currentTimeWithBuffer;
+        const isAvailable = slot.time_slot >= currentTimeWithBuffer;
+        console.log(`Slot ${slot.time_slot} >= ${currentTimeWithBuffer}: ${isAvailable}`);
+        return isAvailable;
       });
       
+      console.log('Filtered slots for today:', filtered.length, 'out of', slots.length);
+      return filtered;
+    } else {
+      // For future dates, show all available slots
+      console.log('Showing all available slots for future date');
+      return slots.filter(slot => slot.slot_status === 'Available');
+    }
+  };
+
+  // Real-time slot filtering - runs every minute for today's slots
+  useEffect(() => {
+    const updateFilteredSlots = () => {
+      const filtered = filterSlotsBasedOnTime(availableSlots);
       setFilteredSlots(filtered);
       
       // Clear selected time if it's no longer available
-      if (selectedTime) {
+      if (selectedTime && isTodayIST(selectedDate || getCurrentDateIST())) {
         const isSelectedTimeStillAvailable = filtered.some(slot => slot.time_slot === selectedTime);
         if (!isSelectedTimeStillAvailable) {
-          console.log('Selected time slot expired, clearing selection');
+          console.log('Selected time slot expired due to time progression, clearing selection');
           setSelectedTime('');
           toast.info('Selected time slot is no longer available');
         }
@@ -102,12 +117,18 @@ const DateTimeSelectionPage: React.FC = () => {
     // Run immediately
     updateFilteredSlots();
 
-    // Set up interval to run every minute (60000ms)
-    const intervalId = setInterval(updateFilteredSlots, 60000);
+    // Set up interval to run every minute (60000ms) only for today's slots
+    let intervalId: NodeJS.Timeout | null = null;
+    if (selectedDate && isTodayIST(selectedDate)) {
+      console.log('Setting up real-time updates for today\'s slots');
+      intervalId = setInterval(updateFilteredSlots, 60000);
+    }
 
     // Cleanup interval on unmount or dependency change
     return () => {
-      clearInterval(intervalId);
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
     };
   }, [availableSlots, selectedDate, selectedTime]);
 
@@ -183,6 +204,15 @@ const DateTimeSelectionPage: React.FC = () => {
       return;
     }
 
+    // For today's bookings, double-check the time is still valid
+    if (isTodayIST(selectedDate)) {
+      const currentTimeWithBuffer = getCurrentTimeISTWithBuffer(40);
+      if (timeSlot < currentTimeWithBuffer) {
+        toast.error('This time slot is too soon. Please select a later time.');
+        return;
+      }
+    }
+
     // Check slot availability with service duration
     try {
       const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
@@ -230,6 +260,16 @@ const DateTimeSelectionPage: React.FC = () => {
     if (!selectedSlot) {
       toast.error('Selected time slot is not available');
       return;
+    }
+
+    // For today's bookings, final time check
+    if (isTodayIST(selectedDate)) {
+      const currentTimeWithBuffer = getCurrentTimeISTWithBuffer(40);
+      if (selectedTime < currentTimeWithBuffer) {
+        toast.error('Selected time slot is too soon. Please select another time.');
+        setSelectedTime('');
+        return;
+      }
     }
 
     // Final availability check before proceeding
@@ -351,7 +391,7 @@ const DateTimeSelectionPage: React.FC = () => {
           </p>
           <p className="text-gray-400 text-xs mt-1">
             {isTodayIST(selectedDate || getCurrentDateIST()) 
-              ? `Slots available from ${getCurrentTimeISTWithBuffer(40)} onwards (current time + 40 min buffer, rounded to next 10-min slot)`
+              ? `Slots available from ${getCurrentTimeISTWithBuffer(40)} onwards (IST time + 40 min buffer)`
               : "All slots available during shop hours"
             }
           </p>
@@ -470,7 +510,7 @@ const DateTimeSelectionPage: React.FC = () => {
                 <p className="text-gray-500">No available time slots</p>
                 <p className="text-gray-400 text-sm">
                   {isTodayIST(selectedDate) 
-                    ? "All slots for today are either booked or too soon (need 40-min buffer)"
+                    ? "All slots for today are either booked or too soon (need 40-min buffer in IST)"
                     : "Please select a different date or try again later"
                   }
                 </p>
