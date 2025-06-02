@@ -568,6 +568,15 @@ export type Database = {
         Args: { p_booking_id: string; p_user_id?: string }
         Returns: Json
       }
+      check_slot_availability_with_duration: {
+        Args: {
+          p_staff_id: string
+          p_date: string
+          p_start_time: string
+          p_service_duration?: number
+        }
+        Returns: boolean
+      }
       clear_stylist_availability: {
         Args: { p_staff_id: string; p_date: string }
         Returns: Json
@@ -586,22 +595,7 @@ export type Database = {
           | { p_report_date: string; p_report_type: string }
         Returns: undefined
       }
-      get_available_slots_with_validation: {
-        Args: {
-          p_merchant_id: string
-          p_date: string
-          p_staff_id?: string
-          p_service_duration?: number
-        }
-        Returns: {
-          staff_id: string
-          staff_name: string
-          time_slot: string
-          is_available: boolean
-          conflict_reason: string
-        }[]
-      }
-      get_dynamic_available_slots: {
+      get_fresh_available_slots: {
         Args: { p_merchant_id: string; p_date: string; p_staff_id?: string }
         Returns: {
           staff_id: string

@@ -1,8 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { addDays } from 'date-fns';
@@ -11,11 +11,10 @@ import {
   formatDateInIST, 
   getCurrentDateIST, 
   isTodayIST,
-  getCurrentTimeISTWithBuffer,
-  convertUTCToIST
+  getCurrentTimeISTWithBuffer
 } from '@/utils/dateUtils';
 
-interface ProcessedSlot {
+interface AvailableSlot {
   staff_id: string;
   staff_name: string;
   time_slot: string;
@@ -31,8 +30,8 @@ const DateTimeSelectionPage: React.FC = () => {
 
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string>('');
-  const [availableSlots, setAvailableSlots] = useState<ProcessedSlot[]>([]);
-  const [filteredSlots, setFilteredSlots] = useState<ProcessedSlot[]>([]);
+  const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
+  const [filteredSlots, setFilteredSlots] = useState<AvailableSlot[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Calculate actual service duration from selected services
@@ -55,52 +54,22 @@ const DateTimeSelectionPage: React.FC = () => {
 
   const availableDates = getAvailableDates();
 
-  // Filter slots for today using proper Date object comparisons
-  const filterSlotsForToday = (slots: ProcessedSlot[], date: Date, bufferMinutes: number = 40): ProcessedSlot[] => {
+  // Filter slots for real-time updates (only for today)
+  const filterSlotsForToday = (slots: AvailableSlot[], date: Date): AvailableSlot[] => {
     if (!isTodayIST(date)) {
       return slots.filter(slot => slot.slot_status === 'Available');
     }
 
-    console.log('Filtering slots for today with buffer:', bufferMinutes);
+    // Get current IST time with 40-minute buffer, rounded to next 10-minute mark
+    const currentTimeWithBuffer = getCurrentTimeISTWithBuffer(40);
     
-    // Get current IST time with buffer as a Date object
-    const now = new Date();
-    const istNow = convertUTCToIST(now);
-    const timeWithBuffer = new Date(istNow.getTime() + bufferMinutes * 60000);
-    
-    // Round up to next 10-minute interval
-    const minutes = timeWithBuffer.getMinutes();
-    const roundedMinutes = Math.ceil(minutes / 10) * 10;
-    
-    if (roundedMinutes >= 60) {
-      timeWithBuffer.setHours(timeWithBuffer.getHours() + 1);
-      timeWithBuffer.setMinutes(0);
-    } else {
-      timeWithBuffer.setMinutes(roundedMinutes);
-    }
-    
-    timeWithBuffer.setSeconds(0);
-    timeWithBuffer.setMilliseconds(0);
-
-    console.log('Current time with buffer (IST):', timeWithBuffer.toLocaleTimeString('en-IN'));
-
     return slots.filter(slot => {
-      // Only show available slots
       if (slot.slot_status !== 'Available') {
         return false;
       }
-
-      // Convert slot time to full Date object in IST
-      const selectedDateStr = formatDateInIST(date, 'yyyy-MM-dd');
-      const slotDateTime = new Date(`${selectedDateStr}T${slot.time_slot}:00+05:30`);
       
-      console.log(`Comparing slot ${slot.time_slot}:`, slotDateTime.toLocaleTimeString('en-IN'), 'vs buffer time:', timeWithBuffer.toLocaleTimeString('en-IN'));
-      
-      // Compare Date objects directly
-      const isAvailable = slotDateTime >= timeWithBuffer;
-      console.log(`Slot ${slot.time_slot} available:`, isAvailable);
-      
-      return isAvailable;
+      // Compare time strings directly since they're in HH:MM format
+      return slot.time_slot >= currentTimeWithBuffer;
     });
   };
 
@@ -111,17 +80,16 @@ const DateTimeSelectionPage: React.FC = () => {
     }
   }, []);
 
-  // Real-time slot filtering - runs every minute
+  // Real-time slot filtering - runs every minute for today's slots
   useEffect(() => {
     if (!selectedDate || !isTodayIST(selectedDate) || availableSlots.length === 0) {
       setFilteredSlots(availableSlots.filter(slot => slot.slot_status === 'Available'));
       return;
     }
 
-    // Initial filtering
     const updateFilteredSlots = () => {
-      console.log('Running real-time slot filtering...');
-      const filtered = filterSlotsForToday(availableSlots, selectedDate, 40);
+      console.log('Running real-time slot filtering for today...');
+      const filtered = filterSlotsForToday(availableSlots, selectedDate);
       setFilteredSlots(filtered);
       
       // Clear selected time if it's no longer available
@@ -139,9 +107,7 @@ const DateTimeSelectionPage: React.FC = () => {
     updateFilteredSlots();
 
     // Set up interval to run every minute (60000ms)
-    const intervalId = setInterval(() => {
-      updateFilteredSlots();
-    }, 60000);
+    const intervalId = setInterval(updateFilteredSlots, 60000);
 
     // Cleanup interval on unmount or dependency change
     return () => {
@@ -149,6 +115,7 @@ const DateTimeSelectionPage: React.FC = () => {
     };
   }, [availableSlots, selectedDate, selectedTime]);
 
+  // Fetch available slots when date changes
   useEffect(() => {
     const fetchAvailableSlots = async () => {
       if (!selectedDate || !merchantId) return;
@@ -158,10 +125,10 @@ const DateTimeSelectionPage: React.FC = () => {
       
       try {
         const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
-        console.log('Fetching slots for date:', selectedDateStr, 'Staff:', selectedStaff, 'Duration:', actualServiceDuration);
+        console.log('Fetching slots for date:', selectedDateStr, 'Staff:', selectedStaff);
 
-        // Use the dynamic slot generation function that handles IST properly
-        const { data: slotsData, error: slotsError } = await supabase.rpc('get_dynamic_available_slots', {
+        // Use the new fresh slot generation function
+        const { data: slotsData, error: slotsError } = await supabase.rpc('get_fresh_available_slots', {
           p_merchant_id: merchantId,
           p_date: selectedDateStr,
           p_staff_id: selectedStaff || null
@@ -197,7 +164,7 @@ const DateTimeSelectionPage: React.FC = () => {
     };
 
     fetchAvailableSlots();
-  }, [selectedDate, merchantId, selectedStaff, actualServiceDuration]);
+  }, [selectedDate, merchantId, selectedStaff]);
 
   const handleTimeSlotClick = (timeSlot: string) => {
     // Find available slot for this time in filtered slots
