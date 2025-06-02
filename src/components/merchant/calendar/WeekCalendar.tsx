@@ -24,23 +24,23 @@ const WeekCalendar: React.FC<WeekCalendarProps> = ({
   const displayDays = weekDays.slice(0, 5);
 
   return (
-    <Card className="mb-6 overflow-hidden shadow-sm">
-      <CardHeader className="bg-gradient-to-r from-booqit-primary/5 to-booqit-primary/10 py-4">
+    <Card className="mb-4 overflow-hidden shadow-sm">
+      <CardHeader className="bg-gradient-to-r from-booqit-primary/5 to-booqit-primary/10 py-3">
         <div className="flex justify-between items-center">
-          <CardTitle className="text-booqit-dark text-xl sm:text-2xl">Your Appointments</CardTitle>
+          <CardTitle className="text-booqit-dark text-lg font-semibold">Your Appointments</CardTitle>
           <div className="flex items-center space-x-2">
             <Button 
               variant="outline" 
               size="sm" 
               onClick={() => onNavigateWeek('prev')}
-              className="h-10 px-4"
+              className="h-8 px-3"
             >
-              <ChevronLeft className="h-5 w-5" />
+              <ChevronLeft className="h-4 w-4" />
             </Button>
             <Button 
               variant="outline"
               size="sm"
-              className="h-10 text-sm font-medium px-4"
+              className="h-8 text-sm font-medium px-3"
               onClick={onGoToToday}
             >
               Today
@@ -49,9 +49,9 @@ const WeekCalendar: React.FC<WeekCalendarProps> = ({
               variant="outline" 
               size="sm" 
               onClick={() => onNavigateWeek('next')}
-              className="h-10 px-4"
+              className="h-8 px-3"
             >
-              <ChevronRight className="h-5 w-5" />
+              <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -74,16 +74,16 @@ const WeekCalendar: React.FC<WeekCalendarProps> = ({
                 `}
               >
                 <div className={`
-                  flex flex-col items-center justify-center py-6 px-4 sm:py-8 sm:px-6
+                  flex flex-col items-center justify-center py-5 px-3
                   ${isCurrentDay ? 'bg-booqit-primary text-white' : ''}
                 `}>
-                  <div className="text-sm sm:text-base uppercase font-medium tracking-wider mb-2">
+                  <div className="text-sm uppercase font-medium tracking-wider mb-1">
                     {format(day, 'EEE')}
                   </div>
-                  <div className="text-3xl sm:text-4xl md:text-5xl font-bold my-2">
+                  <div className="text-3xl font-bold my-1">
                     {format(day, 'd')}
                   </div>
-                  <div className="text-sm sm:text-base">
+                  <div className="text-sm">
                     {format(day, 'MMM')}
                   </div>
                 </div>
