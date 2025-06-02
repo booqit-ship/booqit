@@ -32,14 +32,12 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onStatusChange }) =>
   const handleStatusChange = async (newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
     setIsLoading(true);
     try {
-      // Update booking status directly
-      const { error } = await supabase
-        .from('bookings')
-        .update({ 
-          status: newStatus,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', booking.id);
+      // Use the proper status update function that handles slot management
+      const { error } = await supabase.rpc('update_booking_status_with_slot_management', {
+        p_booking_id: booking.id,
+        p_new_status: newStatus,
+        p_user_id: null // Merchant can update without user_id restriction
+      });
 
       if (error) {
         console.error('Error updating booking status:', error);
@@ -51,7 +49,8 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onStatusChange }) =>
       const statusMessages = {
         confirmed: 'Booking confirmed successfully',
         completed: 'Booking marked as completed',
-        cancelled: 'Booking cancelled successfully'
+        cancelled: 'Booking cancelled successfully',
+        pending: 'Booking set to pending'
       };
 
       toast.success(statusMessages[newStatus] || 'Booking updated successfully');

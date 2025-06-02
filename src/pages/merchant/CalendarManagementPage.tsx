@@ -7,10 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { format, isToday, isTomorrow } from 'date-fns';
-import { Calendar as CalendarIcon, Clock, Users, TrendingUp } from 'lucide-react';
-import CalendarNavigation from '@/components/merchant/calendar/CalendarNavigation';
-import CalendarDays from '@/components/merchant/calendar/CalendarDays';
+import { format, isToday, isTomorrow, addDays, startOfWeek, isSameDay } from 'date-fns';
+import { Calendar as CalendarIcon, Clock, Users, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import BookingsList from '@/components/merchant/calendar/BookingsList';
 import HolidayManager from '@/components/merchant/calendar/HolidayManager';
 
@@ -36,11 +34,15 @@ interface HolidayDate {
 const CalendarManagementPage: React.FC = () => {
   const { userId } = useAuth();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [weekStart, setWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [bookings, setBookings] = useState<BookingWithCustomer[]>([]);
   const [loading, setLoading] = useState(true);
   const [merchantId, setMerchantId] = useState<string | null>(null);
   const [holidays, setHolidays] = useState<HolidayDate[]>([]);
   const [holidaysLoading, setHolidaysLoading] = useState(false);
+
+  // Generate week days
+  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
   // Fetch merchant ID
   useEffect(() => {
@@ -166,7 +168,7 @@ const CalendarManagementPage: React.FC = () => {
         }));
         
         setBookings(typedBookings);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error:', error);
         toast.error('Failed to load bookings');
       } finally {
@@ -216,6 +218,8 @@ const CalendarManagementPage: React.FC = () => {
         }));
         setBookings(typedBookings);
       }
+
+      toast.success(`Booking ${newStatus} successfully`);
     } catch (error) {
       console.error('Error updating booking status:', error);
       toast.error('Failed to update booking status');
@@ -258,6 +262,20 @@ const CalendarManagementPage: React.FC = () => {
     return { total, confirmed, completed, pending };
   };
 
+  const navigateWeek = (direction: 'prev' | 'next') => {
+    const newWeekStart = addDays(weekStart, direction === 'next' ? 7 : -7);
+    setWeekStart(newWeekStart);
+    if (!weekDays.some(day => isSameDay(day, selectedDate))) {
+      setSelectedDate(newWeekStart);
+    }
+  };
+
+  const goToToday = () => {
+    const today = new Date();
+    setSelectedDate(today);
+    setWeekStart(startOfWeek(today, { weekStartsOn: 1 }));
+  };
+
   const stats = getBookingStats();
 
   if (!merchantId) {
@@ -278,38 +296,76 @@ const CalendarManagementPage: React.FC = () => {
         <p className="text-muted-foreground">Manage your bookings and appointments</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Calendar Section */}
-        <div className="lg:col-span-1">
-          <Card>
-            <CardHeader>
-              <CardTitle>Select Date</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={(date) => date && setSelectedDate(date)}
-                className="rounded-md border"
-              />
-            </CardContent>
-          </Card>
-
-          {/* Holiday Manager */}
-          <div className="mt-6">
-            <HolidayManager 
-              merchantId={merchantId}
-              holidays={holidays}
-              isLoading={holidaysLoading}
-              onDeleteHoliday={handleDeleteHoliday}
-              onHolidayAdded={fetchHolidays}
-            />
+      {/* Week Calendar View */}
+      <Card className="mb-6">
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <CardTitle>Appointments</CardTitle>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => navigateWeek('prev')}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={goToToday}
+              >
+                Today
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => navigateWeek('next')}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
-        </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="grid grid-cols-7 border-t">
+            {weekDays.map((day, index) => {
+              const isSelected = isSameDay(day, selectedDate);
+              const isCurrentDay = isToday(day);
+              
+              return (
+                <div
+                  key={index}
+                  onClick={() => setSelectedDate(day)}
+                  className={`
+                    p-4 border-r last:border-r-0 cursor-pointer transition-colors
+                    ${isSelected ? 'bg-booqit-primary/10 border-booqit-primary' : 'hover:bg-gray-50'}
+                  `}
+                >
+                  <div className="text-center">
+                    <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
+                      {format(day, 'EEE')}
+                    </div>
+                    <div className={`
+                      text-2xl font-bold mb-1
+                      ${isCurrentDay ? 'bg-booqit-primary text-white rounded-full w-8 h-8 flex items-center justify-center mx-auto' : ''}
+                      ${isSelected && !isCurrentDay ? 'text-booqit-primary' : ''}
+                    `}>
+                      {format(day, 'd')}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {format(day, 'MMM')}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Bookings Section */}
-        <div className="lg:col-span-2">
-          {/* Stats Cards */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Stats Cards */}
+        <div className="lg:col-span-3">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <Card>
               <CardContent className="p-4">
@@ -359,13 +415,15 @@ const CalendarManagementPage: React.FC = () => {
               </CardContent>
             </Card>
           </div>
+        </div>
 
-          {/* Bookings List */}
+        {/* Bookings Section */}
+        <div className="lg:col-span-2">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
-                  Bookings for {getDateLabel(selectedDate)}
+                  📅 {format(selectedDate, 'MMMM d, yyyy')} Bookings
                   <Badge variant="outline">{stats.total} total</Badge>
                 </CardTitle>
               </div>
@@ -379,6 +437,17 @@ const CalendarManagementPage: React.FC = () => {
               />
             </CardContent>
           </Card>
+        </div>
+
+        {/* Holiday Manager */}
+        <div className="lg:col-span-1">
+          <HolidayManager 
+            merchantId={merchantId}
+            holidays={holidays}
+            isLoading={holidaysLoading}
+            onDeleteHoliday={handleDeleteHoliday}
+            onHolidayAdded={fetchHolidays}
+          />
         </div>
       </div>
     </div>

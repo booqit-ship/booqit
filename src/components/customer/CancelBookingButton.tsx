@@ -59,24 +59,28 @@ const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
     setIsCancelling(true);
     
     try {
-      console.log('Cancelling booking:', bookingId, 'for user:', userId);
+      console.log('Cancelling booking with proper slot release:', bookingId, 'for user:', userId);
       
-      // Update booking status to cancelled
-      const { error: updateError } = await supabase
-        .from('bookings')
-        .update({ 
-          status: 'cancelled',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', bookingId);
+      // Use the enhanced cancel function that properly releases all slots
+      const { data, error } = await supabase.rpc('cancel_booking_and_release_all_slots', {
+        p_booking_id: bookingId,
+        p_user_id: userId
+      });
 
-      if (updateError) {
-        console.error('Error updating booking status:', updateError);
-        throw new Error('Failed to cancel booking');
+      if (error) {
+        console.error('Error cancelling booking:', error);
+        throw new Error(error.message);
       }
 
-      console.log('Booking cancelled successfully');
-      toast.success('Booking cancelled successfully');
+      console.log('Cancel booking response:', data);
+      
+      // Check if the cancellation was successful
+      if (!data || !data.success) {
+        throw new Error(data?.error || 'Failed to cancel booking');
+      }
+
+      console.log('Booking cancelled successfully:', data);
+      toast.success(`${data.message} (${data.slots_released} slots released)`);
       
       setIsDialogOpen(false);
       onCancelSuccess?.();
@@ -122,7 +126,7 @@ const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
             <strong>{bookingTime}</strong>?
             <br />
             <br />
-            This action cannot be undone and your time slot will be released for other customers.
+            This action cannot be undone and your time slots will be released for other customers.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
