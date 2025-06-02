@@ -22,6 +22,12 @@ interface AvailableSlot {
   status_reason: string | null;
 }
 
+interface AvailabilityResponse {
+  available: boolean;
+  reason?: string;
+  conflicting_slot?: string;
+}
+
 const DateTimeSelectionPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
@@ -196,8 +202,11 @@ const DateTimeSelectionPage: React.FC = () => {
 
       console.log('Availability check result:', availabilityCheck);
 
-      if (!availabilityCheck.available) {
-        toast.error(availabilityCheck.reason || 'Time slot not available for the full service duration');
+      // Type guard and proper parsing of the response
+      const response = availabilityCheck as AvailabilityResponse;
+      
+      if (!response.available) {
+        toast.error(response.reason || 'Time slot not available for the full service duration');
         return;
       }
 
@@ -234,7 +243,10 @@ const DateTimeSelectionPage: React.FC = () => {
         p_service_duration: actualServiceDuration
       });
 
-      if (error || !finalCheck.available) {
+      // Type guard for the final check response
+      const response = finalCheck as AvailabilityResponse;
+      
+      if (error || !response.available) {
         toast.error('Time slot is no longer available. Please select another time.');
         setSelectedTime('');
         // Refresh slots

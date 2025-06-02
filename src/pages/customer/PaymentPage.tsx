@@ -12,11 +12,17 @@ import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { formatDateInIST } from '@/utils/dateUtils';
 import { useAuth } from '@/contexts/AuthContext';
 
+interface AvailabilityResponse {
+  available: boolean;
+  reason?: string;
+  conflicting_slot?: string;
+}
+
 const PaymentPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
+  const { userId } = useAuth(); // Use userId instead of user
   
   const {
     merchant,
@@ -40,7 +46,7 @@ const PaymentPage: React.FC = () => {
   }, []);
 
   const handlePayment = async () => {
-    if (!user) {
+    if (!userId) {
       toast.error('Please login to complete booking');
       return;
     }
@@ -56,7 +62,10 @@ const PaymentPage: React.FC = () => {
         p_service_duration: totalDuration
       });
 
-      if (checkError || !finalCheck?.available) {
+      // Type guard for the response
+      const response = finalCheck as AvailabilityResponse;
+      
+      if (checkError || !response.available) {
         toast.error('Time slot is no longer available. Please go back and select another time.');
         setProcessing(false);
         return;
@@ -64,7 +73,7 @@ const PaymentPage: React.FC = () => {
 
       // Create booking record
       const bookingData = {
-        user_id: user.id,
+        user_id: userId,
         merchant_id: merchantId,
         service_id: selectedServices[0].id, // For now, use first service
         staff_id: selectedStaff,
