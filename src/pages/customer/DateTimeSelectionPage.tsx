@@ -33,6 +33,7 @@ const DateTimeSelectionPage: React.FC = () => {
   const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
   const [filteredSlots, setFilteredSlots] = useState<AvailableSlot[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>('');
 
   // Calculate actual service duration from selected services
   const actualServiceDuration = selectedServices && selectedServices.length > 0 
@@ -121,6 +122,7 @@ const DateTimeSelectionPage: React.FC = () => {
       if (!selectedDate || !merchantId) return;
 
       setLoading(true);
+      setError('');
       setSelectedTime(''); // Reset selected time when date changes
       
       try {
@@ -136,15 +138,21 @@ const DateTimeSelectionPage: React.FC = () => {
 
         if (slotsError) {
           console.error('Error fetching available slots:', slotsError);
-          toast.error('Could not load available time slots');
+          setError('Could not load available time slots. Please try again.');
           setAvailableSlots([]);
           return;
         }
 
         console.log('Raw slots data:', slotsData);
 
+        if (!slotsData || slotsData.length === 0) {
+          console.log('No slots returned from database');
+          setAvailableSlots([]);
+          return;
+        }
+
         // Process the slots data
-        const processedSlots = (slotsData || []).map((slot: any) => ({
+        const processedSlots = slotsData.map((slot: any) => ({
           staff_id: slot.staff_id,
           staff_name: slot.staff_name,
           time_slot: typeof slot.time_slot === 'string' ? slot.time_slot.substring(0, 5) : formatDateInIST(new Date(`2000-01-01T${slot.time_slot}`), 'HH:mm'),
@@ -157,7 +165,7 @@ const DateTimeSelectionPage: React.FC = () => {
 
       } catch (error) {
         console.error('Error fetching available slots:', error);
-        toast.error('Could not load time slots');
+        setError('Could not load time slots. Please try again.');
         setAvailableSlots([]);
       } finally {
         setLoading(false);
@@ -334,6 +342,24 @@ const DateTimeSelectionPage: React.FC = () => {
               )}
             </h3>
             
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-red-600 text-sm">{error}</p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="mt-2"
+                  onClick={() => {
+                    setError('');
+                    // Trigger refetch by updating selectedDate state
+                    setSelectedDate(new Date(selectedDate));
+                  }}
+                >
+                  Try Again
+                </Button>
+              </div>
+            )}
+            
             {loading ? (
               <div className="flex justify-center py-8">
                 <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
@@ -363,6 +389,19 @@ const DateTimeSelectionPage: React.FC = () => {
                     : "Please select a different date or try again later"
                   }
                 </p>
+                {!loading && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="mt-3"
+                    onClick={() => {
+                      // Trigger refetch by updating selectedDate state
+                      setSelectedDate(new Date(selectedDate));
+                    }}
+                  >
+                    Refresh Slots
+                  </Button>
+                )}
               </div>
             )}
           </div>
@@ -374,7 +413,7 @@ const DateTimeSelectionPage: React.FC = () => {
           className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6"
           size="lg"
           onClick={handleContinue}
-          disabled={!selectedDate || !selectedTime}
+          disabled={!selectedDate || !selectedTime || loading}
         >
           Continue to Payment
         </Button>

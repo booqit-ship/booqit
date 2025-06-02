@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -90,7 +91,7 @@ export const useCalendarData = (userId: string | null, selectedDate: Date) => {
     fetchHolidays();
   }, [merchantId]);
 
-  // Generate slots for selected date
+  // Generate slots for selected date - now with better error handling
   useEffect(() => {
     const generateSlots = async () => {
       if (!merchantId || !selectedDate) return;
@@ -100,7 +101,7 @@ export const useCalendarData = (userId: string | null, selectedDate: Date) => {
         const dateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
         console.log('Generating slots for:', dateStr);
         
-        // Use the new fresh slots function
+        // Use the fixed fresh slots function
         const { data, error } = await supabase.rpc('get_fresh_available_slots', {
           p_merchant_id: merchantId,
           p_date: dateStr,
@@ -109,8 +110,9 @@ export const useCalendarData = (userId: string | null, selectedDate: Date) => {
         
         if (error) {
           console.error('Error with slot generation:', error);
+          // Don't show toast for slot generation errors as this is background process
         } else {
-          console.log('Slot generation completed for:', dateStr);
+          console.log('Slot generation completed for:', dateStr, 'Generated slots:', data?.length || 0);
         }
       } catch (error) {
         console.error('Error generating slots:', error);
