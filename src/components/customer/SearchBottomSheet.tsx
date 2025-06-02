@@ -6,7 +6,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Merchant } from '@/types';
 import { SlidersHorizontal, ChevronUp, ChevronDown, Star, MapPin, Clock, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
 interface SearchBottomSheetProps {
   merchants: Merchant[];
   filters: {
@@ -21,7 +20,6 @@ interface SearchBottomSheetProps {
   onMerchantSelect: (merchant: Merchant) => void;
   userCity: string;
 }
-
 const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
   merchants,
   filters,
@@ -32,11 +30,12 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-
   const handleFilterChange = (key: string, value: string) => {
-    onFiltersChange(prev => ({ ...prev, [key]: value }));
+    onFiltersChange(prev => ({
+      ...prev,
+      [key]: value
+    }));
   };
-
   const resetFilters = () => {
     onFiltersChange({
       sortBy: 'rating',
@@ -46,11 +45,9 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
       genderFocus: 'all'
     });
   };
-
   const formatPrice = (price: number) => {
     return `₹${price}`;
   };
-
   const formatDuration = (duration: number) => {
     const hours = Math.floor(duration / 60);
     const minutes = duration % 60;
@@ -59,47 +56,30 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
     }
     return `${minutes} min`;
   };
-
   const handleExpandToggle = () => {
     setIsExpanded(!isExpanded);
   };
-
-  return (
-    <div className={cn(
-      "fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl transition-all duration-300 ease-out z-40 flex flex-col",
-      isExpanded ? "h-[85vh]" : "h-44"
-    )}>
+  return <div className={cn("fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl transition-all duration-300 ease-out z-40 flex flex-col", isExpanded ? "h-[85vh]" : "h-44")}>
       {/* Handle bar and header */}
       <div className="flex flex-col items-center pt-3 pb-4 flex-shrink-0">
         {/* Only the handle bar should be clickable for expanding */}
-        <div 
-          className="w-12 h-1.5 bg-gray-300 rounded-full mb-4 cursor-pointer"
-          onClick={handleExpandToggle}
-        ></div>
+        <div className="w-12 h-1.5 bg-gray-300 rounded-full mb-4 cursor-pointer" onClick={handleExpandToggle}></div>
         
         {/* Filter and Sort controls - Fixed, no scrolling */}
         <div className="flex items-center justify-between w-full px-4 mb-3">
           <div className="flex gap-3 items-center w-full">
             {/* Filter Button */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowFilters(!showFilters);
-              }}
-              className="rounded-full flex-shrink-0 h-9 px-3 border-gray-300 text-sm"
-            >
+            <Button variant="outline" size="sm" onClick={e => {
+            e.stopPropagation();
+            setShowFilters(!showFilters);
+          }} className="rounded-full flex-shrink-0 h-9 px-3 border-gray-300 text-sm">
               <SlidersHorizontal className="w-4 h-4 mr-1" />
               Filter
             </Button>
             
             {/* Category Filter */}
-            <Select value={filters.category} onValueChange={(value) => handleFilterChange('category', value)}>
-              <SelectTrigger 
-                className="flex-1 h-9 rounded-full text-sm border-gray-300"
-                onClick={(e) => e.stopPropagation()}
-              >
+            <Select value={filters.category} onValueChange={value => handleFilterChange('category', value)}>
+              <SelectTrigger className="flex-1 h-9 rounded-full text-sm border-gray-300" onClick={e => e.stopPropagation()}>
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
               <SelectContent className="bg-white z-50">
@@ -111,11 +91,8 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
             </Select>
 
             {/* Type (Gender Focus) */}
-            <Select value={filters.genderFocus} onValueChange={(value) => handleFilterChange('genderFocus', value)}>
-              <SelectTrigger 
-                className="flex-1 h-9 rounded-full text-sm border-gray-300"
-                onClick={(e) => e.stopPropagation()}
-              >
+            <Select value={filters.genderFocus} onValueChange={value => handleFilterChange('genderFocus', value)}>
+              <SelectTrigger className="flex-1 h-9 rounded-full text-sm border-gray-300" onClick={e => e.stopPropagation()}>
                 <SelectValue placeholder="Type" />
               </SelectTrigger>
               <SelectContent className="bg-white z-50">
@@ -129,16 +106,8 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
           
           {/* Expand/Collapse Icon - Only this should control expansion */}
           <div className="flex-shrink-0 ml-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleExpandToggle}
-              className="p-1 h-auto"
-            >
-              {isExpanded ? 
-                <ChevronDown className="w-5 h-5 text-gray-400" /> : 
-                <ChevronUp className="w-5 h-5 text-gray-400" />
-              }
+            <Button variant="ghost" size="sm" onClick={handleExpandToggle} className="p-1 h-auto">
+              {isExpanded ? <ChevronDown className="w-5 h-5 text-gray-400" /> : <ChevronUp className="w-5 h-5 text-gray-400" />}
             </Button>
           </div>
         </div>
@@ -152,8 +121,7 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
       </div>
 
       {/* Extended filters */}
-      {showFilters && (
-        <div className="px-4 py-4 border-t border-gray-100 bg-gray-50 flex-shrink-0">
+      {showFilters && <div className="px-4 py-4 border-t border-gray-100 bg-gray-50 flex-shrink-0">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-gray-900">More Filters</h3>
             <Button variant="ghost" size="sm" onClick={resetFilters} className="text-booqit-primary">
@@ -165,56 +133,42 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
             <div>
               <label className="text-sm font-medium mb-3 block text-gray-700">Price Range</label>
               <div className="flex gap-2 flex-wrap">
-                {[
-                  { value: 'all', label: 'Any' },
-                  { value: 'low', label: '₹0-500' },
-                  { value: 'medium', label: '₹500-1000' },
-                  { value: 'high', label: '₹1000+' }
-                ].map(price => (
-                  <Button
-                    key={price.value}
-                    variant={filters.priceRange === price.value ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => handleFilterChange('priceRange', price.value)}
-                    className="rounded-full h-9"
-                  >
+                {[{
+              value: 'all',
+              label: 'Any'
+            }, {
+              value: 'low',
+              label: '₹0-500'
+            }, {
+              value: 'medium',
+              label: '₹500-1000'
+            }, {
+              value: 'high',
+              label: '₹1000+'
+            }].map(price => <Button key={price.value} variant={filters.priceRange === price.value ? "default" : "outline"} size="sm" onClick={() => handleFilterChange('priceRange', price.value)} className="rounded-full h-9">
                     {price.label}
-                  </Button>
-                ))}
+                  </Button>)}
               </div>
             </div>
             
             <div>
               <label className="text-sm font-medium mb-3 block text-gray-700">Minimum Rating</label>
               <div className="flex gap-2 flex-wrap">
-                {['all', '3', '4', '4.5'].map(rating => (
-                  <Button
-                    key={rating}
-                    variant={filters.rating === rating ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => handleFilterChange('rating', rating)}
-                    className="rounded-full h-9"
-                  >
+                {['all', '3', '4', '4.5'].map(rating => <Button key={rating} variant={filters.rating === rating ? "default" : "outline"} size="sm" onClick={() => handleFilterChange('rating', rating)} className="rounded-full h-9">
                     {rating === 'all' ? 'Any' : `${rating}+ ⭐`}
-                  </Button>
-                ))}
+                  </Button>)}
               </div>
             </div>
           </div>
           
           <Separator className="my-4" />
-        </div>
-      )}
+        </div>}
 
       {/* Merchant list - Scrollable */}
-      {isExpanded && (
-        <div className="flex-1 overflow-y-auto px-4 pb-20">
-          {isLoading ? (
-            <div className="flex justify-center py-10">
+      {isExpanded && <div className="flex-1 overflow-y-auto px-4 pb-20">
+          {isLoading ? <div className="flex justify-center py-10">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-booqit-primary"></div>
-            </div>
-          ) : merchants.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 px-8">
+            </div> : merchants.length === 0 ? <div className="flex flex-col items-center justify-center py-16 px-8">
               {/* Aesthetic illustration for no results */}
               <div className="relative mb-6">
                 <div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center">
@@ -237,32 +191,14 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
               
               {/* Suggestion buttons */}
               <div className="flex gap-2 mt-4">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={resetFilters}
-                  className="rounded-full text-xs"
-                >
-                  Clear Filters
-                </Button>
+                
               </div>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {merchants.map(merchant => (
-                <Card 
-                  key={merchant.id} 
-                  className="overflow-hidden cursor-pointer hover:shadow-lg transition-all duration-200 border-0 shadow-md rounded-2xl"
-                  onClick={() => onMerchantSelect(merchant)}
-                >
+            </div> : <div className="space-y-6">
+              {merchants.map(merchant => <Card key={merchant.id} className="overflow-hidden cursor-pointer hover:shadow-lg transition-all duration-200 border-0 shadow-md rounded-2xl" onClick={() => onMerchantSelect(merchant)}>
                   <div className="relative">
                     {/* Shop Image */}
                     <div className="w-full h-48 relative">
-                      <img 
-                        src={merchant.image_url || '/placeholder.svg'} 
-                        alt={merchant.shop_name} 
-                        className="w-full h-full object-cover rounded-t-2xl"
-                      />
+                      <img src={merchant.image_url || '/placeholder.svg'} alt={merchant.shop_name} className="w-full h-full object-cover rounded-t-2xl" />
                       <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full">
                         <div className="flex items-center">
                           <Star className="w-4 h-4 text-yellow-400 mr-1" />
@@ -288,10 +224,8 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
                       </div>
 
                       {/* Services */}
-                      {merchant.services && merchant.services.length > 0 && (
-                        <div className="space-y-3">
-                          {merchant.services.slice(0, 3).map((service, index) => (
-                            <div key={service.id} className="flex justify-between items-center">
+                      {merchant.services && merchant.services.length > 0 && <div className="space-y-3">
+                          {merchant.services.slice(0, 3).map((service, index) => <div key={service.id} className="flex justify-between items-center">
                               <div className="flex-1">
                                 <h4 className="font-medium text-gray-900 text-sm">{service.name}</h4>
                                 <div className="flex items-center text-gray-500 text-xs mt-1">
@@ -302,38 +236,27 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
                               <div className="text-right">
                                 <span className="font-semibold text-gray-900">from {formatPrice(service.price)}</span>
                               </div>
-                            </div>
-                          ))}
+                            </div>)}
                           
-                          {merchant.services.length > 3 && (
-                            <div className="pt-2">
+                          {merchant.services.length > 3 && <div className="pt-2">
                               <span className="text-booqit-primary text-sm font-medium">
                                 See more
                               </span>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                            </div>}
+                        </div>}
 
                       {/* Distance */}
-                      {merchant.distanceValue && (
-                        <div className="mt-3 pt-3 border-t border-gray-100">
+                      {merchant.distanceValue && <div className="mt-3 pt-3 border-t border-gray-100">
                           <div className="flex items-center text-gray-600">
                             <MapPin className="w-4 h-4 mr-1" />
                             <span className="text-sm">{merchant.distance} away</span>
                           </div>
-                        </div>
-                      )}
+                        </div>}
                     </CardContent>
                   </div>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
+                </Card>)}
+            </div>}
+        </div>}
+    </div>;
 };
-
 export default SearchBottomSheet;
