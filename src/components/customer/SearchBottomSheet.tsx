@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -40,7 +39,7 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
 
   const resetFilters = () => {
     onFiltersChange({
-      sortBy: 'distance',
+      sortBy: 'rating',
       priceRange: 'all',
       category: 'all',
       rating: 'all',
@@ -75,7 +74,7 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
         
         {/* Filter and Sort controls - Fixed, no scrolling */}
         <div className="flex items-center justify-between w-full px-4 mb-3">
-          <div className="flex gap-2 items-center w-full overflow-x-auto">
+          <div className="flex gap-3 items-center w-full">
             {/* Filter Button */}
             <Button
               variant="outline"
@@ -90,21 +89,9 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
               Filter
             </Button>
             
-            {/* Distance/Rating Sort */}
-            <Select value={filters.sortBy} onValueChange={(value) => handleFilterChange('sortBy', value)}>
-              <SelectTrigger className="w-24 h-9 rounded-full text-sm flex-shrink-0 border-gray-300">
-                <SelectValue placeholder="Sort" />
-              </SelectTrigger>
-              <SelectContent className="bg-white z-50">
-                <SelectItem value="distance">Distance</SelectItem>
-                <SelectItem value="rating">Rating</SelectItem>
-                <SelectItem value="name">Name</SelectItem>
-              </SelectContent>
-            </Select>
-
             {/* Category Filter */}
             <Select value={filters.category} onValueChange={(value) => handleFilterChange('category', value)}>
-              <SelectTrigger className="w-24 h-9 rounded-full text-sm flex-shrink-0 border-gray-300">
+              <SelectTrigger className="flex-1 h-9 rounded-full text-sm border-gray-300">
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
               <SelectContent className="bg-white z-50">
@@ -117,7 +104,7 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
 
             {/* Type (Gender Focus) */}
             <Select value={filters.genderFocus} onValueChange={(value) => handleFilterChange('genderFocus', value)}>
-              <SelectTrigger className="w-20 h-9 rounded-full text-sm flex-shrink-0 border-gray-300">
+              <SelectTrigger className="flex-1 h-9 rounded-full text-sm border-gray-300">
                 <SelectValue placeholder="Type" />
               </SelectTrigger>
               <SelectContent className="bg-white z-50">

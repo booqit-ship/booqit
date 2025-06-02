@@ -22,7 +22,7 @@ const SearchPage: React.FC = () => {
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>({ lat: 12.9716, lng: 77.5946 });
   const [mapZoom, setMapZoom] = useState(11);
   const [filters, setFilters] = useState({
-    sortBy: 'distance',
+    sortBy: 'rating',
     priceRange: 'all',
     category: 'all',
     rating: 'all',
@@ -249,10 +249,8 @@ const SearchPage: React.FC = () => {
           } as Merchant;
         });
         
-        // Apply sorting
-        if (filters.sortBy === 'distance') {
-          filtered.sort((a, b) => (a.distanceValue || 0) - (b.distanceValue || 0));
-        } else if (filters.sortBy === 'rating') {
+        // Apply sorting - default to rating since distance filter is removed
+        if (filters.sortBy === 'rating') {
           filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0));
         } else if (filters.sortBy === 'name') {
           filtered.sort((a, b) => a.shop_name.localeCompare(b.shop_name));
