@@ -3,18 +3,19 @@ import React, { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { format, addDays, startOfWeek, isSameDay } from 'date-fns';
+import { addDays, startOfWeek, isSameDay } from 'date-fns';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import BookingsList from '@/components/merchant/calendar/BookingsList';
 import HolidayManager from '@/components/merchant/calendar/HolidayManager';
 import WeekCalendar from '@/components/merchant/calendar/WeekCalendar';
 import StylistAvailabilityWidget from '@/components/merchant/StylistAvailabilityWidget';
 import { useCalendarData } from '@/hooks/useCalendarData';
+import { formatDateInIST, getCurrentDateIST } from '@/utils/dateUtils';
 
 const CalendarManagementPage: React.FC = () => {
   const { userId } = useAuth();
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [weekStart, setWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const [selectedDate, setSelectedDate] = useState<Date>(getCurrentDateIST());
+  const [weekStart, setWeekStart] = useState<Date>(startOfWeek(getCurrentDateIST(), { weekStartsOn: 1 }));
   const [appointmentCounts, setAppointmentCounts] = useState<{ [date: string]: number }>({});
 
   const {
@@ -28,7 +29,7 @@ const CalendarManagementPage: React.FC = () => {
     handleDeleteHoliday,
   } = useCalendarData(userId, selectedDate);
 
-  // Generate week days (5 weekdays only)
+  // Generate week days (5 weekdays only) using IST
   const weekDays = Array.from({ length: 5 }, (_, i) => addDays(weekStart, i));
 
   // Fetch appointment counts for the week
@@ -39,7 +40,7 @@ const CalendarManagementPage: React.FC = () => {
       const counts: { [date: string]: number } = {};
       
       for (const day of weekDays) {
-        const dateStr = format(day, 'yyyy-MM-dd');
+        const dateStr = formatDateInIST(day, 'yyyy-MM-dd');
         try {
           const { count, error } = await supabase
             .from('bookings')
@@ -80,7 +81,7 @@ const CalendarManagementPage: React.FC = () => {
       fetchBookings();
       
       // Refresh appointment counts
-      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      const dateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
       const { count } = await supabase
         .from('bookings')
         .select('*', { count: 'exact', head: true })
@@ -107,9 +108,9 @@ const CalendarManagementPage: React.FC = () => {
   };
 
   const goToToday = () => {
-    const today = new Date();
-    setSelectedDate(today);
-    setWeekStart(startOfWeek(today, { weekStartsOn: 1 }));
+    const todayIST = getCurrentDateIST();
+    setSelectedDate(todayIST);
+    setWeekStart(startOfWeek(todayIST, { weekStartsOn: 1 }));
   };
 
   if (!merchantId) {
@@ -127,7 +128,7 @@ const CalendarManagementPage: React.FC = () => {
           <CalendarIcon className="h-6 w-6 text-booqit-primary" />
           <h1 className="text-2xl md:text-3xl font-bold">Calendar Management</h1>
         </div>
-        <p className="text-muted-foreground">Manage your bookings and appointments</p>
+        <p className="text-muted-foreground">Manage your bookings and appointments (IST)</p>
       </div>
 
       <WeekCalendar

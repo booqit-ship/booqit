@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { format, addDays } from 'date-fns';
+import { addDays } from 'date-fns';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
+import { formatDateInIST, getCurrentDateIST, isTodayIST } from '@/utils/dateUtils';
 
 interface AvailableSlot {
   staff_id: string;
@@ -28,13 +29,13 @@ const DateTimeSelectionPage: React.FC = () => {
   const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Generate 3 days: today, tomorrow, day after tomorrow
+  // Generate 3 days: today, tomorrow, day after tomorrow (using IST)
   const getAvailableDates = () => {
     const dates: Date[] = [];
-    const today = new Date();
+    const todayIST = getCurrentDateIST();
     
     for (let i = 0; i < 3; i++) {
-      const date = addDays(today, i);
+      const date = addDays(todayIST, i);
       dates.push(date);
     }
     
@@ -43,7 +44,7 @@ const DateTimeSelectionPage: React.FC = () => {
 
   const availableDates = getAvailableDates();
 
-  // Set today as default selected date
+  // Set today (IST) as default selected date
   useEffect(() => {
     if (availableDates.length > 0 && !selectedDate) {
       setSelectedDate(availableDates[0]);
@@ -58,7 +59,8 @@ const DateTimeSelectionPage: React.FC = () => {
       setSelectedTime(''); // Reset selected time when date changes
       
       try {
-        const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+        // Format date in IST for backend consistency
+        const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
         console.log('Fetching slots for date:', selectedDateStr, 'Staff:', selectedStaff, 'Duration:', totalDuration);
 
         // Get available slots using the new validation function
@@ -81,7 +83,7 @@ const DateTimeSelectionPage: React.FC = () => {
         const processedSlots = (slotsData || []).map((slot: any) => ({
           staff_id: slot.staff_id,
           staff_name: slot.staff_name,
-          time_slot: typeof slot.time_slot === 'string' ? slot.time_slot.substring(0, 5) : format(new Date(`2000-01-01T${slot.time_slot}`), 'HH:mm'),
+          time_slot: typeof slot.time_slot === 'string' ? slot.time_slot.substring(0, 5) : formatDateInIST(new Date(`2000-01-01T${slot.time_slot}`), 'HH:mm'),
           is_available: slot.is_available,
           conflict_reason: slot.conflict_reason
         }));
@@ -131,7 +133,7 @@ const DateTimeSelectionPage: React.FC = () => {
       totalDuration,
       selectedStaff: finalStaffId,
       selectedStaffDetails: finalStaffDetails,
-      bookingDate: format(selectedDate, 'yyyy-MM-dd'),
+      bookingDate: formatDateInIST(selectedDate, 'yyyy-MM-dd'),
       bookingTime: selectedTime
     });
 
@@ -143,25 +145,25 @@ const DateTimeSelectionPage: React.FC = () => {
         totalDuration,
         selectedStaff: finalStaffId,
         selectedStaffDetails: finalStaffDetails,
-        bookingDate: format(selectedDate, 'yyyy-MM-dd'),
+        bookingDate: formatDateInIST(selectedDate, 'yyyy-MM-dd'),
         bookingTime: selectedTime
       }
     });
   };
 
   const formatDateDisplay = (date: Date) => {
-    const today = new Date();
-    const tomorrow = addDays(today, 1);
-    const dayAfterTomorrow = addDays(today, 2);
+    const todayIST = getCurrentDateIST();
+    const tomorrowIST = addDays(todayIST, 1);
+    const dayAfterTomorrowIST = addDays(todayIST, 2);
     
-    if (format(date, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')) {
+    if (formatDateInIST(date, 'yyyy-MM-dd') === formatDateInIST(todayIST, 'yyyy-MM-dd')) {
       return 'Today';
-    } else if (format(date, 'yyyy-MM-dd') === format(tomorrow, 'yyyy-MM-dd')) {
+    } else if (formatDateInIST(date, 'yyyy-MM-dd') === formatDateInIST(tomorrowIST, 'yyyy-MM-dd')) {
       return 'Tomorrow';
-    } else if (format(date, 'yyyy-MM-dd') === format(dayAfterTomorrow, 'yyyy-MM-dd')) {
-      return format(date, 'EEE, MMM d');
+    } else if (formatDateInIST(date, 'yyyy-MM-dd') === formatDateInIST(dayAfterTomorrowIST, 'yyyy-MM-dd')) {
+      return formatDateInIST(date, 'EEE, MMM d');
     } else {
-      return format(date, 'EEE, MMM d');
+      return formatDateInIST(date, 'EEE, MMM d');
     }
   };
 
@@ -201,7 +203,7 @@ const DateTimeSelectionPage: React.FC = () => {
             Select your preferred date and time slot. Service duration: {totalDuration} minutes
           </p>
           <p className="text-gray-400 text-xs mt-1">
-            Booking available for today, tomorrow, and the day after only
+            Booking available for today, tomorrow, and the day after only (IST)
           </p>
         </div>
 
@@ -212,11 +214,11 @@ const DateTimeSelectionPage: React.FC = () => {
           </h3>
           <div className="grid grid-cols-3 gap-2">
             {availableDates.map((date) => {
-              const isSelected = selectedDate && format(selectedDate, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd');
+              const isSelected = selectedDate && formatDateInIST(selectedDate, 'yyyy-MM-dd') === formatDateInIST(date, 'yyyy-MM-dd');
               
               return (
                 <Button
-                  key={format(date, 'yyyy-MM-dd')}
+                  key={formatDateInIST(date, 'yyyy-MM-dd')}
                   variant={isSelected ? "default" : "outline"}
                   className={`h-auto p-3 flex flex-col items-center space-y-1 ${
                     isSelected ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
@@ -227,10 +229,10 @@ const DateTimeSelectionPage: React.FC = () => {
                     {formatDateDisplay(date)}
                   </div>
                   <div className="text-lg font-bold">
-                    {format(date, 'd')}
+                    {formatDateInIST(date, 'd')}
                   </div>
                   <div className="text-xs opacity-70">
-                    {format(date, 'MMM')}
+                    {formatDateInIST(date, 'MMM')}
                   </div>
                 </Button>
               );
@@ -242,7 +244,7 @@ const DateTimeSelectionPage: React.FC = () => {
           <div className="mb-6">
             <h3 className="font-medium mb-3 flex items-center">
               <Clock className="h-4 w-4 mr-2" />
-              Available Time Slots
+              Available Time Slots (IST)
             </h3>
             
             {loading ? (

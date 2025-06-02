@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { formatDateInIST } from '@/utils/dateUtils';
 
 interface BookingWithCustomer {
   id: string;
@@ -16,12 +17,14 @@ interface BookingWithCustomer {
   customer_phone?: string;
   customer_email?: string;
   stylist_name?: string;
+  created_at: string;
 }
 
 interface HolidayDate {
   id: string;
   holiday_date: string;
   description: string | null;
+  created_at: string;
 }
 
 export const useCalendarData = (userId: string | null, selectedDate: Date) => {
@@ -94,7 +97,8 @@ export const useCalendarData = (userId: string | null, selectedDate: Date) => {
       if (!merchantId || !selectedDate) return;
       
       try {
-        const dateStr = format(selectedDate, 'yyyy-MM-dd');
+        // Use IST date formatting for consistency with backend
+        const dateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
         console.log('Generating slots for:', dateStr);
         
         const { data, error } = await supabase.rpc('get_dynamic_available_slots', {
@@ -122,7 +126,8 @@ export const useCalendarData = (userId: string | null, selectedDate: Date) => {
     
     setLoading(true);
     try {
-      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+      // Use IST date formatting for consistency with backend
+      const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
       
       const { data, error } = await supabase
         .from('bookings')
@@ -134,6 +139,7 @@ export const useCalendarData = (userId: string | null, selectedDate: Date) => {
           customer_phone,
           customer_email,
           stylist_name,
+          created_at,
           service:services(name, price)
         `)
         .eq('merchant_id', merchantId)
