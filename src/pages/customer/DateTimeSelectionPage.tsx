@@ -13,8 +13,8 @@ interface AvailableSlot {
   staff_id: string;
   staff_name: string;
   time_slot: string;
-  slot_status: string;
-  status_reason: string | null;
+  is_available: boolean;
+  conflict_reason: string | null;
 }
 
 const DateTimeSelectionPage: React.FC = () => {
@@ -59,13 +59,14 @@ const DateTimeSelectionPage: React.FC = () => {
       
       try {
         const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-        console.log('Fetching slots for date:', selectedDateStr, 'Staff:', selectedStaff);
+        console.log('Fetching slots for date:', selectedDateStr, 'Staff:', selectedStaff, 'Duration:', totalDuration);
 
-        // Get available slots using the dynamic function
-        const { data: slotsData, error: slotsError } = await supabase.rpc('get_dynamic_available_slots', {
+        // Get available slots using the new validation function
+        const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_validation', {
           p_merchant_id: merchantId,
           p_date: selectedDateStr,
-          p_staff_id: selectedStaff || null
+          p_staff_id: selectedStaff || null,
+          p_service_duration: totalDuration || 30
         });
 
         if (slotsError) {
@@ -81,8 +82,8 @@ const DateTimeSelectionPage: React.FC = () => {
           staff_id: slot.staff_id,
           staff_name: slot.staff_name,
           time_slot: typeof slot.time_slot === 'string' ? slot.time_slot.substring(0, 5) : format(new Date(`2000-01-01T${slot.time_slot}`), 'HH:mm'),
-          slot_status: slot.slot_status,
-          status_reason: slot.status_reason
+          is_available: slot.is_available,
+          conflict_reason: slot.conflict_reason
         }));
 
         setAvailableSlots(processedSlots);
@@ -97,11 +98,11 @@ const DateTimeSelectionPage: React.FC = () => {
     };
 
     fetchAvailableSlots();
-  }, [selectedDate, merchantId, selectedStaff]);
+  }, [selectedDate, merchantId, selectedStaff, totalDuration]);
 
   const handleTimeSlotClick = (slot: AvailableSlot) => {
-    if (slot.slot_status !== 'Available') {
-      toast.error(slot.status_reason || 'This time slot is not available');
+    if (!slot.is_available) {
+      toast.error(slot.conflict_reason || 'This time slot is not available');
       return;
     }
     
@@ -114,7 +115,7 @@ const DateTimeSelectionPage: React.FC = () => {
       return;
     }
 
-    const selectedSlot = availableSlots.find(slot => slot.time_slot === selectedTime && slot.slot_status === 'Available');
+    const selectedSlot = availableSlots.find(slot => slot.time_slot === selectedTime && slot.is_available);
     if (!selectedSlot) {
       toast.error('Selected time slot is not available');
       return;
@@ -165,8 +166,8 @@ const DateTimeSelectionPage: React.FC = () => {
   };
 
   // Filter available and unavailable slots
-  const availableTimeSlots = availableSlots.filter(slot => slot.slot_status === 'Available');
-  const unavailableTimeSlots = availableSlots.filter(slot => slot.slot_status !== 'Available');
+  const availableTimeSlots = availableSlots.filter(slot => slot.is_available);
+  const unavailableTimeSlots = availableSlots.filter(slot => !slot.is_available);
 
   if (!merchant) {
     return (
