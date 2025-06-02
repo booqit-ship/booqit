@@ -27,12 +27,20 @@ interface BookingWithCustomer {
   stylist_name?: string;
 }
 
+interface HolidayDate {
+  id: string;
+  holiday_date: string;
+  description: string | null;
+}
+
 const CalendarManagementPage: React.FC = () => {
   const { userId } = useAuth();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [bookings, setBookings] = useState<BookingWithCustomer[]>([]);
   const [loading, setLoading] = useState(true);
   const [merchantId, setMerchantId] = useState<string | null>(null);
+  const [holidays, setHolidays] = useState<HolidayDate[]>([]);
+  const [holidaysLoading, setHolidaysLoading] = useState(false);
 
   // Fetch merchant ID
   useEffect(() => {
@@ -61,6 +69,35 @@ const CalendarManagementPage: React.FC = () => {
     
     fetchMerchantId();
   }, [userId]);
+
+  // Fetch holidays
+  const fetchHolidays = async () => {
+    if (!merchantId) return;
+    
+    setHolidaysLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('shop_holidays')
+        .select('*')
+        .eq('merchant_id', merchantId)
+        .order('holiday_date', { ascending: true });
+        
+      if (error) {
+        console.error('Error fetching holidays:', error);
+        return;
+      }
+      
+      setHolidays(data || []);
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setHolidaysLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchHolidays();
+  }, [merchantId]);
 
   // Generate slots for selected date when merchant changes
   useEffect(() => {
@@ -122,7 +159,13 @@ const CalendarManagementPage: React.FC = () => {
           return;
         }
         
-        setBookings(data || []);
+        // Type cast the bookings to ensure status is properly typed
+        const typedBookings = (data || []).map(booking => ({
+          ...booking,
+          status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled'
+        }));
+        
+        setBookings(typedBookings);
       } catch (error) {
         console.error('Error:', error);
         toast.error('Failed to load bookings');
@@ -167,11 +210,36 @@ const CalendarManagementPage: React.FC = () => {
         .order('time_slot', { ascending: true });
         
       if (!fetchError) {
-        setBookings(data || []);
+        const typedBookings = (data || []).map(booking => ({
+          ...booking,
+          status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled'
+        }));
+        setBookings(typedBookings);
       }
     } catch (error) {
       console.error('Error updating booking status:', error);
       toast.error('Failed to update booking status');
+    }
+  };
+
+  const handleDeleteHoliday = async (holidayId: string) => {
+    try {
+      const { error } = await supabase
+        .from('shop_holidays')
+        .delete()
+        .eq('id', holidayId);
+
+      if (error) {
+        console.error('Error deleting holiday:', error);
+        toast.error('Failed to delete holiday');
+        return;
+      }
+
+      toast.success('Holiday deleted successfully');
+      fetchHolidays(); // Refresh holidays
+    } catch (error) {
+      console.error('Error deleting holiday:', error);
+      toast.error('Failed to delete holiday');
     }
   };
 
@@ -229,7 +297,13 @@ const CalendarManagementPage: React.FC = () => {
 
           {/* Holiday Manager */}
           <div className="mt-6">
-            <HolidayManager merchantId={merchantId} />
+            <HolidayManager 
+              merchantId={merchantId}
+              holidays={holidays}
+              isLoading={holidaysLoading}
+              onDeleteHoliday={handleDeleteHoliday}
+              onHolidayAdded={fetchHolidays}
+            />
           </div>
         </div>
 
@@ -298,8 +372,9 @@ const CalendarManagementPage: React.FC = () => {
             </CardHeader>
             <CardContent>
               <BookingsList 
+                date={selectedDate}
                 bookings={bookings}
-                loading={loading}
+                isLoading={loading}
                 onStatusChange={handleStatusChange}
               />
             </CardContent>
