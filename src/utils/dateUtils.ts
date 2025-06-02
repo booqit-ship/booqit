@@ -48,12 +48,17 @@ export const getCurrentTimeISTWithBuffer = (bufferMinutes: number = 40): string 
   const now = new Date();
   const istNow = convertUTCToIST(now);
   
+  console.log('Current IST time:', format(istNow, 'HH:mm:ss'));
+  
   // Add buffer minutes
   const timeWithBuffer = new Date(istNow.getTime() + bufferMinutes * 60000);
+  console.log('Time with buffer:', format(timeWithBuffer, 'HH:mm:ss'));
   
   // Round up to next 10-minute interval
   const minutes = timeWithBuffer.getMinutes();
   const roundedMinutes = Math.ceil(minutes / 10) * 10;
+  
+  console.log('Original minutes:', minutes, 'Rounded minutes:', roundedMinutes);
   
   // Handle hour overflow
   if (roundedMinutes >= 60) {
@@ -66,18 +71,25 @@ export const getCurrentTimeISTWithBuffer = (bufferMinutes: number = 40): string 
   timeWithBuffer.setSeconds(0);
   timeWithBuffer.setMilliseconds(0);
   
-  return format(timeWithBuffer, 'HH:mm');
+  const finalTime = format(timeWithBuffer, 'HH:mm');
+  console.log('Final time threshold:', finalTime);
+  
+  return finalTime;
 };
 
 // Check if a date is today in IST
 export const isTodayIST = (date: Date | string): boolean => {
   const istDate = convertUTCToIST(date);
   const todayIST = getCurrentDateIST();
-  return format(istDate, 'yyyy-MM-dd') === format(todayIST, 'yyyy-MM-dd');
+  const result = format(istDate, 'yyyy-MM-dd') === format(todayIST, 'yyyy-MM-dd');
+  console.log('Checking if date is today:', format(istDate, 'yyyy-MM-dd'), 'vs', format(todayIST, 'yyyy-MM-dd'), '=', result);
+  return result;
 };
 
 // Check if a time slot is available for today (considering IST buffer)
 export const isTimeSlotAvailableToday = (timeSlot: string, bufferMinutes: number = 40): boolean => {
   const currentTimeWithBuffer = getCurrentTimeISTWithBuffer(bufferMinutes);
-  return timeSlot >= currentTimeWithBuffer;
+  const result = timeSlot >= currentTimeWithBuffer;
+  console.log('Checking time slot availability:', timeSlot, '>=', currentTimeWithBuffer, '=', result);
+  return result;
 };

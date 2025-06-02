@@ -14,15 +14,14 @@ import {
   isTodayIST,
   getCurrentTimeISTWithBuffer
 } from '@/utils/dateUtils';
-import {
-  AvailableSlot,
-  calculateTotalServiceDuration,
-  filterSlotsForToday,
-  groupSlotsByAvailability,
-  getUniqueTimeSlots,
-  getBestStaffForTimeSlot,
-  validateTimeSlotSelection
-} from '@/utils/slotUtils';
+
+interface ProcessedSlot {
+  staff_id: string;
+  staff_name: string;
+  time_slot: string;
+  slot_status: string;
+  status_reason: string | null;
+}
 
 const DateTimeSelectionPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
@@ -32,12 +31,12 @@ const DateTimeSelectionPage: React.FC = () => {
 
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string>('');
-  const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
+  const [availableSlots, setAvailableSlots] = useState<ProcessedSlot[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Calculate actual service duration from selected services
   const actualServiceDuration = selectedServices && selectedServices.length > 0 
-    ? calculateTotalServiceDuration(selectedServices)
+    ? selectedServices.reduce((total: number, service: any) => total + service.duration, 0)
     : totalDuration || 30;
 
   // Generate 3 days: today, tomorrow, day after tomorrow (using IST)
@@ -73,12 +72,11 @@ const DateTimeSelectionPage: React.FC = () => {
         const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
         console.log('Fetching slots for date:', selectedDateStr, 'Staff:', selectedStaff, 'Duration:', actualServiceDuration);
 
-        // Get available slots using the updated IST-aware validation function
-        const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_validation', {
+        // Use the dynamic slot generation function that handles IST properly
+        const { data: slotsData, error: slotsError } = await supabase.rpc('get_dynamic_available_slots', {
           p_merchant_id: merchantId,
           p_date: selectedDateStr,
-          p_staff_id: selectedStaff || null,
-          p_service_duration: actualServiceDuration
+          p_staff_id: selectedStaff || null
         });
 
         if (slotsError) {
@@ -94,14 +92,30 @@ const DateTimeSelectionPage: React.FC = () => {
           staff_id: slot.staff_id,
           staff_name: slot.staff_name,
           time_slot: typeof slot.time_slot === 'string' ? slot.time_slot.substring(0, 5) : formatDateInIST(new Date(`2000-01-01T${slot.time_slot}`), 'HH:mm'),
-          is_available: slot.is_available,
-          conflict_reason: slot.conflict_reason
+          slot_status: slot.slot_status,
+          status_reason: slot.status_reason
         }));
 
-        // Apply IST-aware filtering for today's slots
-        const filteredSlots = filterSlotsForToday(processedSlots, selectedDate, 40);
+        console.log('Processed slots:', processedSlots);
 
-        console.log('Processed and filtered slots:', filteredSlots);
+        // Apply IST-aware filtering for today's slots
+        let filteredSlots = processedSlots;
+        
+        if (isTodayIST(selectedDate)) {
+          const currentTimeWithBuffer = getCurrentTimeISTWithBuffer(40);
+          console.log('Today detected, filtering from:', currentTimeWithBuffer);
+          
+          filteredSlots = processedSlots.filter(slot => {
+            // Only show available slots that are after the buffer time
+            if (slot.slot_status !== 'Available') {
+              return false; // Hide unavailable slots for today
+            }
+            return slot.time_slot >= currentTimeWithBuffer;
+          });
+          
+          console.log('Filtered slots for today:', filteredSlots);
+        }
+
         setAvailableSlots(filteredSlots);
 
       } catch (error) {
@@ -117,16 +131,13 @@ const DateTimeSelectionPage: React.FC = () => {
   }, [selectedDate, merchantId, selectedStaff, actualServiceDuration]);
 
   const handleTimeSlotClick = (timeSlot: string) => {
-    const validation = validateTimeSlotSelection(timeSlot, selectedDate!, availableSlots, 40);
+    // Find available slot for this time
+    const availableSlot = availableSlots.find(slot => 
+      slot.time_slot === timeSlot && slot.slot_status === 'Available'
+    );
     
-    if (!validation.isValid) {
-      toast.error(validation.reason || 'This time slot is not available');
-      return;
-    }
-
-    const bestStaff = getBestStaffForTimeSlot(availableSlots, timeSlot);
-    if (!bestStaff) {
-      toast.error('No staff available for this time slot');
+    if (!availableSlot) {
+      toast.error('This time slot is not available');
       return;
     }
     
@@ -139,13 +150,10 @@ const DateTimeSelectionPage: React.FC = () => {
       return;
     }
 
-    const validation = validateTimeSlotSelection(selectedTime, selectedDate, availableSlots, 40);
-    if (!validation.isValid) {
-      toast.error(validation.reason || 'Selected time slot is not available');
-      return;
-    }
-
-    const selectedSlot = getBestStaffForTimeSlot(availableSlots, selectedTime);
+    const selectedSlot = availableSlots.find(slot => 
+      slot.time_slot === selectedTime && slot.slot_status === 'Available'
+    );
+    
     if (!selectedSlot) {
       toast.error('Selected time slot is not available');
       return;
@@ -195,12 +203,12 @@ const DateTimeSelectionPage: React.FC = () => {
     }
   };
 
-  // Group slots by availability with IST consideration
-  const { available: availableTimeSlots, unavailable: unavailableTimeSlots } = groupSlotsByAvailability(availableSlots);
-  
-  // Get unique time slots for display
-  const availableUniqueSlots = getUniqueTimeSlots(availableTimeSlots);
-  const unavailableUniqueSlots = getUniqueTimeSlots(unavailableTimeSlots);
+  // Get unique available time slots
+  const availableTimeSlots = Array.from(new Set(
+    availableSlots
+      .filter(slot => slot.slot_status === 'Available')
+      .map(slot => slot.time_slot)
+  )).sort();
 
   if (!merchant) {
     return (
@@ -290,46 +298,20 @@ const DateTimeSelectionPage: React.FC = () => {
               <div className="flex justify-center py-8">
                 <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
               </div>
-            ) : availableUniqueSlots.length > 0 ? (
-              <div className="space-y-3">
-                <div className="grid grid-cols-3 gap-2">
-                  {availableUniqueSlots.map((time) => (
-                    <Button
-                      key={time}
-                      variant={selectedTime === time ? "default" : "outline"}
-                      className={`p-3 ${
-                        selectedTime === time ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
-                      }`}
-                      onClick={() => handleTimeSlotClick(time)}
-                    >
-                      <span className="font-medium">{formatTimeToAmPm(time)}</span>
-                    </Button>
-                  ))}
-                </div>
-                
-                {unavailableUniqueSlots.length > 0 && (
-                  <div className="mt-4">
-                    <p className="text-sm text-gray-600 mb-2">Unavailable time slots:</p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {unavailableUniqueSlots.map((time) => (
-                        <Button
-                          key={time}
-                          variant="outline"
-                          className="p-3 opacity-50 cursor-not-allowed bg-gray-100"
-                          onClick={() => {
-                            const unavailableSlot = unavailableTimeSlots.find(slot => slot.time_slot === time);
-                            if (unavailableSlot?.conflict_reason) {
-                              toast.error(unavailableSlot.conflict_reason);
-                            }
-                          }}
-                          disabled={false}
-                        >
-                          <span className="font-medium text-gray-500">{formatTimeToAmPm(time)}</span>
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+            ) : availableTimeSlots.length > 0 ? (
+              <div className="grid grid-cols-3 gap-2">
+                {availableTimeSlots.map((time) => (
+                  <Button
+                    key={time}
+                    variant={selectedTime === time ? "default" : "outline"}
+                    className={`p-3 ${
+                      selectedTime === time ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
+                    }`}
+                    onClick={() => handleTimeSlotClick(time)}
+                  >
+                    <span className="font-medium">{formatTimeToAmPm(time)}</span>
+                  </Button>
+                ))}
               </div>
             ) : (
               <div className="text-center py-8 bg-gray-50 rounded-lg">
