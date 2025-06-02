@@ -29,7 +29,7 @@ const WeekCalendar: React.FC<WeekCalendarProps> = ({
     <Card className="mb-6 overflow-hidden shadow-sm">
       <CardHeader className="bg-gradient-to-r from-booqit-primary/5 to-booqit-primary/10 py-3">
         <div className="flex justify-between items-center">
-          <CardTitle className="text-booqit-dark text-lg font-semibold">Calendar</CardTitle>
+          <CardTitle className="text-booqit-dark text-base font-semibold">Calendar</CardTitle>
           <div className="flex items-center space-x-2">
             <Button 
               variant="outline" 
@@ -60,7 +60,7 @@ const WeekCalendar: React.FC<WeekCalendarProps> = ({
       </CardHeader>
       
       <CardContent className="p-4">
-        <div className="flex gap-3 overflow-x-auto scrollbar-hide">
+        <div className="grid grid-cols-5 gap-2">
           {displayDays.map((day, index) => {
             const isCurrentDay = isToday(day);
             const isSelectedDay = isSameDay(day, selectedDate);
@@ -70,16 +70,16 @@ const WeekCalendar: React.FC<WeekCalendarProps> = ({
             return (
               <div 
                 key={index}
-                className="flex flex-col items-center min-w-[80px] cursor-pointer"
+                className="flex flex-col items-center cursor-pointer"
                 onClick={() => onDateSelect(day)}
               >
                 <div className={`
-                  w-16 h-16 rounded-xl flex flex-col items-center justify-center transition-all duration-200
+                  w-full h-16 rounded-xl flex flex-col items-center justify-center transition-all duration-200
                   ${isSelectedDay 
-                    ? 'bg-booqit-primary text-white shadow-lg scale-105' 
+                    ? 'bg-booqit-primary text-white shadow-lg border-2 border-booqit-primary' 
                     : isCurrentDay
                     ? 'bg-booqit-primary/20 text-booqit-primary border-2 border-booqit-primary/30'
-                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border-2 border-transparent'
                   }
                 `}>
                   <div className="text-xs font-medium uppercase tracking-wide">
@@ -95,8 +95,8 @@ const WeekCalendar: React.FC<WeekCalendarProps> = ({
                 
                 <div className="mt-2 text-xs text-gray-500 text-center">
                   {appointmentCount > 0 
-                    ? `${appointmentCount} Appointment${appointmentCount > 1 ? 's' : ''}`
-                    : 'No appointments'
+                    ? `${appointmentCount} apt${appointmentCount > 1 ? 's' : ''}`
+                    : 'No apt'
                   }
                 </div>
               </div>
