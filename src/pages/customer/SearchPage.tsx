@@ -1,11 +1,11 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { Merchant } from '@/types';
-import { Search } from 'lucide-react';
+import { Search, MapPin } from 'lucide-react';
 import GoogleMapComponent from '@/components/common/GoogleMap';
 import SearchBottomSheet from '@/components/customer/SearchBottomSheet';
 
@@ -13,6 +13,8 @@ const SearchPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [merchants, setMerchants] = useState<Merchant[]>([]);
   const [filteredMerchants, setFilteredMerchants] = useState<Merchant[]>([]);
+  const [searchSuggestions, setSearchSuggestions] = useState<Merchant[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [userCity, setUserCity] = useState<string>('');
@@ -28,6 +30,8 @@ const SearchPage: React.FC = () => {
   });
   const { toast } = useToast();
   const navigate = useNavigate();
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
 
   // Get user location and fetch merchants
   useEffect(() => {
@@ -157,21 +161,34 @@ const SearchPage: React.FC = () => {
     fetchMerchants();
   }, [filters.genderFocus, filters.rating]);
 
+  // Handle search input changes and generate suggestions
+  useEffect(() => {
+    if (searchTerm.length > 0) {
+      const suggestions = merchants.filter(merchant => 
+        merchant.shop_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        merchant.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        merchant.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (merchant.services && merchant.services.some(service => 
+          service.name.toLowerCase().includes(searchTerm.toLowerCase())
+        ))
+      ).slice(0, 5); // Limit to 5 suggestions
+      
+      setSearchSuggestions(suggestions);
+      setShowSuggestions(suggestions.length > 0);
+    } else {
+      setSearchSuggestions([]);
+      setShowSuggestions(false);
+    }
+  }, [searchTerm, merchants]);
+
   // Calculate distance and apply search/price filters
   useEffect(() => {
     if (merchants.length > 0) {
       let filtered = [...merchants];
       
-      // Filter by user's city first
-      if (userCity) {
-        filtered = filtered.filter(merchant => 
-          merchant.address.toLowerCase().includes(userCity.toLowerCase())
-        );
-      }
-      
-      // Apply search filter
+      // Apply search filter globally (removed city restriction)
       if (searchTerm) {
-        const searchFiltered = filtered.filter(merchant => 
+        filtered = filtered.filter(merchant => 
           merchant.shop_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
           merchant.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
           merchant.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -179,20 +196,13 @@ const SearchPage: React.FC = () => {
             service.name.toLowerCase().includes(searchTerm.toLowerCase())
           ))
         );
-        
-        // Auto-focus on search results
-        if (searchFiltered.length > 0) {
-          const firstResult = searchFiltered[0];
-          setMapCenter({ lat: firstResult.lat, lng: firstResult.lng });
-          setMapZoom(16);
-          
-          // If only one result, select it
-          if (searchFiltered.length === 1) {
-            setSelectedMerchant(firstResult);
-          }
+      } else {
+        // Only filter by user's city when no search term
+        if (userCity) {
+          filtered = filtered.filter(merchant => 
+            merchant.address.toLowerCase().includes(userCity.toLowerCase())
+          );
         }
-        
-        filtered = searchFiltered;
       }
       
       // Apply category filter
@@ -272,7 +282,38 @@ const SearchPage: React.FC = () => {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    setShowSuggestions(false);
   };
+
+  const handleSuggestionClick = (merchant: Merchant) => {
+    setSearchTerm(merchant.shop_name);
+    setShowSuggestions(false);
+    setSelectedMerchant(merchant);
+    
+    // Smooth zoom to the selected merchant with animation
+    setMapCenter({ lat: merchant.lat, lng: merchant.lng });
+    setMapZoom(16);
+    
+    // Focus the search input to blur it
+    if (searchInputRef.current) {
+      searchInputRef.current.blur();
+    }
+  };
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(event.target as Node) &&
+          searchInputRef.current && !searchInputRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const mapMarkers = filteredMerchants.map(merchant => ({
     lat: merchant.lat,
@@ -286,17 +327,53 @@ const SearchPage: React.FC = () => {
 
   return (
     <div className="h-[100dvh] w-full flex flex-col overflow-hidden relative">
-      {/* Floating Search Bar */}
+      {/* Floating Search Bar with Suggestions */}
       <div className="absolute top-4 left-4 right-4 z-50">
         <form onSubmit={handleSearch}>
           <div className="relative">
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-black w-5 h-5 z-10" />
             <Input
+              ref={searchInputRef}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder={`Search salons in ${userCity}...`}
+              placeholder="Search salons, spas & beauty parlours..."
               className="pl-12 pr-4 py-4 rounded-2xl border-0 shadow-lg bg-white/95 backdrop-blur-sm text-base placeholder:text-gray-600 focus:ring-2 focus:ring-booqit-primary font-medium"
+              onFocus={() => searchTerm.length > 0 && searchSuggestions.length > 0 && setShowSuggestions(true)}
             />
+            
+            {/* Search Suggestions Dropdown */}
+            {showSuggestions && searchSuggestions.length > 0 && (
+              <div 
+                ref={suggestionsRef}
+                className="absolute top-full left-0 right-0 mt-2 bg-white/95 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-100 max-h-80 overflow-y-auto z-50"
+              >
+                {searchSuggestions.map((merchant) => (
+                  <div
+                    key={merchant.id}
+                    className="flex items-center p-4 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                    onClick={() => handleSuggestionClick(merchant)}
+                  >
+                    <div className="flex-1">
+                      <h4 className="font-medium text-gray-900">{merchant.shop_name}</h4>
+                      <div className="flex items-center text-sm text-gray-600 mt-1">
+                        <MapPin className="w-3 h-3 mr-1" />
+                        <span className="line-clamp-1">{merchant.address}</span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">{merchant.category}</p>
+                    </div>
+                    <div className="flex items-center ml-2">
+                      {merchant.rating && (
+                        <div className="flex items-center bg-green-100 px-2 py-1 rounded-full">
+                          <span className="text-xs font-medium text-green-800">
+                            ★ {merchant.rating.toFixed(1)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </form>
       </div>
