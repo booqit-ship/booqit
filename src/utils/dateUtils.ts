@@ -44,7 +44,7 @@ export const getCurrentTimeIST = (): string => {
 };
 
 // Get current time with buffer and rounded to next 10-minute mark (for slot generation)
-export const getCurrentTimeISTWithBuffer = (bufferMinutes: number = 40): string => {
+export const getCurrentTimeISTWithBuffer = (bufferMinutes: number = 30): string => {
   const now = new Date();
   const istNow = convertUTCToIST(now);
   
@@ -77,6 +77,38 @@ export const getCurrentTimeISTWithBuffer = (bufferMinutes: number = 40): string 
   return finalTime;
 };
 
+// Generate 10-minute interval slots from start time to end time
+export const generateTimeSlots = (startTime: string, endTime: string): string[] => {
+  const slots: string[] = [];
+  
+  // Parse start time
+  const [startHour, startMinute] = startTime.split(':').map(Number);
+  const [endHour, endMinute] = endTime.split(':').map(Number);
+  
+  // Convert to minutes for easier calculation
+  let currentMinutes = startHour * 60 + startMinute;
+  const endMinutes = endHour * 60 + endMinute;
+  
+  // Generate slots every 10 minutes
+  while (currentMinutes < endMinutes) {
+    const hours = Math.floor(currentMinutes / 60);
+    const minutes = currentMinutes % 60;
+    
+    const timeSlot = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    slots.push(timeSlot);
+    
+    currentMinutes += 10; // Add 10 minutes for next slot
+  }
+  
+  return slots;
+};
+
+// Get slots for today with 30-minute buffer
+export const getTodaySlots = (shopCloseTime: string = '21:00'): string[] => {
+  const currentTimeWithBuffer = getCurrentTimeISTWithBuffer(30);
+  return generateTimeSlots(currentTimeWithBuffer, shopCloseTime);
+};
+
 // Check if a date is today in IST
 export const isTodayIST = (date: Date | string): boolean => {
   const istDate = convertUTCToIST(date);
@@ -87,7 +119,7 @@ export const isTodayIST = (date: Date | string): boolean => {
 };
 
 // Check if a time slot is available for today (considering IST buffer)
-export const isTimeSlotAvailableToday = (timeSlot: string, bufferMinutes: number = 40): boolean => {
+export const isTimeSlotAvailableToday = (timeSlot: string, bufferMinutes: number = 30): boolean => {
   const currentTimeWithBuffer = getCurrentTimeISTWithBuffer(bufferMinutes);
   const result = timeSlot >= currentTimeWithBuffer;
   console.log('Checking time slot availability:', timeSlot, '>=', currentTimeWithBuffer, '=', result);
