@@ -32,8 +32,8 @@ export const useCancelBooking = () => {
 
       console.log('Cancel booking response:', data);
       
-      // Type the response data properly
-      const result = data as CancelBookingResult;
+      // Type the response data properly by converting through unknown first
+      const result = data as unknown as CancelBookingResult;
       
       if (!result || !result.success) {
         throw new Error(result?.error || 'Failed to cancel booking');
