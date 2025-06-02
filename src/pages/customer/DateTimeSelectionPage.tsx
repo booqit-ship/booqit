@@ -127,7 +127,7 @@ const DateTimeSelectionPage: React.FC = () => {
         const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
         console.log('Fetching slots for date:', selectedDateStr, 'Staff:', selectedStaff);
 
-        // Use the new fresh slot generation function
+        // Use the fresh slot generation function
         const { data: slotsData, error: slotsError } = await supabase.rpc('get_fresh_available_slots', {
           p_merchant_id: merchantId,
           p_date: selectedDateStr,
@@ -143,6 +143,7 @@ const DateTimeSelectionPage: React.FC = () => {
 
         console.log('Raw slots data:', slotsData);
 
+        // Process the slots data
         const processedSlots = (slotsData || []).map((slot: any) => ({
           staff_id: slot.staff_id,
           staff_name: slot.staff_name,

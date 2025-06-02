@@ -81,10 +81,13 @@ const StylistAvailabilityManager: React.FC<StylistAvailabilityManagerProps> = ({
   const [stylistBlockedSlots, setStylistBlockedSlots] = useState<StylistBlockedSlot[]>([]);
   const [isFullDayHoliday, setIsFullDayHoliday] = useState(false);
   const [selectedTimeSlots, setSelectedTimeSlots] = useState<string[]>([]);
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
   const [description, setDescription] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [blockingMode, setBlockingMode] = useState<'individual' | 'range'>('individual');
   const { toast } = useToast();
 
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -151,22 +154,38 @@ const StylistAvailabilityManager: React.FC<StylistAvailabilityManagerProps> = ({
         setIsFullDayHoliday(true);
         setDescription(existingHoliday.description || '');
         setSelectedTimeSlots([]);
+        setStartTime('');
+        setEndTime('');
       } else {
         setIsFullDayHoliday(false);
         const existingSlots = stylistBlockedSlots
-          .filter(s => s.staff_id === selectedStaff && s.blocked_date === selectedDateStr)
-          .map(s => s.time_slot);
-        setSelectedTimeSlots(existingSlots);
+          .filter(s => s.staff_id === selectedStaff && s.blocked_date === selectedDateStr);
         
-        // Get description from first blocked slot if any
-        const firstBlockedSlot = stylistBlockedSlots.find(
-          s => s.staff_id === selectedStaff && s.blocked_date === selectedDateStr
-        );
-        setDescription(firstBlockedSlot?.description || '');
+        if (existingSlots.length > 0) {
+          // Check if we have time range blocks
+          const rangeBlocks = existingSlots.filter(s => s.start_time && s.end_time);
+          if (rangeBlocks.length > 0) {
+            setBlockingMode('range');
+            setStartTime(rangeBlocks[0].start_time?.substring(0, 5) || '');
+            setEndTime(rangeBlocks[0].end_time?.substring(0, 5) || '');
+          } else {
+            // Individual slots
+            setBlockingMode('individual');
+            setSelectedTimeSlots(existingSlots.map(s => s.time_slot));
+          }
+          setDescription(existingSlots[0]?.description || '');
+        } else {
+          setSelectedTimeSlots([]);
+          setStartTime('');
+          setEndTime('');
+          setDescription('');
+        }
       }
     } else {
       setIsFullDayHoliday(false);
       setSelectedTimeSlots([]);
+      setStartTime('');
+      setEndTime('');
       setDescription('');
     }
   }, [selectedStaff, selectedDateStr, stylistHolidays, stylistBlockedSlots]);
@@ -224,13 +243,30 @@ const StylistAvailabilityManager: React.FC<StylistAvailabilityManagerProps> = ({
           });
           
         if (error) throw error;
-      } else if (selectedTimeSlots.length > 0) {
-        // Add blocked time slots
+      } else if (blockingMode === 'range' && startTime && endTime) {
+        // Add blocked time range
+        const { error } = await supabase
+          .from('stylist_blocked_slots')
+          .insert({
+            staff_id: selectedStaff,
+            merchant_id: merchantId,
+            blocked_date: selectedDateStr,
+            start_time: startTime,
+            end_time: endTime,
+            time_slot: startTime, // Required field
+            description: description || null
+          });
+          
+        if (error) throw error;
+      } else if (blockingMode === 'individual' && selectedTimeSlots.length > 0) {
+        // Add blocked individual time slots
         const blockedSlots = selectedTimeSlots.map(slot => ({
           staff_id: selectedStaff,
           merchant_id: merchantId,
           blocked_date: selectedDateStr,
           time_slot: slot,
+          start_time: null,
+          end_time: null,
           description: description || null
         }));
 
@@ -425,6 +461,8 @@ const StylistAvailabilityManager: React.FC<StylistAvailabilityManagerProps> = ({
                     setIsFullDayHoliday(checked as boolean);
                     if (checked) {
                       setSelectedTimeSlots([]);
+                      setStartTime('');
+                      setEndTime('');
                     }
                   }}
                 />
@@ -435,31 +473,75 @@ const StylistAvailabilityManager: React.FC<StylistAvailabilityManagerProps> = ({
 
               {!isFullDayHoliday && (
                 <div>
-                  <label className="text-sm font-medium mb-2 block flex items-center">
-                    <Clock className="h-4 w-4 mr-1" />
-                    Block Specific Time Slots
-                  </label>
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                    {timeSlots.map((slot) => {
-                      const isSelected = selectedTimeSlots.includes(slot);
-                      
-                      return (
-                        <Button
-                          key={slot}
-                          variant={isSelected ? "destructive" : "outline"}
-                          size="sm"
-                          className="text-xs h-8"
-                          onClick={() => handleTimeSlotToggle(slot)}
-                        >
-                          {formatTimeToAmPm(slot)}
-                        </Button>
-                      );
-                    })}
+                  <div className="flex space-x-2 mb-3">
+                    <Button
+                      variant={blockingMode === 'individual' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setBlockingMode('individual')}
+                    >
+                      Individual Slots
+                    </Button>
+                    <Button
+                      variant={blockingMode === 'range' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setBlockingMode('range')}
+                    >
+                      Time Range
+                    </Button>
                   </div>
-                  
-                  {selectedTimeSlots.length > 0 && (
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      {selectedTimeSlots.length} slot(s) selected
+
+                  {blockingMode === 'range' ? (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-sm font-medium">Start Time</label>
+                          <input
+                            type="time"
+                            value={startTime}
+                            onChange={(e) => setStartTime(e.target.value)}
+                            className="w-full p-2 border rounded"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium">End Time</label>
+                          <input
+                            type="time"
+                            value={endTime}
+                            onChange={(e) => setEndTime(e.target.value)}
+                            className="w-full p-2 border rounded"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="text-sm font-medium mb-2 block flex items-center">
+                        <Clock className="h-4 w-4 mr-1" />
+                        Block Specific Time Slots
+                      </label>
+                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                        {timeSlots.map((slot) => {
+                          const isSelected = selectedTimeSlots.includes(slot);
+                          
+                          return (
+                            <Button
+                              key={slot}
+                              variant={isSelected ? "destructive" : "outline"}
+                              size="sm"
+                              className="text-xs h-8"
+                              onClick={() => handleTimeSlotToggle(slot)}
+                            >
+                              {formatTimeToAmPm(slot)}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                      
+                      {selectedTimeSlots.length > 0 && (
+                        <div className="mt-2 text-xs text-muted-foreground">
+                          {selectedTimeSlots.length} slot(s) selected
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -479,7 +561,7 @@ const StylistAvailabilityManager: React.FC<StylistAvailabilityManagerProps> = ({
               <div className="flex space-x-2">
                 <Button
                   onClick={handleSave}
-                  disabled={isLoading || (!isFullDayHoliday && selectedTimeSlots.length === 0)}
+                  disabled={isLoading || (!isFullDayHoliday && blockingMode === 'individual' && selectedTimeSlots.length === 0 && blockingMode === 'range' && (!startTime || !endTime))}
                   className="flex-1"
                 >
                   {isLoading ? 'Saving...' : 'Save Changes'}
