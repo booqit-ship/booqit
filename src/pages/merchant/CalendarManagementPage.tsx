@@ -11,6 +11,7 @@ import BookingsList from '@/components/merchant/calendar/BookingsList';
 import HolidayManager from '@/components/merchant/calendar/HolidayManager';
 import WeekCalendar from '@/components/merchant/calendar/WeekCalendar';
 import BookingStats from '@/components/merchant/calendar/BookingStats';
+import StylistAvailabilityWidget from '@/components/merchant/StylistAvailabilityWidget';
 import { useCalendarData } from '@/hooks/useCalendarData';
 
 const CalendarManagementPage: React.FC = () => {
@@ -60,7 +61,14 @@ const CalendarManagementPage: React.FC = () => {
     const completed = bookings.filter(b => b.status === 'completed').length;
     const pending = bookings.filter(b => b.status === 'pending').length;
     
-    return { total, confirmed, completed, pending };
+    // Calculate today's earnings from completed bookings
+    const todaysEarning = bookings
+      .filter(b => b.status === 'completed')
+      .reduce((sum, booking) => {
+        return sum + (booking.service?.price || 0);
+      }, 0);
+    
+    return { total, confirmed, completed, pending, todaysEarning };
   };
 
   const navigateWeek = (direction: 'prev' | 'next') => {
@@ -92,7 +100,7 @@ const CalendarManagementPage: React.FC = () => {
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-2">
           <CalendarIcon className="h-6 w-6 text-booqit-primary" />
-          <h1 className="text-3xl font-bold">Calendar Management</h1>
+          <h1 className="text-2xl md:text-3xl font-bold">Calendar Management</h1>
         </div>
         <p className="text-muted-foreground">Manage your bookings and appointments</p>
       </div>
@@ -105,35 +113,24 @@ const CalendarManagementPage: React.FC = () => {
         onGoToToday={goToToday}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-3">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6">
+        <div className="lg:col-span-4">
           <BookingStats
             total={stats.total}
             pending={stats.pending}
             confirmed={stats.confirmed}
             completed={stats.completed}
+            todaysEarning={stats.todaysEarning}
           />
         </div>
 
         <div className="lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  📅 {format(selectedDate, 'MMMM d, yyyy')} Bookings
-                  <Badge variant="outline">{stats.total} total</Badge>
-                </CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <BookingsList 
-                date={selectedDate}
-                bookings={bookings}
-                isLoading={loading}
-                onStatusChange={handleStatusChange}
-              />
-            </CardContent>
-          </Card>
+          <BookingsList 
+            date={selectedDate}
+            bookings={bookings}
+            isLoading={loading}
+            onStatusChange={handleStatusChange}
+          />
         </div>
 
         <div className="lg:col-span-1">
@@ -143,6 +140,17 @@ const CalendarManagementPage: React.FC = () => {
             isLoading={holidaysLoading}
             onDeleteHoliday={handleDeleteHoliday}
             onHolidayAdded={fetchHolidays}
+          />
+        </div>
+
+        <div className="lg:col-span-1">
+          <StylistAvailabilityWidget
+            merchantId={merchantId}
+            selectedDate={selectedDate}
+            onAvailabilityChange={() => {
+              fetchBookings();
+              fetchHolidays();
+            }}
           />
         </div>
       </div>

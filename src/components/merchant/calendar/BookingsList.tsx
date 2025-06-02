@@ -32,13 +32,13 @@ const BookingsList: React.FC<BookingsListProps> = ({
 }) => {
   return (
     <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-gray-50/30">
-      <CardHeader className="bg-gradient-to-r from-booqit-primary to-booqit-primary/80 text-white rounded-t-lg">
+      <CardHeader className="bg-gradient-to-r from-booqit-primary to-booqit-primary/80 text-white rounded-t-lg py-4">
         <div className="text-lg flex items-center font-semibold">
           <CalendarCheck className="mr-3 h-5 w-5" />
           {format(date, 'MMMM d, yyyy')} Bookings
         </div>
       </CardHeader>
-      <CardContent className="p-6">
+      <CardContent className="p-4 md:p-6">
         {isLoading ? (
           <div className="flex justify-center py-8">
             <div className="animate-spin rounded-full h-10 w-10 border-3 border-booqit-primary border-t-transparent"></div>
@@ -50,7 +50,7 @@ const BookingsList: React.FC<BookingsListProps> = ({
             <p className="text-gray-500 text-sm">Your schedule is free today</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3 md:space-y-4">
             {bookings.map(booking => (
               <BookingCard
                 key={booking.id}

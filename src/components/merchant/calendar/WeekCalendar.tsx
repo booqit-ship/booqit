@@ -22,22 +22,22 @@ const WeekCalendar: React.FC<WeekCalendarProps> = ({
 }) => {
   return (
     <Card className="mb-6 overflow-hidden shadow-sm">
-      <CardHeader className="bg-gradient-to-r from-booqit-primary/5 to-booqit-primary/10 py-2">
+      <CardHeader className="bg-gradient-to-r from-booqit-primary/5 to-booqit-primary/10 py-3">
         <div className="flex justify-between items-center">
-          <CardTitle className="text-booqit-dark text-base sm:text-lg">Your Appointments</CardTitle>
+          <CardTitle className="text-booqit-dark text-lg sm:text-xl">Your Appointments</CardTitle>
           <div className="flex items-center space-x-2">
             <Button 
               variant="outline" 
               size="sm" 
               onClick={() => onNavigateWeek('prev')}
-              className="h-8 px-2"
+              className="h-9 px-3"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <Button 
               variant="outline"
               size="sm"
-              className="h-8 text-xs font-medium px-2"
+              className="h-9 text-sm font-medium px-3"
               onClick={onGoToToday}
             >
               Today
@@ -46,7 +46,7 @@ const WeekCalendar: React.FC<WeekCalendarProps> = ({
               variant="outline" 
               size="sm" 
               onClick={() => onNavigateWeek('next')}
-              className="h-8 px-2"
+              className="h-9 px-3"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -71,16 +71,16 @@ const WeekCalendar: React.FC<WeekCalendarProps> = ({
                 `}
               >
                 <div className={`
-                  flex flex-col items-center justify-center p-1.5 sm:p-2
+                  flex flex-col items-center justify-center py-4 px-2 sm:py-5 sm:px-3
                   ${isCurrentDay ? 'bg-booqit-primary text-white' : ''}
                 `}>
-                  <div className="text-[10px] xs:text-xs sm:text-xs uppercase font-medium tracking-wider">
+                  <div className="text-xs sm:text-sm uppercase font-medium tracking-wider mb-1">
                     {format(day, 'EEE')}
                   </div>
-                  <div className="text-base xs:text-lg sm:text-xl font-bold my-0.5">
+                  <div className="text-xl sm:text-2xl md:text-3xl font-bold my-1">
                     {format(day, 'd')}
                   </div>
-                  <div className="text-[10px] xs:text-xs sm:text-xs">
+                  <div className="text-xs sm:text-sm">
                     {format(day, 'MMM')}
                   </div>
                 </div>
