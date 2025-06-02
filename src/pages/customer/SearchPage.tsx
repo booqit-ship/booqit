@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -8,6 +7,7 @@ import { Merchant } from '@/types';
 import { Search, MapPin } from 'lucide-react';
 import GoogleMapComponent from '@/components/common/GoogleMap';
 import SearchBottomSheet from '@/components/customer/SearchBottomSheet';
+import MerchantMapPopup from '@/components/customer/MerchantMapPopup';
 
 const SearchPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -28,6 +28,7 @@ const SearchPage: React.FC = () => {
     rating: 'all',
     genderFocus: 'all'
   });
+  const [mapPopupMerchant, setMapPopupMerchant] = useState<Merchant | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -322,7 +323,22 @@ const SearchPage: React.FC = () => {
   }));
 
   const handleMarkerClick = (index: number) => {
-    setSelectedMerchant(filteredMerchants[index]);
+    const merchant = filteredMerchants[index];
+    setSelectedMerchant(merchant);
+    setMapPopupMerchant(merchant);
+    
+    // Center the map on the selected merchant with smooth animation
+    setMapCenter({ lat: merchant.lat, lng: merchant.lng });
+    setMapZoom(16);
+  };
+
+  const handleCloseMapPopup = () => {
+    setMapPopupMerchant(null);
+    setSelectedMerchant(null);
+  };
+
+  const handleBookNowFromMap = (merchant: Merchant) => {
+    navigate(`/merchant/${merchant.id}`);
   };
 
   return (
@@ -386,10 +402,22 @@ const SearchPage: React.FC = () => {
           markers={mapMarkers}
           className="h-full w-full"
           onMarkerClick={handleMarkerClick}
-          onClick={() => setSelectedMerchant(null)}
+          onClick={() => {
+            setSelectedMerchant(null);
+            setMapPopupMerchant(null);
+          }}
           showUserLocation={true}
         />
       </div>
+
+      {/* Merchant Map Popup */}
+      {mapPopupMerchant && (
+        <MerchantMapPopup
+          merchant={mapPopupMerchant}
+          onClose={handleCloseMapPopup}
+          onBookNow={handleBookNowFromMap}
+        />
+      )}
 
       {/* Bottom Sheet with filters and nearby venues */}
       <SearchBottomSheet 
