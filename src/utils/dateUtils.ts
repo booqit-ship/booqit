@@ -43,9 +43,41 @@ export const getCurrentTimeIST = (): string => {
   return formatTimeInIST(new Date(), 'HH:mm');
 };
 
+// Get current time with buffer and rounded to next 10-minute mark (for slot generation)
+export const getCurrentTimeISTWithBuffer = (bufferMinutes: number = 40): string => {
+  const now = new Date();
+  const istNow = convertUTCToIST(now);
+  
+  // Add buffer minutes
+  const timeWithBuffer = new Date(istNow.getTime() + bufferMinutes * 60000);
+  
+  // Round up to next 10-minute interval
+  const minutes = timeWithBuffer.getMinutes();
+  const roundedMinutes = Math.ceil(minutes / 10) * 10;
+  
+  // Handle hour overflow
+  if (roundedMinutes >= 60) {
+    timeWithBuffer.setHours(timeWithBuffer.getHours() + 1);
+    timeWithBuffer.setMinutes(0);
+  } else {
+    timeWithBuffer.setMinutes(roundedMinutes);
+  }
+  
+  timeWithBuffer.setSeconds(0);
+  timeWithBuffer.setMilliseconds(0);
+  
+  return format(timeWithBuffer, 'HH:mm');
+};
+
 // Check if a date is today in IST
 export const isTodayIST = (date: Date | string): boolean => {
   const istDate = convertUTCToIST(date);
   const todayIST = getCurrentDateIST();
   return format(istDate, 'yyyy-MM-dd') === format(todayIST, 'yyyy-MM-dd');
+};
+
+// Check if a time slot is available for today (considering IST buffer)
+export const isTimeSlotAvailableToday = (timeSlot: string, bufferMinutes: number = 40): boolean => {
+  const currentTimeWithBuffer = getCurrentTimeISTWithBuffer(bufferMinutes);
+  return timeSlot >= currentTimeWithBuffer;
 };
