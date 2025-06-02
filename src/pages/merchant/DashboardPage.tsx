@@ -5,36 +5,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Booking } from '@/types';
-import { format, isToday } from 'date-fns';
+import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
-import { 
-  CalendarDays, 
-  DollarSign, 
-  Users, 
-  Briefcase, 
-  TrendingUp,
-  Clock,
-  CheckCircle,
-  XCircle 
-} from 'lucide-react';
 
 const DashboardPage: React.FC = () => {
   const { userId } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [bookingsToday, setBookingsToday] = useState(0);
   const [totalEarnings, setTotalEarnings] = useState(0);
-  const [todaysEarnings, setTodaysEarnings] = useState(0);
   const [customersCount, setCustomersCount] = useState(0);
   const [servicesCount, setServicesCount] = useState(0);
   const [recentBookings, setRecentBookings] = useState<Booking[]>([]);
   const [merchantId, setMerchantId] = useState<string | null>(null);
-  const [bookingStats, setBookingStats] = useState({
-    pending: 0,
-    confirmed: 0,
-    completed: 0,
-    cancelled: 0
-  });
 
   // Animation variants for staggered animations
   const containerVariants = {
@@ -94,8 +77,76 @@ const DashboardPage: React.FC = () => {
         // Get today's date in ISO format (YYYY-MM-DD)
         const today = new Date().toISOString().split('T')[0];
 
-        // Get all bookings for analytics
-        const { data: allBookings, error: allBookingsError } = await supabase
+        // Get bookings count for today
+        const { count: todayBookingsCount, error: bookingsCountError } = await supabase
+          .from('bookings')
+          .select('*', { count: 'exact', head: true })
+          .eq('merchant_id', mId)
+          .eq('date', today);
+
+        if (bookingsCountError) {
+          console.error('Error fetching bookings count:', bookingsCountError);
+        } else {
+          setBookingsToday(todayBookingsCount || 0);
+        }
+
+        // Get all bookings with payment status 'completed' to calculate earnings
+        const { data: completedBookings, error: earningsError } = await supabase
+          .from('bookings')
+          .select('service_id')
+          .eq('merchant_id', mId)
+          .eq('payment_status', 'completed');
+
+        if (earningsError) {
+          console.error('Error fetching earnings data:', earningsError);
+        } else if (completedBookings && completedBookings.length > 0) {
+          // Get service prices for all completed bookings
+          const serviceIds = completedBookings.map(booking => booking.service_id);
+          
+          const { data: services, error: servicesError } = await supabase
+            .from('services')
+            .select('price')
+            .in('id', serviceIds);
+          
+          if (servicesError) {
+            console.error('Error fetching service prices:', servicesError);
+          } else if (services) {
+            // Sum up all service prices
+            const totalEarnings = services.reduce((sum, service) => sum + (service.price || 0), 0);
+            setTotalEarnings(totalEarnings);
+          }
+        } else {
+          setTotalEarnings(0);
+        }
+
+        // Count unique customers
+        const { data: uniqueCustomers, error: customersError } = await supabase
+          .from('bookings')
+          .select('user_id')
+          .eq('merchant_id', mId);
+
+        if (customersError) {
+          console.error('Error fetching unique customers:', customersError);
+        } else if (uniqueCustomers) {
+          // Get unique count of user_ids
+          const uniqueUserIds = new Set(uniqueCustomers.map(booking => booking.user_id));
+          setCustomersCount(uniqueUserIds.size);
+        }
+
+        // Count services offered by the merchant
+        const { count: servicesCount, error: servicesCountError } = await supabase
+          .from('services')
+          .select('*', { count: 'exact', head: true })
+          .eq('merchant_id', mId);
+
+        if (servicesCountError) {
+          console.error('Error fetching services count:', servicesCountError);
+        } else {
+          setServicesCount(servicesCount || 0);
+        }
+
+        // Fetch recent bookings for today with better customer and stylist name fetching
+        const { data: recentBookingsData, error: recentBookingsError } = await supabase
           .from('bookings')
           .select(`
             id,
@@ -107,52 +158,23 @@ const DashboardPage: React.FC = () => {
             customer_phone,
             customer_email,
             stylist_name,
-            service:services(name, price),
+            service:service_id (name),
             user_id
           `)
           .eq('merchant_id', mId)
-          .order('date', { ascending: false })
-          .order('time_slot', { ascending: false });
+          .eq('date', today)
+          .order('time_slot', { ascending: true })
+          .limit(5);
 
-        if (allBookingsError) {
-          console.error('Error fetching all bookings:', allBookingsError);
-        } else if (allBookings) {
-          // Calculate booking stats
-          const stats = {
-            pending: allBookings.filter(b => b.status === 'pending').length,
-            confirmed: allBookings.filter(b => b.status === 'confirmed').length,
-            completed: allBookings.filter(b => b.status === 'completed').length,
-            cancelled: allBookings.filter(b => b.status === 'cancelled').length
-          };
-          setBookingStats(stats);
-
-          // Get today's bookings
-          const todaysBookings = allBookings.filter(b => b.date === today);
-          setBookingsToday(todaysBookings.length);
-
-          // Calculate total earnings from completed bookings
-          const completedBookings = allBookings.filter(b => b.payment_status === 'completed');
-          const totalEarnings = completedBookings.reduce((sum, booking) => {
-            return sum + (booking.service?.price || 0);
-          }, 0);
-          setTotalEarnings(totalEarnings);
-
-          // Calculate today's earnings
-          const todaysCompletedBookings = todaysBookings.filter(b => b.payment_status === 'completed');
-          const todaysEarnings = todaysCompletedBookings.reduce((sum, booking) => {
-            return sum + (booking.service?.price || 0);
-          }, 0);
-          setTodaysEarnings(todaysEarnings);
-
-          // Get unique customers count
-          const uniqueCustomers = new Set(allBookings.map(booking => booking.user_id));
-          setCustomersCount(uniqueCustomers.size);
-
-          // Process recent bookings with customer names
+        if (recentBookingsError) {
+          console.error('Error fetching recent bookings:', recentBookingsError);
+        } else if (recentBookingsData) {
+          // Process bookings and ensure we have customer names
           const bookingsWithDetails = await Promise.all(
-            todaysBookings.slice(0, 5).map(async (booking) => {
+            recentBookingsData.map(async (booking) => {
               let customerName = booking.customer_name || 'Unknown Customer';
               
+              // If no customer name in booking, try to fetch from profiles
               if (!booking.customer_name && booking.user_id) {
                 const { data: userData, error: userError } = await supabase
                   .from('profiles')
@@ -175,19 +197,6 @@ const DashboardPage: React.FC = () => {
           
           setRecentBookings(bookingsWithDetails as Booking[]);
         }
-
-        // Count services offered by the merchant
-        const { count: servicesCount, error: servicesCountError } = await supabase
-          .from('services')
-          .select('*', { count: 'exact', head: true })
-          .eq('merchant_id', mId);
-
-        if (servicesCountError) {
-          console.error('Error fetching services count:', servicesCountError);
-        } else {
-          setServicesCount(servicesCount || 0);
-        }
-
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
         toast('Error loading dashboard', {
@@ -228,61 +237,10 @@ const DashboardPage: React.FC = () => {
 
   // Dashboard stats based on real data
   const dashboardStats = [
-    { 
-      id: 1, 
-      title: 'Today\'s Bookings', 
-      value: isLoading ? '...' : bookingsToday, 
-      color: 'bg-booqit-primary/10 text-booqit-primary',
-      icon: CalendarDays
-    },
-    { 
-      id: 2, 
-      title: 'Today\'s Earnings', 
-      value: isLoading ? '...' : `₹${todaysEarnings.toFixed(0)}`, 
-      color: 'bg-green-100 text-green-700',
-      icon: DollarSign
-    },
-    { 
-      id: 3, 
-      title: 'Total Customers', 
-      value: isLoading ? '...' : customersCount, 
-      color: 'bg-blue-100 text-blue-700',
-      icon: Users
-    },
-    { 
-      id: 4, 
-      title: 'Active Services', 
-      value: isLoading ? '...' : servicesCount, 
-      color: 'bg-amber-100 text-amber-700',
-      icon: Briefcase
-    }
-  ];
-
-  const statusCards = [
-    {
-      title: 'Pending',
-      value: bookingStats.pending,
-      color: 'bg-yellow-100 text-yellow-700',
-      icon: Clock
-    },
-    {
-      title: 'Confirmed',
-      value: bookingStats.confirmed,
-      color: 'bg-blue-100 text-blue-700',
-      icon: CheckCircle
-    },
-    {
-      title: 'Completed',
-      value: bookingStats.completed,
-      color: 'bg-green-100 text-green-700',
-      icon: TrendingUp
-    },
-    {
-      title: 'Cancelled',
-      value: bookingStats.cancelled,
-      color: 'bg-red-100 text-red-700',
-      icon: XCircle
-    }
+    { id: 1, title: 'Bookings Today', value: isLoading ? '...' : bookingsToday, color: 'bg-booqit-primary/10 text-booqit-primary' },
+    { id: 2, title: 'Total Earnings', value: isLoading ? '...' : `₹${totalEarnings.toFixed(0)}`, color: 'bg-green-100 text-green-700' },
+    { id: 3, title: 'Customers', value: isLoading ? '...' : customersCount, color: 'bg-blue-100 text-blue-700' },
+    { id: 4, title: 'Services', value: isLoading ? '...' : servicesCount, color: 'bg-amber-100 text-amber-700' }
   ];
 
   if (isLoading) {
@@ -306,6 +264,18 @@ const DashboardPage: React.FC = () => {
             </Card>
           ))}
         </div>
+        <Card className="border-none shadow-md mb-6">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Today's Bookings</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3 animate-pulse">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="h-16 bg-gray-100 rounded-md"></div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -331,83 +301,28 @@ const DashboardPage: React.FC = () => {
         initial="hidden"
         animate="visible"
       >
-        {/* Main Stats */}
         <motion.div variants={itemVariants}>
           <div className="grid grid-cols-2 gap-4 mb-6">
-            {dashboardStats.map(stat => {
-              const IconComponent = stat.icon;
-              return (
-                <Card key={stat.id} className="border-none shadow-sm">
-                  <CardContent className="p-4">
-                    <div className={`inline-flex rounded-lg p-2 mb-2 ${stat.color}`}>
-                      <IconComponent className="w-5 h-5" />
-                    </div>
-                    <p className="text-sm text-gray-500">{stat.title}</p>
-                    <h3 className="text-2xl font-bold">{stat.value}</h3>
-                  </CardContent>
-                </Card>
-              );
-            })}
+            {dashboardStats.map(stat => (
+              <Card key={stat.id} className="border-none shadow-sm">
+                <CardContent className="p-4">
+                  <div className={`inline-flex rounded-lg p-2 mb-2 ${stat.color}`}>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                  </div>
+                  <p className="text-sm text-gray-500">{stat.title}</p>
+                  <h3 className="text-2xl font-bold">{stat.value}</h3>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </motion.div>
 
-        {/* Booking Status Analytics */}
         <motion.div variants={itemVariants}>
           <Card className="border-none shadow-md mb-6">
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Booking Analytics</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {statusCards.map((card, index) => {
-                  const IconComponent = card.icon;
-                  return (
-                    <div key={index} className="text-center">
-                      <div className={`inline-flex rounded-lg p-3 mb-2 ${card.color}`}>
-                        <IconComponent className="w-6 h-6" />
-                      </div>
-                      <p className="text-sm text-gray-500 mb-1">{card.title}</p>
-                      <p className="text-xl font-bold">{card.value}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Earnings Overview */}
-        <motion.div variants={itemVariants}>
-          <Card className="border-none shadow-md mb-6">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Earnings Overview</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center">
-                  <div className="inline-flex rounded-lg p-3 mb-2 bg-green-100 text-green-700">
-                    <DollarSign className="w-6 h-6" />
-                  </div>
-                  <p className="text-sm text-gray-500 mb-1">Today's Earnings</p>
-                  <p className="text-xl font-bold text-green-600">₹{todaysEarnings.toFixed(0)}</p>
-                </div>
-                <div className="text-center">
-                  <div className="inline-flex rounded-lg p-3 mb-2 bg-blue-100 text-blue-700">
-                    <TrendingUp className="w-6 h-6" />
-                  </div>
-                  <p className="text-sm text-gray-500 mb-1">Total Earnings</p>
-                  <p className="text-xl font-bold text-blue-600">₹{totalEarnings.toFixed(0)}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Recent Bookings */}
-        <motion.div variants={itemVariants}>
-          <Card className="border-none shadow-md mb-6">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Today's Recent Bookings</CardTitle>
+              <CardTitle className="text-lg">Today's Bookings</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
@@ -431,29 +346,22 @@ const DashboardPage: React.FC = () => {
                           )}
                         </div>
                       </div>
-                      <div className="flex flex-col items-end">
-                        <span className={`text-sm px-2 py-1 rounded-full ${
-                          booking.status === 'confirmed'
-                            ? 'bg-green-100 text-green-700'
-                            : booking.status === 'completed'
-                            ? 'bg-blue-100 text-blue-700'
-                            : booking.status === 'cancelled'
-                            ? 'bg-red-100 text-red-700'
-                            : 'bg-amber-100 text-amber-700'
-                        }`}>
-                          {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-                        </span>
-                        {booking.service?.price && (
-                          <span className="text-xs text-gray-500 mt-1">₹{booking.service.price}</span>
-                        )}
-                      </div>
+                      <span className={`text-sm px-2 py-1 rounded-full ${
+                        booking.status === 'confirmed'
+                          ? 'bg-green-100 text-green-700'
+                          : booking.status === 'completed'
+                          ? 'bg-blue-100 text-blue-700'
+                          : booking.status === 'cancelled'
+                          ? 'bg-red-100 text-red-700'
+                          : 'bg-amber-100 text-amber-700'
+                      }`}>
+                        {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                      </span>
                     </div>
                   ))
                 ) : (
                   <div className="text-center py-6">
-                    <CalendarDays className="h-12 w-12 mx-auto text-gray-400 mb-3" />
                     <p className="text-gray-500">No bookings for today</p>
-                    <p className="text-sm text-gray-400">Your schedule is free today</p>
                   </div>
                 )}
               </div>
