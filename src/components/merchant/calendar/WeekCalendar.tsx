@@ -11,6 +11,7 @@ interface WeekCalendarProps {
   onDateSelect: (date: Date) => void;
   onNavigateWeek: (direction: 'prev' | 'next') => void;
   onGoToToday: () => void;
+  appointmentCounts?: { [date: string]: number };
 }
 
 const WeekCalendar: React.FC<WeekCalendarProps> = ({
@@ -19,28 +20,29 @@ const WeekCalendar: React.FC<WeekCalendarProps> = ({
   onDateSelect,
   onNavigateWeek,
   onGoToToday,
+  appointmentCounts = {},
 }) => {
   // Show only 5 days (weekdays)
   const displayDays = weekDays.slice(0, 5);
 
   return (
     <Card className="mb-6 overflow-hidden shadow-sm">
-      <CardHeader className="bg-gradient-to-r from-booqit-primary/5 to-booqit-primary/10 py-4">
+      <CardHeader className="bg-gradient-to-r from-booqit-primary/5 to-booqit-primary/10 py-3">
         <div className="flex justify-between items-center">
-          <CardTitle className="text-booqit-dark text-xl sm:text-2xl">Your Appointments</CardTitle>
+          <CardTitle className="text-booqit-dark text-lg font-semibold">Calendar</CardTitle>
           <div className="flex items-center space-x-2">
             <Button 
               variant="outline" 
               size="sm" 
               onClick={() => onNavigateWeek('prev')}
-              className="h-10 px-4"
+              className="h-8 px-3"
             >
-              <ChevronLeft className="h-5 w-5" />
+              <ChevronLeft className="h-4 w-4" />
             </Button>
             <Button 
               variant="outline"
               size="sm"
-              className="h-10 text-sm font-medium px-4"
+              className="h-8 text-xs font-medium px-3"
               onClick={onGoToToday}
             >
               Today
@@ -49,43 +51,53 @@ const WeekCalendar: React.FC<WeekCalendarProps> = ({
               variant="outline" 
               size="sm" 
               onClick={() => onNavigateWeek('next')}
-              className="h-10 px-4"
+              className="h-8 px-3"
             >
-              <ChevronRight className="h-5 w-5" />
+              <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
       </CardHeader>
       
-      <CardContent className="p-0">
-        <div className="flex w-full">
+      <CardContent className="p-4">
+        <div className="flex gap-3 overflow-x-auto scrollbar-hide">
           {displayDays.map((day, index) => {
             const isCurrentDay = isToday(day);
             const isSelectedDay = isSameDay(day, selectedDate);
+            const dateKey = format(day, 'yyyy-MM-dd');
+            const appointmentCount = appointmentCounts[dateKey] || 0;
             
             return (
               <div 
                 key={index}
+                className="flex flex-col items-center min-w-[80px] cursor-pointer"
                 onClick={() => onDateSelect(day)}
-                className={`
-                  flex-1 transition-all cursor-pointer border-r last:border-r-0 border-gray-100
-                  ${isSelectedDay ? 'bg-purple-100 ring-2 ring-inset ring-booqit-primary z-10' : ''}
-                  hover:bg-gray-50
-                `}
               >
                 <div className={`
-                  flex flex-col items-center justify-center py-6 px-4 sm:py-8 sm:px-6
-                  ${isCurrentDay ? 'bg-booqit-primary text-white' : ''}
+                  w-16 h-16 rounded-xl flex flex-col items-center justify-center transition-all duration-200
+                  ${isSelectedDay 
+                    ? 'bg-booqit-primary text-white shadow-lg scale-105' 
+                    : isCurrentDay
+                    ? 'bg-booqit-primary/20 text-booqit-primary border-2 border-booqit-primary/30'
+                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                  }
                 `}>
-                  <div className="text-sm sm:text-base uppercase font-medium tracking-wider mb-2">
+                  <div className="text-xs font-medium uppercase tracking-wide">
                     {format(day, 'EEE')}
                   </div>
-                  <div className="text-3xl sm:text-4xl md:text-5xl font-bold my-2">
+                  <div className="text-lg font-bold">
                     {format(day, 'd')}
                   </div>
-                  <div className="text-sm sm:text-base">
+                  <div className="text-xs">
                     {format(day, 'MMM')}
                   </div>
+                </div>
+                
+                <div className="mt-2 text-xs text-gray-500 text-center">
+                  {appointmentCount > 0 
+                    ? `${appointmentCount} Appointment${appointmentCount > 1 ? 's' : ''}`
+                    : 'No appointments'
+                  }
                 </div>
               </div>
             );

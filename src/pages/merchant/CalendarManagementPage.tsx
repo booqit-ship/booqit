@@ -15,6 +15,7 @@ const CalendarManagementPage: React.FC = () => {
   const { userId } = useAuth();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [weekStart, setWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const [appointmentCounts, setAppointmentCounts] = useState<{ [date: string]: number }>({});
 
   const {
     bookings,
@@ -29,6 +30,37 @@ const CalendarManagementPage: React.FC = () => {
 
   // Generate week days (5 weekdays only)
   const weekDays = Array.from({ length: 5 }, (_, i) => addDays(weekStart, i));
+
+  // Fetch appointment counts for the week
+  React.useEffect(() => {
+    const fetchAppointmentCounts = async () => {
+      if (!merchantId) return;
+
+      const counts: { [date: string]: number } = {};
+      
+      for (const day of weekDays) {
+        const dateStr = format(day, 'yyyy-MM-dd');
+        try {
+          const { count, error } = await supabase
+            .from('bookings')
+            .select('*', { count: 'exact', head: true })
+            .eq('merchant_id', merchantId)
+            .eq('date', dateStr)
+            .neq('status', 'cancelled');
+
+          if (!error) {
+            counts[dateStr] = count || 0;
+          }
+        } catch (error) {
+          console.error('Error fetching appointment count for', dateStr, error);
+        }
+      }
+      
+      setAppointmentCounts(counts);
+    };
+
+    fetchAppointmentCounts();
+  }, [merchantId, weekDays]);
 
   const handleStatusChange = async (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
     try {
@@ -46,6 +78,20 @@ const CalendarManagementPage: React.FC = () => {
 
       toast.success(`Booking ${newStatus} successfully`);
       fetchBookings();
+      
+      // Refresh appointment counts
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      const { count } = await supabase
+        .from('bookings')
+        .select('*', { count: 'exact', head: true })
+        .eq('merchant_id', merchantId)
+        .eq('date', dateStr)
+        .neq('status', 'cancelled');
+      
+      setAppointmentCounts(prev => ({
+        ...prev,
+        [dateStr]: count || 0
+      }));
     } catch (error) {
       console.error('Error updating booking status:', error);
       toast.error('Failed to update booking status');
@@ -90,6 +136,7 @@ const CalendarManagementPage: React.FC = () => {
         onDateSelect={setSelectedDate}
         onNavigateWeek={navigateWeek}
         onGoToToday={goToToday}
+        appointmentCounts={appointmentCounts}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
