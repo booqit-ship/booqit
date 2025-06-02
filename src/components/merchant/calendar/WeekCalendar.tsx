@@ -21,21 +21,23 @@ const WeekCalendar: React.FC<WeekCalendarProps> = ({
   onGoToToday,
 }) => {
   return (
-    <Card className="mb-6">
-      <CardHeader className="pb-4">
-        <div className="flex items-center justify-between">
-          <CardTitle>Appointments</CardTitle>
-          <div className="flex items-center gap-2">
+    <Card className="mb-6 overflow-hidden shadow-sm">
+      <CardHeader className="bg-gradient-to-r from-booqit-primary/5 to-booqit-primary/10 py-2">
+        <div className="flex justify-between items-center">
+          <CardTitle className="text-booqit-dark text-base sm:text-lg">Your Appointments</CardTitle>
+          <div className="flex items-center space-x-2">
             <Button 
               variant="outline" 
               size="sm" 
               onClick={() => onNavigateWeek('prev')}
+              className="h-8 px-2"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <Button 
-              variant="outline" 
-              size="sm" 
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs font-medium px-2"
               onClick={onGoToToday}
             >
               Today
@@ -44,39 +46,41 @@ const WeekCalendar: React.FC<WeekCalendarProps> = ({
               variant="outline" 
               size="sm" 
               onClick={() => onNavigateWeek('next')}
+              className="h-8 px-2"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
       </CardHeader>
+      
       <CardContent className="p-0">
-        <div className="grid grid-cols-7 border-t">
+        <div className="flex w-full">
           {weekDays.map((day, index) => {
-            const isSelected = isSameDay(day, selectedDate);
             const isCurrentDay = isToday(day);
+            const isSelectedDay = isSameDay(day, selectedDate);
             
             return (
-              <div
+              <div 
                 key={index}
                 onClick={() => onDateSelect(day)}
                 className={`
-                  p-4 border-r last:border-r-0 cursor-pointer transition-colors
-                  ${isSelected ? 'bg-booqit-primary/10 border-booqit-primary' : 'hover:bg-gray-50'}
+                  flex-1 transition-all cursor-pointer border-r last:border-r-0 border-gray-100
+                  ${isSelectedDay ? 'bg-purple-100 ring-1 ring-inset ring-booqit-primary z-10' : ''}
+                  hover:bg-gray-50
                 `}
               >
-                <div className="text-center">
-                  <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
+                <div className={`
+                  flex flex-col items-center justify-center p-1.5 sm:p-2
+                  ${isCurrentDay ? 'bg-booqit-primary text-white' : ''}
+                `}>
+                  <div className="text-[10px] xs:text-xs sm:text-xs uppercase font-medium tracking-wider">
                     {format(day, 'EEE')}
                   </div>
-                  <div className={`
-                    text-2xl font-bold mb-1
-                    ${isCurrentDay ? 'bg-booqit-primary text-white rounded-full w-8 h-8 flex items-center justify-center mx-auto' : ''}
-                    ${isSelected && !isCurrentDay ? 'text-booqit-primary' : ''}
-                  `}>
+                  <div className="text-base xs:text-lg sm:text-xl font-bold my-0.5">
                     {format(day, 'd')}
                   </div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-[10px] xs:text-xs sm:text-xs">
                     {format(day, 'MMM')}
                   </div>
                 </div>
