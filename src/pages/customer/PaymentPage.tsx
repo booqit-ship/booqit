@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, CreditCard, Smartphone, Wallet } from 'lucide-react';
@@ -63,7 +62,7 @@ const PaymentPage: React.FC = () => {
       });
 
       // Type guard for the response
-      const response = finalCheck as AvailabilityResponse;
+      const response = finalCheck as unknown as AvailabilityResponse;
       
       if (checkError || !response.available) {
         toast.error('Time slot is no longer available. Please go back and select another time.');

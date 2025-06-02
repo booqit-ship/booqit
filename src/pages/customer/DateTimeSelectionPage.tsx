@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
@@ -203,7 +202,7 @@ const DateTimeSelectionPage: React.FC = () => {
       console.log('Availability check result:', availabilityCheck);
 
       // Type guard and proper parsing of the response
-      const response = availabilityCheck as AvailabilityResponse;
+      const response = availabilityCheck as unknown as AvailabilityResponse;
       
       if (!response.available) {
         toast.error(response.reason || 'Time slot not available for the full service duration');
@@ -244,7 +243,7 @@ const DateTimeSelectionPage: React.FC = () => {
       });
 
       // Type guard for the final check response
-      const response = finalCheck as AvailabilityResponse;
+      const response = finalCheck as unknown as AvailabilityResponse;
       
       if (error || !response.available) {
         toast.error('Time slot is no longer available. Please select another time.');
