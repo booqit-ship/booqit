@@ -1,7 +1,5 @@
 
 import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -10,7 +8,6 @@ import { Calendar as CalendarIcon } from 'lucide-react';
 import BookingsList from '@/components/merchant/calendar/BookingsList';
 import HolidayManager from '@/components/merchant/calendar/HolidayManager';
 import WeekCalendar from '@/components/merchant/calendar/WeekCalendar';
-import BookingStats from '@/components/merchant/calendar/BookingStats';
 import StylistAvailabilityWidget from '@/components/merchant/StylistAvailabilityWidget';
 import { useCalendarData } from '@/hooks/useCalendarData';
 
@@ -30,8 +27,8 @@ const CalendarManagementPage: React.FC = () => {
     handleDeleteHoliday,
   } = useCalendarData(userId, selectedDate);
 
-  // Generate week days
-  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  // Generate week days (5 weekdays only)
+  const weekDays = Array.from({ length: 5 }, (_, i) => addDays(weekStart, i));
 
   const handleStatusChange = async (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
     try {
@@ -55,24 +52,8 @@ const CalendarManagementPage: React.FC = () => {
     }
   };
 
-  const getBookingStats = () => {
-    const total = bookings.length;
-    const confirmed = bookings.filter(b => b.status === 'confirmed').length;
-    const completed = bookings.filter(b => b.status === 'completed').length;
-    const pending = bookings.filter(b => b.status === 'pending').length;
-    
-    // Calculate today's earnings from completed bookings
-    const todaysEarning = bookings
-      .filter(b => b.status === 'completed')
-      .reduce((sum, booking) => {
-        return sum + (booking.service?.price || 0);
-      }, 0);
-    
-    return { total, confirmed, completed, pending, todaysEarning };
-  };
-
   const navigateWeek = (direction: 'prev' | 'next') => {
-    const newWeekStart = addDays(weekStart, direction === 'next' ? 7 : -7);
+    const newWeekStart = addDays(weekStart, direction === 'next' ? 5 : -5);
     setWeekStart(newWeekStart);
     if (!weekDays.some(day => isSameDay(day, selectedDate))) {
       setSelectedDate(newWeekStart);
@@ -84,8 +65,6 @@ const CalendarManagementPage: React.FC = () => {
     setSelectedDate(today);
     setWeekStart(startOfWeek(today, { weekStartsOn: 1 }));
   };
-
-  const stats = getBookingStats();
 
   if (!merchantId) {
     return (
@@ -113,17 +92,7 @@ const CalendarManagementPage: React.FC = () => {
         onGoToToday={goToToday}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6">
-        <div className="lg:col-span-4">
-          <BookingStats
-            total={stats.total}
-            pending={stats.pending}
-            confirmed={stats.confirmed}
-            completed={stats.completed}
-            todaysEarning={stats.todaysEarning}
-          />
-        </div>
-
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
         <div className="lg:col-span-2">
           <BookingsList 
             date={selectedDate}
@@ -133,7 +102,7 @@ const CalendarManagementPage: React.FC = () => {
           />
         </div>
 
-        <div className="lg:col-span-1">
+        <div className="space-y-4 md:space-y-6">
           <HolidayManager 
             merchantId={merchantId}
             holidays={holidays}
@@ -141,9 +110,7 @@ const CalendarManagementPage: React.FC = () => {
             onDeleteHoliday={handleDeleteHoliday}
             onHolidayAdded={fetchHolidays}
           />
-        </div>
 
-        <div className="lg:col-span-1">
           <StylistAvailabilityWidget
             merchantId={merchantId}
             selectedDate={selectedDate}

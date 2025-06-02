@@ -20,24 +20,27 @@ const WeekCalendar: React.FC<WeekCalendarProps> = ({
   onNavigateWeek,
   onGoToToday,
 }) => {
+  // Show only 5 days (weekdays)
+  const displayDays = weekDays.slice(0, 5);
+
   return (
     <Card className="mb-6 overflow-hidden shadow-sm">
-      <CardHeader className="bg-gradient-to-r from-booqit-primary/5 to-booqit-primary/10 py-3">
+      <CardHeader className="bg-gradient-to-r from-booqit-primary/5 to-booqit-primary/10 py-4">
         <div className="flex justify-between items-center">
-          <CardTitle className="text-booqit-dark text-lg sm:text-xl">Your Appointments</CardTitle>
+          <CardTitle className="text-booqit-dark text-xl sm:text-2xl">Your Appointments</CardTitle>
           <div className="flex items-center space-x-2">
             <Button 
               variant="outline" 
               size="sm" 
               onClick={() => onNavigateWeek('prev')}
-              className="h-9 px-3"
+              className="h-10 px-4"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-5 w-5" />
             </Button>
             <Button 
               variant="outline"
               size="sm"
-              className="h-9 text-sm font-medium px-3"
+              className="h-10 text-sm font-medium px-4"
               onClick={onGoToToday}
             >
               Today
@@ -46,9 +49,9 @@ const WeekCalendar: React.FC<WeekCalendarProps> = ({
               variant="outline" 
               size="sm" 
               onClick={() => onNavigateWeek('next')}
-              className="h-9 px-3"
+              className="h-10 px-4"
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-5 w-5" />
             </Button>
           </div>
         </div>
@@ -56,7 +59,7 @@ const WeekCalendar: React.FC<WeekCalendarProps> = ({
       
       <CardContent className="p-0">
         <div className="flex w-full">
-          {weekDays.map((day, index) => {
+          {displayDays.map((day, index) => {
             const isCurrentDay = isToday(day);
             const isSelectedDay = isSameDay(day, selectedDate);
             
@@ -66,21 +69,21 @@ const WeekCalendar: React.FC<WeekCalendarProps> = ({
                 onClick={() => onDateSelect(day)}
                 className={`
                   flex-1 transition-all cursor-pointer border-r last:border-r-0 border-gray-100
-                  ${isSelectedDay ? 'bg-purple-100 ring-1 ring-inset ring-booqit-primary z-10' : ''}
+                  ${isSelectedDay ? 'bg-purple-100 ring-2 ring-inset ring-booqit-primary z-10' : ''}
                   hover:bg-gray-50
                 `}
               >
                 <div className={`
-                  flex flex-col items-center justify-center py-4 px-2 sm:py-5 sm:px-3
+                  flex flex-col items-center justify-center py-6 px-4 sm:py-8 sm:px-6
                   ${isCurrentDay ? 'bg-booqit-primary text-white' : ''}
                 `}>
-                  <div className="text-xs sm:text-sm uppercase font-medium tracking-wider mb-1">
+                  <div className="text-sm sm:text-base uppercase font-medium tracking-wider mb-2">
                     {format(day, 'EEE')}
                   </div>
-                  <div className="text-xl sm:text-2xl md:text-3xl font-bold my-1">
+                  <div className="text-3xl sm:text-4xl md:text-5xl font-bold my-2">
                     {format(day, 'd')}
                   </div>
-                  <div className="text-xs sm:text-sm">
+                  <div className="text-sm sm:text-base">
                     {format(day, 'MMM')}
                   </div>
                 </div>
