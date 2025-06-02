@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Merchant } from '@/types';
-import { SlidersHorizontal, ChevronUp, ChevronDown, Star, MapPin, Clock } from 'lucide-react';
+import { SlidersHorizontal, ChevronUp, ChevronDown, Star, MapPin, Clock, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SearchBottomSheetProps {
@@ -60,17 +60,22 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
     return `${minutes} min`;
   };
 
+  const handleExpandToggle = () => {
+    setIsExpanded(!isExpanded);
+  };
+
   return (
     <div className={cn(
       "fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl transition-all duration-300 ease-out z-40 flex flex-col",
       isExpanded ? "h-[85vh]" : "h-44"
     )}>
       {/* Handle bar and header */}
-      <div 
-        className="flex flex-col items-center pt-3 pb-4 cursor-pointer flex-shrink-0"
-        onClick={() => setIsExpanded(!isExpanded)}
-      >
-        <div className="w-12 h-1.5 bg-gray-300 rounded-full mb-4"></div>
+      <div className="flex flex-col items-center pt-3 pb-4 flex-shrink-0">
+        {/* Only the handle bar should be clickable for expanding */}
+        <div 
+          className="w-12 h-1.5 bg-gray-300 rounded-full mb-4 cursor-pointer"
+          onClick={handleExpandToggle}
+        ></div>
         
         {/* Filter and Sort controls - Fixed, no scrolling */}
         <div className="flex items-center justify-between w-full px-4 mb-3">
@@ -91,7 +96,10 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
             
             {/* Category Filter */}
             <Select value={filters.category} onValueChange={(value) => handleFilterChange('category', value)}>
-              <SelectTrigger className="flex-1 h-9 rounded-full text-sm border-gray-300">
+              <SelectTrigger 
+                className="flex-1 h-9 rounded-full text-sm border-gray-300"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
               <SelectContent className="bg-white z-50">
@@ -104,7 +112,10 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
 
             {/* Type (Gender Focus) */}
             <Select value={filters.genderFocus} onValueChange={(value) => handleFilterChange('genderFocus', value)}>
-              <SelectTrigger className="flex-1 h-9 rounded-full text-sm border-gray-300">
+              <SelectTrigger 
+                className="flex-1 h-9 rounded-full text-sm border-gray-300"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <SelectValue placeholder="Type" />
               </SelectTrigger>
               <SelectContent className="bg-white z-50">
@@ -116,11 +127,19 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
             </Select>
           </div>
           
+          {/* Expand/Collapse Icon - Only this should control expansion */}
           <div className="flex-shrink-0 ml-2">
-            {isExpanded ? 
-              <ChevronDown className="w-5 h-5 text-gray-400" /> : 
-              <ChevronUp className="w-5 h-5 text-gray-400" />
-            }
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleExpandToggle}
+              className="p-1 h-auto"
+            >
+              {isExpanded ? 
+                <ChevronDown className="w-5 h-5 text-gray-400" /> : 
+                <ChevronUp className="w-5 h-5 text-gray-400" />
+              }
+            </Button>
           </div>
         </div>
         
@@ -195,8 +214,38 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-booqit-primary"></div>
             </div>
           ) : merchants.length === 0 ? (
-            <div className="text-center py-10">
-              <p className="text-gray-500">No salons found matching your criteria {userCity && `in ${userCity}`}</p>
+            <div className="flex flex-col items-center justify-center py-16 px-8">
+              {/* Aesthetic illustration for no results */}
+              <div className="relative mb-6">
+                <div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center">
+                  <Search className="w-10 h-10 text-blue-400" />
+                </div>
+                <div className="absolute -top-2 -right-2 w-8 h-8 bg-gradient-to-br from-pink-100 to-orange-100 rounded-full flex items-center justify-center">
+                  <Star className="w-4 h-4 text-pink-400" />
+                </div>
+                <div className="absolute -bottom-2 -left-2 w-6 h-6 bg-gradient-to-br from-green-100 to-teal-100 rounded-full flex items-center justify-center">
+                  <MapPin className="w-3 h-3 text-green-400" />
+                </div>
+              </div>
+              
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No salons found</h3>
+              <p className="text-gray-500 text-center text-sm leading-relaxed">
+                We couldn't find any salons matching your criteria {userCity && `in ${userCity}`}.
+                <br />
+                Try adjusting your filters or search in a different area.
+              </p>
+              
+              {/* Suggestion buttons */}
+              <div className="flex gap-2 mt-4">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={resetFilters}
+                  className="rounded-full text-xs"
+                >
+                  Clear Filters
+                </Button>
+              </div>
             </div>
           ) : (
             <div className="space-y-6">
