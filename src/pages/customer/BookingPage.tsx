@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon, AlertTriangle } from 'lucide-react';
@@ -82,8 +81,8 @@ const BookingPage: React.FC = () => {
         const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
         console.log('Fetching slots for date:', selectedDateStr, 'Duration:', totalDuration, 'Staff:', selectedStaff);
 
-        // Get available slots using the existing function
-        const { data: slotsData, error: slotsError } = await supabase.rpc('get_dynamic_available_slots', {
+        // Get available slots using the new fresh slots function
+        const { data: slotsData, error: slotsError } = await supabase.rpc('get_fresh_available_slots', {
           p_merchant_id: merchantId,
           p_date: selectedDateStr,
           p_staff_id: selectedStaff || null

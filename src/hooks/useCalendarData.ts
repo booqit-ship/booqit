@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -101,7 +100,8 @@ export const useCalendarData = (userId: string | null, selectedDate: Date) => {
         const dateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
         console.log('Generating slots for:', dateStr);
         
-        const { data, error } = await supabase.rpc('get_dynamic_available_slots', {
+        // Use the new fresh slots function
+        const { data, error } = await supabase.rpc('get_fresh_available_slots', {
           p_merchant_id: merchantId,
           p_date: dateStr,
           p_staff_id: null
