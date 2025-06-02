@@ -25,9 +25,17 @@ const MerchantMapPopup: React.FC<MerchantMapPopupProps> = ({
     });
   };
 
+  const formatCategory = (category: string) => {
+    return category
+      .replace(/_/g, ' ')
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
   return (
-    <div className="absolute bottom-4 left-4 right-4 z-50">
-      <Card className="bg-white/95 backdrop-blur-sm shadow-xl border-0 rounded-2xl overflow-hidden">
+    <div className="absolute bottom-28 left-4 right-4 z-50">
+      <Card className="bg-white/95 backdrop-blur-sm shadow-xl border-0 rounded-2xl overflow-hidden max-h-[60vh]">
         <CardContent className="p-0">
           {/* Header with close button */}
           <div className="relative p-4 pb-3">
@@ -46,7 +54,7 @@ const MerchantMapPopup: React.FC<MerchantMapPopupProps> = ({
                 {merchant.shop_name}
               </h3>
               <Badge variant="secondary" className="mt-1 text-xs">
-                {merchant.category}
+                {formatCategory(merchant.category)}
               </Badge>
             </div>
           </div>
@@ -79,7 +87,7 @@ const MerchantMapPopup: React.FC<MerchantMapPopupProps> = ({
             </div>
 
             {/* Opening hours */}
-            <div className="flex items-center mb-4">
+            <div className="flex items-center mb-3">
               <Clock className="w-4 h-4 text-gray-500 mr-2" />
               <span className="text-sm text-gray-600">
                 {formatTime(merchant.open_time)} - {formatTime(merchant.close_time)}
@@ -88,7 +96,7 @@ const MerchantMapPopup: React.FC<MerchantMapPopupProps> = ({
 
             {/* Description */}
             {merchant.description && (
-              <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+              <p className="text-sm text-gray-600 mb-3 line-clamp-2">
                 {merchant.description}
               </p>
             )}
@@ -98,15 +106,15 @@ const MerchantMapPopup: React.FC<MerchantMapPopupProps> = ({
               <div className="mb-4">
                 <p className="text-xs text-gray-500 mb-2">Popular Services</p>
                 <div className="flex gap-2 overflow-x-auto">
-                  {merchant.services.slice(0, 3).map((service) => (
+                  {merchant.services.slice(0, 2).map((service) => (
                     <div key={service.id} className="flex-shrink-0 bg-gray-50 rounded-lg px-3 py-2">
                       <p className="text-xs font-medium text-gray-900">{service.name}</p>
                       <p className="text-xs text-gray-600">₹{service.price}</p>
                     </div>
                   ))}
-                  {merchant.services.length > 3 && (
+                  {merchant.services.length > 2 && (
                     <div className="flex-shrink-0 bg-gray-50 rounded-lg px-3 py-2 flex items-center">
-                      <p className="text-xs text-gray-600">+{merchant.services.length - 3} more</p>
+                      <p className="text-xs text-gray-600">+{merchant.services.length - 2} more</p>
                     </div>
                   )}
                 </div>
