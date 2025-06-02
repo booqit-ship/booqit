@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
@@ -10,17 +11,18 @@ import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { 
   formatDateInIST, 
   getCurrentDateIST, 
-  isTodayIST, 
-  isTimeSlotAvailableToday 
+  isTodayIST,
+  getCurrentTimeISTWithBuffer
 } from '@/utils/dateUtils';
-
-interface AvailableSlot {
-  staff_id: string;
-  staff_name: string;
-  time_slot: string;
-  is_available: boolean;
-  conflict_reason: string | null;
-}
+import {
+  AvailableSlot,
+  calculateTotalServiceDuration,
+  filterSlotsForToday,
+  groupSlotsByAvailability,
+  getUniqueTimeSlots,
+  getBestStaffForTimeSlot,
+  validateTimeSlotSelection
+} from '@/utils/slotUtils';
 
 const DateTimeSelectionPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
@@ -32,6 +34,11 @@ const DateTimeSelectionPage: React.FC = () => {
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Calculate actual service duration from selected services
+  const actualServiceDuration = selectedServices && selectedServices.length > 0 
+    ? calculateTotalServiceDuration(selectedServices)
+    : totalDuration || 30;
 
   // Generate 3 days: today, tomorrow, day after tomorrow (using IST)
   const getAvailableDates = () => {
@@ -63,16 +70,15 @@ const DateTimeSelectionPage: React.FC = () => {
       setSelectedTime(''); // Reset selected time when date changes
       
       try {
-        // Format date in IST for backend consistency
         const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
-        console.log('Fetching slots for date:', selectedDateStr, 'Staff:', selectedStaff, 'Duration:', totalDuration);
+        console.log('Fetching slots for date:', selectedDateStr, 'Staff:', selectedStaff, 'Duration:', actualServiceDuration);
 
         // Get available slots using the updated IST-aware validation function
         const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_validation', {
           p_merchant_id: merchantId,
           p_date: selectedDateStr,
           p_staff_id: selectedStaff || null,
-          p_service_duration: totalDuration || 30
+          p_service_duration: actualServiceDuration
         });
 
         if (slotsError) {
@@ -92,18 +98,11 @@ const DateTimeSelectionPage: React.FC = () => {
           conflict_reason: slot.conflict_reason
         }));
 
-        // Additional frontend filtering for today's slots (IST-aware)
-        const filteredSlots = processedSlots.filter(slot => {
-          // If it's today in IST, apply additional time filtering
-          if (isTodayIST(selectedDate)) {
-            return slot.is_available && isTimeSlotAvailableToday(slot.time_slot, 40);
-          }
-          // For future dates, rely on backend filtering
-          return slot.is_available;
-        });
+        // Apply IST-aware filtering for today's slots
+        const filteredSlots = filterSlotsForToday(processedSlots, selectedDate, 40);
 
         console.log('Processed and filtered slots:', filteredSlots);
-        setAvailableSlots(processedSlots); // Keep all slots for display purposes
+        setAvailableSlots(filteredSlots);
 
       } catch (error) {
         console.error('Error fetching available slots:', error);
@@ -115,21 +114,23 @@ const DateTimeSelectionPage: React.FC = () => {
     };
 
     fetchAvailableSlots();
-  }, [selectedDate, merchantId, selectedStaff, totalDuration]);
+  }, [selectedDate, merchantId, selectedStaff, actualServiceDuration]);
 
-  const handleTimeSlotClick = (slot: AvailableSlot) => {
-    if (!slot.is_available) {
-      toast.error(slot.conflict_reason || 'This time slot is not available');
+  const handleTimeSlotClick = (timeSlot: string) => {
+    const validation = validateTimeSlotSelection(timeSlot, selectedDate!, availableSlots, 40);
+    
+    if (!validation.isValid) {
+      toast.error(validation.reason || 'This time slot is not available');
       return;
     }
 
-    // Additional check for today's slots
-    if (isTodayIST(selectedDate!) && !isTimeSlotAvailableToday(slot.time_slot, 40)) {
-      toast.error('This time slot is too soon. Please select a slot at least 40 minutes from now.');
+    const bestStaff = getBestStaffForTimeSlot(availableSlots, timeSlot);
+    if (!bestStaff) {
+      toast.error('No staff available for this time slot');
       return;
     }
     
-    setSelectedTime(slot.time_slot);
+    setSelectedTime(timeSlot);
   };
 
   const handleContinue = () => {
@@ -138,26 +139,26 @@ const DateTimeSelectionPage: React.FC = () => {
       return;
     }
 
-    const selectedSlot = availableSlots.find(slot => slot.time_slot === selectedTime && slot.is_available);
+    const validation = validateTimeSlotSelection(selectedTime, selectedDate, availableSlots, 40);
+    if (!validation.isValid) {
+      toast.error(validation.reason || 'Selected time slot is not available');
+      return;
+    }
+
+    const selectedSlot = getBestStaffForTimeSlot(availableSlots, selectedTime);
     if (!selectedSlot) {
       toast.error('Selected time slot is not available');
       return;
     }
 
-    // Final check for today's slots
-    if (isTodayIST(selectedDate) && !isTimeSlotAvailableToday(selectedTime, 40)) {
-      toast.error('This time slot is too soon. Please select a slot at least 40 minutes from now.');
-      return;
-    }
-
-    const finalStaffId = selectedStaff || selectedSlot?.staff_id;
-    const finalStaffDetails = selectedStaffDetails || { name: selectedSlot?.staff_name };
+    const finalStaffId = selectedStaff || selectedSlot.staff_id;
+    const finalStaffDetails = selectedStaffDetails || { name: selectedSlot.staff_name };
 
     console.log('Navigating to payment with data:', {
       merchant,
       selectedServices,
       totalPrice,
-      totalDuration,
+      totalDuration: actualServiceDuration,
       selectedStaff: finalStaffId,
       selectedStaffDetails: finalStaffDetails,
       bookingDate: formatDateInIST(selectedDate, 'yyyy-MM-dd'),
@@ -169,7 +170,7 @@ const DateTimeSelectionPage: React.FC = () => {
         merchant,
         selectedServices,
         totalPrice,
-        totalDuration,
+        totalDuration: actualServiceDuration,
         selectedStaff: finalStaffId,
         selectedStaffDetails: finalStaffDetails,
         bookingDate: formatDateInIST(selectedDate, 'yyyy-MM-dd'),
@@ -194,28 +195,12 @@ const DateTimeSelectionPage: React.FC = () => {
     }
   };
 
-  // Filter available and unavailable slots with IST consideration
-  const availableTimeSlots = availableSlots.filter(slot => {
-    if (!slot.is_available) return false;
-    
-    // Additional frontend filtering for today's slots
-    if (isTodayIST(selectedDate!)) {
-      return isTimeSlotAvailableToday(slot.time_slot, 40);
-    }
-    
-    return true;
-  });
+  // Group slots by availability with IST consideration
+  const { available: availableTimeSlots, unavailable: unavailableTimeSlots } = groupSlotsByAvailability(availableSlots);
   
-  const unavailableTimeSlots = availableSlots.filter(slot => {
-    if (!slot.is_available) return true;
-    
-    // Additional frontend filtering for today's slots
-    if (isTodayIST(selectedDate!)) {
-      return !isTimeSlotAvailableToday(slot.time_slot, 40);
-    }
-    
-    return false;
-  });
+  // Get unique time slots for display
+  const availableUniqueSlots = getUniqueTimeSlots(availableTimeSlots);
+  const unavailableUniqueSlots = getUniqueTimeSlots(unavailableTimeSlots);
 
   if (!merchant) {
     return (
@@ -246,10 +231,18 @@ const DateTimeSelectionPage: React.FC = () => {
         <div className="mb-6">
           <h2 className="text-lg font-semibold mb-2">Choose Your Appointment</h2>
           <p className="text-gray-500 text-sm">
-            Select your preferred date and time slot. Service duration: {totalDuration} minutes
+            Select your preferred date and time slot. Service duration: {actualServiceDuration} minutes
+            {selectedServices && selectedServices.length > 1 && (
+              <span className="block text-xs text-gray-400 mt-1">
+                Combined duration from {selectedServices.length} services
+              </span>
+            )}
           </p>
           <p className="text-gray-400 text-xs mt-1">
-            Booking available for today, tomorrow, and the day after only (IST - slots must be at least 40 minutes from now)
+            {isTodayIST(selectedDate || getCurrentDateIST()) 
+              ? `Slots available from ${getCurrentTimeISTWithBuffer(40)} onwards (40-min buffer applied)`
+              : "All slots available during shop hours"
+            }
           </p>
         </div>
 
@@ -297,53 +290,43 @@ const DateTimeSelectionPage: React.FC = () => {
               <div className="flex justify-center py-8">
                 <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
               </div>
-            ) : availableTimeSlots.length > 0 ? (
+            ) : availableUniqueSlots.length > 0 ? (
               <div className="space-y-3">
                 <div className="grid grid-cols-3 gap-2">
-                  {Array.from(new Set(availableTimeSlots.map(slot => slot.time_slot))).map((time) => (
+                  {availableUniqueSlots.map((time) => (
                     <Button
                       key={time}
                       variant={selectedTime === time ? "default" : "outline"}
                       className={`p-3 ${
                         selectedTime === time ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
                       }`}
-                      onClick={() => {
-                        const slot = availableTimeSlots.find(s => s.time_slot === time);
-                        if (slot) handleTimeSlotClick(slot);
-                      }}
+                      onClick={() => handleTimeSlotClick(time)}
                     >
                       <span className="font-medium">{formatTimeToAmPm(time)}</span>
                     </Button>
                   ))}
                 </div>
                 
-                {unavailableTimeSlots.length > 0 && (
+                {unavailableUniqueSlots.length > 0 && (
                   <div className="mt-4">
                     <p className="text-sm text-gray-600 mb-2">Unavailable time slots:</p>
                     <div className="grid grid-cols-3 gap-2">
-                      {Array.from(new Set(unavailableTimeSlots.map(slot => slot.time_slot))).map((time) => {
-                        const conflictSlot = unavailableTimeSlots.find(slot => slot.time_slot === time);
-                        const isToday = isTodayIST(selectedDate);
-                        const isTooSoon = isToday && !isTimeSlotAvailableToday(time, 40);
-                        
-                        return (
-                          <Button
-                            key={time}
-                            variant="outline"
-                            className="p-3 opacity-50 cursor-not-allowed bg-gray-100"
-                            onClick={() => {
-                              if (isTooSoon) {
-                                toast.error('This time slot is too soon. Please select a slot at least 40 minutes from now.');
-                              } else if (conflictSlot) {
-                                handleTimeSlotClick(conflictSlot);
-                              }
-                            }}
-                            disabled={false}
-                          >
-                            <span className="font-medium text-gray-500">{formatTimeToAmPm(time)}</span>
-                          </Button>
-                        );
-                      })}
+                      {unavailableUniqueSlots.map((time) => (
+                        <Button
+                          key={time}
+                          variant="outline"
+                          className="p-3 opacity-50 cursor-not-allowed bg-gray-100"
+                          onClick={() => {
+                            const unavailableSlot = unavailableTimeSlots.find(slot => slot.time_slot === time);
+                            if (unavailableSlot?.conflict_reason) {
+                              toast.error(unavailableSlot.conflict_reason);
+                            }
+                          }}
+                          disabled={false}
+                        >
+                          <span className="font-medium text-gray-500">{formatTimeToAmPm(time)}</span>
+                        </Button>
+                      ))}
                     </div>
                   </div>
                 )}
