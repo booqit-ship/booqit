@@ -98,11 +98,11 @@ const DateTimeSelectionPage: React.FC = () => {
 
         console.log('Processed slots:', processedSlots);
 
-        // Apply IST-aware filtering for today's slots with 30-minute buffer
+        // Apply IST-aware filtering for today's slots with 40-minute buffer
         let filteredSlots = processedSlots;
         
         if (isTodayIST(selectedDate)) {
-          const currentTimeWithBuffer = getCurrentTimeISTWithBuffer(30);
+          const currentTimeWithBuffer = getCurrentTimeISTWithBuffer(40);
           console.log('Today detected, filtering from:', currentTimeWithBuffer);
           
           filteredSlots = processedSlots.filter(slot => {
@@ -248,7 +248,7 @@ const DateTimeSelectionPage: React.FC = () => {
           </p>
           <p className="text-gray-400 text-xs mt-1">
             {isTodayIST(selectedDate || getCurrentDateIST()) 
-              ? `Slots available from ${getCurrentTimeISTWithBuffer(30)} onwards (30-min buffer applied)`
+              ? `Slots available from ${getCurrentTimeISTWithBuffer(40)} onwards (40-min buffer applied)`
               : "All slots available during shop hours (9:00 AM - 9:00 PM IST)"
             }
           </p>
@@ -319,7 +319,7 @@ const DateTimeSelectionPage: React.FC = () => {
                 <p className="text-gray-500">No available time slots</p>
                 <p className="text-gray-400 text-sm">
                   {isTodayIST(selectedDate) 
-                    ? "All slots for today are either booked or too soon (need 30-min buffer)"
+                    ? "All slots for today are either booked or too soon (need 40-min buffer)"
                     : "Please select a different date or try again later"
                   }
                 </p>
