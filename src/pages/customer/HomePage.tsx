@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Search } from 'lucide-react';
@@ -12,6 +11,7 @@ import { Merchant } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
+import UpcomingBookings from '@/components/customer/UpcomingBookings';
 
 // Updated featured categories - only Salon and Beauty Parlour as requested
 const featuredCategories = [
@@ -277,6 +277,7 @@ const HomePage: React.FC = () => {
   
   return (
     <div className="pb-20"> {/* Add padding to account for bottom navigation */}
+      {/* Header Section */}
       <motion.div className="bg-gradient-to-r from-booqit-primary to-purple-700 text-white p-6 rounded-b-3xl shadow-lg" initial={{
       y: -20,
       opacity: 0
@@ -309,9 +310,15 @@ const HomePage: React.FC = () => {
 
       <div className="p-6">
         <motion.div variants={containerVariants} initial="hidden" animate="visible">
+          {/* Upcoming Bookings Section */}
+          <motion.div variants={itemVariants} className="mb-8">
+            <UpcomingBookings />
+          </motion.div>
+
+          {/* Categories Section */}
           <motion.div variants={itemVariants}>
             <h2 className="text-xl font-semibold mb-4">Categories</h2>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 mb-8">
               {featuredCategories.map(category => (
                 <Button 
                   key={category.id} 
@@ -339,7 +346,8 @@ const HomePage: React.FC = () => {
             </div>
           </motion.div>
 
-          <motion.div variants={itemVariants} className="mt-8">
+          {/* Near You Section */}
+          <motion.div variants={itemVariants} className="mb-8">
             <h2 className="text-xl font-semibold mb-4">
               {activeCategory ? `${activeCategory} Near You` : "Near You"}
               {activeCategory && (
@@ -368,7 +376,6 @@ const HomePage: React.FC = () => {
                             alt={shop.shop_name} 
                             className="w-full h-full object-cover" 
                             onError={(e) => {
-                              // Set default image if the image fails to load
                               const target = e.target as HTMLImageElement;
                               target.src = 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
                               console.error(`Failed to load image for ${shop.shop_name}, URL: ${shop.image_url}`);
@@ -419,7 +426,8 @@ const HomePage: React.FC = () => {
             )}
           </motion.div>
 
-          <motion.div variants={itemVariants} className="mt-8">
+          {/* Explore Map Section */}
+          <motion.div variants={itemVariants}>
             <h2 className="text-xl font-semibold mb-4 flex justify-between items-center">
               <span>Explore Map</span>
               <Button size="sm" variant="link" onClick={() => navigate('/map')}>

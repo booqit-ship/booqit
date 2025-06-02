@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -218,7 +217,7 @@ const CalendarPage: React.FC = () => {
         <p className="text-muted-foreground">Manage your appointments</p>
       </div>
 
-      {/* Week Calendar with same layout as merchant */}
+      {/* Week Calendar */}
       <Card className="mb-6 overflow-hidden shadow-sm">
         <CardHeader className="bg-gradient-to-r from-booqit-primary/5 to-booqit-primary/10 py-3">
           <div className="flex justify-between items-center">
@@ -287,10 +286,7 @@ const CalendarPage: React.FC = () => {
                   </div>
                   
                   <div className="mt-2 text-xs text-gray-500 text-center">
-                    {appointmentCount > 0 
-                      ? `${appointmentCount} apt${appointmentCount > 1 ? 's' : ''}`
-                      : 'No apt'
-                    }
+                    {appointmentCount > 0 ? appointmentCount : 'No'}
                   </div>
                 </div>
               );
@@ -299,88 +295,88 @@ const CalendarPage: React.FC = () => {
         </CardContent>
       </Card>
       
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {/* Today's Bookings */}
-        <div className="sm:col-span-3">
-          <Card>
-            <CardHeader className="py-2">
-              <CardTitle className="text-base sm:text-lg flex items-center">
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {format(date, 'MMMM d, yyyy')} Bookings
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="flex justify-center py-6">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-booqit-primary"></div>
-                </div>
-              ) : todayBookings.length === 0 ? (
-                <div className="text-center py-6 border rounded-md bg-gray-50">
-                  <CalendarX className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-                  <p className="text-gray-500 text-sm">No bookings for this date</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {todayBookings.map(booking => (
-                    <Card key={booking.id} className="overflow-hidden border-l-4" style={{
-                      borderLeftColor: booking.status === 'confirmed' ? '#22c55e' : 
-                                      booking.status === 'pending' ? '#eab308' :
-                                      booking.status === 'completed' ? '#3b82f6' : '#ef4444'
-                    }}>
-                      <CardContent className="p-3">
-                        <div className="flex justify-between items-center mb-2">
-                          <div className="flex items-center">
-                            <div className="bg-gray-100 p-1 rounded-full mr-2">
-                              <Clock className="h-4 w-4 text-booqit-primary" />
-                            </div>
-                            <div>
-                              <h3 className="text-sm font-medium">{booking.service?.name}</h3>
-                              <p className="text-xs text-booqit-dark/60">
-                                {formatTimeToAmPm(booking.time_slot)}
-                              </p>
-                            </div>
-                          </div>
-                          <Badge className={getStatusColor(booking.status)}>
-                            {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-                          </Badge>
+      {/* Today's Bookings */}
+      <Card className="mb-6">
+        <CardHeader className="py-4">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <CalendarIcon className="h-5 w-5 text-booqit-primary" />
+            {format(date, 'MMMM d, yyyy')} Bookings
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-4">
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-booqit-primary"></div>
+            </div>
+          ) : todayBookings.length === 0 ? (
+            <div className="text-center py-8 border rounded-lg bg-gray-50">
+              <CalendarX className="h-10 w-10 mx-auto text-gray-400 mb-3" />
+              <p className="text-gray-500 text-sm mb-4">No bookings for this date</p>
+              <Button 
+                className="bg-booqit-primary hover:bg-booqit-primary/90" 
+                onClick={handleExploreServices}
+              >
+                Book an Appointment
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {todayBookings.map(booking => (
+                <Card key={booking.id} className="border-l-4 border-l-booqit-primary shadow-sm hover:shadow-md transition-shadow">
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex items-start gap-3">
+                        <div className="bg-booqit-primary/10 p-2 rounded-full">
+                          <Clock className="h-4 w-4 text-booqit-primary" />
                         </div>
-                        
-                        <div className="space-y-1">
-                          <div className="flex items-center">
-                            <Store className="h-3 w-3 mr-1 text-booqit-dark/60" />
-                            <span className="text-xs">{booking.merchant?.shop_name}</span>
-                          </div>
-                          
-                          {booking.stylist_name && (
-                            <div className="flex items-center">
-                              <Scissors className="h-3 w-3 mr-1 text-booqit-dark/60" />
-                              <span className="text-xs">Stylist: {booking.stylist_name}</span>
-                            </div>
-                          )}
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-gray-900 mb-1">{booking.service?.name}</h3>
+                          <p className="text-sm text-booqit-primary font-medium">
+                            {formatTimeToAmPm(booking.time_slot)}
+                          </p>
                         </div>
-                        
-                        {booking.status !== 'cancelled' && booking.status !== 'completed' && (
-                          <div className="flex justify-end mt-2">
-                            <CancelBookingButton
-                              bookingId={booking.id}
-                              bookingDate={booking.date}
-                              bookingTime={booking.time_slot}
-                              bookingStatus={booking.status}
-                              userId={userId}
-                              onCancelSuccess={() => fetchBookings()}
-                              className="h-7 text-xs"
-                            />
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+                      </div>
+                      <Badge 
+                        className={`${getStatusColor(booking.status)} text-white border-0`}
+                      >
+                        {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                      </Badge>
+                    </div>
+                    
+                    <div className="space-y-2 mb-4">
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <Store className="h-4 w-4" />
+                        <span>{booking.merchant?.shop_name}</span>
+                      </div>
+                      
+                      {booking.stylist_name && (
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Scissors className="h-4 w-4" />
+                          <span>Stylist: {booking.stylist_name}</span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {booking.status !== 'cancelled' && booking.status !== 'completed' && (
+                      <div className="flex justify-end">
+                        <CancelBookingButton
+                          bookingId={booking.id}
+                          bookingDate={booking.date}
+                          bookingTime={booking.time_slot}
+                          bookingStatus={booking.status}
+                          userId={userId}
+                          onCancelSuccess={() => fetchBookings()}
+                          className="h-8 text-sm px-4"
+                        />
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
       
       <div className="mt-6">
         <h2 className="text-lg font-semibold mb-4">Upcoming Bookings</h2>
