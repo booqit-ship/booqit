@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -8,7 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { Booking } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
-import { format, parseISO, addDays, isSameDay } from 'date-fns';
+import { format, parseISO, addDays, isSameDay, startOfWeek, isToday } from 'date-fns';
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -16,7 +17,9 @@ import {
   Check,
   X,
   CalendarX,
-  Scissors
+  Scissors,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
@@ -25,19 +28,18 @@ import CancelBookingButton from '@/components/customer/CancelBookingButton';
 
 const CalendarPage: React.FC = () => {
   const [date, setDate] = useState<Date>(new Date());
+  const [weekStart, setWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [appointmentCounts, setAppointmentCounts] = useState<{ [date: string]: number }>({});
   const { toast } = useToast();
   const { userId } = useAuth();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { cancelBooking, isCancelling } = useCancelBooking();
 
-  // Calculate the visible days based on the selected date (today + next 6 days)
-  const visibleDays = useMemo(() => {
-    const today = new Date();
-    return Array.from({ length: 7 }, (_, i) => addDays(today, i));
-  }, []);
+  // Generate week days (5 weekdays only)
+  const weekDays = Array.from({ length: 5 }, (_, i) => addDays(weekStart, i));
 
   // Navigate to search page
   const handleExploreServices = () => {
@@ -102,6 +104,27 @@ const CalendarPage: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  // Fetch appointment counts for the week
+  useEffect(() => {
+    const fetchAppointmentCounts = async () => {
+      if (!userId) return;
+
+      const counts: { [date: string]: number } = {};
+      
+      for (const day of weekDays) {
+        const dateStr = format(day, 'yyyy-MM-dd');
+        const dayBookings = bookings.filter(booking => 
+          booking.date === dateStr && booking.status !== 'cancelled'
+        );
+        counts[dateStr] = dayBookings.length;
+      }
+      
+      setAppointmentCounts(counts);
+    };
+
+    fetchAppointmentCounts();
+  }, [userId, weekDays, bookings]);
 
   // Set up real-time subscription for bookings
   useEffect(() => {
@@ -170,63 +193,104 @@ const CalendarPage: React.FC = () => {
       default: return 'bg-gray-500';
     }
   };
-  
-  // Go to today
-  const goToToday = () => setDate(new Date());
+
+  const navigateWeek = (direction: 'prev' | 'next') => {
+    const newWeekStart = addDays(weekStart, direction === 'next' ? 5 : -5);
+    setWeekStart(newWeekStart);
+    if (!weekDays.some(day => isSameDay(day, date))) {
+      setDate(newWeekStart);
+    }
+  };
+
+  const goToToday = () => {
+    const today = new Date();
+    setDate(today);
+    setWeekStart(startOfWeek(today, { weekStartsOn: 1 }));
+  };
 
   return (
-    <div className="container mx-auto px-2 sm:px-4 py-4">
-      <div className="mb-4">
-        <h1 className="text-xl sm:text-2xl font-bold text-booqit-dark">Your Calendar</h1>
+    <div className="container mx-auto px-4 py-6 pb-20 md:pb-6">
+      <div className="mb-6">
+        <div className="flex items-center gap-2 mb-2">
+          <CalendarIcon className="h-6 w-6 text-booqit-primary" />
+          <h1 className="text-2xl md:text-3xl font-bold">Your Calendar</h1>
+        </div>
+        <p className="text-muted-foreground">Manage your appointments</p>
       </div>
-      
-      {/* Compact Calendar View with improved mobile layout and touch targets */}
-      <Card className="mb-4 overflow-hidden shadow-sm">
-        <CardHeader className="bg-gradient-to-r from-booqit-primary/5 to-booqit-primary/10 py-2">
+
+      {/* Week Calendar with same layout as merchant */}
+      <Card className="mb-6 overflow-hidden shadow-sm">
+        <CardHeader className="bg-gradient-to-r from-booqit-primary/5 to-booqit-primary/10 py-3">
           <div className="flex justify-between items-center">
-            <CardTitle className="text-booqit-dark text-base sm:text-lg">Your Appointments</CardTitle>
+            <CardTitle className="text-booqit-dark text-base font-semibold">Calendar</CardTitle>
             <div className="flex items-center space-x-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => navigateWeek('prev')}
+                className="h-8 px-3"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
               <Button 
                 variant="outline"
                 size="sm"
-                className="h-8 text-xs font-medium px-2"
+                className="h-8 text-xs font-medium px-3"
                 onClick={goToToday}
               >
                 Today
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => navigateWeek('next')}
+                className="h-8 px-3"
+              >
+                <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
           </div>
         </CardHeader>
         
-        <CardContent className="p-0">
-          <div className="flex w-full">
-            {visibleDays.map((day, index) => {
-              const isCurrentDay = isSameDay(day, new Date());
+        <CardContent className="p-4">
+          <div className="grid grid-cols-5 gap-2">
+            {weekDays.map((day, index) => {
+              const isCurrentDay = isToday(day);
               const isSelectedDay = isSameDay(day, date);
+              const dateKey = format(day, 'yyyy-MM-dd');
+              const appointmentCount = appointmentCounts[dateKey] || 0;
               
               return (
                 <div 
                   key={index}
+                  className="flex flex-col items-center cursor-pointer"
                   onClick={() => setDate(day)}
-                  className={`
-                    flex-1 transition-all cursor-pointer border-r last:border-r-0 border-gray-100
-                    ${isSelectedDay ? 'bg-purple-100 ring-1 ring-inset ring-booqit-primary z-10' : ''}
-                    hover:bg-gray-50
-                  `}
                 >
                   <div className={`
-                    flex flex-col items-center justify-center p-1.5 sm:p-2
-                    ${isCurrentDay ? 'bg-booqit-primary text-white' : ''}
+                    w-full h-16 rounded-xl flex flex-col items-center justify-center transition-all duration-200
+                    ${isSelectedDay 
+                      ? 'bg-booqit-primary text-white shadow-lg border-2 border-booqit-primary' 
+                      : isCurrentDay
+                      ? 'bg-booqit-primary/20 text-booqit-primary border-2 border-booqit-primary/30'
+                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border-2 border-transparent'
+                    }
                   `}>
-                    <div className="text-[10px] xs:text-xs sm:text-xs uppercase font-medium tracking-wider">
+                    <div className="text-xs font-medium uppercase tracking-wide">
                       {format(day, 'EEE')}
                     </div>
-                    <div className="text-base xs:text-lg sm:text-xl font-bold my-0.5">
+                    <div className="text-lg font-bold">
                       {format(day, 'd')}
                     </div>
-                    <div className="text-[10px] xs:text-xs sm:text-xs">
+                    <div className="text-xs">
                       {format(day, 'MMM')}
                     </div>
+                  </div>
+                  
+                  <div className="mt-2 text-xs text-gray-500 text-center">
+                    {appointmentCount > 0 
+                      ? `${appointmentCount} apt${appointmentCount > 1 ? 's' : ''}`
+                      : 'No apt'
+                    }
                   </div>
                 </div>
               );
