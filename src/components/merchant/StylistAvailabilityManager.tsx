@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,7 +28,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
-import { Staff } from '@/types';
+import { Staff, StylistHoliday, StylistBlockedSlot } from '@/types';
 import { format, addDays, isBefore, startOfDay } from 'date-fns';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { 
@@ -40,21 +39,6 @@ import {
   UserX,
   ChevronDown
 } from 'lucide-react';
-
-interface StylistHoliday {
-  id: string;
-  staff_id: string;
-  holiday_date: string;
-  description: string | null;
-}
-
-interface StylistBlockedSlot {
-  id: string;
-  staff_id: string;
-  blocked_date: string;
-  time_slot: string;
-  description: string | null;
-}
 
 interface StylistAvailabilityManagerProps {
   merchantId: string;
@@ -561,7 +545,7 @@ const StylistAvailabilityManager: React.FC<StylistAvailabilityManagerProps> = ({
               <div className="flex space-x-2">
                 <Button
                   onClick={handleSave}
-                  disabled={isLoading || (!isFullDayHoliday && blockingMode === 'individual' && selectedTimeSlots.length === 0 && blockingMode === 'range' && (!startTime || !endTime))}
+                  disabled={isLoading || (!isFullDayHoliday && blockingMode === 'individual' && selectedTimeSlots.length === 0) || (!isFullDayHoliday && blockingMode === 'range' && (!startTime || !endTime))}
                   className="flex-1"
                 >
                   {isLoading ? 'Saving...' : 'Save Changes'}

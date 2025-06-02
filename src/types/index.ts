@@ -112,6 +112,8 @@ export interface StylistBlockedSlot {
   merchant_id: string;
   blocked_date: string;
   time_slot: string;
+  start_time?: string | null;
+  end_time?: string | null;
   description: string | null;
   created_at: string;
 }
