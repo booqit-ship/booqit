@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -8,7 +7,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Shield, Lock, Info } from 'lucide-react';
 import { BankInfo } from '@/types';
 import { Separator } from '@/components/ui/separator';
-
 interface SettingsBankingFormProps {
   bankInfo: BankInfo | null;
   isSavingBank: boolean;
@@ -24,7 +22,6 @@ interface SettingsBankingFormProps {
   upiId: string;
   setUpiId: React.Dispatch<React.SetStateAction<string>>;
 }
-
 const SettingsBankingForm: React.FC<SettingsBankingFormProps> = ({
   bankInfo,
   isSavingBank,
@@ -40,8 +37,7 @@ const SettingsBankingForm: React.FC<SettingsBankingFormProps> = ({
   upiId,
   setUpiId
 }) => {
-  return (
-    <Card>
+  return <Card>
       <CardHeader>
         <CardTitle className="text-2xl flex items-center gap-2">
           <Lock className="h-5 w-5 text-booqit-primary" />
@@ -65,60 +61,28 @@ const SettingsBankingForm: React.FC<SettingsBankingFormProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label htmlFor="accountHolderName" className="text-sm text-muted-foreground">Account Holder Name</Label>
-              <Input 
-                id="accountHolderName"
-                value={accountHolderName}
-                className="bg-muted cursor-not-allowed"
-                disabled
-                readOnly
-              />
+              <Input id="accountHolderName" value={accountHolderName} className="bg-muted cursor-not-allowed" disabled readOnly />
             </div>
             
             <div className="space-y-2">
               <Label htmlFor="accountNumber" className="text-sm text-muted-foreground">Account Number</Label>
-              <Input 
-                id="accountNumber"
-                value={accountNumber ? accountNumber.replace(/\d(?=\d{4})/g, '*') : ''}
-                className="bg-muted cursor-not-allowed"
-                disabled
-                readOnly
-              />
+              <Input id="accountNumber" value={accountNumber ? accountNumber.replace(/\d(?=\d{4})/g, '*') : ''} className="bg-muted cursor-not-allowed" disabled readOnly />
             </div>
             
             <div className="space-y-2">
               <Label htmlFor="bankName" className="text-sm text-muted-foreground">Bank Name</Label>
-              <Input 
-                id="bankName"
-                value={bankName}
-                className="bg-muted cursor-not-allowed"
-                disabled
-                readOnly
-              />
+              <Input id="bankName" value={bankName} className="bg-muted cursor-not-allowed" disabled readOnly />
             </div>
             
             <div className="space-y-2">
               <Label htmlFor="ifscCode" className="text-sm text-muted-foreground">IFSC Code</Label>
-              <Input 
-                id="ifscCode"
-                value={ifscCode}
-                className="bg-muted cursor-not-allowed"
-                disabled
-                readOnly
-              />
+              <Input id="ifscCode" value={ifscCode} className="bg-muted cursor-not-allowed" disabled readOnly />
             </div>
             
-            {upiId && (
-              <div className="space-y-2 md:col-span-2">
+            {upiId && <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="upiId" className="text-sm text-muted-foreground">UPI ID</Label>
-                <Input 
-                  id="upiId"
-                  value={upiId}
-                  className="bg-muted cursor-not-allowed"
-                  disabled
-                  readOnly
-                />
-              </div>
-            )}
+                <Input id="upiId" value={upiId} className="bg-muted cursor-not-allowed" disabled readOnly />
+              </div>}
           </div>
           
           <Separator />
@@ -128,17 +92,12 @@ const SettingsBankingForm: React.FC<SettingsBankingFormProps> = ({
               <Info className="h-5 w-5 text-blue-500 mt-0.5" />
               <div>
                 <h4 className="font-medium text-blue-700">Need to update your banking details?</h4>
-                <p className="text-blue-600 text-sm mt-1">
-                  For security reasons, please contact our support team at support@booqit.com 
-                  or call us at +1-800-BOOQIT to update your banking information.
-                </p>
+                <p className="text-blue-600 text-sm mt-1">For security reasons, please contact our support team at support@booqit.in  to update your banking information.</p>
               </div>
             </div>
           </div>
         </div>
       </CardContent>
-    </Card>
-  );
+    </Card>;
 };
-
 export default SettingsBankingForm;
