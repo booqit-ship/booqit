@@ -19,7 +19,7 @@ export const useCancelBooking = () => {
     try {
       console.log('Cancelling booking:', bookingId, 'for user:', userId);
       
-      // Use the cancel_booking_and_release_slots function to properly cancel and release slots
+      // Use the correct function name that exists in the database
       const { data, error } = await supabase.rpc('cancel_booking_and_release_slots', {
         p_booking_id: bookingId,
         p_user_id: userId || null
@@ -32,8 +32,8 @@ export const useCancelBooking = () => {
 
       console.log('Cancel booking response:', data);
       
-      // Safely handle the response data
-      const result = data as unknown as CancelBookingResult;
+      // Type the response data properly
+      const result = data as CancelBookingResult;
       
       if (!result || !result.success) {
         throw new Error(result?.error || 'Failed to cancel booking');
