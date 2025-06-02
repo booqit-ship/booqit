@@ -8,6 +8,7 @@ interface BookingWithCustomer {
   id: string;
   service?: {
     name: string;
+    price: number;
   };
   time_slot: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
@@ -133,7 +134,7 @@ export const useCalendarData = (userId: string | null, selectedDate: Date) => {
           customer_phone,
           customer_email,
           stylist_name,
-          service:services(name)
+          service:services(name, price)
         `)
         .eq('merchant_id', merchantId)
         .eq('date', selectedDateStr)
