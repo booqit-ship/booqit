@@ -55,25 +55,6 @@ const DateTimeSelectionPage: React.FC = () => {
 
   const availableDates = getAvailableDates();
 
-  // Filter slots for real-time updates (only for today)
-  const filterSlotsForToday = (slots: AvailableSlot[], date: Date): AvailableSlot[] => {
-    if (!isTodayIST(date)) {
-      return slots.filter(slot => slot.slot_status === 'Available');
-    }
-
-    // Get current IST time with 40-minute buffer, rounded to next 10-minute mark
-    const currentTimeWithBuffer = getCurrentTimeISTWithBuffer(40);
-    
-    return slots.filter(slot => {
-      if (slot.slot_status !== 'Available') {
-        return false;
-      }
-      
-      // Compare time strings directly since they're in HH:MM format
-      return slot.time_slot >= currentTimeWithBuffer;
-    });
-  };
-
   // Set today (IST) as default selected date
   useEffect(() => {
     if (availableDates.length > 0 && !selectedDate) {
@@ -90,7 +71,16 @@ const DateTimeSelectionPage: React.FC = () => {
 
     const updateFilteredSlots = () => {
       console.log('Running real-time slot filtering for today...');
-      const filtered = filterSlotsForToday(availableSlots, selectedDate);
+      const currentTimeWithBuffer = getCurrentTimeISTWithBuffer(40);
+      
+      const filtered = availableSlots.filter(slot => {
+        if (slot.slot_status !== 'Available') {
+          return false;
+        }
+        // Compare time strings directly since they're in HH:MM format
+        return slot.time_slot >= currentTimeWithBuffer;
+      });
+      
       setFilteredSlots(filtered);
       
       // Clear selected time if it's no longer available
@@ -127,9 +117,9 @@ const DateTimeSelectionPage: React.FC = () => {
       
       try {
         const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
-        console.log('Fetching slots for date:', selectedDateStr, 'Staff:', selectedStaff);
+        console.log('Fetching slots for date:', selectedDateStr, 'Staff:', selectedStaff, 'Service duration:', actualServiceDuration);
 
-        // Use the fresh slot generation function
+        // Use the fixed fresh slot generation function
         const { data: slotsData, error: slotsError } = await supabase.rpc('get_fresh_available_slots', {
           p_merchant_id: merchantId,
           p_date: selectedDateStr,
@@ -173,9 +163,11 @@ const DateTimeSelectionPage: React.FC = () => {
     };
 
     fetchAvailableSlots();
-  }, [selectedDate, merchantId, selectedStaff]);
+  }, [selectedDate, merchantId, selectedStaff, actualServiceDuration]);
 
-  const handleTimeSlotClick = (timeSlot: string) => {
+  const handleTimeSlotClick = async (timeSlot: string) => {
+    if (!selectedDate || !merchantId) return;
+    
     // Find available slot for this time in filtered slots
     const availableSlot = filteredSlots.find(slot => 
       slot.time_slot === timeSlot && slot.slot_status === 'Available'
@@ -185,11 +177,39 @@ const DateTimeSelectionPage: React.FC = () => {
       toast.error('This time slot is not available');
       return;
     }
-    
-    setSelectedTime(timeSlot);
+
+    // Check slot availability with service duration
+    try {
+      const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
+      const { data: availabilityCheck, error } = await supabase.rpc('check_slot_availability_with_service_duration', {
+        p_staff_id: selectedStaff || availableSlot.staff_id,
+        p_date: selectedDateStr,
+        p_start_time: timeSlot,
+        p_service_duration: actualServiceDuration
+      });
+
+      if (error) {
+        console.error('Error checking slot availability:', error);
+        toast.error('Error checking time slot availability');
+        return;
+      }
+
+      console.log('Availability check result:', availabilityCheck);
+
+      if (!availabilityCheck.available) {
+        toast.error(availabilityCheck.reason || 'Time slot not available for the full service duration');
+        return;
+      }
+
+      setSelectedTime(timeSlot);
+      
+    } catch (error) {
+      console.error('Error checking slot availability:', error);
+      toast.error('Error checking time slot availability');
+    }
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (!selectedDate || !selectedTime) {
       toast.error('Please select both date and time');
       return;
@@ -204,32 +224,55 @@ const DateTimeSelectionPage: React.FC = () => {
       return;
     }
 
-    const finalStaffId = selectedStaff || selectedSlot.staff_id;
-    const finalStaffDetails = selectedStaffDetails || { name: selectedSlot.staff_name };
+    // Final availability check before proceeding
+    try {
+      const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
+      const { data: finalCheck, error } = await supabase.rpc('check_slot_availability_with_service_duration', {
+        p_staff_id: selectedStaff || selectedSlot.staff_id,
+        p_date: selectedDateStr,
+        p_start_time: selectedTime,
+        p_service_duration: actualServiceDuration
+      });
 
-    console.log('Navigating to payment with data:', {
-      merchant,
-      selectedServices,
-      totalPrice,
-      totalDuration: actualServiceDuration,
-      selectedStaff: finalStaffId,
-      selectedStaffDetails: finalStaffDetails,
-      bookingDate: formatDateInIST(selectedDate, 'yyyy-MM-dd'),
-      bookingTime: selectedTime
-    });
+      if (error || !finalCheck.available) {
+        toast.error('Time slot is no longer available. Please select another time.');
+        setSelectedTime('');
+        // Refresh slots
+        setSelectedDate(new Date(selectedDate));
+        return;
+      }
 
-    navigate(`/payment/${merchantId}`, {
-      state: {
+      const finalStaffId = selectedStaff || selectedSlot.staff_id;
+      const finalStaffDetails = selectedStaffDetails || { name: selectedSlot.staff_name };
+
+      console.log('Navigating to payment with data:', {
         merchant,
         selectedServices,
         totalPrice,
         totalDuration: actualServiceDuration,
         selectedStaff: finalStaffId,
         selectedStaffDetails: finalStaffDetails,
-        bookingDate: formatDateInIST(selectedDate, 'yyyy-MM-dd'),
+        bookingDate: selectedDateStr,
         bookingTime: selectedTime
-      }
-    });
+      });
+
+      navigate(`/payment/${merchantId}`, {
+        state: {
+          merchant,
+          selectedServices,
+          totalPrice,
+          totalDuration: actualServiceDuration,
+          selectedStaff: finalStaffId,
+          selectedStaffDetails: finalStaffDetails,
+          bookingDate: selectedDateStr,
+          bookingTime: selectedTime
+        }
+      });
+
+    } catch (error) {
+      console.error('Error in final availability check:', error);
+      toast.error('Error verifying time slot availability');
+    }
   };
 
   const formatDateDisplay = (date: Date) => {
@@ -252,6 +295,12 @@ const DateTimeSelectionPage: React.FC = () => {
   const availableTimeSlots = Array.from(new Set(
     filteredSlots.map(slot => slot.time_slot)
   )).sort();
+
+  // Get unavailable slots with reasons
+  const unavailableSlots = availableSlots.filter(slot => slot.slot_status !== 'Available');
+  const uniqueUnavailableSlots = Array.from(new Map(
+    unavailableSlots.map(slot => [slot.time_slot, slot])
+  ).values()).sort((a, b) => a.time_slot.localeCompare(b.time_slot));
 
   if (!merchant) {
     return (
@@ -291,8 +340,8 @@ const DateTimeSelectionPage: React.FC = () => {
           </p>
           <p className="text-gray-400 text-xs mt-1">
             {isTodayIST(selectedDate || getCurrentDateIST()) 
-              ? `Slots available from ${getCurrentTimeISTWithBuffer(40)} onwards (40-min buffer applied, auto-updated every minute)`
-              : "All slots available during shop hours (9:00 AM - 9:00 PM IST)"
+              ? `Slots available from ${getCurrentTimeISTWithBuffer(40)} onwards (current time + 40 min buffer, rounded to next 10-min slot)`
+              : "All slots available during shop hours"
             }
           </p>
         </div>
@@ -334,7 +383,7 @@ const DateTimeSelectionPage: React.FC = () => {
           <div className="mb-6">
             <h3 className="font-medium mb-3 flex items-center">
               <Clock className="h-4 w-4 mr-2" />
-              Available Time Slots (IST) - 10 minute intervals
+              Available Time Slots (IST)
               {isTodayIST(selectedDate) && (
                 <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
                   Live Updates
@@ -351,7 +400,6 @@ const DateTimeSelectionPage: React.FC = () => {
                   className="mt-2"
                   onClick={() => {
                     setError('');
-                    // Trigger refetch by updating selectedDate state
                     setSelectedDate(new Date(selectedDate));
                   }}
                 >
@@ -365,19 +413,45 @@ const DateTimeSelectionPage: React.FC = () => {
                 <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
               </div>
             ) : availableTimeSlots.length > 0 ? (
-              <div className="grid grid-cols-3 gap-2">
-                {availableTimeSlots.map((time) => (
-                  <Button
-                    key={time}
-                    variant={selectedTime === time ? "default" : "outline"}
-                    className={`p-3 ${
-                      selectedTime === time ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
-                    }`}
-                    onClick={() => handleTimeSlotClick(time)}
-                  >
-                    <span className="font-medium">{formatTimeToAmPm(time)}</span>
-                  </Button>
-                ))}
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-2">
+                  {availableTimeSlots.map((time) => (
+                    <Button
+                      key={time}
+                      variant={selectedTime === time ? "default" : "outline"}
+                      className={`p-3 ${
+                        selectedTime === time ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
+                      }`}
+                      onClick={() => handleTimeSlotClick(time)}
+                    >
+                      <span className="font-medium">{formatTimeToAmPm(time)}</span>
+                    </Button>
+                  ))}
+                </div>
+                
+                {uniqueUnavailableSlots.length > 0 && (
+                  <div className="mt-4">
+                    <p className="text-sm text-gray-600 mb-2">Unavailable slots:</p>
+                    <div className="grid grid-cols-1 gap-2">
+                      {uniqueUnavailableSlots.slice(0, 5).map((slot) => (
+                        <div
+                          key={slot.time_slot}
+                          className="p-2 bg-gray-100 rounded text-sm text-gray-600 border border-gray-200"
+                        >
+                          <span className="font-medium">{formatTimeToAmPm(slot.time_slot)}</span>
+                          {slot.status_reason && (
+                            <span className="ml-2 text-xs">- {slot.status_reason}</span>
+                          )}
+                        </div>
+                      ))}
+                      {uniqueUnavailableSlots.length > 5 && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          +{uniqueUnavailableSlots.length - 5} more unavailable slots
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-center py-8 bg-gray-50 rounded-lg">
@@ -394,10 +468,7 @@ const DateTimeSelectionPage: React.FC = () => {
                     variant="outline" 
                     size="sm" 
                     className="mt-3"
-                    onClick={() => {
-                      // Trigger refetch by updating selectedDate state
-                      setSelectedDate(new Date(selectedDate));
-                    }}
+                    onClick={() => setSelectedDate(new Date(selectedDate))}
                   >
                     Refresh Slots
                   </Button>

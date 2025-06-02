@@ -577,6 +577,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      check_slot_availability_with_service_duration: {
+        Args: {
+          p_staff_id: string
+          p_date: string
+          p_start_time: string
+          p_service_duration?: number
+        }
+        Returns: Json
+      }
       clear_stylist_availability: {
         Args: { p_staff_id: string; p_date: string }
         Returns: Json
