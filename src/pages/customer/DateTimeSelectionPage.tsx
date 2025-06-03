@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -39,6 +38,13 @@ interface ServiceData {
   name: string;
   duration: number;
   price: number;
+}
+
+interface BookingResult {
+  success: boolean;
+  error?: string;
+  booking_id?: string;
+  message?: string;
 }
 
 const DateTimeSelectionPage: React.FC = () => {
@@ -379,7 +385,7 @@ const DateTimeSelectionPage: React.FC = () => {
       }
 
       // Create confirmed booking
-      const { data: bookingResult, error: bookingError } = await supabase.rpc('create_confirmed_booking', {
+      const { data: bookingData, error: bookingError } = await supabase.rpc('create_confirmed_booking', {
         p_user_id: user.id,
         p_merchant_id: merchantId,
         p_service_id: serviceId,
@@ -394,6 +400,9 @@ const DateTimeSelectionPage: React.FC = () => {
         toast.error('Failed to create booking. Please try again.');
         return;
       }
+
+      // Type assertion for the RPC response
+      const bookingResult = bookingData as BookingResult;
 
       if (!bookingResult.success) {
         toast.error(bookingResult.error || 'Failed to create booking');
