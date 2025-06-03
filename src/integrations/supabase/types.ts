@@ -672,25 +672,6 @@ export type Database = {
           | { p_report_date: string; p_report_type: string }
         Returns: undefined
       }
-      get_available_slots: {
-        Args: {
-          p_merchant_id: string
-          p_date: string
-          p_staff_id?: string
-          p_service_duration?: number
-        }
-        Returns: {
-          staff_id: string
-          staff_name: string
-          time_slot: string
-          is_shop_holiday: boolean
-          is_stylist_holiday: boolean
-          shop_holiday_reason: string
-          stylist_holiday_reason: string
-          is_available: boolean
-          conflict_reason: string
-        }[]
-      }
       get_available_slots_with_validation: {
         Args: {
           p_merchant_id: string
