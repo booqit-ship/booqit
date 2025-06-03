@@ -604,6 +604,18 @@ export type Database = {
         Args: { p_staff_id: string; p_date: string }
         Returns: Json
       }
+      create_confirmed_booking: {
+        Args: {
+          p_user_id: string
+          p_merchant_id: string
+          p_service_id: string
+          p_staff_id: string
+          p_date: string
+          p_time_slot: string
+          p_service_duration: number
+        }
+        Returns: Json
+      }
       generate_all_shop_income_reports: {
         Args: { report_date: string; report_type: string }
         Returns: undefined

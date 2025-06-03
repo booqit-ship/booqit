@@ -11,17 +11,11 @@ import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { formatDateInIST } from '@/utils/dateUtils';
 import { useAuth } from '@/contexts/AuthContext';
 
-interface AvailabilityResponse {
-  available: boolean;
-  reason?: string;
-  conflicting_slot?: string;
-}
-
 const PaymentPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { userId } = useAuth(); // Use userId instead of user
+  const { userId } = useAuth();
   
   const {
     merchant,
@@ -31,77 +25,93 @@ const PaymentPage: React.FC = () => {
     selectedStaff,
     selectedStaffDetails,
     bookingDate,
-    bookingTime
+    bookingTime,
+    bookingId
   } = location.state || {};
 
   const [paymentMethod, setPaymentMethod] = useState<string>('upi');
   const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
-    if (!merchant || !selectedServices || !bookingDate || !bookingTime) {
+    if (!merchant || !selectedServices || !bookingDate || !bookingTime || !bookingId) {
       toast.error('Missing booking information');
       navigate(-1);
     }
   }, []);
 
+  // Handle navigation away from payment page
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (bookingId) {
+        // Cancel booking if navigating away without completing payment
+        navigator.sendBeacon(
+          `${supabase.supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}`,
+          JSON.stringify({ status: 'cancelled', payment_status: 'failed' })
+        );
+      }
+    };
+
+    const handlePopState = () => {
+      if (bookingId) {
+        // Cancel booking if going back
+        supabase
+          .from('bookings')
+          .update({ status: 'cancelled', payment_status: 'failed' })
+          .eq('id', bookingId)
+          .then(() => {
+            console.log('Booking cancelled due to navigation back');
+          });
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [bookingId]);
+
   const handlePayment = async () => {
-    if (!userId) {
-      toast.error('Please login to complete booking');
+    if (!userId || !bookingId) {
+      toast.error('Missing booking information');
       return;
     }
 
     setProcessing(true);
 
     try {
-      // Final slot availability check before booking
-      const { data: finalCheck, error: checkError } = await supabase.rpc('check_slot_availability_with_service_duration', {
-        p_staff_id: selectedStaff,
-        p_date: bookingDate,
-        p_start_time: bookingTime,
-        p_service_duration: totalDuration
-      });
+      console.log('Processing payment for booking:', bookingId);
 
-      // Type guard for the response
-      const response = finalCheck as unknown as AvailabilityResponse;
-      
-      if (checkError || !response.available) {
-        toast.error('Time slot is no longer available. Please go back and select another time.');
-        setProcessing(false);
-        return;
-      }
-
-      // Create booking record
-      const bookingData = {
-        user_id: userId,
-        merchant_id: merchantId,
-        service_id: selectedServices[0].id, // For now, use first service
-        staff_id: selectedStaff,
-        date: bookingDate,
-        time_slot: bookingTime,
-        status: 'pending',
-        payment_status: 'pending'
-      };
-
-      console.log('Creating booking with data:', bookingData);
-
-      const { data: booking, error: bookingError } = await supabase
+      // Verify booking still exists and is in correct state
+      const { data: existingBooking, error: bookingCheckError } = await supabase
         .from('bookings')
-        .insert(bookingData)
-        .select()
+        .select(`
+          *,
+          service:services(name, price),
+          merchant:merchants(shop_name, address)
+        `)
+        .eq('id', bookingId)
+        .eq('user_id', userId)
         .single();
 
-      if (bookingError) {
-        console.error('Error creating booking:', bookingError);
-        toast.error('Failed to create booking');
-        setProcessing(false);
+      if (bookingCheckError || !existingBooking) {
+        console.error('Booking verification failed:', bookingCheckError);
+        toast.error('Booking no longer exists or has been cancelled');
+        navigate('/calendar');
         return;
       }
 
-      console.log('Booking created:', booking);
+      if (existingBooking.status !== 'confirmed') {
+        toast.error('Booking is not in a valid state for payment');
+        navigate('/calendar');
+        return;
+      }
 
       // Create payment record
       const paymentData = {
-        booking_id: booking.id,
+        booking_id: bookingId,
         method: paymentMethod,
         amount: totalPrice,
         status: 'completed', // Simulating successful payment
@@ -116,35 +126,41 @@ const PaymentPage: React.FC = () => {
 
       if (paymentError) {
         console.error('Error creating payment:', paymentError);
-        toast.error('Payment processing failed');
-        setProcessing(false);
+        
+        // Mark booking as cancelled with failed payment
+        await supabase
+          .from('bookings')
+          .update({ 
+            status: 'cancelled',
+            payment_status: 'failed'
+          })
+          .eq('id', bookingId);
+        
+        toast.error('Payment processing failed. Booking has been cancelled.');
         return;
       }
 
-      // Update booking status to confirmed and payment status to completed
+      // Update booking payment status to completed (keep status as confirmed)
       const { error: updateError } = await supabase
         .from('bookings')
         .update({ 
-          status: 'confirmed',
           payment_status: 'completed'
         })
-        .eq('id', booking.id);
+        .eq('id', bookingId);
 
       if (updateError) {
-        console.error('Error updating booking status:', updateError);
-        toast.error('Error confirming booking');
-        setProcessing(false);
+        console.error('Error updating booking payment status:', updateError);
+        toast.error('Error confirming payment');
         return;
       }
 
-      toast.success('Booking confirmed successfully!');
+      toast.success('Payment completed successfully!');
 
       // Navigate to receipt page
-      navigate(`/receipt/${booking.id}`, {
+      navigate(`/receipt/${bookingId}`, {
         state: {
           booking: {
-            ...booking,
-            status: 'confirmed',
+            ...existingBooking,
             payment_status: 'completed'
           },
           payment,
@@ -158,7 +174,19 @@ const PaymentPage: React.FC = () => {
 
     } catch (error) {
       console.error('Error processing payment:', error);
-      toast.error('Payment processing failed');
+      
+      // Mark booking as cancelled with failed payment
+      if (bookingId) {
+        await supabase
+          .from('bookings')
+          .update({ 
+            status: 'cancelled',
+            payment_status: 'failed'
+          })
+          .eq('id', bookingId);
+      }
+      
+      toast.error('Payment processing failed. Booking has been cancelled.');
     } finally {
       setProcessing(false);
     }
@@ -181,7 +209,16 @@ const PaymentPage: React.FC = () => {
             variant="ghost" 
             size="icon" 
             className="absolute left-0 text-white hover:bg-white/20"
-            onClick={() => navigate(-1)}
+            onClick={() => {
+              // Cancel booking when going back
+              if (bookingId) {
+                supabase
+                  .from('bookings')
+                  .update({ status: 'cancelled', payment_status: 'failed' })
+                  .eq('id', bookingId);
+              }
+              navigate(-1);
+            }}
           >
             <ChevronLeft className="h-5 w-5" />
           </Button>
