@@ -401,8 +401,8 @@ const DateTimeSelectionPage: React.FC = () => {
         return;
       }
 
-      // Type assertion for the RPC response
-      const bookingResult = bookingData as BookingResult;
+      // Properly type assert the RPC response
+      const bookingResult = bookingData as unknown as BookingResult;
 
       if (!bookingResult.success) {
         toast.error(bookingResult.error || 'Failed to create booking');
