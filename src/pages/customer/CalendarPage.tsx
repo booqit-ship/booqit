@@ -304,7 +304,11 @@ const CalendarPage: React.FC = () => {
                     </div>
                     
                     {booking.status !== 'cancelled' && booking.status !== 'completed' && <div className="flex justify-end">
-                        <CancelBookingButton bookingId={booking.id} bookingDate={booking.date} bookingTime={booking.time_slot} bookingStatus={booking.status} userId={userId} onCancelSuccess={() => fetchBookings()} className="h-8 text-sm px-4" />
+                        <CancelBookingButton 
+                          bookingId={booking.id} 
+                          onCancelled={() => fetchBookings()} 
+                          className="h-8 text-sm px-4" 
+                        />
                       </div>}
                   </CardContent>
                 </Card>)}
