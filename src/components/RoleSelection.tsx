@@ -1,27 +1,28 @@
-
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Store, User } from 'lucide-react';
 import { UserRole } from '@/types';
-
 interface RoleSelectionProps {
   onRoleSelect: (role: UserRole) => void;
 }
-
-const RoleSelection: React.FC<RoleSelectionProps> = ({ onRoleSelect }) => {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-booqit-primary/10 to-white flex flex-col items-center justify-center p-4">
-      <motion.div 
-        initial={{ scale: 0.9, opacity: 0 }} 
-        animate={{ scale: 1, opacity: 1 }} 
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-md space-y-8"
-      >
+const RoleSelection: React.FC<RoleSelectionProps> = ({
+  onRoleSelect
+}) => {
+  return <div className="min-h-screen bg-gradient-to-br from-booqit-primary/10 to-white flex flex-col items-center justify-center p-4">
+      <motion.div initial={{
+      scale: 0.9,
+      opacity: 0
+    }} animate={{
+      scale: 1,
+      opacity: 1
+    }} transition={{
+      duration: 0.5
+    }} className="w-full max-w-md space-y-8">
         {/* Logo */}
         <div className="text-center">
-          <h1 className="text-5xl font-righteous font-medium text-booqit-primary mb-2">
+          <h1 className="text-5xl font-righteous font-medium mb-2 text-black">
             booqit
           </h1>
           <p className="text-gray-600 font-poppins">Choose how you want to continue</p>
@@ -65,8 +66,6 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({ onRoleSelect }) => {
           </p>
         </div>
       </motion.div>
-    </div>
-  );
+    </div>;
 };
-
 export default RoleSelection;
