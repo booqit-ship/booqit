@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
@@ -19,12 +20,6 @@ interface AvailableSlot {
   time_slot: string;
   slot_status: string;
   status_reason: string | null;
-}
-
-interface AvailabilityResponse {
-  available: boolean;
-  reason?: string;
-  conflicting_slot?: string;
 }
 
 interface BookingCreationResponse {
@@ -220,10 +215,15 @@ const DateTimeSelectionPage: React.FC = () => {
     const handleBeforeUnload = () => {
       if (pendingBookingId) {
         // Use sendBeacon for cleanup on page unload
-        navigator.sendBeacon(
-          'https://ggclvurfcykbwmhfftkn.supabase.co/rest/v1/bookings?id=eq.' + pendingBookingId,
-          JSON.stringify({ status: 'cancelled' })
-        );
+        const url = 'https://ggclvurfcykbwmhfftkn.supabase.co/rest/v1/bookings?id=eq.' + pendingBookingId;
+        const data = JSON.stringify({ status: 'cancelled' });
+        const headers = {
+          'Content-Type': 'application/json',
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdnY2x2dXJmY3lrYndtaGZmdGtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc3MTQ3OTUsImV4cCI6MjA2MzI5MDc5NX0.0lpqHKUCWh47YTnRuksWDmv6Y5JPEanMwVyoQy9zeHw'
+        };
+        
+        const blob = new Blob([data], { type: 'application/json' });
+        navigator.sendBeacon(url, blob);
       }
     };
 
@@ -367,33 +367,51 @@ const DateTimeSelectionPage: React.FC = () => {
       }
     }
 
-    // Check slot availability with service duration
+    // Simple check for overlapping bookings instead of the problematic function
     try {
       const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
-      const { data: availabilityCheck, error } = await supabase.rpc('check_slot_availability_with_service_duration', {
-        p_staff_id: selectedStaff || availableSlot.staff_id,
-        p_date: selectedDateStr,
-        p_start_time: timeSlot,
-        p_service_duration: actualServiceDuration
-      });
+      const finalStaffId = selectedStaff || availableSlot.staff_id;
+      
+      console.log('Checking slot availability for:', { finalStaffId, selectedDateStr, timeSlot, actualServiceDuration });
 
-      if (error) {
-        console.error('Error checking slot availability:', error);
+      // Check for existing confirmed bookings that would overlap
+      const { data: existingBookings, error: bookingError } = await supabase
+        .from('bookings')
+        .select('time_slot, service:services(duration)')
+        .eq('staff_id', finalStaffId)
+        .eq('date', selectedDateStr)
+        .eq('status', 'confirmed');
+
+      if (bookingError) {
+        console.error('Error checking existing bookings:', bookingError);
         toast.error('Error checking time slot availability. Please try again.');
         return;
       }
 
-      console.log('Availability check result:', availabilityCheck);
-
-      // Type guard and proper parsing of the response
-      const response = availabilityCheck as unknown as AvailabilityResponse;
+      // Calculate if there's any overlap
+      const selectedStartTime = new Date(`2000-01-01T${timeSlot}:00`);
+      const selectedEndTime = new Date(selectedStartTime.getTime() + actualServiceDuration * 60000);
       
-      if (!response.available) {
-        toast.error(response.reason || 'Time slot not available for the full service duration');
+      let hasOverlap = false;
+      for (const booking of existingBookings || []) {
+        const existingStartTime = new Date(`2000-01-01T${booking.time_slot}:00`);
+        const existingDuration = booking.service?.duration || 30;
+        const existingEndTime = new Date(existingStartTime.getTime() + existingDuration * 60000);
+        
+        // Check for overlap
+        if (selectedStartTime < existingEndTime && selectedEndTime > existingStartTime) {
+          hasOverlap = true;
+          break;
+        }
+      }
+
+      if (hasOverlap) {
+        toast.error('Time slot not available for the full service duration');
         return;
       }
 
       setSelectedTime(timeSlot);
+      console.log('Time slot selected successfully:', timeSlot);
       
     } catch (error) {
       console.error('Error checking slot availability:', error);
