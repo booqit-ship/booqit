@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
@@ -165,30 +166,35 @@ const DateTimeSelectionPage: React.FC = () => {
         return;
       }
 
-      // Step 1: Clean up expired locks first
-      console.log('Cleaning up expired locks...');
-      await supabase.rpc('cleanup_expired_locks' as any);
+      // Check if merchant has any staff
+      console.log('Checking staff for merchant...');
+      const { data: staffData, error: staffError } = await supabase
+        .from('staff')
+        .select('id, name')
+        .eq('merchant_id', merchantId);
 
-      // Step 2: Generate fresh slots for the selected date
-      console.log('Generating fresh slots...');
-      const { data: generatedSlots, error: generateError } = await supabase.rpc('get_fresh_available_slots' as any, {
-        p_merchant_id: merchantId,
-        p_date: selectedDateStr,
-        p_staff_id: selectedStaff || null,
-      });
-
-      if (generateError) {
-        console.error('Error generating slots:', generateError);
-        setError('Could not generate time slots. Please try refreshing the page.');
+      if (staffError) {
+        console.error('Error checking staff:', staffError);
+        setError('Unable to check staff availability. Please try again.');
         setAvailableSlots([]);
         return;
       }
 
-      console.log('Generated slots count:', generatedSlots?.length || 0);
-      console.log('Generated slots sample:', generatedSlots?.slice(0, 3));
+      if (!staffData || staffData.length === 0) {
+        console.log('No staff found for merchant');
+        setError('No stylists available for this merchant');
+        setAvailableSlots([]);
+        return;
+      }
 
-      // Step 3: Get validated slots based on service duration
-      console.log('Validating slots with service duration...');
+      console.log('Found staff:', staffData.length);
+
+      // Clean up expired locks first
+      console.log('Cleaning up expired locks...');
+      await supabase.rpc('cleanup_expired_locks' as any);
+
+      // Fetch slots directly using get_available_slots_with_validation
+      console.log('Fetching available slots with validation...');
       const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_validation' as any, {
         p_merchant_id: merchantId,
         p_date: selectedDateStr,
@@ -197,17 +203,29 @@ const DateTimeSelectionPage: React.FC = () => {
       });
 
       if (slotsError) {
-        console.error('Error validating slots:', slotsError);
-        setError('Could not validate time slots. Please try again.');
+        console.error('Error fetching slots:', slotsError);
+        if (slotsError.message?.includes('Merchant not found')) {
+          setError('Merchant not found. Please check the booking link.');
+        } else {
+          setError('Unable to load time slots. Please try refreshing the page.');
+        }
         setAvailableSlots([]);
         return;
       }
 
-      console.log('Validated slots count:', slotsData?.length || 0);
-      console.log('Validated slots sample:', slotsData?.slice(0, 3));
+      console.log('Raw slots data:', slotsData?.length || 0);
+      console.log('Sample slots:', slotsData?.slice(0, 3));
 
       if (!slotsData || slotsData.length === 0) {
         console.log('No slots available for this date and service duration');
+        const todayIST = getCurrentDateIST();
+        const isToday = formatDateInIST(selectedDate, 'yyyy-MM-dd') === formatDateInIST(todayIST, 'yyyy-MM-dd');
+        
+        if (isToday) {
+          setError('No slots available today. The shop might be fully booked or it may be too late to book for today.');
+        } else {
+          setError('No slots available for this date. The shop might be closed or fully booked.');
+        }
         setAvailableSlots([]);
         return;
       }
@@ -222,11 +240,14 @@ const DateTimeSelectionPage: React.FC = () => {
       }));
 
       console.log('Final processed slots:', processedSlots.length);
+      console.log('Available slots:', processedSlots.filter(s => s.is_available).length);
+      console.log('Unavailable slots:', processedSlots.filter(s => !s.is_available).length);
+      
       setAvailableSlots(processedSlots);
 
     } catch (error) {
       console.error('Error in fetchAvailableSlots:', error);
-      setError('Could not load time slots. Please check your connection and try again.');
+      setError('Unable to load time slots. Please check your connection and try again.');
       setAvailableSlots([]);
     } finally {
       setLoading(false);
@@ -445,6 +466,181 @@ const DateTimeSelectionPage: React.FC = () => {
       </div>
     );
   }
+
+  // Cleanup slot lock on unmount or navigation
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (lockedSlot) {
+        // Use sendBeacon for cleanup on page unload
+        navigator.sendBeacon(
+          'https://ggclvurfcykbwmhfftkn.supabase.co/rest/v1/rpc/release_slot_lock',
+          JSON.stringify({
+            p_staff_id: lockedSlot.staffId,
+            p_date: lockedSlot.date,
+            p_time_slot: lockedSlot.timeSlot
+          })
+        );
+      }
+    };
+
+    const handlePopState = () => {
+      releaseLock();
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('popstate', handlePopState);
+      releaseLock();
+    };
+  }, [lockedSlot, releaseLock]);
+
+  const handleTimeSlotClick = async (timeSlot: string) => {
+    if (!selectedDate || !merchantId) return;
+    
+    // Find available slot for this time
+    const availableSlot = availableSlots.find(slot => 
+      slot.time_slot === timeSlot && slot.is_available
+    );
+    
+    if (!availableSlot) {
+      const conflictSlot = availableSlots.find(slot => slot.time_slot === timeSlot);
+      if (conflictSlot && conflictSlot.conflict_reason) {
+        toast.error(conflictSlot.conflict_reason);
+      } else {
+        toast.error('This time slot is not available');
+      }
+      return;
+    }
+
+    const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
+    const finalStaffId = selectedStaff || availableSlot.staff_id;
+
+    // First, release any existing lock
+    if (lockedSlot) {
+      await releaseLock();
+    }
+
+    // Try to lock the new slot
+    const lockSuccess = await lockSlot(finalStaffId, selectedDateStr, timeSlot);
+    
+    if (lockSuccess) {
+      setSelectedTime(timeSlot);
+      console.log('Time slot selected and locked successfully:', timeSlot);
+    }
+  };
+
+  const handleContinue = async () => {
+    if (!selectedDate || !selectedTime || !userId) {
+      toast.error('Please select both date and time');
+      return;
+    }
+
+    const selectedSlot = availableSlots.find(slot => 
+      slot.time_slot === selectedTime && slot.is_available
+    );
+    
+    if (!selectedSlot) {
+      toast.error('Selected time slot is not available');
+      return;
+    }
+
+    setIsCreatingBooking(true);
+
+    try {
+      const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
+      const finalStaffId = selectedStaff || selectedSlot.staff_id;
+      const serviceId = selectedServices[0]?.id;
+
+      if (!serviceId) {
+        toast.error('Service information is missing');
+        return;
+      }
+
+      console.log('Creating confirmed booking with data:', {
+        userId,
+        merchantId,
+        serviceId,
+        finalStaffId,
+        selectedDateStr,
+        selectedTime,
+        actualServiceDuration
+      });
+
+      // Create booking immediately with confirmed status using atomic function
+      const { data: bookingResult, error: bookingError } = await supabase.rpc('create_confirmed_booking' as any, {
+        p_user_id: userId,
+        p_merchant_id: merchantId,
+        p_service_id: serviceId,
+        p_staff_id: finalStaffId,
+        p_date: selectedDateStr,
+        p_time_slot: selectedTime,
+        p_service_duration: actualServiceDuration
+      });
+
+      if (bookingError) {
+        console.error('Error creating booking:', bookingError);
+        toast.error(`Failed to create booking: ${bookingError.message}`);
+        return;
+      }
+
+      const response = bookingResult as unknown as BookingCreationResponse;
+      
+      if (!response.success) {
+        const errorMessage = response.error || 'Time slot is no longer available';
+        toast.error(errorMessage);
+        
+        // If slot conflict, refresh slots and clear selection
+        if (errorMessage.includes('locked') || errorMessage.includes('overlaps')) {
+          fetchAvailableSlots();
+          setSelectedTime('');
+        }
+        return;
+      }
+
+      const bookingId = response.booking_id;
+      console.log('Booking created successfully:', bookingId);
+      toast.success('Booking confirmed! Proceeding to payment...');
+
+      const finalStaffDetails = selectedStaffDetails || { name: selectedSlot.staff_name };
+
+      // Navigate to payment page with booking ID
+      navigate(`/payment/${merchantId}`, {
+        state: {
+          merchant,
+          selectedServices,
+          totalPrice,
+          totalDuration: actualServiceDuration,
+          selectedStaff: finalStaffId,
+          selectedStaffDetails: finalStaffDetails,
+          bookingDate: selectedDateStr,
+          bookingTime: selectedTime,
+          bookingId: bookingId
+        }
+      });
+
+    } catch (error) {
+      console.error('Error in booking creation:', error);
+      toast.error('Error creating booking. Please try again.');
+    } finally {
+      setIsCreatingBooking(false);
+    }
+  };
+
+  const formatDateDisplay = (date: Date) => {
+    const todayIST = getCurrentDateIST();
+    const tomorrowIST = addDays(todayIST, 1);
+    
+    if (formatDateInIST(date, 'yyyy-MM-dd') === formatDateInIST(todayIST, 'yyyy-MM-dd')) {
+      return 'Today';
+    } else if (formatDateInIST(date, 'yyyy-MM-dd') === formatDateInIST(tomorrowIST, 'yyyy-MM-dd')) {
+      return 'Tomorrow';
+    } else {
+      return formatDateInIST(date, 'EEE, MMM d');
+    }
+  };
 
   return (
     <div className="pb-24 bg-white min-h-screen">
