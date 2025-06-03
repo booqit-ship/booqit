@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -107,10 +108,12 @@ const SearchPage: React.FC = () => {
     }
   };
 
-  // Fetch merchants from database with services and apply initial filters
+  // Fetch merchants from database with services and apply filters
   const fetchMerchants = async () => {
     setIsLoading(true);
     try {
+      console.log("Fetching merchants with filters:", filters);
+      
       let query = supabase
         .from('merchants')
         .select(`
@@ -129,12 +132,20 @@ const SearchPage: React.FC = () => {
 
       // Apply gender focus filter at database level
       if (filters.genderFocus !== 'all') {
+        console.log(`Applying gender filter: ${filters.genderFocus}`);
         query = query.or(`gender_focus.eq.${filters.genderFocus},gender_focus.eq.unisex`);
+      }
+
+      // Apply category filter at database level
+      if (filters.category !== 'all') {
+        console.log(`Applying category filter: ${filters.category}`);
+        query = query.eq('category', filters.category);
       }
 
       // Apply rating filter at database level
       if (filters.rating !== 'all') {
         const minRating = parseFloat(filters.rating);
+        console.log(`Applying minimum rating filter: ${minRating}`);
         query = query.gte('rating', minRating);
       }
 
@@ -142,16 +153,44 @@ const SearchPage: React.FC = () => {
         
       if (error) throw error;
       
+      console.log(`Fetched ${data?.length || 0} merchants from database`);
+      
       if (data) {
-        setMerchants(data);
+        // Apply price range filter client-side based on services
+        let filteredData = data as Merchant[];
+        
+        if (filters.priceRange !== 'all') {
+          console.log(`Applying price range filter: ${filters.priceRange}`);
+          
+          filteredData = filteredData.filter(merchant => {
+            if (!merchant.services || merchant.services.length === 0) return false;
+            
+            const minPrice = Math.min(...merchant.services.map(s => s.price));
+            
+            switch (filters.priceRange) {
+              case 'low':
+                return minPrice <= 500;
+              case 'medium':
+                return minPrice > 500 && minPrice <= 1000;
+              case 'high':
+                return minPrice > 1000;
+              default:
+                return true;
+            }
+          });
+          
+          console.log(`${filteredData.length} merchants after price filter`);
+        }
+        
+        setMerchants(filteredData);
       }
     } catch (error: any) {
+      console.error('Error fetching merchants:', error);
       toast({
         title: "Error",
         description: "Failed to fetch merchants. Please try again.",
         variant: "destructive",
       });
-      console.error(error);
     } finally {
       setIsLoading(false);
     }
@@ -160,7 +199,7 @@ const SearchPage: React.FC = () => {
   // Re-fetch merchants when filters change
   useEffect(() => {
     fetchMerchants();
-  }, [filters.genderFocus, filters.rating]);
+  }, [filters.genderFocus, filters.rating, filters.category, filters.priceRange]);
 
   // Handle search input changes and generate suggestions
   useEffect(() => {
@@ -182,12 +221,12 @@ const SearchPage: React.FC = () => {
     }
   }, [searchTerm, merchants]);
 
-  // Calculate distance and apply search/price filters
+  // Calculate distance and apply search filters
   useEffect(() => {
     if (merchants.length > 0) {
       let filtered = [...merchants];
       
-      // Apply search filter globally (removed city restriction)
+      // Apply search filter globally
       if (searchTerm) {
         filtered = filtered.filter(merchant => 
           merchant.shop_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -206,33 +245,6 @@ const SearchPage: React.FC = () => {
         }
       }
       
-      // Apply category filter
-      if (filters.category !== 'all') {
-        filtered = filtered.filter(merchant => 
-          merchant.category.toLowerCase() === filters.category.toLowerCase()
-        );
-      }
-      
-      // Apply price range filter (client-side based on services)
-      if (filters.priceRange !== 'all') {
-        filtered = filtered.filter(merchant => {
-          if (!merchant.services || merchant.services.length === 0) return false;
-          
-          const minPrice = Math.min(...merchant.services.map(s => s.price));
-          
-          switch (filters.priceRange) {
-            case 'low':
-              return minPrice <= 500;
-            case 'medium':
-              return minPrice > 500 && minPrice <= 1000;
-            case 'high':
-              return minPrice > 1000;
-            default:
-              return true;
-          }
-        });
-      }
-      
       // Calculate distances if user location is available
       if (userLocation) {
         filtered = filtered.map(merchant => {
@@ -249,17 +261,20 @@ const SearchPage: React.FC = () => {
           } as Merchant;
         });
         
-        // Apply sorting - default to rating since distance filter is removed
+        // Apply sorting
         if (filters.sortBy === 'rating') {
           filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0));
         } else if (filters.sortBy === 'name') {
           filtered.sort((a, b) => a.shop_name.localeCompare(b.shop_name));
+        } else if (filters.sortBy === 'distance' && userLocation) {
+          filtered.sort((a, b) => (a.distanceValue || 0) - (b.distanceValue || 0));
         }
       }
       
+      console.log(`Filtered to ${filtered.length} merchants`);
       setFilteredMerchants(filtered);
     }
-  }, [merchants, searchTerm, filters, userLocation, userCity]);
+  }, [merchants, searchTerm, userLocation, userCity, filters.sortBy]);
 
   // Calculate distance using Haversine formula
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -351,7 +366,7 @@ const SearchPage: React.FC = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search salons, spas & beauty parlours..."
-              className="pl-12 pr-4 py-4 rounded-2xl border-0 shadow-lg bg-white/95 backdrop-blur-sm text-base placeholder:text-gray-600 focus:ring-2 focus:ring-booqit-primary font-medium"
+              className="pl-12 pr-4 py-4 rounded-2xl border-0 shadow-lg bg-white/95 backdrop-blur-sm text-base placeholder:text-gray-600 focus:ring-2 focus:ring-booqit-primary font-medium font-poppins"
               onFocus={() => searchTerm.length > 0 && searchSuggestions.length > 0 && setShowSuggestions(true)}
             />
             
@@ -368,17 +383,17 @@ const SearchPage: React.FC = () => {
                     onClick={() => handleSuggestionClick(merchant)}
                   >
                     <div className="flex-1">
-                      <h4 className="font-medium text-gray-900">{merchant.shop_name}</h4>
+                      <h4 className="font-medium text-gray-900 font-righteous">{merchant.shop_name}</h4>
                       <div className="flex items-center text-sm text-gray-600 mt-1">
                         <MapPin className="w-3 h-3 mr-1" />
-                        <span className="line-clamp-1">{merchant.address}</span>
+                        <span className="line-clamp-1 font-poppins">{merchant.address}</span>
                       </div>
-                      <p className="text-xs text-gray-500 mt-1">{merchant.category}</p>
+                      <p className="text-xs text-gray-500 mt-1 font-poppins">{merchant.category}</p>
                     </div>
                     <div className="flex items-center ml-2">
                       {merchant.rating && (
                         <div className="flex items-center bg-green-100 px-2 py-1 rounded-full">
-                          <span className="text-xs font-medium text-green-800">
+                          <span className="text-xs font-medium text-green-800 font-poppins">
                             ★ {merchant.rating.toFixed(1)}
                           </span>
                         </div>

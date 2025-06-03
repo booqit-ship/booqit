@@ -1,572 +1,412 @@
+
 import React, { useState, useEffect } from 'react';
-import { useToast } from '@/hooks/use-toast';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Calendar } from '@/components/ui/calendar';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Staff, StylistHoliday, StylistBlockedSlot } from '@/types';
-import { format, addDays, isBefore, startOfDay } from 'date-fns';
-import { formatTimeToAmPm } from '@/utils/timeUtils';
-import { 
-  User, 
-  Calendar as CalendarIcon, 
-  Clock, 
-  X,
-  UserX,
-  ChevronDown
-} from 'lucide-react';
+import { Staff } from '@/types';
+import { format } from 'date-fns';
+import { Calendar as CalendarIcon, Clock, X, Trash2 } from 'lucide-react';
+import StylistAvailabilityPopup from './StylistAvailabilityPopup';
+import AvailabilityDeletionDialog from './AvailabilityDeletionDialog';
 
 interface StylistAvailabilityManagerProps {
   merchantId: string;
-  selectedDate: Date;
-  onAvailabilityChange: () => void;
 }
 
-const timeSlots = [
-  '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-  '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
-  '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
-  '18:00', '18:30', '19:00', '19:30', '20:00'
-];
+interface AvailabilityData {
+  date: string;
+  staff_name: string;
+  staff_id: string;
+  is_holiday: boolean;
+  blocked_ranges: Array<{
+    start_time: string;
+    end_time: string;
+    description?: string;
+  }>;
+  description?: string;
+}
 
-const StylistAvailabilityManager: React.FC<StylistAvailabilityManagerProps> = ({
-  merchantId,
-  selectedDate: initialSelectedDate,
-  onAvailabilityChange
-}) => {
+const StylistAvailabilityManager: React.FC<StylistAvailabilityManagerProps> = ({ merchantId }) => {
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [staff, setStaff] = useState<Staff[]>([]);
-  const [selectedStaff, setSelectedStaff] = useState<string>('');
-  const [selectedDate, setSelectedDate] = useState<Date>(initialSelectedDate);
-  const [stylistHolidays, setStylistHolidays] = useState<StylistHoliday[]>([]);
-  const [stylistBlockedSlots, setStylistBlockedSlots] = useState<StylistBlockedSlot[]>([]);
-  const [isFullDayHoliday, setIsFullDayHoliday] = useState(false);
-  const [selectedTimeSlots, setSelectedTimeSlots] = useState<string[]>([]);
-  const [startTime, setStartTime] = useState('');
-  const [endTime, setEndTime] = useState('');
-  const [description, setDescription] = useState('');
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [availabilityData, setAvailabilityData] = useState<AvailabilityData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [blockingMode, setBlockingMode] = useState<'individual' | 'range'>('individual');
+  const [showPopup, setShowPopup] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deletingAvailability, setDeletingAvailability] = useState<AvailabilityData | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
 
-  const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-
-  // Update selectedDate when initialSelectedDate changes
-  useEffect(() => {
-    setSelectedDate(initialSelectedDate);
-  }, [initialSelectedDate]);
-
+  // Fetch staff members
   useEffect(() => {
     const fetchStaff = async () => {
       try {
         const { data, error } = await supabase
           .from('staff')
           .select('*')
-          .eq('merchant_id', merchantId);
-          
+          .eq('merchant_id', merchantId)
+          .order('name');
+
         if (error) throw error;
         setStaff(data || []);
       } catch (error) {
         console.error('Error fetching staff:', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch staff data",
+          variant: "destructive"
+        });
       }
     };
-    
-    fetchStaff();
-  }, [merchantId]);
 
+    fetchStaff();
+  }, [merchantId, toast]);
+
+  // Fetch availability data for selected date
   useEffect(() => {
     const fetchAvailabilityData = async () => {
-      if (!selectedStaff) return;
-      
+      if (!selectedDate) return;
+
+      setIsLoading(true);
       try {
+        const dateStr = format(selectedDate, 'yyyy-MM-dd');
+
+        // Fetch holidays
         const { data: holidays, error: holidaysError } = await supabase
           .from('stylist_holidays')
-          .select('*')
-          .eq('staff_id', selectedStaff);
-          
-        if (holidaysError) throw holidaysError;
-        setStylistHolidays(holidays || []);
+          .select(`
+            staff_id,
+            description,
+            staff!inner(name)
+          `)
+          .eq('holiday_date', dateStr)
+          .eq('merchant_id', merchantId);
 
-        const { data: blockedSlots, error: blockedError } = await supabase
+        if (holidaysError) throw holidaysError;
+
+        // Fetch blocked slots
+        const { data: blockedSlots, error: blockedSlotsError } = await supabase
           .from('stylist_blocked_slots')
-          .select('*')
-          .eq('staff_id', selectedStaff);
-          
-        if (blockedError) throw blockedError;
-        setStylistBlockedSlots(blockedSlots || []);
+          .select(`
+            staff_id,
+            start_time,
+            end_time,
+            description,
+            staff!inner(name)
+          `)
+          .eq('blocked_date', dateStr)
+          .eq('merchant_id', merchantId);
+
+        if (blockedSlotsError) throw blockedSlotsError;
+
+        // Combine data
+        const availabilityMap = new Map<string, AvailabilityData>();
+
+        // Add holidays
+        holidays?.forEach((holiday: any) => {
+          availabilityMap.set(holiday.staff_id, {
+            date: dateStr,
+            staff_name: holiday.staff.name,
+            staff_id: holiday.staff_id,
+            is_holiday: true,
+            blocked_ranges: [],
+            description: holiday.description
+          });
+        });
+
+        // Add blocked slots
+        blockedSlots?.forEach((slot: any) => {
+          const existing = availabilityMap.get(slot.staff_id);
+          if (existing && !existing.is_holiday) {
+            existing.blocked_ranges.push({
+              start_time: slot.start_time,
+              end_time: slot.end_time,
+              description: slot.description
+            });
+          } else if (!existing) {
+            availabilityMap.set(slot.staff_id, {
+              date: dateStr,
+              staff_name: slot.staff.name,
+              staff_id: slot.staff_id,
+              is_holiday: false,
+              blocked_ranges: [{
+                start_time: slot.start_time,
+                end_time: slot.end_time,
+                description: slot.description
+              }],
+              description: slot.description
+            });
+          }
+        });
+
+        setAvailabilityData(Array.from(availabilityMap.values()));
       } catch (error) {
         console.error('Error fetching availability data:', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch availability data",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
       }
     };
-    
+
     fetchAvailabilityData();
-  }, [selectedStaff, selectedDate]);
+  }, [selectedDate, merchantId, toast]);
 
-  // Check current status for selected date and staff
-  useEffect(() => {
-    if (selectedStaff && selectedDateStr) {
-      const existingHoliday = stylistHolidays.find(
-        h => h.staff_id === selectedStaff && h.holiday_date === selectedDateStr
+  const handleManageAvailability = (staffMember: Staff) => {
+    setSelectedStaff(staffMember);
+    setShowPopup(true);
+  };
+
+  const handleDeleteAvailability = (availability: AvailabilityData) => {
+    setDeletingAvailability(availability);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDeleteAvailability = async () => {
+    if (!deletingAvailability || !selectedDate) return;
+
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase.rpc('clear_stylist_availability', {
+        p_staff_id: deletingAvailability.staff_id,
+        p_date: format(selectedDate, 'yyyy-MM-dd')
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Availability settings deleted successfully"
+      });
+
+      // Refresh data
+      setAvailabilityData(prev => 
+        prev.filter(item => item.staff_id !== deletingAvailability.staff_id)
       );
-      
-      if (existingHoliday) {
-        setIsFullDayHoliday(true);
-        setDescription(existingHoliday.description || '');
-        setSelectedTimeSlots([]);
-        setStartTime('');
-        setEndTime('');
-      } else {
-        setIsFullDayHoliday(false);
-        const existingSlots = stylistBlockedSlots
-          .filter(s => s.staff_id === selectedStaff && s.blocked_date === selectedDateStr);
-        
-        if (existingSlots.length > 0) {
-          // Check if we have time range blocks
-          const rangeBlocks = existingSlots.filter(s => s.start_time && s.end_time);
-          if (rangeBlocks.length > 0) {
-            setBlockingMode('range');
-            setStartTime(rangeBlocks[0].start_time?.substring(0, 5) || '');
-            setEndTime(rangeBlocks[0].end_time?.substring(0, 5) || '');
-          } else {
-            // Individual slots
-            setBlockingMode('individual');
-            setSelectedTimeSlots(existingSlots.map(s => s.time_slot));
-          }
-          setDescription(existingSlots[0]?.description || '');
-        } else {
-          setSelectedTimeSlots([]);
-          setStartTime('');
-          setEndTime('');
-          setDescription('');
+    } catch (error) {
+      console.error('Error deleting availability:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete availability settings",
+        variant: "destructive"
+      });
+    } finally {
+      setIsDeleting(false);
+      setDeletingAvailability(null);
+    }
+  };
+
+  const refreshData = () => {
+    // Trigger a re-fetch of availability data
+    if (selectedDate) {
+      const fetchData = async () => {
+        setIsLoading(true);
+        try {
+          const dateStr = format(selectedDate, 'yyyy-MM-dd');
+
+          const { data: holidays, error: holidaysError } = await supabase
+            .from('stylist_holidays')
+            .select(`
+              staff_id,
+              description,
+              staff!inner(name)
+            `)
+            .eq('holiday_date', dateStr)
+            .eq('merchant_id', merchantId);
+
+          if (holidaysError) throw holidaysError;
+
+          const { data: blockedSlots, error: blockedSlotsError } = await supabase
+            .from('stylist_blocked_slots')
+            .select(`
+              staff_id,
+              start_time,
+              end_time,
+              description,
+              staff!inner(name)
+            `)
+            .eq('blocked_date', dateStr)
+            .eq('merchant_id', merchantId);
+
+          if (blockedSlotsError) throw blockedSlotsError;
+
+          const availabilityMap = new Map<string, AvailabilityData>();
+
+          holidays?.forEach((holiday: any) => {
+            availabilityMap.set(holiday.staff_id, {
+              date: dateStr,
+              staff_name: holiday.staff.name,
+              staff_id: holiday.staff_id,
+              is_holiday: true,
+              blocked_ranges: [],
+              description: holiday.description
+            });
+          });
+
+          blockedSlots?.forEach((slot: any) => {
+            const existing = availabilityMap.get(slot.staff_id);
+            if (existing && !existing.is_holiday) {
+              existing.blocked_ranges.push({
+                start_time: slot.start_time,
+                end_time: slot.end_time,
+                description: slot.description
+              });
+            } else if (!existing) {
+              availabilityMap.set(slot.staff_id, {
+                date: dateStr,
+                staff_name: slot.staff.name,
+                staff_id: slot.staff_id,
+                is_holiday: false,
+                blocked_ranges: [{
+                  start_time: slot.start_time,
+                  end_time: slot.end_time,
+                  description: slot.description
+                }],
+                description: slot.description
+              });
+            }
+          });
+
+          setAvailabilityData(Array.from(availabilityMap.values()));
+        } catch (error) {
+          console.error('Error refreshing data:', error);
+        } finally {
+          setIsLoading(false);
         }
-      }
-    } else {
-      setIsFullDayHoliday(false);
-      setSelectedTimeSlots([]);
-      setStartTime('');
-      setEndTime('');
-      setDescription('');
-    }
-  }, [selectedStaff, selectedDateStr, stylistHolidays, stylistBlockedSlots]);
+      };
 
-  const isDateHoliday = stylistHolidays.some(
-    holiday => holiday.staff_id === selectedStaff && holiday.holiday_date === selectedDateStr
-  );
-
-  const blockedSlotsForDate = stylistBlockedSlots.filter(
-    slot => slot.staff_id === selectedStaff && slot.blocked_date === selectedDateStr
-  );
-
-  const handleTimeSlotToggle = (timeSlot: string) => {
-    setSelectedTimeSlots(prev => 
-      prev.includes(timeSlot) 
-        ? prev.filter(slot => slot !== timeSlot)
-        : [...prev, timeSlot]
-    );
-  };
-
-  const handleSave = async () => {
-    if (!selectedStaff) {
-      toast({
-        title: "Error",
-        description: "Please select a stylist first.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      // First, remove any existing entries for this staff member and date
-      await supabase
-        .from('stylist_holidays')
-        .delete()
-        .eq('staff_id', selectedStaff)
-        .eq('holiday_date', selectedDateStr);
-
-      await supabase
-        .from('stylist_blocked_slots')
-        .delete()
-        .eq('staff_id', selectedStaff)
-        .eq('blocked_date', selectedDateStr);
-
-      if (isFullDayHoliday) {
-        // Add full day holiday
-        const { error } = await supabase
-          .from('stylist_holidays')
-          .insert({
-            staff_id: selectedStaff,
-            merchant_id: merchantId,
-            holiday_date: selectedDateStr,
-            description: description || null
-          });
-          
-        if (error) throw error;
-      } else if (blockingMode === 'range' && startTime && endTime) {
-        // Add blocked time range
-        const { error } = await supabase
-          .from('stylist_blocked_slots')
-          .insert({
-            staff_id: selectedStaff,
-            merchant_id: merchantId,
-            blocked_date: selectedDateStr,
-            start_time: startTime,
-            end_time: endTime,
-            time_slot: startTime, // Required field
-            description: description || null
-          });
-          
-        if (error) throw error;
-      } else if (blockingMode === 'individual' && selectedTimeSlots.length > 0) {
-        // Add blocked individual time slots
-        const blockedSlots = selectedTimeSlots.map(slot => ({
-          staff_id: selectedStaff,
-          merchant_id: merchantId,
-          blocked_date: selectedDateStr,
-          time_slot: slot,
-          start_time: null,
-          end_time: null,
-          description: description || null
-        }));
-
-        const { error } = await supabase
-          .from('stylist_blocked_slots')
-          .insert(blockedSlots);
-          
-        if (error) throw error;
-      }
-
-      // Refresh data
-      const { data: holidays } = await supabase
-        .from('stylist_holidays')
-        .select('*')
-        .eq('staff_id', selectedStaff);
-        
-      setStylistHolidays(holidays || []);
-
-      const { data: blockedSlots } = await supabase
-        .from('stylist_blocked_slots')
-        .select('*')
-        .eq('staff_id', selectedStaff);
-        
-      setStylistBlockedSlots(blockedSlots || []);
-      
-      toast({
-        title: "Success",
-        description: "Stylist availability updated successfully.",
-      });
-      
-      setDialogOpen(false);
-      onAvailabilityChange();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update availability. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
+      fetchData();
     }
   };
-
-  const handleClearAvailability = async () => {
-    if (!selectedStaff) return;
-
-    setIsLoading(true);
-    try {
-      // Remove all entries for this staff member and date
-      await supabase
-        .from('stylist_holidays')
-        .delete()
-        .eq('staff_id', selectedStaff)
-        .eq('holiday_date', selectedDateStr);
-
-      await supabase
-        .from('stylist_blocked_slots')
-        .delete()
-        .eq('staff_id', selectedStaff)
-        .eq('blocked_date', selectedDateStr);
-
-      // Refresh data
-      const { data: holidays } = await supabase
-        .from('stylist_holidays')
-        .select('*')
-        .eq('staff_id', selectedStaff);
-        
-      setStylistHolidays(holidays || []);
-
-      const { data: blockedSlots } = await supabase
-        .from('stylist_blocked_slots')
-        .select('*')
-        .eq('staff_id', selectedStaff);
-        
-      setStylistBlockedSlots(blockedSlots || []);
-
-      // Reset form
-      setIsFullDayHoliday(false);
-      setSelectedTimeSlots([]);
-      setDescription('');
-      
-      toast({
-        title: "Success",
-        description: "Availability restrictions cleared successfully.",
-      });
-      
-      onAvailabilityChange();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to clear availability. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const selectedStaffMember = staff.find(s => s.id === selectedStaff);
-  const hasExistingRestrictions = isDateHoliday || blockedSlotsForDate.length > 0;
-
-  // Get available dates (next 30 days)
-  const getAvailableDates = () => {
-    const dates: Date[] = [];
-    const today = startOfDay(new Date());
-    
-    for (let i = 0; i < 30; i++) {
-      dates.push(addDays(today, i));
-    }
-    
-    return dates;
-  };
-
-  const availableDates = getAvailableDates();
 
   return (
-    <Card>
-      <CardHeader className="py-3">
-        <CardTitle className="text-base flex items-center">
-          <UserX className="mr-2 h-4 w-4" />
-          Stylist Availability
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div>
-          <label className="text-sm font-medium mb-2 block">Select Stylist</label>
-          <Select value={selectedStaff} onValueChange={setSelectedStaff}>
-            <SelectTrigger>
-              <SelectValue placeholder="Choose a stylist" />
-            </SelectTrigger>
-            <SelectContent>
-              {staff.map((member) => (
-                <SelectItem key={member.id} value={member.id}>
-                  <div className="flex items-center">
-                    <User className="h-4 w-4 mr-2" />
-                    {member.name}
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-righteous font-medium">Stylist Availability</h2>
+      </div>
 
-        <div>
-          <label className="text-sm font-medium mb-2 block">Select Date</label>
-          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="w-full justify-start text-left font-normal">
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {format(selectedDate, 'PPP')}
-                <ChevronDown className="ml-auto h-4 w-4" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={(date) => {
-                  if (date) {
-                    setSelectedDate(date);
-                    setCalendarOpen(false);
-                  }
-                }}
-                disabled={(date) => isBefore(date, startOfDay(new Date()))}
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Calendar */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 font-righteous font-medium">
+              <CalendarIcon className="h-5 w-5" />
+              Select Date
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={setSelectedDate}
+              className="rounded-md border"
+            />
+          </CardContent>
+        </Card>
 
-        {selectedStaff && (
-          <>
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
-              <div className="flex items-center">
-                <span className="text-sm font-medium">
-                  {selectedStaffMember?.name} - {format(selectedDate, 'MMM dd, yyyy')}
-                </span>
-              </div>
-              {hasExistingRestrictions && (
-                <Badge variant={isDateHoliday ? "destructive" : "secondary"} className="text-xs">
-                  {isDateHoliday ? 'Holiday' : `${blockedSlotsForDate.length} slots blocked`}
-                </Badge>
-              )}
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="fullDayHoliday"
-                  checked={isFullDayHoliday}
-                  onCheckedChange={(checked) => {
-                    setIsFullDayHoliday(checked as boolean);
-                    if (checked) {
-                      setSelectedTimeSlots([]);
-                      setStartTime('');
-                      setEndTime('');
-                    }
-                  }}
-                />
-                <label htmlFor="fullDayHoliday" className="text-sm font-medium">
-                  Full Day Holiday
-                </label>
-              </div>
-
-              {!isFullDayHoliday && (
-                <div>
-                  <div className="flex space-x-2 mb-3">
-                    <Button
-                      variant={blockingMode === 'individual' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setBlockingMode('individual')}
-                    >
-                      Individual Slots
-                    </Button>
-                    <Button
-                      variant={blockingMode === 'range' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setBlockingMode('range')}
-                    >
-                      Time Range
-                    </Button>
-                  </div>
-
-                  {blockingMode === 'range' ? (
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-sm font-medium">Start Time</label>
-                          <input
-                            type="time"
-                            value={startTime}
-                            onChange={(e) => setStartTime(e.target.value)}
-                            className="w-full p-2 border rounded"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">End Time</label>
-                          <input
-                            type="time"
-                            value={endTime}
-                            onChange={(e) => setEndTime(e.target.value)}
-                            className="w-full p-2 border rounded"
-                          />
-                        </div>
+        {/* Staff List and Availability */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-righteous font-medium">
+              {selectedDate ? format(selectedDate, 'MMMM d, yyyy') : 'Select a date'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {staff.map((staffMember) => {
+              const availability = availabilityData.find(a => a.staff_id === staffMember.id);
+              
+              return (
+                <div key={staffMember.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex-1">
+                    <h4 className="font-medium font-poppins">{staffMember.name}</h4>
+                    
+                    {availability ? (
+                      <div className="mt-2 space-y-1">
+                        {availability.is_holiday ? (
+                          <Badge variant="destructive" className="font-poppins">
+                            Holiday
+                            {availability.description && ` - ${availability.description}`}
+                          </Badge>
+                        ) : availability.blocked_ranges.length > 0 ? (
+                          <div className="space-y-1">
+                            {availability.blocked_ranges.map((range, index) => (
+                              <Badge key={index} variant="secondary" className="flex items-center gap-1 font-poppins">
+                                <Clock className="h-3 w-3" />
+                                {range.start_time} - {range.end_time}
+                                {range.description && ` (${range.description})`}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <label className="text-sm font-medium mb-2 block flex items-center">
-                        <Clock className="h-4 w-4 mr-1" />
-                        Block Specific Time Slots
-                      </label>
-                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                        {timeSlots.map((slot) => {
-                          const isSelected = selectedTimeSlots.includes(slot);
-                          
-                          return (
-                            <Button
-                              key={slot}
-                              variant={isSelected ? "destructive" : "outline"}
-                              size="sm"
-                              className="text-xs h-8"
-                              onClick={() => handleTimeSlotToggle(slot)}
-                            >
-                              {formatTimeToAmPm(slot)}
-                            </Button>
-                          );
-                        })}
-                      </div>
-                      
-                      {selectedTimeSlots.length > 0 && (
-                        <div className="mt-2 text-xs text-muted-foreground">
-                          {selectedTimeSlots.length} slot(s) selected
-                        </div>
-                      )}
-                    </div>
-                  )}
+                    ) : (
+                      <p className="text-sm text-green-600 font-poppins">Available</p>
+                    )}
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleManageAvailability(staffMember)}
+                      className="font-poppins"
+                    >
+                      Manage
+                    </Button>
+                    
+                    {availability && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteAvailability(availability)}
+                        className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              )}
+              );
+            })}
+            
+            {staff.length === 0 && (
+              <p className="text-center text-muted-foreground py-8 font-poppins">
+                No staff members found. Add some staff first.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
-              <div>
-                <label className="text-sm font-medium mb-2 block">Description (Optional)</label>
-                <Textarea 
-                  placeholder="Add a reason for the restriction"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="resize-none"
-                  rows={2}
-                />
-              </div>
+      {/* Availability Management Popup */}
+      {showPopup && selectedStaff && selectedDate && (
+        <StylistAvailabilityPopup
+          isOpen={showPopup}
+          onClose={() => setShowPopup(false)}
+          staff={selectedStaff}
+          date={selectedDate}
+          merchantId={merchantId}
+          onSave={refreshData}
+        />
+      )}
 
-              <div className="flex space-x-2">
-                <Button
-                  onClick={handleSave}
-                  disabled={isLoading || (!isFullDayHoliday && blockingMode === 'individual' && selectedTimeSlots.length === 0) || (!isFullDayHoliday && blockingMode === 'range' && (!startTime || !endTime))}
-                  className="flex-1"
-                >
-                  {isLoading ? 'Saving...' : 'Save Changes'}
-                </Button>
-                
-                {hasExistingRestrictions && (
-                  <Button
-                    onClick={handleClearAvailability}
-                    disabled={isLoading}
-                    variant="outline"
-                    className="flex-1"
-                  >
-                    {isLoading ? 'Clearing...' : 'Clear All'}
-                  </Button>
-                )}
-              </div>
-            </div>
-          </>
-        )}
-      </CardContent>
-    </Card>
+      {/* Deletion Confirmation Dialog */}
+      <AvailabilityDeletionDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        onConfirm={confirmDeleteAvailability}
+        isDeleting={isDeleting}
+        staffName={deletingAvailability?.staff_name || ''}
+        date={selectedDate ? format(selectedDate, 'MMMM d, yyyy') : ''}
+      />
+    </div>
   );
 };
 

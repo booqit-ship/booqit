@@ -97,15 +97,15 @@
 
   /* Typography classes for consistent font usage */
   h1, h2, h3, h4, h5, h6 {
-    @apply font-righteous;
+    @apply font-righteous font-medium;
   }
 
   .logo-text {
-    @apply font-righteous;
+    @apply font-righteous font-medium;
   }
 
   .main-text {
-    @apply font-righteous;
+    @apply font-righteous font-medium;
   }
 
   .body-text {
@@ -116,15 +116,15 @@
 @layer components {
   /* Custom typography utilities */
   .font-logo {
-    @apply font-righteous;
+    @apply font-righteous font-medium;
   }
   
   .font-heading {
-    @apply font-righteous;
+    @apply font-righteous font-medium;
   }
   
   .font-main {
-    @apply font-righteous;
+    @apply font-righteous font-medium;
   }
   
   .font-body {

@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { Star, Edit2, Trash2, User } from 'lucide-react';
+import { Star, Edit2, Trash2, User, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -7,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface ReviewProfile {
   name: string;
@@ -36,6 +38,7 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
   const [editingReview, setEditingReview] = useState('');
   const [editingRating, setEditingRating] = useState(5);
   const [userBookings, setUserBookings] = useState<string[]>([]);
+  const [hasCompletedBooking, setHasCompletedBooking] = useState(false);
 
   useEffect(() => {
     fetchReviews();
@@ -48,6 +51,7 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
     if (!userId) return;
     
     try {
+      console.log('Fetching completed bookings for user:', userId);
       const { data, error } = await supabase
         .from('bookings')
         .select('id')
@@ -56,7 +60,11 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
         .eq('status', 'completed');
         
       if (error) throw error;
-      setUserBookings(data?.map(booking => booking.id) || []);
+      
+      const bookingIds = data?.map(booking => booking.id) || [];
+      setUserBookings(bookingIds);
+      setHasCompletedBooking(bookingIds.length > 0);
+      console.log('User has completed bookings:', bookingIds.length > 0);
     } catch (error) {
       console.error('Error fetching user bookings:', error);
     }
@@ -65,9 +73,17 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
   const fetchReviews = async () => {
     try {
       setLoading(true);
+      console.log('Fetching reviews for merchant:', merchantId);
       
       // Get booking IDs for this merchant first
       const bookingIds = await getBookingIdsForMerchant();
+      
+      if (bookingIds.length === 0) {
+        console.log('No bookings found for this merchant');
+        setReviews([]);
+        setLoading(false);
+        return;
+      }
       
       // Fetch reviews with a manual join to profiles
       const { data: reviewsData, error: reviewsError } = await supabase
@@ -78,10 +94,13 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
         
       if (reviewsError) throw reviewsError;
       
+      console.log('Fetched reviews:', reviewsData?.length || 0);
+      
       // Fetch profile data separately for each review
       const reviewsWithProfiles: Review[] = [];
       
       for (const review of reviewsData || []) {
+        console.log('Fetching profile for user:', review.user_id);
         const { data: profileData } = await supabase
           .from('profiles')
           .select('name, avatar_url')
@@ -100,6 +119,7 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
       if (userId) {
         const userReviewData = reviewsWithProfiles.find(review => review.user_id === userId);
         setUserReview(userReviewData || null);
+        console.log('User review found:', userReviewData ? 'yes' : 'no');
       }
     } catch (error) {
       console.error('Error fetching reviews:', error);
@@ -110,16 +130,19 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
   };
 
   const getBookingIdsForMerchant = async () => {
+    console.log('Getting booking IDs for merchant:', merchantId);
     const { data, error } = await supabase
       .from('bookings')
       .select('id')
-      .eq('merchant_id', merchantId);
+      .eq('merchant_id', merchantId)
+      .eq('status', 'completed');
       
     if (error) {
       console.error('Error fetching booking IDs:', error);
       return [];
     }
     
+    console.log('Found booking IDs:', data?.length || 0);
     return data?.map(booking => booking.id) || [];
   };
 
@@ -136,6 +159,8 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
         rating: editingRating,
         review: editingReview.trim() || null
       };
+
+      console.log('Submitting review:', reviewData);
 
       if (userReview) {
         // Update existing review
@@ -168,6 +193,7 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
     if (!userReview) return;
     
     try {
+      console.log('Deleting review:', userReview.id);
       const { error } = await supabase
         .from('reviews')
         .delete()
@@ -215,7 +241,6 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
     );
   };
 
-  const canReview = userId && userBookings.length > 0;
   const averageRating = reviews.length > 0 
     ? (reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1)
     : '0';
@@ -233,49 +258,57 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
       {/* Reviews Summary */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
-          <h3 className="text-lg font-semibold">Reviews</h3>
-          <span className="text-gray-500">({reviews.length})</span>
+          <h3 className="text-lg font-semibold font-righteous font-medium">Reviews</h3>
+          <span className="text-gray-500 font-poppins">({reviews.length})</span>
         </div>
         {reviews.length > 0 && (
           <div className="flex items-center space-x-2">
             {renderStars(Math.round(parseFloat(averageRating)))}
-            <span className="font-medium">{averageRating}</span>
+            <span className="font-medium font-poppins">{averageRating}</span>
           </div>
         )}
       </div>
 
       {/* User's Review Section */}
-      {canReview && (
+      {userId && (
         <Card>
           <CardContent className="p-4">
-            <h4 className="font-medium mb-3">Your Review</h4>
+            <h4 className="font-medium mb-3 font-righteous font-medium">Your Review</h4>
             
-            {!userReview && !isEditing ? (
-              <Button onClick={() => setIsEditing(true)} className="w-full">
+            {!hasCompletedBooking ? (
+              <Alert variant="warning">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="font-poppins">
+                  You need to complete a booking with this salon before you can leave a review.
+                </AlertDescription>
+              </Alert>
+            ) : !userReview && !isEditing ? (
+              <Button onClick={() => setIsEditing(true)} className="w-full font-poppins">
                 Write a Review
               </Button>
             ) : isEditing ? (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2">Rating</label>
+                  <label className="block text-sm font-medium mb-2 font-poppins">Rating</label>
                   {renderStars(editingRating, true, setEditingRating)}
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium mb-2">Review (Optional)</label>
+                  <label className="block text-sm font-medium mb-2 font-poppins">Review (Optional)</label>
                   <Textarea
                     value={editingReview}
                     onChange={(e) => setEditingReview(e.target.value)}
                     placeholder="Share your experience..."
                     rows={3}
+                    className="font-poppins"
                   />
                 </div>
                 
                 <div className="flex space-x-2">
-                  <Button onClick={handleSubmitReview} className="flex-1">
+                  <Button onClick={handleSubmitReview} className="flex-1 font-poppins">
                     {userReview ? 'Update Review' : 'Submit Review'}
                   </Button>
-                  <Button variant="outline" onClick={cancelEditing}>
+                  <Button variant="outline" onClick={cancelEditing} className="font-poppins">
                     Cancel
                   </Button>
                 </div>
@@ -285,18 +318,18 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
                 <div className="flex items-center justify-between">
                   {renderStars(userReview.rating)}
                   <div className="flex space-x-2">
-                    <Button variant="outline" size="sm" onClick={startEditing}>
+                    <Button variant="outline" size="sm" onClick={startEditing} className="font-poppins">
                       <Edit2 className="h-4 w-4" />
                     </Button>
-                    <Button variant="outline" size="sm" onClick={handleDeleteReview}>
+                    <Button variant="outline" size="sm" onClick={handleDeleteReview} className="font-poppins">
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
                 {userReview.review && (
-                  <p className="text-gray-600">{userReview.review}</p>
+                  <p className="text-gray-600 font-poppins">{userReview.review}</p>
                 )}
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-gray-400 font-poppins">
                   {format(new Date(userReview.created_at), 'MMM d, yyyy')}
                 </p>
               </div>
@@ -330,10 +363,10 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
                     
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="font-medium">
+                        <span className="font-medium font-poppins">
                           {review.profiles?.name || 'Anonymous'}
                         </span>
-                        <span className="text-xs text-gray-400">
+                        <span className="text-xs text-gray-400 font-poppins">
                           {format(new Date(review.created_at), 'MMM d, yyyy')}
                         </span>
                       </div>
@@ -341,7 +374,7 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
                       {renderStars(review.rating)}
                       
                       {review.review && (
-                        <p className="text-gray-600 mt-2">{review.review}</p>
+                        <p className="text-gray-600 mt-2 font-poppins">{review.review}</p>
                       )}
                     </div>
                   </div>
@@ -350,9 +383,9 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
             ))
         ) : (
           <div className="text-center py-8 bg-gray-50 rounded-lg">
-            <p className="text-gray-500">No reviews yet</p>
-            {canReview && (
-              <p className="text-sm text-gray-400 mt-1">Be the first to leave a review!</p>
+            <p className="text-gray-500 font-righteous font-medium">No reviews yet</p>
+            {hasCompletedBooking && (
+              <p className="text-sm text-gray-400 mt-1 font-poppins">Be the first to leave a review!</p>
             )}
           </div>
         )}
