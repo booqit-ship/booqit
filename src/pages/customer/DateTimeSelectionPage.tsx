@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
@@ -127,8 +126,8 @@ const DateTimeSelectionPage: React.FC = () => {
       const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
       console.log('Fetching slots for date:', selectedDateStr, 'Staff:', selectedStaff, 'Service duration:', actualServiceDuration);
 
-      // Clean up expired locks first
-      await supabase.rpc('cleanup_expired_locks');
+      // Clean up expired locks first using proper casting
+      await supabase.rpc('cleanup_expired_locks' as any);
 
       // Use the updated function with slot validation
       const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_validation', {
