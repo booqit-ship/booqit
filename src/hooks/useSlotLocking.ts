@@ -27,7 +27,7 @@ export const useSlotLocking = () => {
     try {
       console.log('Attempting to lock slot:', { staffId, date, timeSlot });
       
-      const { data, error } = await supabase.rpc('create_slot_lock' as any, {
+      const { data, error } = await supabase.rpc('create_slot_lock', {
         p_staff_id: staffId,
         p_date: date,
         p_time_slot: timeSlot,
@@ -40,7 +40,7 @@ export const useSlotLocking = () => {
         return false;
       }
 
-      const result = data as unknown as SlotLockResult;
+      const result = data as SlotLockResult;
       
       if (!result.success) {
         console.log('Slot lock failed:', result.error);
@@ -74,7 +74,7 @@ export const useSlotLocking = () => {
     try {
       console.log('Releasing slot lock:', lockToRelease);
       
-      const { error } = await supabase.rpc('release_slot_lock' as any, {
+      const { error } = await supabase.rpc('release_slot_lock', {
         p_staff_id: lockToRelease.staffId,
         p_date: lockToRelease.date,
         p_time_slot: lockToRelease.timeSlot

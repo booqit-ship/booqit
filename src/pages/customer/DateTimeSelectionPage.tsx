@@ -127,6 +127,9 @@ const DateTimeSelectionPage: React.FC = () => {
       const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
       console.log('Fetching slots for date:', selectedDateStr, 'Staff:', selectedStaff, 'Service duration:', actualServiceDuration);
 
+      // Clean up expired locks first
+      await supabase.rpc('cleanup_expired_locks');
+
       // Use the updated function with slot validation
       const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_validation', {
         p_merchant_id: merchantId,
