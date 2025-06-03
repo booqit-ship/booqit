@@ -1,8 +1,10 @@
 
 import React, { useState } from 'react';
-import { AlertTriangle, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { Trash2, Loader2 } from 'lucide-react';
+import { 
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -13,99 +15,110 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { useCancelBooking } from '@/hooks/useCancelBooking';
-import { format, parseISO, isBefore, subHours } from 'date-fns';
 
 interface CancelBookingButtonProps {
   bookingId: string;
-  bookingDate: string;
-  bookingTime: string;
-  bookingStatus: string;
-  userId?: string;
-  onCancelSuccess?: () => void;
+  onCancelled?: () => void;
+  variant?: 'default' | 'outline' | 'destructive' | 'secondary' | 'ghost' | 'link';
+  size?: 'default' | 'sm' | 'lg' | 'icon';
   className?: string;
 }
 
 const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
   bookingId,
-  bookingDate,
-  bookingTime,
-  bookingStatus,
-  userId,
-  onCancelSuccess,
+  onCancelled,
+  variant = 'destructive',
+  size = 'sm',
   className = ''
 }) => {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const { cancelBooking, isCancelling } = useCancelBooking();
+  const [loading, setLoading] = useState(false);
 
-  // Check if booking can be cancelled (not cancelled/completed and at least 2 hours before appointment)
-  const canCancel = () => {
-    if (['cancelled', 'completed'].includes(bookingStatus)) {
-      return false;
-    }
-
+  const handleCancelBooking = async () => {
     try {
-      const appointmentDateTime = parseISO(`${bookingDate}T${bookingTime}`);
-      const twoHoursBefore = subHours(appointmentDateTime, 2);
-      return !isBefore(new Date(), twoHoursBefore);
-    } catch (error) {
-      console.error('Error checking cancellation eligibility:', error);
-      return false;
-    }
-  };
+      setLoading(true);
 
-  const handleCancel = async () => {
-    const success = await cancelBooking(bookingId, userId);
-    if (success) {
-      setIsDialogOpen(false);
-      onCancelSuccess?.();
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
       
-      // Force a page refresh after a short delay to ensure all data is updated
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
+      if (userError || !user) {
+        toast.error('You must be logged in to cancel bookings');
+        return;
+      }
+
+      // Call the cancellation function
+      const { data, error } = await supabase.rpc('cancel_booking_and_release_all_slots', {
+        p_booking_id: bookingId,
+        p_user_id: user.id
+      });
+
+      if (error) {
+        console.error('Error cancelling booking:', error);
+        toast.error('Failed to cancel booking. Please try again.');
+        return;
+      }
+
+      if (!data.success) {
+        toast.error(data.error || 'Failed to cancel booking');
+        return;
+      }
+
+      toast.success(data.message || 'Booking cancelled successfully');
+      
+      // Call the onCancelled callback if provided
+      if (onCancelled) {
+        onCancelled();
+      }
+
+    } catch (error) {
+      console.error('Error cancelling booking:', error);
+      toast.error('An unexpected error occurred. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
-
-  if (!canCancel()) {
-    return null;
-  }
 
   return (
-    <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+    <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button
-          variant="outline"
-          className={`border-red-200 text-red-600 hover:bg-red-50 ${className}`}
-          disabled={isCancelling}
+        <Button 
+          variant={variant} 
+          size={size} 
+          className={className}
+          disabled={loading}
         >
-          <X className="h-4 w-4 mr-2" />
-          {isCancelling ? 'Cancelling...' : 'Cancel Booking'}
+          {loading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <>
+              <Trash2 className="h-4 w-4 mr-1" />
+              Cancel
+            </>
+          )}
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle className="flex items-center">
-            <AlertTriangle className="h-5 w-5 text-red-600 mr-2" />
-            Cancel Booking
-          </AlertDialogTitle>
+          <AlertDialogTitle>Cancel Booking</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to cancel this booking for{' '}
-            <strong>{format(parseISO(bookingDate), 'MMM d, yyyy')}</strong> at{' '}
-            <strong>{bookingTime}</strong>?
-            <br />
-            <br />
-            This action cannot be undone and your time slots will be released for other customers.
+            Are you sure you want to cancel this booking? This action cannot be undone, 
+            and the time slot will become available for other customers.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Keep Booking</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={handleCancel}
-            disabled={isCancelling}
+          <AlertDialogCancel>No, Keep Booking</AlertDialogCancel>
+          <AlertDialogAction 
+            onClick={handleCancelBooking}
             className="bg-red-600 hover:bg-red-700"
+            disabled={loading}
           >
-            {isCancelling ? 'Cancelling...' : 'Yes, Cancel Booking'}
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Cancelling...
+              </>
+            ) : (
+              'Yes, Cancel Booking'
+            )}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

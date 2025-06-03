@@ -1,195 +1,175 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
-import { Booking } from '@/types';
-import { useAuth } from '@/contexts/AuthContext';
-import { format, parseISO } from 'date-fns';
-import { Calendar, Clock, Store, Scissors, ChevronRight } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { CalendarIcon, Clock, MapPin, User } from 'lucide-react';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
+import { formatDateInIST } from '@/utils/dateUtils';
+import CancelBookingButton from './CancelBookingButton';
+import type { Booking } from '@/types';
+
+interface BookingWithDetails extends Booking {
+  merchant: {
+    shop_name: string;
+    address: string;
+  };
+  service: {
+    name: string;
+    duration: number;
+  };
+}
 
 const UpcomingBookings: React.FC = () => {
-  const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const { userId } = useAuth();
-  const navigate = useNavigate();
+  const [bookings, setBookings] = useState<BookingWithDetails[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const fetchUpcomingBookings = async () => {
-    if (!userId) return;
-    
-    setIsLoading(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
       const { data, error } = await supabase
         .from('bookings')
         .select(`
           *,
-          stylist_name,
-          service:service_id (
-            id,
-            name,
-            price,
-            duration,
-            description,
-            merchant_id,
-            created_at,
-            image_url
-          ),
-          merchant:merchant_id (
-            id,
-            shop_name,
-            address,
-            image_url,
-            user_id,
-            description,
-            category,
-            gender_focus,
-            lat,
-            lng,
-            open_time,
-            close_time,
-            rating,
-            created_at
-          )
+          merchant:merchants!inner(shop_name, address),
+          service:services!inner(name, duration)
         `)
-        .eq('user_id', userId)
-        .in('status', ['confirmed', 'pending'])
+        .eq('user_id', user.id)
+        .in('status', ['pending', 'confirmed'])
         .gte('date', new Date().toISOString().split('T')[0])
         .order('date', { ascending: true })
-        .order('time_slot', { ascending: true })
-        .limit(3);
-        
-      if (error) throw error;
-      
-      setUpcomingBookings(data as Booking[] || []);
+        .order('time_slot', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching bookings:', error);
+        return;
+      }
+
+      setBookings(data || []);
     } catch (error) {
       console.error('Error fetching upcoming bookings:', error);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchUpcomingBookings();
-  }, [userId]);
+  }, []);
+
+  const handleBookingCancelled = () => {
+    // Refresh the bookings list after cancellation
+    fetchUpcomingBookings();
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'confirmed': return 'bg-green-500';
-      case 'pending': return 'bg-yellow-500';
-      default: return 'bg-gray-500';
+      case 'confirmed':
+        return 'bg-green-100 text-green-800';
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'completed':
+        return 'bg-blue-100 text-blue-800';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const handleViewAllBookings = () => {
-    navigate('/calendar');
-  };
-
-  const handleBookNow = () => {
-    navigate('/search');
-  };
-
-  if (isLoading) {
+  if (loading) {
     return (
-      <Card className="shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-booqit-primary" />
-            Upcoming Appointments
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex justify-center py-6">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-booqit-primary"></div>
-          </div>
+      <div className="space-y-4">
+        {[1, 2, 3].map((i) => (
+          <Card key={i} className="animate-pulse">
+            <CardContent className="p-4">
+              <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+              <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  if (bookings.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-6 text-center">
+          <CalendarIcon className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No upcoming bookings</h3>
+          <p className="text-gray-500">When you book appointments, they'll appear here.</p>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card className="shadow-sm">
-      <CardHeader className="pb-3">
-        <div className="flex justify-between items-center">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-booqit-primary" />
-            Upcoming Appointments
-          </CardTitle>
-          {upcomingBookings.length > 0 && (
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={handleViewAllBookings}
-              className="text-booqit-primary hover:text-booqit-primary/80"
-            >
-              View All
-              <ChevronRight className="h-4 w-4 ml-1" />
-            </Button>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent>
-        {upcomingBookings.length === 0 ? (
-          <div className="text-center py-6 bg-gray-50 rounded-lg">
-            <Calendar className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-            <p className="text-gray-500 text-sm mb-3">No upcoming appointments</p>
-            <Button 
-              size="sm"
-              className="bg-booqit-primary hover:bg-booqit-primary/90" 
-              onClick={handleBookNow}
-            >
-              Book Now
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {upcomingBookings.map(booking => (
-              <Card key={booking.id} className="border border-gray-200 shadow-none hover:shadow-sm transition-shadow">
-                <CardContent className="p-3">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex items-start gap-3 flex-1">
-                      <div className="bg-booqit-primary/10 p-2 rounded-full">
-                        <Clock className="h-4 w-4 text-booqit-primary" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-medium text-gray-900 text-sm mb-1 truncate">
-                          {booking.service?.name}
-                        </h4>
-                        <div className="flex items-center gap-1 text-xs text-gray-600 mb-1">
-                          <span>{format(parseISO(booking.date), 'MMM dd')}</span>
-                          <span>•</span>
-                          <span className="text-booqit-primary font-medium">
-                            {formatTimeToAmPm(booking.time_slot)}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1 text-xs text-gray-500">
-                          <Store className="h-3 w-3" />
-                          <span className="truncate">{booking.merchant?.shop_name}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <Badge 
-                      className={`${getStatusColor(booking.status)} text-white border-0 text-xs ml-2`}
-                    >
-                      {booking.status}
-                    </Badge>
-                  </div>
-                  
-                  {booking.stylist_name && (
-                    <div className="flex items-center gap-1 text-xs text-gray-500 mt-2 ml-11">
-                      <Scissors className="h-3 w-3" />
-                      <span>with {booking.stylist_name}</span>
-                    </div>
+    <div className="space-y-4">
+      {bookings.map((booking) => (
+        <Card key={booking.id} className="overflow-hidden">
+          <CardHeader className="pb-3">
+            <div className="flex items-start justify-between">
+              <div>
+                <CardTitle className="text-lg">{booking.merchant.shop_name}</CardTitle>
+                <p className="text-sm text-gray-600 flex items-center mt-1">
+                  <MapPin className="h-4 w-4 mr-1" />
+                  {booking.merchant.address}
+                </p>
+              </div>
+              <Badge className={getStatusColor(booking.status)}>
+                {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+              </Badge>
+            </div>
+          </CardHeader>
+          
+          <CardContent className="pt-0">
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="flex items-center text-sm text-gray-600">
+                <CalendarIcon className="h-4 w-4 mr-2" />
+                {formatDateInIST(new Date(booking.date), 'EEE, MMM d, yyyy')}
+              </div>
+              <div className="flex items-center text-sm text-gray-600">
+                <Clock className="h-4 w-4 mr-2" />
+                {formatTimeToAmPm(booking.time_slot)} ({booking.service.duration} min)
+              </div>
+              {booking.stylist_name && (
+                <div className="flex items-center text-sm text-gray-600 col-span-2">
+                  <User className="h-4 w-4 mr-2" />
+                  Stylist: {booking.stylist_name}
+                </div>
+              )}
+            </div>
+            
+            <div className="border-t pt-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">{booking.service.name}</p>
+                  <p className="text-sm text-gray-600">
+                    Customer: {booking.customer_name}
+                  </p>
+                  {booking.customer_phone && (
+                    <p className="text-sm text-gray-600">
+                      Phone: {booking.customer_phone}
+                    </p>
                   )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+                </div>
+                
+                {booking.status !== 'cancelled' && booking.status !== 'completed' && (
+                  <CancelBookingButton
+                    bookingId={booking.id}
+                    onCancelled={handleBookingCancelled}
+                    size="sm"
+                  />
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
   );
 };
 
