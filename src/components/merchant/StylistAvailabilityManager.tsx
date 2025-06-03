@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -388,12 +387,10 @@ const StylistAvailabilityManager: React.FC<StylistAvailabilityManagerProps> = ({
       {/* Availability Management Popup */}
       {showPopup && selectedStaff && selectedDate && (
         <StylistAvailabilityPopup
-          isOpen={showPopup}
-          onClose={() => setShowPopup(false)}
-          staff={selectedStaff}
-          date={selectedDate}
+          open={showPopup}
+          onOpenChange={setShowPopup}
           merchantId={merchantId}
-          onSave={refreshData}
+          onAvailabilityChange={refreshData}
         />
       )}
 
