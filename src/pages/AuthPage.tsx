@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Card,
   CardContent,
@@ -32,6 +33,7 @@ const AuthPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [agreeToPolicies, setAgreeToPolicies] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -92,6 +94,10 @@ const AuthPage: React.FC = () => {
     try {
       if (!email || !password || !name) {
         throw new Error("Please fill in all required fields");
+      }
+
+      if (!agreeToPolicies) {
+        throw new Error("Please agree to the Privacy Policy and Terms and Conditions to continue");
       }
 
       const { data, error } = await supabase.auth.signUp({
@@ -159,10 +165,10 @@ const AuthPage: React.FC = () => {
           initial={{ y: -20 }}
           animate={{ y: 0 }}
         >
-          <h1 className="text-3xl font-bold text-booqit-dark">
+          <h1 className="text-3xl font-righteous text-booqit-dark">
             {selectedRole === 'customer' ? 'Customer Account' : 'Merchant Account'}
           </h1>
-          <p className="text-booqit-dark/70">
+          <p className="text-booqit-dark/70 font-poppins">
             {selectedRole === 'customer' 
               ? 'Access your bookings and profile' 
               : 'Manage your business and appointments'}
@@ -175,7 +181,7 @@ const AuthPage: React.FC = () => {
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className="p-0" 
+                className="p-0 font-poppins" 
                 onClick={() => setIsRoleSelected(false)}
               >
                 ← Change Role
@@ -184,31 +190,32 @@ const AuthPage: React.FC = () => {
           </CardHeader>
           <Tabs defaultValue="login" className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-4">
-              <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="register">Register</TabsTrigger>
+              <TabsTrigger value="login" className="font-poppins">Login</TabsTrigger>
+              <TabsTrigger value="register" className="font-poppins">Register</TabsTrigger>
             </TabsList>
 
             <TabsContent value="login">
               <form onSubmit={handleLogin}>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="email" className="font-poppins">Email</Label>
                     <Input 
                       id="email" 
                       type="email" 
                       placeholder="you@example.com" 
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
+                      className="font-poppins"
                       required
                     />
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="password">Password</Label>
+                      <Label htmlFor="password" className="font-poppins">Password</Label>
                       <Button 
                         variant="link" 
                         size="sm" 
-                        className="text-xs p-0 h-auto"
+                        className="text-xs p-0 h-auto font-poppins"
                       >
                         Forgot password?
                       </Button>
@@ -218,6 +225,7 @@ const AuthPage: React.FC = () => {
                       type="password" 
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
+                      className="font-poppins"
                       required
                     />
                   </div>
@@ -225,7 +233,7 @@ const AuthPage: React.FC = () => {
                 <CardFooter>
                   <Button 
                     type="submit" 
-                    className="w-full bg-booqit-primary hover:bg-booqit-primary/90"
+                    className="w-full bg-booqit-primary hover:bg-booqit-primary/90 font-poppins"
                     disabled={isLoading}
                   >
                     {isLoading ? "Logging in..." : "Login"}
@@ -238,53 +246,91 @@ const AuthPage: React.FC = () => {
               <form onSubmit={handleRegister}>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Full Name</Label>
+                    <Label htmlFor="name" className="font-poppins">Full Name</Label>
                     <Input 
                       id="name" 
                       type="text" 
                       placeholder="Your Name" 
                       value={name}
                       onChange={(e) => setName(e.target.value)}
+                      className="font-poppins"
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="email" className="font-poppins">Email</Label>
                     <Input 
                       id="email" 
                       type="email" 
                       placeholder="you@example.com" 
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
+                      className="font-poppins"
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number</Label>
+                    <Label htmlFor="phone" className="font-poppins">Phone Number</Label>
                     <Input 
                       id="phone" 
                       type="tel" 
                       placeholder="+91 XXXXXXXXXX" 
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
+                      className="font-poppins"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="new-password">Password</Label>
+                    <Label htmlFor="new-password" className="font-poppins">Password</Label>
                     <Input 
                       id="new-password" 
                       type="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
+                      className="font-poppins"
                       required
                     />
+                  </div>
+                  
+                  {/* Privacy Policy and Terms Agreement */}
+                  <div className="flex items-start space-x-2 pt-2">
+                    <Checkbox
+                      id="agree-policies"
+                      checked={agreeToPolicies}
+                      onCheckedChange={(checked) => setAgreeToPolicies(checked as boolean)}
+                    />
+                    <div className="grid gap-1.5 leading-none">
+                      <label
+                        htmlFor="agree-policies"
+                        className="text-sm font-poppins text-gray-700 leading-relaxed cursor-pointer"
+                      >
+                        I agree to the{' '}
+                        <Link 
+                          to="/privacy-policy" 
+                          className="text-booqit-primary hover:underline font-medium"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Privacy Policy
+                        </Link>
+                        {' '}and{' '}
+                        <Link 
+                          to="/terms-and-conditions" 
+                          className="text-booqit-primary hover:underline font-medium"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Terms and Conditions
+                        </Link>
+                      </label>
+                    </div>
                   </div>
                 </CardContent>
                 <CardFooter>
                   <Button 
                     type="submit" 
-                    className="w-full bg-booqit-primary hover:bg-booqit-primary/90"
-                    disabled={isLoading}
+                    className="w-full bg-booqit-primary hover:bg-booqit-primary/90 font-poppins"
+                    disabled={isLoading || !agreeToPolicies}
                   >
                     {isLoading ? "Creating Account..." : "Create Account"}
                   </Button>
