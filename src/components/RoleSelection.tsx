@@ -22,7 +22,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
           <span className="text-black">booq</span>
           <span className="text-zinc-950">it</span>
         </div>
-        <h1 className="text-2xl md:text-3xl font-semibold text-gray-800 mb-2">
+        <h1 className="text-2xl md:text-3xl font-semibold mb-2 text-zinc-700">
           Please select your role to continue
         </h1>
       </motion.div>
@@ -171,7 +171,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
               </svg>
             </div>
             <div className="text-left">
-              <h3 className="text-xl font-bold text-blue-900">Customer Login</h3>
+              <h3 className="text-xl font-bold text-black">Customer Login</h3>
               <p className="text-gray-600 mt-1">Book  and manage your appointments</p>
             </div>
           </div>
@@ -189,7 +189,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
               </svg>
             </div>
             <div className="text-left">
-              <h3 className="text-xl font-bold text-blue-900">Merchant Login</h3>
+              <h3 className="text-xl font-bold text-black">Merchant Login</h3>
               <p className="text-gray-600 mt-1">Manage your services and bookings</p>
             </div>
           </div>
