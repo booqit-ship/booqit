@@ -29,63 +29,6 @@ interface BookingCreationResponse {
   conflicting_slot?: string;
 }
 
-// Get current IST time using the exact method specified
-const getCurrentISTTime = (): Date => {
-  return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
-};
-
-// Round IST time to the next 10-minute mark, then add 60-minute buffer
-const getRoundedISTTimeWithBuffer = (): Date => {
-  const nowIST = getCurrentISTTime();
-  
-  // Round up to next 10-minute mark
-  const currentMinutes = nowIST.getMinutes();
-  const roundedMinutes = Math.ceil(currentMinutes / 10) * 10;
-  
-  const roundedTime = new Date(nowIST);
-  if (roundedMinutes >= 60) {
-    roundedTime.setHours(nowIST.getHours() + 1);
-    roundedTime.setMinutes(roundedMinutes - 60);
-  } else {
-    roundedTime.setMinutes(roundedMinutes);
-  }
-  roundedTime.setSeconds(0);
-  roundedTime.setMilliseconds(0);
-  
-  // Add 60-minute buffer
-  const bufferedTime = new Date(roundedTime.getTime() + 60 * 60 * 1000);
-  
-  console.log(`IST: ${nowIST.toLocaleTimeString()} → Rounded: ${roundedTime.toLocaleTimeString()} → With buffer: ${bufferedTime.toLocaleTimeString()}`);
-  
-  return bufferedTime;
-};
-
-// Check if a slot is valid (after the rounded time + 60-minute buffer)
-const isSlotValid = (slotTimeString: string, bufferedIST: Date): boolean => {
-  try {
-    // Parse the time slot (assuming 24-hour format HH:MM)
-    const [slotHour, slotMinPart] = slotTimeString.split(':');
-    const hour = parseInt(slotHour);
-    const minute = parseInt(slotMinPart) || 0;
-
-    // Create slot date in IST
-    const slotDate = new Date(bufferedIST);
-    slotDate.setHours(hour);
-    slotDate.setMinutes(minute);
-    slotDate.setSeconds(0);
-    slotDate.setMilliseconds(0);
-
-    // Check if slot is after the buffered time
-    const isValid = slotDate.getTime() >= bufferedIST.getTime();
-    
-    console.log(`Slot ${slotTimeString} (${hour}:${minute}) vs buffered IST ${bufferedIST.toLocaleTimeString()}: ${isValid}`);
-    return isValid;
-  } catch (error) {
-    console.error('Error validating slot time:', error);
-    return false;
-  }
-};
-
 const DateTimeSelectionPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
@@ -98,11 +41,9 @@ const DateTimeSelectionPage: React.FC = () => {
   const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
-  const [currentBufferedIST, setCurrentBufferedIST] = useState<Date>(getRoundedISTTimeWithBuffer());
   const [holidays, setHolidays] = useState<string[]>([]);
   const [stylistHolidays, setStylistHolidays] = useState<string[]>([]);
   const [isCreatingBooking, setIsCreatingBooking] = useState(false);
-  const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
 
   // Calculate actual service duration from selected services
   const actualServiceDuration = selectedServices && selectedServices.length > 0 
@@ -170,75 +111,6 @@ const DateTimeSelectionPage: React.FC = () => {
     fetchHolidays();
   }, [merchantId, selectedStaff]);
 
-  // Update buffered IST time every minute for real-time filtering
-  useEffect(() => {
-    const updateBufferedTime = () => {
-      const newBufferedIST = getRoundedISTTimeWithBuffer();
-      setCurrentBufferedIST(newBufferedIST);
-      console.log('Updated buffered IST time:', newBufferedIST.toLocaleTimeString());
-    };
-
-    // Update immediately
-    updateBufferedTime();
-
-    // Set up interval to update every minute
-    const intervalId = setInterval(updateBufferedTime, 60000);
-
-    return () => clearInterval(intervalId);
-  }, []);
-
-  // Cleanup function for pending booking
-  const cleanupPendingBooking = async () => {
-    if (pendingBookingId) {
-      console.log('Cleaning up pending booking:', pendingBookingId);
-      try {
-        const { error } = await supabase
-          .from('bookings')
-          .update({ status: 'cancelled' })
-          .eq('id', pendingBookingId);
-        
-        if (error) {
-          console.error('Error cleaning up pending booking:', error);
-        } else {
-          console.log('Pending booking cleaned up successfully');
-        }
-      } catch (error) {
-        console.error('Error in cleanup:', error);
-      }
-      setPendingBookingId(null);
-    }
-  };
-
-  // Handle page unload/navigation away
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (pendingBookingId) {
-        // Use sendBeacon for cleanup on page unload
-        const url = 'https://ggclvurfcykbwmhfftkn.supabase.co/rest/v1/bookings?id=eq.' + pendingBookingId;
-        const data = JSON.stringify({ status: 'cancelled' });
-        const headers = {
-          'Content-Type': 'application/json',
-          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdnY2x2dXJmY3lrYndtaGZmdGtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc3MTQ3OTUsImV4cCI6MjA2MzI5MDc5NX0.0lpqHKUCWh47YTnRuksWDmv6Y5JPEanMwVyoQy9zeHw'
-        };
-        
-        const blob = new Blob([data], { type: 'application/json' });
-        navigator.sendBeacon(url, blob);
-      }
-    };
-
-    const handlePopState = () => {
-      cleanupPendingBooking();
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    window.addEventListener('popstate', handlePopState);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [pendingBookingId]);
-
   // Fetch available slots when date changes
   useEffect(() => {
     const fetchAvailableSlots = async () => {
@@ -252,8 +124,8 @@ const DateTimeSelectionPage: React.FC = () => {
         const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
         console.log('Fetching slots for date:', selectedDateStr, 'Staff:', selectedStaff, 'Service duration:', actualServiceDuration);
 
-        // Use the fixed validation function
-        const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_validation', {
+        // Use the get_available_slots function with proper parameters
+        const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots', {
           p_merchant_id: merchantId,
           p_date: selectedDateStr,
           p_staff_id: selectedStaff || null,
@@ -275,14 +147,16 @@ const DateTimeSelectionPage: React.FC = () => {
           return;
         }
 
-        // Process the slots data
-        const processedSlots = slotsData.map((slot: any) => ({
-          staff_id: slot.staff_id,
-          staff_name: slot.staff_name,
-          time_slot: typeof slot.time_slot === 'string' ? slot.time_slot.substring(0, 5) : formatDateInIST(new Date(`2000-01-01T${slot.time_slot}`), 'HH:mm'),
-          is_available: slot.is_available,
-          conflict_reason: slot.conflict_reason
-        }));
+        // Process the slots data - filter out holidays and blocked times
+        const processedSlots = slotsData
+          .filter((slot: any) => !slot.is_shop_holiday && !slot.is_stylist_holiday)
+          .map((slot: any) => ({
+            staff_id: slot.staff_id,
+            staff_name: slot.staff_name,
+            time_slot: typeof slot.time_slot === 'string' ? slot.time_slot.substring(0, 5) : formatDateInIST(new Date(`2000-01-01T${slot.time_slot}`), 'HH:mm'),
+            is_available: true,
+            conflict_reason: null
+          }));
 
         console.log('Processed slots:', processedSlots);
         setAvailableSlots(processedSlots);
@@ -312,14 +186,6 @@ const DateTimeSelectionPage: React.FC = () => {
       return;
     }
 
-    // For today's bookings, double-check the time is still valid with current buffered IST time
-    if (isTodayIST(selectedDate)) {
-      if (!isSlotValid(timeSlot, getRoundedISTTimeWithBuffer())) {
-        toast.error('This time slot is too soon. Please select a later time.');
-        return;
-      }
-    }
-
     setSelectedTime(timeSlot);
     console.log('Time slot selected successfully:', timeSlot);
   };
@@ -337,15 +203,6 @@ const DateTimeSelectionPage: React.FC = () => {
     if (!selectedSlot) {
       toast.error('Selected time slot is not available');
       return;
-    }
-
-    // For today's bookings, final time check with current buffered IST time
-    if (isTodayIST(selectedDate)) {
-      if (!isSlotValid(selectedTime, getRoundedISTTimeWithBuffer())) {
-        toast.error('Selected time slot is too soon. Please select another time.');
-        setSelectedTime('');
-        return;
-      }
     }
 
     setIsCreatingBooking(true);
@@ -410,7 +267,6 @@ const DateTimeSelectionPage: React.FC = () => {
       }
 
       const bookingId = response.booking_id;
-      setPendingBookingId(bookingId);
 
       console.log('Booking created successfully:', bookingId);
       toast.success('Slot reserved! Proceeding to payment...');
@@ -443,34 +299,19 @@ const DateTimeSelectionPage: React.FC = () => {
   const formatDateDisplay = (date: Date) => {
     const todayIST = getCurrentDateIST();
     const tomorrowIST = addDays(todayIST, 1);
-    const dayAfterTomorrowIST = addDays(todayIST, 2);
     
     if (formatDateInIST(date, 'yyyy-MM-dd') === formatDateInIST(todayIST, 'yyyy-MM-dd')) {
       return 'Today';
     } else if (formatDateInIST(date, 'yyyy-MM-dd') === formatDateInIST(tomorrowIST, 'yyyy-MM-dd')) {
       return 'Tomorrow';
-    } else if (formatDateInIST(date, 'yyyy-MM-dd') === formatDateInIST(dayAfterTomorrowIST, 'yyyy-MM-dd')) {
-      return formatDateInIST(date, 'EEE, MMM d');
     } else {
       return formatDateInIST(date, 'EEE, MMM d');
     }
   };
 
-  // Get available and unavailable slots
-  const availableTimeSlots = availableSlots.filter(slot => slot.is_available);
-  const unavailableSlots = availableSlots.filter(slot => !slot.is_available);
-  
-  // For today, also filter out slots that are too soon
-  const filteredAvailableSlots = isTodayIST(selectedDate || getCurrentDateIST()) 
-    ? availableTimeSlots.filter(slot => isSlotValid(slot.time_slot, currentBufferedIST))
-    : availableTimeSlots;
-  
+  // Get unique available slots and sort by time
   const uniqueAvailableSlots = Array.from(new Map(
-    filteredAvailableSlots.map(slot => [slot.time_slot, slot])
-  ).values()).sort((a, b) => a.time_slot.localeCompare(b.time_slot));
-
-  const uniqueUnavailableSlots = Array.from(new Map(
-    unavailableSlots.map(slot => [slot.time_slot, slot])
+    availableSlots.map(slot => [slot.time_slot, slot])
   ).values()).sort((a, b) => a.time_slot.localeCompare(b.time_slot));
 
   if (!merchant) {
@@ -490,10 +331,7 @@ const DateTimeSelectionPage: React.FC = () => {
             variant="ghost" 
             size="icon" 
             className="absolute left-0 text-white hover:bg-white/20"
-            onClick={() => {
-              cleanupPendingBooking();
-              navigate(-1);
-            }}
+            onClick={() => navigate(-1)}
           >
             <ChevronLeft className="h-5 w-5" />
           </Button>
@@ -511,12 +349,6 @@ const DateTimeSelectionPage: React.FC = () => {
                 Combined duration from {selectedServices.length} services
               </span>
             )}
-          </p>
-          <p className="text-gray-400 text-xs mt-1">
-            {isTodayIST(selectedDate || getCurrentDateIST()) 
-              ? `Slots available from ${currentBufferedIST.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour12: true })} (rounded + 1hr buffer)`
-              : "All slots available during shop hours (excluding holidays)"
-            }
           </p>
         </div>
 
@@ -558,11 +390,9 @@ const DateTimeSelectionPage: React.FC = () => {
             <h3 className="font-medium mb-3 flex items-center">
               <Clock className="h-4 w-4 mr-2" />
               Available Time Slots (IST)
-              {isTodayIST(selectedDate) && (
-                <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
-                  Live Updates
-                </span>
-              )}
+              <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                Live Updates
+              </span>
             </h3>
             
             {error && (
@@ -587,43 +417,19 @@ const DateTimeSelectionPage: React.FC = () => {
                 <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
               </div>
             ) : uniqueAvailableSlots.length > 0 ? (
-              <div className="space-y-4">
-                <div className="grid grid-cols-3 gap-2">
-                  {uniqueAvailableSlots.map((slot) => (
-                    <Button
-                      key={slot.time_slot}
-                      variant={selectedTime === slot.time_slot ? "default" : "outline"}
-                      className={`p-3 ${
-                        selectedTime === slot.time_slot ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
-                      }`}
-                      onClick={() => handleTimeSlotClick(slot.time_slot)}
-                    >
-                      <span className="font-medium">{formatTimeToAmPm(slot.time_slot)}</span>
-                    </Button>
-                  ))}
-                </div>
-                
-                {uniqueUnavailableSlots.length > 0 && (
-                  <div className="mt-4">
-                    <p className="text-sm text-gray-600 mb-2">Unavailable slots:</p>
-                    <div className="grid grid-cols-1 gap-2">
-                      {uniqueUnavailableSlots.slice(0, 5).map((slot) => (
-                        <div
-                          key={slot.time_slot}
-                          className="p-2 bg-gray-100 rounded text-sm text-gray-600 border border-gray-200"
-                        >
-                          <span className="font-medium">{formatTimeToAmPm(slot.time_slot)}</span>
-                          <span className="ml-2 text-xs">- {slot.conflict_reason || 'Unavailable'}</span>
-                        </div>
-                      ))}
-                      {uniqueUnavailableSlots.length > 5 && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          +{uniqueUnavailableSlots.length - 5} more unavailable slots
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
+              <div className="grid grid-cols-3 gap-2">
+                {uniqueAvailableSlots.map((slot) => (
+                  <Button
+                    key={slot.time_slot}
+                    variant={selectedTime === slot.time_slot ? "default" : "outline"}
+                    className={`p-3 ${
+                      selectedTime === slot.time_slot ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
+                    }`}
+                    onClick={() => handleTimeSlotClick(slot.time_slot)}
+                  >
+                    <span className="font-medium">{formatTimeToAmPm(slot.time_slot)}</span>
+                  </Button>
+                ))}
               </div>
             ) : (
               <div className="text-center py-8 bg-gray-50 rounded-lg">
@@ -631,7 +437,7 @@ const DateTimeSelectionPage: React.FC = () => {
                 <p className="text-gray-500">No available time slots</p>
                 <p className="text-gray-400 text-sm">
                   {isTodayIST(selectedDate) 
-                    ? "All slots for today are either booked or too soon (rounded time + 1hr buffer required in IST)"
+                    ? "All slots for today are either booked or too soon"
                     : "Please select a different date or try again later"
                   }
                 </p>
