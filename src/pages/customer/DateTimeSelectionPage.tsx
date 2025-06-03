@@ -124,8 +124,8 @@ const DateTimeSelectionPage: React.FC = () => {
         const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
         console.log('Fetching slots for date:', selectedDateStr, 'Staff:', selectedStaff, 'Service duration:', actualServiceDuration);
 
-        // Use the get_available_slots function with proper parameters
-        const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots', {
+        // Use the get_available_slots_with_validation function with proper parameters
+        const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_validation', {
           p_merchant_id: merchantId,
           p_date: selectedDateStr,
           p_staff_id: selectedStaff || null,
@@ -141,16 +141,16 @@ const DateTimeSelectionPage: React.FC = () => {
 
         console.log('Raw slots data:', slotsData);
 
-        if (!slotsData || slotsData.length === 0) {
+        if (!slotsData || !Array.isArray(slotsData) || slotsData.length === 0) {
           console.log('No slots returned from database');
           setAvailableSlots([]);
           return;
         }
 
-        // Process the slots data - filter out holidays and blocked times
-        const processedSlots = slotsData
-          .filter((slot: any) => !slot.is_shop_holiday && !slot.is_stylist_holiday)
-          .map((slot: any) => ({
+        // Process the slots data - filter available slots only
+        const processedSlots = (slotsData as AvailableSlot[])
+          .filter((slot: AvailableSlot) => slot.is_available)
+          .map((slot: AvailableSlot) => ({
             staff_id: slot.staff_id,
             staff_name: slot.staff_name,
             time_slot: typeof slot.time_slot === 'string' ? slot.time_slot.substring(0, 5) : formatDateInIST(new Date(`2000-01-01T${slot.time_slot}`), 'HH:mm'),
