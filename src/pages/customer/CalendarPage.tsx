@@ -153,16 +153,23 @@ const CalendarPage: React.FC = () => {
     }).sort((a, b) => a.time_slot.localeCompare(b.time_slot));
   }, [bookings, date]);
 
-  // Handle booking cancellation with proper function
+  // Handle booking cancellation with improved error handling
   const handleCancelBooking = async (bookingId: string) => {
     console.log('Customer cancelling booking via direct function:', bookingId);
-    const success = await cancelBooking(bookingId, userId);
-    if (success) {
-      // Refresh bookings immediately
-      await fetchBookings();
+    
+    try {
+      const success = await cancelBooking(bookingId, userId);
+      if (success) {
+        // Refresh bookings immediately after successful cancellation
+        await fetchBookings();
+        console.log('Booking cancelled and bookings list refreshed');
+      }
+    } catch (error) {
+      console.error('Error in handleCancelBooking:', error);
       toast({
-        title: "Success",
-        description: "Booking has been cancelled and slots have been released."
+        title: "Error",
+        description: "Failed to cancel booking. Please try again.",
+        variant: "destructive"
       });
     }
   };

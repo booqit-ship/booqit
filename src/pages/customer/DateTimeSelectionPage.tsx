@@ -379,7 +379,7 @@ const DateTimeSelectionPage: React.FC = () => {
 
       if (error) {
         console.error('Error checking slot availability:', error);
-        toast.error('Error checking time slot availability');
+        toast.error('Error checking time slot availability. Please try again.');
         return;
       }
 
@@ -397,7 +397,7 @@ const DateTimeSelectionPage: React.FC = () => {
       
     } catch (error) {
       console.error('Error checking slot availability:', error);
-      toast.error('Error checking time slot availability');
+      toast.error('Error checking time slot availability. Please try again.');
     }
   };
 
@@ -447,7 +447,7 @@ const DateTimeSelectionPage: React.FC = () => {
         actualServiceDuration
       });
 
-      // Create booking immediately with confirmed status
+      // Create booking immediately with confirmed status using atomic function
       const { data: bookingResult, error: bookingError } = await supabase.rpc('create_confirmed_booking', {
         p_user_id: userId,
         p_merchant_id: merchantId,
@@ -460,17 +460,29 @@ const DateTimeSelectionPage: React.FC = () => {
 
       if (bookingError) {
         console.error('Error creating booking:', bookingError);
-        toast.error('Failed to create booking');
+        
+        if (bookingError.message.includes('overlaps') || bookingError.message.includes('booked')) {
+          toast.error('This time slot is no longer available. Please select another time.');
+          // Refresh slots to show updated availability
+          setSelectedDate(new Date(selectedDate));
+          setSelectedTime('');
+        } else {
+          toast.error(`Failed to create booking: ${bookingError.message}`);
+        }
         return;
       }
 
       const response = bookingResult as unknown as BookingCreationResponse;
       
       if (!response.success) {
-        toast.error(response.error || 'Time slot is no longer available');
-        // Refresh slots to show updated availability
-        setSelectedDate(new Date(selectedDate));
-        setSelectedTime('');
+        const errorMessage = response.error || 'Time slot is no longer available';
+        toast.error(errorMessage);
+        
+        if (errorMessage.includes('overlaps') || errorMessage.includes('available')) {
+          // Refresh slots to show updated availability
+          setSelectedDate(new Date(selectedDate));
+          setSelectedTime('');
+        }
         return;
       }
 
@@ -499,7 +511,7 @@ const DateTimeSelectionPage: React.FC = () => {
 
     } catch (error) {
       console.error('Error in booking creation:', error);
-      toast.error('Error creating booking');
+      toast.error('Error creating booking. Please try again.');
     } finally {
       setIsCreatingBooking(false);
     }

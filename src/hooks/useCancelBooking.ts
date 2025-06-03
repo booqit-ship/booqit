@@ -20,35 +20,57 @@ export const useCancelBooking = () => {
       console.log('Cancelling booking:', bookingId, 'for user:', userId);
       
       // Use the correct function name that exists in the database
-      const { data, error } = await supabase.rpc('cancel_booking_and_release_slots', {
+      const { data, error } = await supabase.rpc('cancel_booking_and_release_all_slots', {
         p_booking_id: bookingId,
         p_user_id: userId || null
       });
 
       if (error) {
         console.error('Cancel booking error:', error);
-        throw new Error(error.message);
+        
+        // Provide specific error messages based on error details
+        if (error.message.includes('not found')) {
+          toast.error('Booking not found or you are not authorized to cancel it');
+        } else if (error.message.includes('completed')) {
+          toast.error('Cannot cancel completed booking');
+        } else if (error.message.includes('unauthorized')) {
+          toast.error('You are not authorized to cancel this booking');
+        } else {
+          toast.error(`Failed to cancel booking: ${error.message}`);
+        }
+        return false;
       }
 
       console.log('Cancel booking response:', data);
       
-      // Type the response data properly by converting through unknown first
+      // Type the response data properly
       const result = data as unknown as CancelBookingResult;
       
       if (!result || !result.success) {
-        throw new Error(result?.error || 'Failed to cancel booking');
+        const errorMessage = result?.error || 'Failed to cancel booking';
+        console.error('Booking cancellation failed:', errorMessage);
+        
+        // Provide specific error messages
+        if (errorMessage.includes('completed')) {
+          toast.error('Cannot cancel booking because it\'s already completed');
+        } else if (errorMessage.includes('not found')) {
+          toast.error('Booking not found or you are not authorized to cancel it');
+        } else {
+          toast.error(errorMessage);
+        }
+        return false;
       }
 
       console.log('Booking cancelled successfully:', result);
-      toast.success(`${result.message || 'Booking cancelled successfully'} (${result.slots_released || 0} slots released)`);
+      toast.success(`${result.message || 'Booking cancelled successfully'}${result.slots_released ? ` (${result.slots_released} slots released)` : ''}`);
       
       // Force a small delay to ensure database consistency
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       return true;
     } catch (error: any) {
       console.error('Cancel booking error:', error);
-      toast.error(error.message || 'Failed to cancel booking. Please try again.');
+      toast.error('Failed to cancel booking. Please try again.');
       return false;
     } finally {
       setIsCancelling(false);

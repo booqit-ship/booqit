@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -65,7 +64,9 @@ const CalendarManagementPage: React.FC = () => {
 
   const handleStatusChange = async (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
     try {
-      const { error } = await supabase.rpc('update_booking_status_with_slot_management', {
+      console.log('Updating booking status:', bookingId, 'to:', newStatus);
+      
+      const { data, error } = await supabase.rpc('update_booking_status_with_slot_management', {
         p_booking_id: bookingId,
         p_new_status: newStatus,
         p_user_id: userId
@@ -73,7 +74,23 @@ const CalendarManagementPage: React.FC = () => {
 
       if (error) {
         console.error('Error updating booking status:', error);
-        toast.error('Failed to update booking status');
+        
+        // Provide specific error messages
+        if (error.message.includes('not found')) {
+          toast.error('Booking not found');
+        } else if (error.message.includes('unauthorized')) {
+          toast.error('You are not authorized to update this booking');
+        } else {
+          toast.error(`Failed to update booking status: ${error.message}`);
+        }
+        return;
+      }
+
+      console.log('Booking status update response:', data);
+      
+      const result = data as any;
+      if (result && !result.success) {
+        toast.error(result.error || 'Failed to update booking status');
         return;
       }
 
@@ -95,7 +112,7 @@ const CalendarManagementPage: React.FC = () => {
       }));
     } catch (error) {
       console.error('Error updating booking status:', error);
-      toast.error('Failed to update booking status');
+      toast.error('Failed to update booking status. Please try again.');
     }
   };
 
