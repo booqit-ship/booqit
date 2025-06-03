@@ -109,8 +109,8 @@ const DateTimeSelectionPage: React.FC = () => {
 
           staffHolidayDates = (staffHolidays || []).map(h => h.holiday_date);
           console.log('Stylist holidays:', staffHolidayDates);
-          setStylistHolidays(staffHolidayDates);
         }
+        setStylistHolidays(staffHolidayDates);
 
         // Check if selected date is a holiday
         const selectedDateStr = selectedDate ? formatDateInIST(selectedDate, 'yyyy-MM-dd') : null;
@@ -144,7 +144,11 @@ const DateTimeSelectionPage: React.FC = () => {
     
     try {
       const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
-      console.log('Fetching slots for date:', selectedDateStr, 'Staff:', selectedStaff, 'Service duration:', actualServiceDuration);
+      console.log('=== FETCHING SLOTS ===');
+      console.log('Date:', selectedDateStr);
+      console.log('Merchant ID:', merchantId);
+      console.log('Selected Staff:', selectedStaff);
+      console.log('Service Duration:', actualServiceDuration);
 
       // Check if selected date is a holiday first
       if (holidays.includes(selectedDateStr)) {
@@ -161,8 +165,12 @@ const DateTimeSelectionPage: React.FC = () => {
         return;
       }
 
-      // Step 1: Generate fresh slots for the selected date
-      console.log('Generating fresh slots for date:', selectedDateStr);
+      // Step 1: Clean up expired locks first
+      console.log('Cleaning up expired locks...');
+      await supabase.rpc('cleanup_expired_locks' as any);
+
+      // Step 2: Generate fresh slots for the selected date
+      console.log('Generating fresh slots...');
       const { data: generatedSlots, error: generateError } = await supabase.rpc('get_fresh_available_slots' as any, {
         p_merchant_id: merchantId,
         p_date: selectedDateStr,
@@ -171,17 +179,16 @@ const DateTimeSelectionPage: React.FC = () => {
 
       if (generateError) {
         console.error('Error generating slots:', generateError);
-        setError('Could not generate time slots. Please try again.');
+        setError('Could not generate time slots. Please try refreshing the page.');
         setAvailableSlots([]);
         return;
       }
 
-      console.log('Generated slots:', generatedSlots);
+      console.log('Generated slots count:', generatedSlots?.length || 0);
+      console.log('Generated slots sample:', generatedSlots?.slice(0, 3));
 
-      // Step 2: Clean up expired locks
-      await supabase.rpc('cleanup_expired_locks' as any);
-
-      // Step 3: Fetch available slots with validation
+      // Step 3: Get validated slots based on service duration
+      console.log('Validating slots with service duration...');
       const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_validation' as any, {
         p_merchant_id: merchantId,
         p_date: selectedDateStr,
@@ -190,16 +197,17 @@ const DateTimeSelectionPage: React.FC = () => {
       });
 
       if (slotsError) {
-        console.error('Error fetching available slots:', slotsError);
-        setError('Could not load available time slots. Please try again.');
+        console.error('Error validating slots:', slotsError);
+        setError('Could not validate time slots. Please try again.');
         setAvailableSlots([]);
         return;
       }
 
-      console.log('Raw slots data:', slotsData);
+      console.log('Validated slots count:', slotsData?.length || 0);
+      console.log('Validated slots sample:', slotsData?.slice(0, 3));
 
       if (!slotsData || slotsData.length === 0) {
-        console.log('No slots returned from database');
+        console.log('No slots available for this date and service duration');
         setAvailableSlots([]);
         return;
       }
@@ -213,12 +221,12 @@ const DateTimeSelectionPage: React.FC = () => {
         conflict_reason: slot.conflict_reason
       }));
 
-      console.log('Processed slots:', processedSlots);
+      console.log('Final processed slots:', processedSlots.length);
       setAvailableSlots(processedSlots);
 
     } catch (error) {
-      console.error('Error fetching available slots:', error);
-      setError('Could not load time slots. Please try again.');
+      console.error('Error in fetchAvailableSlots:', error);
+      setError('Could not load time slots. Please check your connection and try again.');
       setAvailableSlots([]);
     } finally {
       setLoading(false);
