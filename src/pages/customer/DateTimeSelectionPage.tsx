@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
@@ -94,6 +95,7 @@ const DateTimeSelectionPage: React.FC = () => {
           .eq('merchant_id', merchantId);
 
         const shopHolidayDates = (shopHolidays || []).map(h => h.holiday_date);
+        console.log('Shop holidays:', shopHolidayDates);
         setHolidays(shopHolidayDates);
 
         // Fetch stylist holidays if specific staff is selected
@@ -104,7 +106,23 @@ const DateTimeSelectionPage: React.FC = () => {
             .eq('staff_id', selectedStaff);
 
           const staffHolidayDates = (staffHolidays || []).map(h => h.holiday_date);
+          console.log('Stylist holidays:', staffHolidayDates);
           setStylistHolidays(staffHolidayDates);
+        }
+
+        // Check if selected date is a holiday
+        const selectedDateStr = selectedDate ? formatDateInIST(selectedDate, 'yyyy-MM-dd') : null;
+        if (selectedDateStr) {
+          if (shopHolidayDates.includes(selectedDateStr)) {
+            setError('Shop is closed on this date');
+            setAvailableSlots([]);
+            return;
+          }
+          if (selectedStaff && staffHolidayDates.includes(selectedDateStr)) {
+            setError('Selected stylist is not available on this date');
+            setAvailableSlots([]);
+            return;
+          }
         }
 
       } catch (error) {
@@ -113,7 +131,7 @@ const DateTimeSelectionPage: React.FC = () => {
     };
 
     fetchHolidays();
-  }, [merchantId, selectedStaff]);
+  }, [merchantId, selectedStaff, selectedDate]);
 
   // Fetch available slots when date changes
   const fetchAvailableSlots = async () => {
@@ -126,11 +144,43 @@ const DateTimeSelectionPage: React.FC = () => {
       const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
       console.log('Fetching slots for date:', selectedDateStr, 'Staff:', selectedStaff, 'Service duration:', actualServiceDuration);
 
-      // Clean up expired locks first using proper casting
+      // Check if selected date is a holiday first
+      if (holidays.includes(selectedDateStr)) {
+        console.log('Selected date is a shop holiday');
+        setError('Shop is closed on this date');
+        setAvailableSlots([]);
+        return;
+      }
+
+      if (selectedStaff && stylistHolidays.includes(selectedDateStr)) {
+        console.log('Selected date is a stylist holiday');
+        setError('Selected stylist is not available on this date');
+        setAvailableSlots([]);
+        return;
+      }
+
+      // Step 1: Generate fresh slots for the selected date
+      console.log('Generating fresh slots for date:', selectedDateStr);
+      const { data: generatedSlots, error: generateError } = await supabase.rpc('get_fresh_available_slots' as any, {
+        p_merchant_id: merchantId,
+        p_date: selectedDateStr,
+        p_staff_id: selectedStaff || null,
+      });
+
+      if (generateError) {
+        console.error('Error generating slots:', generateError);
+        setError('Could not generate time slots. Please try again.');
+        setAvailableSlots([]);
+        return;
+      }
+
+      console.log('Generated slots:', generatedSlots);
+
+      // Step 2: Clean up expired locks
       await supabase.rpc('cleanup_expired_locks' as any);
 
-      // Use the updated function with slot validation
-      const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_validation', {
+      // Step 3: Fetch available slots with validation
+      const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_validation' as any, {
         p_merchant_id: merchantId,
         p_date: selectedDateStr,
         p_staff_id: selectedStaff || null,
@@ -292,7 +342,7 @@ const DateTimeSelectionPage: React.FC = () => {
       });
 
       // Create booking immediately with confirmed status using atomic function
-      const { data: bookingResult, error: bookingError } = await supabase.rpc('create_confirmed_booking', {
+      const { data: bookingResult, error: bookingError } = await supabase.rpc('create_confirmed_booking' as any, {
         p_user_id: userId,
         p_merchant_id: merchantId,
         p_service_id: serviceId,
