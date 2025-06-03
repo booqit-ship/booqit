@@ -36,8 +36,8 @@ const Index = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-booqit-primary/20 to-white">
       <div className="text-center">
         <div className="animate-spin h-10 w-10 border-4 border-booqit-primary border-t-transparent rounded-full mx-auto mb-4"></div>
-        <h1 className="text-2xl font-bold mb-2">Loading BooqIt</h1>
-        <p className="text-gray-500">Please wait...</p>
+        <h1 className="text-2xl font-righteous mb-2">Loading BooqIt</h1>
+        <p className="text-gray-500 font-poppins">Please wait...</p>
       </div>
     </div>
   );

@@ -91,8 +91,44 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-poppins;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Typography classes for consistent font usage */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-righteous;
+  }
+
+  .logo-text {
+    @apply font-righteous;
+  }
+
+  .main-text {
+    @apply font-righteous;
+  }
+
+  .body-text {
+    @apply font-poppins;
+  }
+}
+
+@layer components {
+  /* Custom typography utilities */
+  .font-logo {
+    @apply font-righteous;
+  }
+  
+  .font-heading {
+    @apply font-righteous;
+  }
+  
+  .font-main {
+    @apply font-righteous;
+  }
+  
+  .font-body {
+    @apply font-poppins;
   }
 }
 

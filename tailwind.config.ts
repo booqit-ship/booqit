@@ -22,6 +22,11 @@ export default {
 			screens: {
 				'xs': '480px',
 			},
+			fontFamily: {
+				'righteous': ['Righteous', 'cursive'],
+				'poppins': ['Poppins', 'sans-serif'],
+				'sans': ['Poppins', 'sans-serif'], // Set Poppins as default sans font
+			},
 			colors: {
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',

@@ -25,7 +25,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
           transition={{ duration: 0.8, ease: "easeOut" }} 
           className="mb-8"
         >
-          <div className="text-6xl md:text-8xl font-bold tracking-tight">
+          <div className="text-6xl md:text-8xl font-righteous tracking-tight">
             <span className="text-black">booq</span>
             <span className="text-black">it</span>
           </div>
