@@ -60,7 +60,8 @@ const UpcomingBookings: React.FC = () => {
         return;
       }
 
-      setBookings(data || []);
+      // Type assertion to ensure proper typing
+      setBookings((data || []) as BookingWithDetails[]);
     } catch (error) {
       console.error('Error fetching upcoming bookings:', error);
     } finally {
