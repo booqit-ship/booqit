@@ -221,7 +221,7 @@ const DateTimeSelectionPage: React.FC = () => {
       if (pendingBookingId) {
         // Use sendBeacon for cleanup on page unload
         navigator.sendBeacon(
-          `${supabase.supabaseUrl}/rest/v1/bookings?id=eq.${pendingBookingId}`,
+          'https://ggclvurfcykbwmhfftkn.supabase.co/rest/v1/bookings?id=eq.' + pendingBookingId,
           JSON.stringify({ status: 'cancelled' })
         );
       }

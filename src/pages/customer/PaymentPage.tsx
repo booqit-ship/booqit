@@ -45,7 +45,7 @@ const PaymentPage: React.FC = () => {
       if (bookingId) {
         // Cancel booking if navigating away without completing payment
         navigator.sendBeacon(
-          `${supabase.supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}`,
+          'https://ggclvurfcykbwmhfftkn.supabase.co/rest/v1/bookings?id=eq.' + bookingId,
           JSON.stringify({ status: 'cancelled', payment_status: 'failed' })
         );
       }
