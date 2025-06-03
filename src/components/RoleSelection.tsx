@@ -22,7 +22,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
     }} className="w-full max-w-md space-y-8">
         {/* Logo */}
         <div className="text-center">
-          <h1 className="text-5xl font-righteous font-medium mb-2 text-black">
+          <h1 className="text-5xl font-righteous mb-2 text-black font-medium">
             booqit
           </h1>
           <p className="text-gray-600 font-poppins">Choose how you want to continue</p>
