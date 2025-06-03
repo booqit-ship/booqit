@@ -55,6 +55,38 @@ const DateTimeSelectionPage: React.FC = () => {
     ? selectedServices.reduce((total: number, service: any) => total + service.duration, 0)
     : totalDuration || 30;
 
+  // Generate IST buffer time with 40-minute buffer + 10-minute round-off
+  const getISTBufferTime = (): string => {
+    const now = getCurrentDateIST();
+    console.log('Current IST time:', formatDateInIST(now, 'HH:mm:ss'));
+    
+    // Add 40 minutes buffer
+    const bufferedTime = new Date(now.getTime() + 40 * 60000);
+    console.log('Time with 40-minute buffer:', formatDateInIST(bufferedTime, 'HH:mm:ss'));
+    
+    // Round up to next 10-minute interval
+    const minutes = bufferedTime.getMinutes();
+    const roundedMinutes = Math.ceil(minutes / 10) * 10;
+    
+    console.log('Original minutes:', minutes, 'Rounded minutes:', roundedMinutes);
+    
+    // Handle hour overflow
+    if (roundedMinutes >= 60) {
+      bufferedTime.setHours(bufferedTime.getHours() + 1);
+      bufferedTime.setMinutes(0);
+    } else {
+      bufferedTime.setMinutes(roundedMinutes);
+    }
+    
+    bufferedTime.setSeconds(0);
+    bufferedTime.setMilliseconds(0);
+    
+    const finalTime = formatDateInIST(bufferedTime, 'HH:mm');
+    console.log('Buffer time threshold:', finalTime);
+    
+    return finalTime;
+  };
+
   // Generate 3 days: today, tomorrow, day after tomorrow (using IST), excluding holidays
   const getAvailableDates = () => {
     const dates: Date[] = [];
@@ -88,6 +120,10 @@ const DateTimeSelectionPage: React.FC = () => {
       if (!merchantId) return;
 
       try {
+        console.log('=== FETCHING HOLIDAYS ===');
+        console.log('Merchant ID:', merchantId);
+        console.log('Selected Staff:', selectedStaff);
+
         // Fetch shop holidays
         const { data: shopHolidays } = await supabase
           .from('shop_holidays')
@@ -113,28 +149,13 @@ const DateTimeSelectionPage: React.FC = () => {
         }
         setStylistHolidays(staffHolidayDates);
 
-        // Check if selected date is a holiday
-        const selectedDateStr = selectedDate ? formatDateInIST(selectedDate, 'yyyy-MM-dd') : null;
-        if (selectedDateStr) {
-          if (shopHolidayDates.includes(selectedDateStr)) {
-            setError('Shop is closed on this date');
-            setAvailableSlots([]);
-            return;
-          }
-          if (selectedStaff && staffHolidayDates.includes(selectedDateStr)) {
-            setError('Selected stylist is not available on this date');
-            setAvailableSlots([]);
-            return;
-          }
-        }
-
       } catch (error) {
         console.error('Error fetching holidays:', error);
       }
     };
 
     fetchHolidays();
-  }, [merchantId, selectedStaff, selectedDate]);
+  }, [merchantId, selectedStaff]);
 
   // Fetch available slots when date changes
   const fetchAvailableSlots = async () => {
@@ -187,13 +208,37 @@ const DateTimeSelectionPage: React.FC = () => {
         return;
       }
 
-      console.log('Found staff:', staffData.length);
+      console.log('Found staff:', staffData.length, 'stylists');
+      staffData.forEach(staff => {
+        console.log(`- ${staff.name} (ID: ${staff.id})`);
+      });
+
+      // Get merchant operating hours
+      const { data: merchantData, error: merchantError } = await supabase
+        .from('merchants')
+        .select('open_time, close_time')
+        .eq('id', merchantId)
+        .single();
+
+      if (merchantError || !merchantData) {
+        console.error('Error fetching merchant data:', merchantError);
+        setError('Unable to load merchant information. Please try again.');
+        setAvailableSlots([]);
+        return;
+      }
+
+      console.log('Merchant operating hours:', merchantData.open_time, 'to', merchantData.close_time);
+
+      // Calculate buffer time for today
+      const isToday = isTodayIST(selectedDate);
+      const bufferTime = isToday ? getISTBufferTime() : '00:00';
+      console.log('Buffer time threshold:', bufferTime);
 
       // Clean up expired locks first
       console.log('Cleaning up expired locks...');
       await supabase.rpc('cleanup_expired_locks' as any);
 
-      // Fetch slots directly using get_available_slots_with_validation
+      // Fetch slots using get_available_slots_with_validation
       console.log('Fetching available slots with validation...');
       const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_validation' as any, {
         p_merchant_id: merchantId,
@@ -214,12 +259,10 @@ const DateTimeSelectionPage: React.FC = () => {
       }
 
       console.log('Raw slots data:', slotsData?.length || 0);
-      console.log('Sample slots:', slotsData?.slice(0, 3));
 
       if (!slotsData || slotsData.length === 0) {
         console.log('No slots available for this date and service duration');
-        const todayIST = getCurrentDateIST();
-        const isToday = formatDateInIST(selectedDate, 'yyyy-MM-dd') === formatDateInIST(todayIST, 'yyyy-MM-dd');
+        const isToday = isTodayIST(selectedDate);
         
         if (isToday) {
           setError('No slots available today. All slots might be booked or it may be too late to book for today.');
@@ -230,7 +273,7 @@ const DateTimeSelectionPage: React.FC = () => {
         return;
       }
 
-      // Process the slots data
+      // Process and filter the slots data
       const processedSlots = slotsData.map((slot: any) => ({
         staff_id: slot.staff_id,
         staff_name: slot.staff_name,
@@ -239,11 +282,29 @@ const DateTimeSelectionPage: React.FC = () => {
         conflict_reason: slot.conflict_reason
       }));
 
-      console.log('Final processed slots:', processedSlots.length);
-      console.log('Available slots:', processedSlots.filter(s => s.is_available).length);
-      console.log('Unavailable slots:', processedSlots.filter(s => !s.is_available).length);
+      // Filter slots based on buffer time for today
+      const filteredSlots = isToday 
+        ? processedSlots.filter((slot: any) => slot.time_slot >= bufferTime)
+        : processedSlots;
+
+      console.log('Final processed slots:', filteredSlots.length);
+      console.log('Available slots:', filteredSlots.filter((s: any) => s.is_available).length);
+      console.log('Unavailable slots:', filteredSlots.filter((s: any) => !s.is_available).length);
       
-      setAvailableSlots(processedSlots);
+      // Log slots for each stylist
+      const slotsByStylist = filteredSlots.reduce((acc: any, slot: any) => {
+        if (!acc[slot.staff_id]) {
+          acc[slot.staff_id] = { name: slot.staff_name, slots: [] };
+        }
+        acc[slot.staff_id].slots.push(slot);
+        return acc;
+      }, {});
+
+      Object.entries(slotsByStylist).forEach(([staffId, data]: [string, any]) => {
+        console.log(`Slots for stylist ${data.name} (ID: ${staffId}):`, data.slots.length);
+      });
+      
+      setAvailableSlots(filteredSlots);
 
     } catch (error) {
       console.error('Error in fetchAvailableSlots:', error);
@@ -482,14 +543,14 @@ const DateTimeSelectionPage: React.FC = () => {
           >
             <ChevronLeft className="h-5 w-5" />
           </Button>
-          <h1 className="text-xl font-medium">Select Date & Time</h1>
+          <h1 className="text-xl font-medium font-righteous">Select Date & Time</h1>
         </div>
       </div>
 
       <div className="p-4">
         <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-2">Choose Your Appointment</h2>
-          <p className="text-gray-500 text-sm">
+          <h2 className="text-lg font-semibold mb-2 font-righteous">Choose Your Appointment</h2>
+          <p className="text-gray-500 text-sm font-poppins">
             Select your preferred date and time slot. Service duration: {actualServiceDuration} minutes
             {selectedServices && selectedServices.length > 1 && (
               <span className="block text-xs text-gray-400 mt-1">
@@ -499,12 +560,12 @@ const DateTimeSelectionPage: React.FC = () => {
           </p>
           <div className="flex items-center gap-2 mt-2">
             <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-            <span className="text-xs text-gray-600">Real-time updates enabled</span>
+            <span className="text-xs text-gray-600 font-poppins">Real-time updates enabled</span>
           </div>
         </div>
 
         <div className="mb-6">
-          <h3 className="font-medium mb-3 flex items-center">
+          <h3 className="font-medium mb-3 flex items-center font-righteous">
             <CalendarIcon className="h-4 w-4 mr-2" />
             Select Date
           </h3>
@@ -516,7 +577,7 @@ const DateTimeSelectionPage: React.FC = () => {
                 <Button
                   key={formatDateInIST(date, 'yyyy-MM-dd')}
                   variant={isSelected ? "default" : "outline"}
-                  className={`h-auto p-3 flex flex-col items-center space-y-1 ${
+                  className={`h-auto p-3 flex flex-col items-center space-y-1 font-poppins ${
                     isSelected ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
                   }`}
                   onClick={() => setSelectedDate(date)}
@@ -538,11 +599,11 @@ const DateTimeSelectionPage: React.FC = () => {
 
         {selectedDate && (
           <div className="mb-6">
-            <h3 className="font-medium mb-3 flex items-center">
+            <h3 className="font-medium mb-3 flex items-center font-righteous">
               <Clock className="h-4 w-4 mr-2" />
               Available Time Slots
               {lockedSlot && (
-                <span className="ml-2 text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded">
+                <span className="ml-2 text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded font-poppins">
                   Slot Reserved (10 min)
                 </span>
               )}
@@ -550,11 +611,11 @@ const DateTimeSelectionPage: React.FC = () => {
             
             {error && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
-                <p className="text-red-600 text-sm">{error}</p>
+                <p className="text-red-600 text-sm font-poppins">{error}</p>
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  className="mt-2"
+                  className="mt-2 font-poppins"
                   onClick={() => {
                     setError('');
                     fetchAvailableSlots();
@@ -576,7 +637,7 @@ const DateTimeSelectionPage: React.FC = () => {
                     <Button
                       key={slot.time_slot}
                       variant={selectedTime === slot.time_slot ? "default" : "outline"}
-                      className={`p-3 ${
+                      className={`p-3 font-poppins ${
                         selectedTime === slot.time_slot ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
                       }`}
                       onClick={() => handleTimeSlotClick(slot.time_slot)}
@@ -589,19 +650,19 @@ const DateTimeSelectionPage: React.FC = () => {
                 
                 {uniqueUnavailableSlots.length > 0 && (
                   <div className="mt-4">
-                    <p className="text-sm text-gray-600 mb-2">Unavailable slots:</p>
+                    <p className="text-sm text-gray-600 mb-2 font-poppins">Unavailable slots:</p>
                     <div className="grid grid-cols-1 gap-2">
                       {uniqueUnavailableSlots.slice(0, 5).map((slot) => (
                         <div
                           key={slot.time_slot}
-                          className="p-2 bg-gray-100 rounded text-sm text-gray-600 border border-gray-200"
+                          className="p-2 bg-gray-100 rounded text-sm text-gray-600 border border-gray-200 font-poppins"
                         >
                           <span className="font-medium">{formatTimeToAmPm(slot.time_slot)}</span>
                           <span className="ml-2 text-xs">- {slot.conflict_reason || 'Unavailable'}</span>
                         </div>
                       ))}
                       {uniqueUnavailableSlots.length > 5 && (
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className="text-xs text-gray-500 mt-1 font-poppins">
                           +{uniqueUnavailableSlots.length - 5} more unavailable slots
                         </p>
                       )}
@@ -612,15 +673,15 @@ const DateTimeSelectionPage: React.FC = () => {
             ) : (
               <div className="text-center py-8 bg-gray-50 rounded-lg">
                 <Clock className="h-12 w-12 mx-auto text-gray-400 mb-2" />
-                <p className="text-gray-500">No available time slots</p>
-                <p className="text-gray-400 text-sm">
+                <p className="text-gray-500 font-poppins">No available time slots</p>
+                <p className="text-gray-400 text-sm font-poppins">
                   Please select a different date or try again later
                 </p>
                 {!loading && (
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    className="mt-3"
+                    className="mt-3 font-poppins"
                     onClick={fetchAvailableSlots}
                   >
                     Refresh Slots
@@ -634,7 +695,7 @@ const DateTimeSelectionPage: React.FC = () => {
 
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
         <Button 
-          className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6"
+          className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6 font-poppins"
           size="lg"
           onClick={handleContinue}
           disabled={!selectedDate || !selectedTime || loading || isCreatingBooking || isLocking}
