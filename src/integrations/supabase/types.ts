@@ -369,6 +369,63 @@ export type Database = {
           },
         ]
       }
+      shop_income_reports: {
+        Row: {
+          created_at: string
+          generated_at: string
+          id: string
+          is_holiday: boolean
+          merchant_id: string
+          merchant_share: number
+          open_days: number
+          platform_income: number
+          report_date: string
+          report_type: string
+          shop_name: string
+          total_bookings: number
+          total_customers: number
+          total_earnings: number
+          total_reviews: number
+          total_services: number
+        }
+        Insert: {
+          created_at?: string
+          generated_at?: string
+          id?: string
+          is_holiday?: boolean
+          merchant_id: string
+          merchant_share?: number
+          open_days?: number
+          platform_income?: number
+          report_date: string
+          report_type: string
+          shop_name: string
+          total_bookings?: number
+          total_customers?: number
+          total_earnings?: number
+          total_reviews?: number
+          total_services?: number
+        }
+        Update: {
+          created_at?: string
+          generated_at?: string
+          id?: string
+          is_holiday?: boolean
+          merchant_id?: string
+          merchant_share?: number
+          open_days?: number
+          platform_income?: number
+          report_date?: string
+          report_type?: string
+          shop_name?: string
+          total_bookings?: number
+          total_customers?: number
+          total_earnings?: number
+          total_reviews?: number
+          total_services?: number
+        }
+        Relationships: []
+      }
       staff: {
         Row: {
           created_at: string
@@ -629,6 +686,21 @@ export type Database = {
             }
           | { p_report_date: string; p_report_type: string }
         Returns: undefined
+      }
+      get_available_slots_with_validation: {
+        Args: {
+          p_merchant_id: string
+          p_date: string
+          p_staff_id?: string
+          p_service_duration?: number
+        }
+        Returns: {
+          staff_id: string
+          staff_name: string
+          time_slot: string
+          is_available: boolean
+          conflict_reason: string
+        }[]
       }
       get_fresh_available_slots: {
         Args: { p_merchant_id: string; p_date: string; p_staff_id?: string }

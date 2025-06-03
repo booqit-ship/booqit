@@ -20,7 +20,7 @@ export const useCancelBooking = () => {
       console.log('Cancelling booking:', bookingId, 'for user:', userId);
       
       // Use the correct function name that exists in the database
-      const { data, error } = await supabase.rpc('cancel_booking_and_release_all_slots', {
+      const { data, error } = await supabase.rpc('cancel_booking_and_release_slots', {
         p_booking_id: bookingId,
         p_user_id: userId || null
       });

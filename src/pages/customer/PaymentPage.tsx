@@ -31,6 +31,7 @@ const PaymentPage: React.FC = () => {
 
   const [paymentMethod, setPaymentMethod] = useState<string>('upi');
   const [processing, setProcessing] = useState(false);
+  const [bookingValid, setBookingValid] = useState(true);
 
   useEffect(() => {
     if (!merchant || !selectedServices || !bookingDate || !bookingTime || !bookingId) {
@@ -38,6 +39,51 @@ const PaymentPage: React.FC = () => {
       navigate(-1);
     }
   }, []);
+
+  // Verify booking exists and is valid
+  useEffect(() => {
+    const verifyBooking = async () => {
+      if (!bookingId || !userId) return;
+
+      try {
+        const { data: booking, error } = await supabase
+          .from('bookings')
+          .select('*')
+          .eq('id', bookingId)
+          .eq('user_id', userId)
+          .single();
+
+        if (error || !booking) {
+          console.error('Booking verification failed:', error);
+          setBookingValid(false);
+          toast.error('Booking not found or expired');
+          navigate('/calendar', { 
+            state: { 
+              message: 'Booking reservation expired. Please select a new time slot.' 
+            }
+          });
+          return;
+        }
+
+        if (booking.status !== 'confirmed') {
+          console.error('Booking is not in confirmed state:', booking.status);
+          setBookingValid(false);
+          toast.error('Booking is not valid for payment');
+          navigate('/calendar');
+          return;
+        }
+
+        console.log('Booking verified successfully:', booking);
+      } catch (error) {
+        console.error('Error verifying booking:', error);
+        setBookingValid(false);
+        toast.error('Error verifying booking');
+        navigate('/calendar');
+      }
+    };
+
+    verifyBooking();
+  }, [bookingId, userId, navigate]);
 
   // Handle navigation away from payment page
   useEffect(() => {
