@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
@@ -98,6 +97,9 @@ const DateTimeSelectionPage: React.FC = () => {
         console.log('Shop holidays:', shopHolidayDates);
         setHolidays(shopHolidayDates);
 
+        // Initialize stylist holidays array
+        let staffHolidayDates: string[] = [];
+
         // Fetch stylist holidays if specific staff is selected
         if (selectedStaff) {
           const { data: staffHolidays } = await supabase
@@ -105,7 +107,7 @@ const DateTimeSelectionPage: React.FC = () => {
             .select('holiday_date')
             .eq('staff_id', selectedStaff);
 
-          const staffHolidayDates = (staffHolidays || []).map(h => h.holiday_date);
+          staffHolidayDates = (staffHolidays || []).map(h => h.holiday_date);
           console.log('Stylist holidays:', staffHolidayDates);
           setStylistHolidays(staffHolidayDates);
         }
