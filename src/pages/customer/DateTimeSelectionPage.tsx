@@ -55,6 +55,14 @@ const DateTimeSelectionPage: React.FC = () => {
     ? selectedServices.reduce((total: number, service: any) => total + service.duration, 0)
     : totalDuration || 30;
 
+  console.log('=== DateTimeSelectionPage Debug Info ===');
+  console.log('MerchantId:', merchantId);
+  console.log('UserId:', userId);
+  console.log('Selected Services:', selectedServices);
+  console.log('Service Duration:', actualServiceDuration);
+  console.log('Selected Staff:', selectedStaff);
+  console.log('Current IST Time:', formatDateInIST(new Date(), 'yyyy-MM-dd HH:mm:ss'));
+
   // Generate 3 days: today, tomorrow, day after tomorrow (using IST), excluding holidays
   const getAvailableDates = () => {
     const dates: Date[] = [];
@@ -79,77 +87,80 @@ const DateTimeSelectionPage: React.FC = () => {
   useEffect(() => {
     if (availableDates.length > 0 && !selectedDate) {
       setSelectedDate(availableDates[0]);
+      console.log('Setting default date to:', formatDateInIST(availableDates[0], 'yyyy-MM-dd'));
     }
   }, [availableDates]);
 
   // Fetch holidays data
   useEffect(() => {
     const fetchHolidays = async () => {
-      if (!merchantId) return;
+      if (!merchantId) {
+        console.error('No merchantId provided');
+        return;
+      }
 
       try {
+        console.log('Fetching holidays for merchant:', merchantId);
+        
         // Fetch shop holidays
-        const { data: shopHolidays } = await supabase
+        const { data: shopHolidays, error: shopError } = await supabase
           .from('shop_holidays')
           .select('holiday_date')
           .eq('merchant_id', merchantId);
 
-        const shopHolidayDates = (shopHolidays || []).map(h => h.holiday_date);
-        console.log('Shop holidays:', shopHolidayDates);
-        setHolidays(shopHolidayDates);
+        if (shopError) {
+          console.error('Error fetching shop holidays:', shopError);
+        } else {
+          const shopHolidayDates = (shopHolidays || []).map(h => h.holiday_date);
+          console.log('Shop holidays:', shopHolidayDates);
+          setHolidays(shopHolidayDates);
+        }
 
         // Initialize stylist holidays array
         let staffHolidayDates: string[] = [];
 
         // Fetch stylist holidays if specific staff is selected
         if (selectedStaff) {
-          const { data: staffHolidays } = await supabase
+          const { data: staffHolidays, error: staffError } = await supabase
             .from('stylist_holidays')
             .select('holiday_date')
             .eq('staff_id', selectedStaff);
 
-          staffHolidayDates = (staffHolidays || []).map(h => h.holiday_date);
-          console.log('Stylist holidays:', staffHolidayDates);
+          if (staffError) {
+            console.error('Error fetching stylist holidays:', staffError);
+          } else {
+            staffHolidayDates = (staffHolidays || []).map(h => h.holiday_date);
+            console.log('Stylist holidays:', staffHolidayDates);
+          }
         }
         setStylistHolidays(staffHolidayDates);
 
-        // Check if selected date is a holiday
-        const selectedDateStr = selectedDate ? formatDateInIST(selectedDate, 'yyyy-MM-dd') : null;
-        if (selectedDateStr) {
-          if (shopHolidayDates.includes(selectedDateStr)) {
-            setError('Shop is closed on this date');
-            setAvailableSlots([]);
-            return;
-          }
-          if (selectedStaff && staffHolidayDates.includes(selectedDateStr)) {
-            setError('Selected stylist is not available on this date');
-            setAvailableSlots([]);
-            return;
-          }
-        }
-
       } catch (error) {
-        console.error('Error fetching holidays:', error);
+        console.error('Error in fetchHolidays:', error);
       }
     };
 
     fetchHolidays();
-  }, [merchantId, selectedStaff, selectedDate]);
+  }, [merchantId, selectedStaff]);
 
   // Fetch available slots when date changes
   const fetchAvailableSlots = async () => {
-    if (!selectedDate || !merchantId) return;
+    if (!selectedDate || !merchantId) {
+      console.log('Missing selectedDate or merchantId:', { selectedDate, merchantId });
+      return;
+    }
 
     setLoading(true);
     setError('');
     
     try {
       const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
-      console.log('=== FETCHING SLOTS ===');
+      console.log('=== FETCHING SLOTS DEBUG ===');
       console.log('Date:', selectedDateStr);
       console.log('Merchant ID:', merchantId);
       console.log('Selected Staff:', selectedStaff);
       console.log('Service Duration:', actualServiceDuration);
+      console.log('Current IST Time:', formatDateInIST(new Date(), 'yyyy-MM-dd HH:mm:ss'));
 
       // Check if selected date is a holiday first
       if (holidays.includes(selectedDateStr)) {
@@ -166,8 +177,24 @@ const DateTimeSelectionPage: React.FC = () => {
         return;
       }
 
+      // Check if merchant exists and has staff
+      console.log('Checking merchant and staff...');
+      const { data: merchantData, error: merchantError } = await supabase
+        .from('merchants')
+        .select('id, shop_name, open_time, close_time')
+        .eq('id', merchantId)
+        .single();
+
+      if (merchantError || !merchantData) {
+        console.error('Merchant not found:', merchantError);
+        setError('Merchant not found. Please check the booking link.');
+        setAvailableSlots([]);
+        return;
+      }
+
+      console.log('Merchant found:', merchantData);
+
       // Check if merchant has any staff
-      console.log('Checking staff for merchant...');
       const { data: staffData, error: staffError } = await supabase
         .from('staff')
         .select('id, name')
@@ -187,13 +214,16 @@ const DateTimeSelectionPage: React.FC = () => {
         return;
       }
 
-      console.log('Found staff:', staffData.length);
+      console.log('Found staff:', staffData.length, 'stylists');
 
       // Clean up expired locks first
       console.log('Cleaning up expired locks...');
-      await supabase.rpc('cleanup_expired_locks' as any);
+      const { error: cleanupError } = await supabase.rpc('cleanup_expired_locks' as any);
+      if (cleanupError) {
+        console.warn('Error cleaning up locks:', cleanupError);
+      }
 
-      // Fetch slots directly using get_available_slots_with_validation
+      // Fetch slots using get_available_slots_with_validation
       console.log('Fetching available slots with validation...');
       const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_validation' as any, {
         p_merchant_id: merchantId,
@@ -204,16 +234,12 @@ const DateTimeSelectionPage: React.FC = () => {
 
       if (slotsError) {
         console.error('Error fetching slots:', slotsError);
-        if (slotsError.message?.includes('Merchant not found')) {
-          setError('Merchant not found. Please check the booking link.');
-        } else {
-          setError('Unable to load time slots. Please try refreshing the page.');
-        }
+        setError('Unable to load time slots. Please try refreshing the page.');
         setAvailableSlots([]);
         return;
       }
 
-      console.log('Raw slots data:', slotsData?.length || 0);
+      console.log('Raw slots data received:', slotsData?.length || 0, 'slots');
       console.log('Sample slots:', slotsData?.slice(0, 3));
 
       if (!slotsData || slotsData.length === 0) {
@@ -255,6 +281,7 @@ const DateTimeSelectionPage: React.FC = () => {
   };
 
   useEffect(() => {
+    console.log('Effect triggered - fetching slots for:', { selectedDate, merchantId, selectedStaff, actualServiceDuration });
     fetchAvailableSlots();
     // Reset selected time when date changes
     setSelectedTime('');
