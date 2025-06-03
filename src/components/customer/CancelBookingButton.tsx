@@ -57,12 +57,15 @@ const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
         return;
       }
 
-      if (!data.success) {
-        toast.error(data.error || 'Failed to cancel booking');
+      // Type assert the response data
+      const result = data as { success: boolean; error?: string; message?: string };
+
+      if (!result.success) {
+        toast.error(result.error || 'Failed to cancel booking');
         return;
       }
 
-      toast.success(data.message || 'Booking cancelled successfully');
+      toast.success(result.message || 'Booking cancelled successfully');
       
       // Call the onCancelled callback if provided
       if (onCancelled) {

@@ -224,11 +224,7 @@ const ReceiptPage: React.FC = () => {
           {booking.status !== 'cancelled' && (
             <CancelBookingButton
               bookingId={booking.id}
-              bookingDate={booking.date}
-              bookingTime={booking.time_slot}
-              bookingStatus={booking.status}
-              userId={userId}
-              onCancelSuccess={handleCancelSuccess}
+              onCancelled={handleCancelSuccess}
               className="w-full"
             />
           )}

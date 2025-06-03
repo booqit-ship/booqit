@@ -7,9 +7,22 @@ import { CalendarIcon, Clock, MapPin, User } from 'lucide-react';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { formatDateInIST } from '@/utils/dateUtils';
 import CancelBookingButton from './CancelBookingButton';
-import type { Booking } from '@/types';
 
-interface BookingWithDetails extends Booking {
+interface BookingWithDetails {
+  id: string;
+  user_id: string;
+  merchant_id: string;
+  service_id: string;
+  date: string;
+  time_slot: string;
+  status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
+  payment_status: string;
+  created_at: string;
+  staff_id?: string | null;
+  stylist_name?: string | null;
+  customer_name?: string;
+  customer_phone?: string;
+  customer_email?: string;
   merchant: {
     shop_name: string;
     address: string;
