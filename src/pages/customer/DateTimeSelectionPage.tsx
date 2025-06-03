@@ -63,6 +63,29 @@ const DateTimeSelectionPage: React.FC = () => {
   console.log('Selected Staff:', selectedStaff);
   console.log('Current IST Time:', formatDateInIST(new Date(), 'yyyy-MM-dd HH:mm:ss'));
 
+  // Helper function to convert time string to minutes
+  const timeToMinutes = (timeStr: string): number => {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return hours * 60 + minutes;
+  };
+
+  // Helper function to get current IST time in minutes with buffer
+  const getCurrentISTTimeWithBuffer = (): number => {
+    const now = new Date();
+    const istNow = new Date(now.getTime() + (5.5 * 60 * 60 * 1000)); // Convert to IST
+    const currentHour = istNow.getHours();
+    const currentMinute = istNow.getMinutes();
+    const currentTimeInMinutes = currentHour * 60 + currentMinute;
+    const bufferedTimeInMinutes = currentTimeInMinutes + 40; // 40-minute buffer
+    
+    console.log('Current IST time:', `${currentHour}:${currentMinute.toString().padStart(2, '0')}`);
+    console.log('Current time in minutes:', currentTimeInMinutes);
+    console.log('Buffered time in minutes:', bufferedTimeInMinutes);
+    console.log('Buffered time:', `${Math.floor(bufferedTimeInMinutes / 60)}:${(bufferedTimeInMinutes % 60).toString().padStart(2, '0')}`);
+    
+    return bufferedTimeInMinutes;
+  };
+
   // Generate 3 days: today, tomorrow, day after tomorrow (using IST), excluding holidays
   const getAvailableDates = () => {
     const dates: Date[] = [];
@@ -155,8 +178,11 @@ const DateTimeSelectionPage: React.FC = () => {
     
     try {
       const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
+      const isToday = isTodayIST(selectedDate);
+      
       console.log('=== FETCHING SLOTS DEBUG ===');
       console.log('Date:', selectedDateStr);
+      console.log('Is Today:', isToday);
       console.log('Merchant ID:', merchantId);
       console.log('Selected Staff:', selectedStaff);
       console.log('Service Duration:', actualServiceDuration);
@@ -244,11 +270,8 @@ const DateTimeSelectionPage: React.FC = () => {
 
       if (!slotsData || slotsData.length === 0) {
         console.log('No slots available for this date and service duration');
-        const todayIST = getCurrentDateIST();
-        const isToday = formatDateInIST(selectedDate, 'yyyy-MM-dd') === formatDateInIST(todayIST, 'yyyy-MM-dd');
-        
         if (isToday) {
-          setError('No slots available today. All slots might be booked or it may be too late to book for today.');
+          setError('No slots available today. All slots might be booked or it may be too late to book for today due to a 40-minute buffer period.');
         } else {
           setError('No slots available for this date. The shop might be closed or fully booked.');
         }
@@ -257,7 +280,7 @@ const DateTimeSelectionPage: React.FC = () => {
       }
 
       // Process the slots data
-      const processedSlots = slotsData.map((slot: any) => ({
+      let processedSlots = slotsData.map((slot: any) => ({
         staff_id: slot.staff_id,
         staff_name: slot.staff_name,
         time_slot: typeof slot.time_slot === 'string' ? slot.time_slot.substring(0, 5) : formatDateInIST(new Date(`2000-01-01T${slot.time_slot}`), 'HH:mm'),
@@ -265,11 +288,71 @@ const DateTimeSelectionPage: React.FC = () => {
         conflict_reason: slot.conflict_reason
       }));
 
-      console.log('Final processed slots:', processedSlots.length);
-      console.log('Available slots:', processedSlots.filter(s => s.is_available).length);
-      console.log('Unavailable slots:', processedSlots.filter(s => !s.is_available).length);
+      // Filter out past slots for today with 40-minute buffer
+      if (isToday) {
+        const bufferedTimeInMinutes = getCurrentISTTimeWithBuffer();
+        
+        processedSlots = processedSlots.filter((slot: AvailableSlot) => {
+          const slotTimeInMinutes = timeToMinutes(slot.time_slot);
+          const isSlotAvailable = slotTimeInMinutes >= bufferedTimeInMinutes;
+          
+          if (!isSlotAvailable) {
+            console.log(`Filtering out past slot: ${slot.time_slot} (${slotTimeInMinutes} < ${bufferedTimeInMinutes})`);
+          }
+          
+          return isSlotAvailable;
+        });
+        
+        console.log('Slots after filtering past times:', processedSlots.length);
+      }
+
+      // Double-check slot availability by querying existing bookings
+      const availableSlotPromises = processedSlots.map(async (slot: AvailableSlot) => {
+        if (!slot.is_available) return slot;
+        
+        // Check if slot is already booked
+        const { data: existingBookings, error: bookingError } = await supabase
+          .from('bookings')
+          .select('id, status, time_slot')
+          .eq('merchant_id', merchantId)
+          .eq('staff_id', slot.staff_id)
+          .eq('date', selectedDateStr)
+          .eq('time_slot', slot.time_slot)
+          .in('status', ['confirmed', 'pending']);
+
+        if (bookingError) {
+          console.error('Error checking existing bookings:', bookingError);
+          return slot;
+        }
+
+        if (existingBookings && existingBookings.length > 0) {
+          console.log(`Slot ${slot.time_slot} is already booked:`, existingBookings);
+          return {
+            ...slot,
+            is_available: false,
+            conflict_reason: 'This time slot is already booked by another customer'
+          };
+        }
+
+        return slot;
+      });
+
+      const finalProcessedSlots = await Promise.all(availableSlotPromises);
+
+      console.log('Final processed slots:', finalProcessedSlots.length);
+      console.log('Available slots:', finalProcessedSlots.filter(s => s.is_available).length);
+      console.log('Unavailable slots:', finalProcessedSlots.filter(s => !s.is_available).length);
       
-      setAvailableSlots(processedSlots);
+      setAvailableSlots(finalProcessedSlots);
+
+      // If no available slots after filtering, show appropriate message
+      if (finalProcessedSlots.filter(s => s.is_available).length === 0) {
+        if (isToday) {
+          setError('No slots available today. All slots might be booked or it may be too late to book for today due to a 40-minute buffer period.');
+        } else {
+          setError('No slots available for this date. All slots might be booked.');
+        }
+      }
 
     } catch (error) {
       console.error('Error in fetchAvailableSlots:', error);
@@ -432,6 +515,24 @@ const DateTimeSelectionPage: React.FC = () => {
 
       const bookingId = response.booking_id;
       console.log('Booking created successfully:', bookingId);
+      
+      // After successful booking, block the slot to prevent double bookings
+      console.log('Blocking slot after successful booking...');
+      const { error: blockError } = await supabase.rpc('book_appointment_with_duration_blocking' as any, {
+        p_booking_id: bookingId,
+        p_staff_id: finalStaffId,
+        p_date: selectedDateStr,
+        p_time_slot: selectedTime,
+        p_service_duration: actualServiceDuration
+      });
+
+      if (blockError) {
+        console.error('Error blocking slot:', blockError);
+        // Don't stop the flow, just log the error as booking is already confirmed
+      } else {
+        console.log('Slot blocked successfully');
+      }
+
       toast.success('Booking confirmed! Proceeding to payment...');
 
       const finalStaffDetails = selectedStaffDetails || { name: selectedSlot.staff_name };
@@ -641,7 +742,10 @@ const DateTimeSelectionPage: React.FC = () => {
                 <Clock className="h-12 w-12 mx-auto text-gray-400 mb-2" />
                 <p className="text-gray-500">No available time slots</p>
                 <p className="text-gray-400 text-sm">
-                  Please select a different date or try again later
+                  {isTodayIST(selectedDate) 
+                    ? 'All slots might be booked or it may be too late to book for today due to a 40-minute buffer period'
+                    : 'Please select a different date or try again later'
+                  }
                 </p>
                 {!loading && (
                   <Button 
