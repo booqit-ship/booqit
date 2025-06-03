@@ -20,7 +20,7 @@ import ProfilePage from '@/pages/customer/ProfilePage';
 import MerchantDetailPage from '@/pages/customer/MerchantDetailPage';
 import ServiceSelectionPage from '@/pages/customer/ServiceSelectionPage';
 import StaffSelectionPage from '@/pages/customer/StaffSelectionPage';
-import BookingPage from '@/pages/customer/BookingPage';
+import DateTimeSelectionPage from '@/pages/customer/DateTimeSelectionPage';
 import BookingSummaryPage from '@/pages/customer/BookingSummaryPage';
 import PaymentPage from '@/pages/customer/PaymentPage';
 import ReceiptPage from '@/pages/customer/ReceiptPage';
@@ -61,7 +61,7 @@ const router = createBrowserRouter([
           { path: "merchant/:merchantId", element: <MerchantDetailPage /> },
           { path: "booking/:merchantId", element: <ServiceSelectionPage /> },
           { path: "booking/:merchantId/staff", element: <StaffSelectionPage /> },
-          { path: "booking/:merchantId/datetime", element: <BookingPage /> },
+          { path: "booking/:merchantId/datetime", element: <DateTimeSelectionPage /> },
           { path: "booking/:merchantId/summary", element: <BookingSummaryPage /> },
           { path: "payment/:merchantId", element: <PaymentPage /> },
           { path: "receipt/:bookingId", element: <ReceiptPage /> },
@@ -86,7 +86,7 @@ const router = createBrowserRouter([
           { path: "merchant/:merchantId", element: <MerchantDetailPage /> },
           { path: "booking/:merchantId", element: <ServiceSelectionPage /> },
           { path: "booking/:merchantId/staff", element: <StaffSelectionPage /> },
-          { path: "booking/:merchantId/datetime", element: <BookingPage /> },
+          { path: "booking/:merchantId/datetime", element: <DateTimeSelectionPage /> },
           { path: "booking/:merchantId/summary", element: <BookingSummaryPage /> },
           { path: "payment/:merchantId", element: <PaymentPage /> },
           { path: "receipt/:bookingId", element: <ReceiptPage /> },

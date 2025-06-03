@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
@@ -32,8 +31,34 @@ const getCurrentISTTime = (): Date => {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
 };
 
-// Check if a slot is valid (40 minutes ahead of current IST time)
-const isSlotValid = (slotTimeString: string, nowIST: Date): boolean => {
+// Round IST time to the next 10-minute mark, then add 40-minute buffer
+const getRoundedISTTimeWithBuffer = (): Date => {
+  const nowIST = getCurrentISTTime();
+  
+  // Round up to next 10-minute mark
+  const currentMinutes = nowIST.getMinutes();
+  const roundedMinutes = Math.ceil(currentMinutes / 10) * 10;
+  
+  const roundedTime = new Date(nowIST);
+  if (roundedMinutes >= 60) {
+    roundedTime.setHours(nowIST.getHours() + 1);
+    roundedTime.setMinutes(roundedMinutes - 60);
+  } else {
+    roundedTime.setMinutes(roundedMinutes);
+  }
+  roundedTime.setSeconds(0);
+  roundedTime.setMilliseconds(0);
+  
+  // Add 40-minute buffer
+  const bufferedTime = new Date(roundedTime.getTime() + 40 * 60 * 1000);
+  
+  console.log(`IST: ${nowIST.toLocaleTimeString()} → Rounded: ${roundedTime.toLocaleTimeString()} → With buffer: ${bufferedTime.toLocaleTimeString()}`);
+  
+  return bufferedTime;
+};
+
+// Check if a slot is valid (after the rounded time + 40-minute buffer)
+const isSlotValid = (slotTimeString: string, bufferedIST: Date): boolean => {
   try {
     // Parse the time slot (assuming 24-hour format HH:MM)
     const [slotHour, slotMinPart] = slotTimeString.split(':');
@@ -41,17 +66,16 @@ const isSlotValid = (slotTimeString: string, nowIST: Date): boolean => {
     const minute = parseInt(slotMinPart) || 0;
 
     // Create slot date in IST
-    const slotDate = new Date(nowIST);
+    const slotDate = new Date(bufferedIST);
     slotDate.setHours(hour);
     slotDate.setMinutes(minute);
     slotDate.setSeconds(0);
     slotDate.setMilliseconds(0);
 
-    // Check if slot is at least 40 minutes ahead
-    const buffer = 40 * 60 * 1000; // 40 minutes in milliseconds
-    const isValid = slotDate.getTime() >= nowIST.getTime() + buffer;
+    // Check if slot is after the buffered time
+    const isValid = slotDate.getTime() >= bufferedIST.getTime();
     
-    console.log(`Slot ${slotTimeString} (${hour}:${minute}) vs IST ${nowIST.toLocaleTimeString()}: ${isValid}`);
+    console.log(`Slot ${slotTimeString} (${hour}:${minute}) vs buffered IST ${bufferedIST.toLocaleTimeString()}: ${isValid}`);
     return isValid;
   } catch (error) {
     console.error('Error validating slot time:', error);
@@ -71,21 +95,28 @@ const DateTimeSelectionPage: React.FC = () => {
   const [filteredSlots, setFilteredSlots] = useState<AvailableSlot[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
-  const [currentISTTime, setCurrentISTTime] = useState<Date>(getCurrentISTTime());
+  const [currentBufferedIST, setCurrentBufferedIST] = useState<Date>(getRoundedISTTimeWithBuffer());
+  const [holidays, setHolidays] = useState<string[]>([]);
+  const [stylistHolidays, setStylistHolidays] = useState<string[]>([]);
 
   // Calculate actual service duration from selected services
   const actualServiceDuration = selectedServices && selectedServices.length > 0 
     ? selectedServices.reduce((total: number, service: any) => total + service.duration, 0)
     : totalDuration || 30;
 
-  // Generate 3 days: today, tomorrow, day after tomorrow (using IST)
+  // Generate 3 days: today, tomorrow, day after tomorrow (using IST), excluding holidays
   const getAvailableDates = () => {
     const dates: Date[] = [];
     const todayIST = getCurrentDateIST();
     
     for (let i = 0; i < 3; i++) {
       const date = addDays(todayIST, i);
-      dates.push(date);
+      const dateStr = formatDateInIST(date, 'yyyy-MM-dd');
+      
+      // Exclude shop holidays and stylist holidays
+      if (!holidays.includes(dateStr) && !stylistHolidays.includes(dateStr)) {
+        dates.push(date);
+      }
     }
     
     return dates;
@@ -98,41 +129,75 @@ const DateTimeSelectionPage: React.FC = () => {
     if (availableDates.length > 0 && !selectedDate) {
       setSelectedDate(availableDates[0]);
     }
-  }, []);
+  }, [availableDates]);
 
-  // Update current IST time every minute for real-time filtering
+  // Fetch holidays data
   useEffect(() => {
-    const updateCurrentTime = () => {
-      const newISTTime = getCurrentISTTime();
-      setCurrentISTTime(newISTTime);
-      console.log('Updated IST time:', newISTTime.toLocaleTimeString());
+    const fetchHolidays = async () => {
+      if (!merchantId) return;
+
+      try {
+        // Fetch shop holidays
+        const { data: shopHolidays } = await supabase
+          .from('shop_holidays')
+          .select('holiday_date')
+          .eq('merchant_id', merchantId);
+
+        const shopHolidayDates = (shopHolidays || []).map(h => h.holiday_date);
+        setHolidays(shopHolidayDates);
+
+        // Fetch stylist holidays if specific staff is selected
+        if (selectedStaff) {
+          const { data: staffHolidays } = await supabase
+            .from('stylist_holidays')
+            .select('holiday_date')
+            .eq('staff_id', selectedStaff);
+
+          const staffHolidayDates = (staffHolidays || []).map(h => h.holiday_date);
+          setStylistHolidays(staffHolidayDates);
+        }
+
+      } catch (error) {
+        console.error('Error fetching holidays:', error);
+      }
+    };
+
+    fetchHolidays();
+  }, [merchantId, selectedStaff]);
+
+  // Update buffered IST time every minute for real-time filtering
+  useEffect(() => {
+    const updateBufferedTime = () => {
+      const newBufferedIST = getRoundedISTTimeWithBuffer();
+      setCurrentBufferedIST(newBufferedIST);
+      console.log('Updated buffered IST time:', newBufferedIST.toLocaleTimeString());
     };
 
     // Update immediately
-    updateCurrentTime();
+    updateBufferedTime();
 
     // Set up interval to update every minute
-    const intervalId = setInterval(updateCurrentTime, 60000);
+    const intervalId = setInterval(updateBufferedTime, 60000);
 
     return () => clearInterval(intervalId);
   }, []);
 
-  // Filter slots based on IST time for today, or show all slots for future dates
+  // Filter slots based on buffered IST time for today, or show all slots for future dates
   const filterSlotsBasedOnTime = (slots: AvailableSlot[]) => {
     if (!selectedDate) return [];
 
     // Only filter for today's date
     if (isTodayIST(selectedDate)) {
-      console.log('Filtering slots for today with real-time IST logic...');
-      console.log('Current IST time:', currentISTTime.toLocaleTimeString());
+      console.log('Filtering slots for today with real-time buffered IST logic...');
+      console.log('Current buffered IST time:', currentBufferedIST.toLocaleTimeString());
       
       const filtered = slots.filter(slot => {
         if (slot.slot_status !== 'Available') {
           return false;
         }
         
-        // Use real-time IST filtering
-        return isSlotValid(slot.time_slot, currentISTTime);
+        // Use real-time buffered IST filtering
+        return isSlotValid(slot.time_slot, currentBufferedIST);
       });
       
       console.log('Filtered slots for today:', filtered.length, 'out of', slots.length);
@@ -144,7 +209,7 @@ const DateTimeSelectionPage: React.FC = () => {
     }
   };
 
-  // Real-time slot filtering - runs when availableSlots or currentISTTime changes
+  // Real-time slot filtering - runs when availableSlots or currentBufferedIST changes
   useEffect(() => {
     const updateFilteredSlots = () => {
       const filtered = filterSlotsBasedOnTime(availableSlots);
@@ -162,7 +227,7 @@ const DateTimeSelectionPage: React.FC = () => {
     };
 
     updateFilteredSlots();
-  }, [availableSlots, selectedDate, selectedTime, currentISTTime]);
+  }, [availableSlots, selectedDate, selectedTime, currentBufferedIST]);
 
   // Fetch available slots when date changes
   useEffect(() => {
@@ -236,9 +301,9 @@ const DateTimeSelectionPage: React.FC = () => {
       return;
     }
 
-    // For today's bookings, double-check the time is still valid with current IST time
+    // For today's bookings, double-check the time is still valid with current buffered IST time
     if (isTodayIST(selectedDate)) {
-      if (!isSlotValid(timeSlot, getCurrentISTTime())) {
+      if (!isSlotValid(timeSlot, getRoundedISTTimeWithBuffer())) {
         toast.error('This time slot is too soon. Please select a later time.');
         return;
       }
@@ -293,9 +358,9 @@ const DateTimeSelectionPage: React.FC = () => {
       return;
     }
 
-    // For today's bookings, final time check with current IST time
+    // For today's bookings, final time check with current buffered IST time
     if (isTodayIST(selectedDate)) {
-      if (!isSlotValid(selectedTime, getCurrentISTTime())) {
+      if (!isSlotValid(selectedTime, getRoundedISTTimeWithBuffer())) {
         toast.error('Selected time slot is too soon. Please select another time.');
         setSelectedTime('');
         return;
@@ -383,7 +448,7 @@ const DateTimeSelectionPage: React.FC = () => {
     
     // For today, also include slots that are too soon
     if (isTodayIST(selectedDate || getCurrentDateIST())) {
-      return !isSlotValid(slot.time_slot, currentISTTime);
+      return !isSlotValid(slot.time_slot, currentBufferedIST);
     }
     
     return false;
@@ -431,8 +496,8 @@ const DateTimeSelectionPage: React.FC = () => {
           </p>
           <p className="text-gray-400 text-xs mt-1">
             {isTodayIST(selectedDate || getCurrentDateIST()) 
-              ? `Slots available from 40 minutes ahead of current IST time (${currentISTTime.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour12: true })})`
-              : "All slots available during shop hours"
+              ? `Slots available from ${currentBufferedIST.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour12: true })} (rounded + 40min buffer)`
+              : "All slots available during shop hours (excluding holidays)"
             }
           </p>
         </div>
@@ -526,8 +591,8 @@ const DateTimeSelectionPage: React.FC = () => {
                     <div className="grid grid-cols-1 gap-2">
                       {uniqueUnavailableSlots.slice(0, 5).map((slot) => {
                         const reasonText = slot.status_reason || 
-                          (isTodayIST(selectedDate || getCurrentDateIST()) && !isSlotValid(slot.time_slot, currentISTTime) 
-                            ? 'Too soon (40-min buffer required)' 
+                          (isTodayIST(selectedDate || getCurrentDateIST()) && !isSlotValid(slot.time_slot, currentBufferedIST) 
+                            ? 'Too soon (rounded time + 40-min buffer required)' 
                             : 'Unavailable');
                         
                         return (
@@ -555,7 +620,7 @@ const DateTimeSelectionPage: React.FC = () => {
                 <p className="text-gray-500">No available time slots</p>
                 <p className="text-gray-400 text-sm">
                   {isTodayIST(selectedDate) 
-                    ? "All slots for today are either booked or too soon (40-min buffer required in IST)"
+                    ? "All slots for today are either booked or too soon (rounded time + 40-min buffer required in IST)"
                     : "Please select a different date or try again later"
                   }
                 </p>
