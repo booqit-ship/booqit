@@ -172,7 +172,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
             </div>
             <div className="text-left">
               <h3 className="text-xl font-bold text-blue-900">Customer Login</h3>
-              <p className="text-gray-600 mt-1">Book services and manage your appointments</p>
+              <p className="text-gray-600 mt-1">Book  and manage your appointments</p>
             </div>
           </div>
         </motion.button>
