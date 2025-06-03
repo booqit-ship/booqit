@@ -18,8 +18,8 @@ interface AvailableSlot {
   staff_id: string;
   staff_name: string;
   time_slot: string;
-  slot_status: string;
-  status_reason: string | null;
+  is_available: boolean;
+  conflict_reason: string | null;
 }
 
 interface BookingCreationResponse {
@@ -34,7 +34,7 @@ const getCurrentISTTime = (): Date => {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
 };
 
-// Round IST time to the next 10-minute mark, then add 40-minute buffer
+// Round IST time to the next 10-minute mark, then add 60-minute buffer
 const getRoundedISTTimeWithBuffer = (): Date => {
   const nowIST = getCurrentISTTime();
   
@@ -52,15 +52,15 @@ const getRoundedISTTimeWithBuffer = (): Date => {
   roundedTime.setSeconds(0);
   roundedTime.setMilliseconds(0);
   
-  // Add 40-minute buffer
-  const bufferedTime = new Date(roundedTime.getTime() + 40 * 60 * 1000);
+  // Add 60-minute buffer
+  const bufferedTime = new Date(roundedTime.getTime() + 60 * 60 * 1000);
   
   console.log(`IST: ${nowIST.toLocaleTimeString()} → Rounded: ${roundedTime.toLocaleTimeString()} → With buffer: ${bufferedTime.toLocaleTimeString()}`);
   
   return bufferedTime;
 };
 
-// Check if a slot is valid (after the rounded time + 40-minute buffer)
+// Check if a slot is valid (after the rounded time + 60-minute buffer)
 const isSlotValid = (slotTimeString: string, bufferedIST: Date): boolean => {
   try {
     // Parse the time slot (assuming 24-hour format HH:MM)
@@ -96,7 +96,6 @@ const DateTimeSelectionPage: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
-  const [filteredSlots, setFilteredSlots] = useState<AvailableSlot[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
   const [currentBufferedIST, setCurrentBufferedIST] = useState<Date>(getRoundedISTTimeWithBuffer());
@@ -240,53 +239,6 @@ const DateTimeSelectionPage: React.FC = () => {
     };
   }, [pendingBookingId]);
 
-  // Filter slots based on buffered IST time for today, or show all slots for future dates
-  const filterSlotsBasedOnTime = (slots: AvailableSlot[]) => {
-    if (!selectedDate) return [];
-
-    // Only filter for today's date
-    if (isTodayIST(selectedDate)) {
-      console.log('Filtering slots for today with real-time buffered IST logic...');
-      console.log('Current buffered IST time:', currentBufferedIST.toLocaleTimeString());
-      
-      const filtered = slots.filter(slot => {
-        if (slot.slot_status !== 'Available') {
-          return false;
-        }
-        
-        // Use real-time buffered IST filtering
-        return isSlotValid(slot.time_slot, currentBufferedIST);
-      });
-      
-      console.log('Filtered slots for today:', filtered.length, 'out of', slots.length);
-      return filtered;
-    } else {
-      // For future dates, show all available slots
-      console.log('Showing all available slots for future date');
-      return slots.filter(slot => slot.slot_status === 'Available');
-    }
-  };
-
-  // Real-time slot filtering - runs when availableSlots or currentBufferedIST changes
-  useEffect(() => {
-    const updateFilteredSlots = () => {
-      const filtered = filterSlotsBasedOnTime(availableSlots);
-      setFilteredSlots(filtered);
-      
-      // Clear selected time if it's no longer available
-      if (selectedTime && isTodayIST(selectedDate || getCurrentDateIST())) {
-        const isSelectedTimeStillAvailable = filtered.some(slot => slot.time_slot === selectedTime);
-        if (!isSelectedTimeStillAvailable) {
-          console.log('Selected time slot expired due to time progression, clearing selection');
-          setSelectedTime('');
-          toast.info('Selected time slot is no longer available');
-        }
-      }
-    };
-
-    updateFilteredSlots();
-  }, [availableSlots, selectedDate, selectedTime, currentBufferedIST]);
-
   // Fetch available slots when date changes
   useEffect(() => {
     const fetchAvailableSlots = async () => {
@@ -300,11 +252,12 @@ const DateTimeSelectionPage: React.FC = () => {
         const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
         console.log('Fetching slots for date:', selectedDateStr, 'Staff:', selectedStaff, 'Service duration:', actualServiceDuration);
 
-        // Use the fixed fresh slot generation function
-        const { data: slotsData, error: slotsError } = await supabase.rpc('get_fresh_available_slots', {
+        // Use the fixed validation function
+        const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_validation', {
           p_merchant_id: merchantId,
           p_date: selectedDateStr,
-          p_staff_id: selectedStaff || null
+          p_staff_id: selectedStaff || null,
+          p_service_duration: actualServiceDuration
         });
 
         if (slotsError) {
@@ -327,8 +280,8 @@ const DateTimeSelectionPage: React.FC = () => {
           staff_id: slot.staff_id,
           staff_name: slot.staff_name,
           time_slot: typeof slot.time_slot === 'string' ? slot.time_slot.substring(0, 5) : formatDateInIST(new Date(`2000-01-01T${slot.time_slot}`), 'HH:mm'),
-          slot_status: slot.slot_status,
-          status_reason: slot.status_reason
+          is_available: slot.is_available,
+          conflict_reason: slot.conflict_reason
         }));
 
         console.log('Processed slots:', processedSlots);
@@ -349,9 +302,9 @@ const DateTimeSelectionPage: React.FC = () => {
   const handleTimeSlotClick = async (timeSlot: string) => {
     if (!selectedDate || !merchantId) return;
     
-    // Find available slot for this time in filtered slots
-    const availableSlot = filteredSlots.find(slot => 
-      slot.time_slot === timeSlot && slot.slot_status === 'Available'
+    // Find available slot for this time
+    const availableSlot = availableSlots.find(slot => 
+      slot.time_slot === timeSlot && slot.is_available
     );
     
     if (!availableSlot) {
@@ -367,56 +320,8 @@ const DateTimeSelectionPage: React.FC = () => {
       }
     }
 
-    // Simple check for overlapping bookings instead of the problematic function
-    try {
-      const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
-      const finalStaffId = selectedStaff || availableSlot.staff_id;
-      
-      console.log('Checking slot availability for:', { finalStaffId, selectedDateStr, timeSlot, actualServiceDuration });
-
-      // Check for existing confirmed bookings that would overlap
-      const { data: existingBookings, error: bookingError } = await supabase
-        .from('bookings')
-        .select('time_slot, service:services(duration)')
-        .eq('staff_id', finalStaffId)
-        .eq('date', selectedDateStr)
-        .eq('status', 'confirmed');
-
-      if (bookingError) {
-        console.error('Error checking existing bookings:', bookingError);
-        toast.error('Error checking time slot availability. Please try again.');
-        return;
-      }
-
-      // Calculate if there's any overlap
-      const selectedStartTime = new Date(`2000-01-01T${timeSlot}:00`);
-      const selectedEndTime = new Date(selectedStartTime.getTime() + actualServiceDuration * 60000);
-      
-      let hasOverlap = false;
-      for (const booking of existingBookings || []) {
-        const existingStartTime = new Date(`2000-01-01T${booking.time_slot}:00`);
-        const existingDuration = booking.service?.duration || 30;
-        const existingEndTime = new Date(existingStartTime.getTime() + existingDuration * 60000);
-        
-        // Check for overlap
-        if (selectedStartTime < existingEndTime && selectedEndTime > existingStartTime) {
-          hasOverlap = true;
-          break;
-        }
-      }
-
-      if (hasOverlap) {
-        toast.error('Time slot not available for the full service duration');
-        return;
-      }
-
-      setSelectedTime(timeSlot);
-      console.log('Time slot selected successfully:', timeSlot);
-      
-    } catch (error) {
-      console.error('Error checking slot availability:', error);
-      toast.error('Error checking time slot availability. Please try again.');
-    }
+    setSelectedTime(timeSlot);
+    console.log('Time slot selected successfully:', timeSlot);
   };
 
   const handleContinue = async () => {
@@ -425,8 +330,8 @@ const DateTimeSelectionPage: React.FC = () => {
       return;
     }
 
-    const selectedSlot = filteredSlots.find(slot => 
-      slot.time_slot === selectedTime && slot.slot_status === 'Available'
+    const selectedSlot = availableSlots.find(slot => 
+      slot.time_slot === selectedTime && slot.is_available
     );
     
     if (!selectedSlot) {
@@ -551,23 +456,19 @@ const DateTimeSelectionPage: React.FC = () => {
     }
   };
 
-  // Get unique available time slots from filtered slots
-  const availableTimeSlots = Array.from(new Set(
-    filteredSlots.map(slot => slot.time_slot)
-  )).sort();
-
-  // Get unavailable slots (including those filtered out by time)
-  const unavailableSlots = availableSlots.filter(slot => {
-    if (slot.slot_status !== 'Available') return true;
-    
-    // For today, also include slots that are too soon
-    if (isTodayIST(selectedDate || getCurrentDateIST())) {
-      return !isSlotValid(slot.time_slot, currentBufferedIST);
-    }
-    
-    return false;
-  });
+  // Get available and unavailable slots
+  const availableTimeSlots = availableSlots.filter(slot => slot.is_available);
+  const unavailableSlots = availableSlots.filter(slot => !slot.is_available);
   
+  // For today, also filter out slots that are too soon
+  const filteredAvailableSlots = isTodayIST(selectedDate || getCurrentDateIST()) 
+    ? availableTimeSlots.filter(slot => isSlotValid(slot.time_slot, currentBufferedIST))
+    : availableTimeSlots;
+  
+  const uniqueAvailableSlots = Array.from(new Map(
+    filteredAvailableSlots.map(slot => [slot.time_slot, slot])
+  ).values()).sort((a, b) => a.time_slot.localeCompare(b.time_slot));
+
   const uniqueUnavailableSlots = Array.from(new Map(
     unavailableSlots.map(slot => [slot.time_slot, slot])
   ).values()).sort((a, b) => a.time_slot.localeCompare(b.time_slot));
@@ -613,7 +514,7 @@ const DateTimeSelectionPage: React.FC = () => {
           </p>
           <p className="text-gray-400 text-xs mt-1">
             {isTodayIST(selectedDate || getCurrentDateIST()) 
-              ? `Slots available from ${currentBufferedIST.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour12: true })} (rounded + 40min buffer)`
+              ? `Slots available from ${currentBufferedIST.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour12: true })} (rounded + 1hr buffer)`
               : "All slots available during shop hours (excluding holidays)"
             }
           </p>
@@ -685,19 +586,19 @@ const DateTimeSelectionPage: React.FC = () => {
               <div className="flex justify-center py-8">
                 <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
               </div>
-            ) : availableTimeSlots.length > 0 ? (
+            ) : uniqueAvailableSlots.length > 0 ? (
               <div className="space-y-4">
                 <div className="grid grid-cols-3 gap-2">
-                  {availableTimeSlots.map((time) => (
+                  {uniqueAvailableSlots.map((slot) => (
                     <Button
-                      key={time}
-                      variant={selectedTime === time ? "default" : "outline"}
+                      key={slot.time_slot}
+                      variant={selectedTime === slot.time_slot ? "default" : "outline"}
                       className={`p-3 ${
-                        selectedTime === time ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
+                        selectedTime === slot.time_slot ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
                       }`}
-                      onClick={() => handleTimeSlotClick(time)}
+                      onClick={() => handleTimeSlotClick(slot.time_slot)}
                     >
-                      <span className="font-medium">{formatTimeToAmPm(time)}</span>
+                      <span className="font-medium">{formatTimeToAmPm(slot.time_slot)}</span>
                     </Button>
                   ))}
                 </div>
@@ -706,22 +607,15 @@ const DateTimeSelectionPage: React.FC = () => {
                   <div className="mt-4">
                     <p className="text-sm text-gray-600 mb-2">Unavailable slots:</p>
                     <div className="grid grid-cols-1 gap-2">
-                      {uniqueUnavailableSlots.slice(0, 5).map((slot) => {
-                        const reasonText = slot.status_reason || 
-                          (isTodayIST(selectedDate || getCurrentDateIST()) && !isSlotValid(slot.time_slot, currentBufferedIST) 
-                            ? 'Too soon (rounded time + 40-min buffer required)' 
-                            : 'Unavailable');
-                        
-                        return (
-                          <div
-                            key={slot.time_slot}
-                            className="p-2 bg-gray-100 rounded text-sm text-gray-600 border border-gray-200"
-                          >
-                            <span className="font-medium">{formatTimeToAmPm(slot.time_slot)}</span>
-                            <span className="ml-2 text-xs">- {reasonText}</span>
-                          </div>
-                        );
-                      })}
+                      {uniqueUnavailableSlots.slice(0, 5).map((slot) => (
+                        <div
+                          key={slot.time_slot}
+                          className="p-2 bg-gray-100 rounded text-sm text-gray-600 border border-gray-200"
+                        >
+                          <span className="font-medium">{formatTimeToAmPm(slot.time_slot)}</span>
+                          <span className="ml-2 text-xs">- {slot.conflict_reason || 'Unavailable'}</span>
+                        </div>
+                      ))}
                       {uniqueUnavailableSlots.length > 5 && (
                         <p className="text-xs text-gray-500 mt-1">
                           +{uniqueUnavailableSlots.length - 5} more unavailable slots
@@ -737,7 +631,7 @@ const DateTimeSelectionPage: React.FC = () => {
                 <p className="text-gray-500">No available time slots</p>
                 <p className="text-gray-400 text-sm">
                   {isTodayIST(selectedDate) 
-                    ? "All slots for today are either booked or too soon (rounded time + 40-min buffer required in IST)"
+                    ? "All slots for today are either booked or too soon (rounded time + 1hr buffer required in IST)"
                     : "Please select a different date or try again later"
                   }
                 </p>

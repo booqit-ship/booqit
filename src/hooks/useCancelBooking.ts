@@ -29,12 +29,10 @@ export const useCancelBooking = () => {
         console.error('Cancel booking error:', error);
         
         // Provide specific error messages based on error details
-        if (error.message.includes('not found')) {
+        if (error.message.includes('not found') || error.message.includes('unauthorized')) {
           toast.error('Booking not found or you are not authorized to cancel it');
         } else if (error.message.includes('completed')) {
           toast.error('Cannot cancel completed booking');
-        } else if (error.message.includes('unauthorized')) {
-          toast.error('You are not authorized to cancel this booking');
         } else {
           toast.error(`Failed to cancel booking: ${error.message}`);
         }
@@ -53,7 +51,7 @@ export const useCancelBooking = () => {
         // Provide specific error messages
         if (errorMessage.includes('completed')) {
           toast.error('Cannot cancel booking because it\'s already completed');
-        } else if (errorMessage.includes('not found')) {
+        } else if (errorMessage.includes('not found') || errorMessage.includes('unauthorized')) {
           toast.error('Booking not found or you are not authorized to cancel it');
         } else {
           toast.error(errorMessage);

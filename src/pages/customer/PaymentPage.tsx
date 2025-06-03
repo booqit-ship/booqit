@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, CreditCard, Smartphone, Wallet } from 'lucide-react';
+import { ChevronLeft, Smartphone, Wallet, Store } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -29,7 +29,7 @@ const PaymentPage: React.FC = () => {
     bookingId
   } = location.state || {};
 
-  const [paymentMethod, setPaymentMethod] = useState<string>('upi');
+  const [paymentMethod, setPaymentMethod] = useState<string>('pay_on_shop');
   const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
@@ -114,7 +114,7 @@ const PaymentPage: React.FC = () => {
         booking_id: bookingId,
         method: paymentMethod,
         amount: totalPrice,
-        status: 'completed', // Simulating successful payment
+        status: 'completed', // For "pay on shop", we mark it as completed
         timestamp: new Date().toISOString()
       };
 
@@ -154,7 +154,7 @@ const PaymentPage: React.FC = () => {
         return;
       }
 
-      toast.success('Payment completed successfully!');
+      toast.success('Booking confirmed! You can pay at the shop.');
 
       // Navigate to receipt page
       navigate(`/receipt/${bookingId}`, {
@@ -281,26 +281,32 @@ const PaymentPage: React.FC = () => {
           <CardContent>
             <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
               <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50">
-                <RadioGroupItem value="upi" id="upi" />
-                <Label htmlFor="upi" className="flex items-center space-x-2 cursor-pointer flex-1">
-                  <Smartphone className="h-5 w-5 text-blue-600" />
-                  <span>UPI</span>
+                <RadioGroupItem value="pay_on_shop" id="pay_on_shop" />
+                <Label htmlFor="pay_on_shop" className="flex items-center space-x-2 cursor-pointer flex-1">
+                  <Store className="h-5 w-5 text-green-600" />
+                  <span>Pay on Shop</span>
                 </Label>
               </div>
               
-              <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50">
-                <RadioGroupItem value="card" id="card" />
-                <Label htmlFor="card" className="flex items-center space-x-2 cursor-pointer flex-1">
-                  <CreditCard className="h-5 w-5 text-green-600" />
-                  <span>Credit/Debit Card</span>
+              <div className="flex items-center space-x-3 p-3 border rounded-lg bg-gray-50 opacity-60">
+                <RadioGroupItem value="upi" id="upi" disabled />
+                <Label htmlFor="upi" className="flex items-center space-x-2 cursor-not-allowed flex-1">
+                  <Smartphone className="h-5 w-5 text-gray-400" />
+                  <div className="flex flex-col">
+                    <span className="text-gray-400">UPI</span>
+                    <span className="text-xs text-gray-400">Coming Soon</span>
+                  </div>
                 </Label>
               </div>
               
-              <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50">
-                <RadioGroupItem value="wallet" id="wallet" />
-                <Label htmlFor="wallet" className="flex items-center space-x-2 cursor-pointer flex-1">
-                  <Wallet className="h-5 w-5 text-purple-600" />
-                  <span>Digital Wallet</span>
+              <div className="flex items-center space-x-3 p-3 border rounded-lg bg-gray-50 opacity-60">
+                <RadioGroupItem value="wallet" id="wallet" disabled />
+                <Label htmlFor="wallet" className="flex items-center space-x-2 cursor-not-allowed flex-1">
+                  <Wallet className="h-5 w-5 text-gray-400" />
+                  <div className="flex flex-col">
+                    <span className="text-gray-400">Digital Wallet</span>
+                    <span className="text-xs text-gray-400">Coming Soon</span>
+                  </div>
                 </Label>
               </div>
             </RadioGroup>
@@ -315,7 +321,7 @@ const PaymentPage: React.FC = () => {
           onClick={handlePayment}
           disabled={processing}
         >
-          {processing ? 'Processing...' : `Pay ₹${totalPrice}`}
+          {processing ? 'Confirming...' : 'Confirm Booking'}
         </Button>
       </div>
     </div>
