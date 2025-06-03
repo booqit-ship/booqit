@@ -27,7 +27,6 @@ export const useSlotLocking = () => {
     try {
       console.log('Attempting to lock slot:', { staffId, date, timeSlot });
       
-      // Use direct RPC call with proper casting
       const { data, error } = await supabase.rpc('create_slot_lock' as any, {
         p_staff_id: staffId,
         p_date: date,
@@ -75,7 +74,6 @@ export const useSlotLocking = () => {
     try {
       console.log('Releasing slot lock:', lockToRelease);
       
-      // Use direct RPC call with proper casting
       const { error } = await supabase.rpc('release_slot_lock' as any, {
         p_staff_id: lockToRelease.staffId,
         p_date: lockToRelease.date,
