@@ -178,7 +178,7 @@ const PaymentPage: React.FC = () => {
             <hr />
             
             <div className="flex justify-between text-lg font-semibold">
-              <span className="font-righteous font-light text-lg">Total</span>
+              <span className="font-righteous">Total</span>
               <span className="font-righteous">₹{totalPrice}</span>
             </div>
           </CardContent>
@@ -197,7 +197,7 @@ const PaymentPage: React.FC = () => {
               </Button>
               
               <Button variant={selectedPaymentMethod === 'card' ? 'default' : 'outline'} className={`h-20 flex flex-col items-center space-y-2 font-poppins ${selectedPaymentMethod === 'card' ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''}`} onClick={() => setSelectedPaymentMethod('card')}>
-                <CreditCard className="h-6 w-6" />
+                <CreditCard className="h-6 w-6 mx-[45px] py-0 px-0 my-[6px]" />
                 <span>Card</span>
               </Button>
             </div>
