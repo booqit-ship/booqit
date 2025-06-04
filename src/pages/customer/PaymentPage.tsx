@@ -178,7 +178,7 @@ const PaymentPage: React.FC = () => {
             <hr />
             
             <div className="flex justify-between text-lg font-semibold">
-              <span className="font-righteous">Total</span>
+              <span className="font-righteous font-light text-lg">Total</span>
               <span className="font-righteous">₹{totalPrice}</span>
             </div>
           </CardContent>
