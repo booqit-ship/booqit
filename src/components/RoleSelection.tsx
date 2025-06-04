@@ -51,7 +51,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
                   <Store className="h-6 w-6 text-booqit-secondary" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-lg font-righteous font-medium">I'm a Business Owner</h3>
+                  <h3 className="font-righteous text-lg font-light">I'm a Business Owner</h3>
                   <p className="text-gray-600 text-sm font-poppins">Manage my salon or spa business</p>
                 </div>
               </div>
