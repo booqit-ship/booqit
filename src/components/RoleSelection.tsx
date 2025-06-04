@@ -37,7 +37,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
                   <User className="h-6 w-6 text-booqit-primary" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-lg font-righteous font-medium">I'm a Customer</h3>
+                  <h3 className="text-lg font-righteous font-light">I'm a Customer</h3>
                   <p className="text-gray-600 text-sm font-poppins">Book appointments at salons & spas</p>
                 </div>
               </div>
