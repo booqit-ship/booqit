@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, CreditCard, Smartphone } from 'lucide-react';
+import { ChevronLeft, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
@@ -8,23 +9,19 @@ import { toast } from 'sonner';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { formatDateInIST } from '@/utils/dateUtils';
 import { useAuth } from '@/contexts/AuthContext';
+
 interface BookingResponse {
   success: boolean;
   booking_id?: string;
   error?: string;
   message?: string;
 }
+
 const PaymentPage: React.FC = () => {
-  const {
-    merchantId
-  } = useParams<{
-    merchantId: string;
-  }>();
+  const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const {
-    userId
-  } = useAuth();
+  const { userId } = useAuth();
   const {
     merchant,
     selectedServices,
@@ -35,18 +32,22 @@ const PaymentPage: React.FC = () => {
     bookingDate,
     bookingTime
   } = location.state || {};
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'upi' | 'card'>('upi');
+
   const [isProcessing, setIsProcessing] = useState(false);
+
   const handlePayment = async () => {
     if (!userId || !merchantId) {
       toast.error('Authentication required');
       return;
     }
+    
     if (!selectedServices || !selectedStaff || !bookingDate || !bookingTime) {
       toast.error('Booking information is missing');
       return;
     }
+
     setIsProcessing(true);
+    
     try {
       console.log('Processing payment and creating booking...');
 
@@ -55,10 +56,7 @@ const PaymentPage: React.FC = () => {
 
       // Create the actual booking after payment
       const serviceId = selectedServices[0]?.id;
-      const {
-        data: bookingResult,
-        error: bookingError
-      } = await supabase.rpc('create_booking_from_payment' as any, {
+      const { data: bookingResult, error: bookingError } = await supabase.rpc('create_booking_from_payment' as any, {
         p_user_id: userId,
         p_merchant_id: merchantId,
         p_service_id: serviceId,
@@ -67,30 +65,33 @@ const PaymentPage: React.FC = () => {
         p_time_slot: bookingTime,
         p_service_duration: totalDuration
       });
+
       if (bookingError) {
         console.error('Error creating booking:', bookingError);
         toast.error(`Failed to create booking: ${bookingError.message}`);
         return;
       }
+
       const response = bookingResult as unknown as BookingResponse;
+      
       if (!response.success) {
         toast.error(response.error || 'Failed to create booking');
         return;
       }
 
       // Create payment record
-      const {
-        error: paymentError
-      } = await supabase.from('payments').insert({
+      const { error: paymentError } = await supabase.from('payments').insert({
         booking_id: response.booking_id,
-        method: selectedPaymentMethod,
+        method: 'pay_on_shop',
         amount: totalPrice,
         status: 'completed'
       });
+
       if (paymentError) {
         console.error('Error creating payment record:', paymentError);
         toast.warning('Booking confirmed but payment record creation failed');
       }
+
       toast.success('Payment successful! Your booking is confirmed.');
 
       // Navigate to receipt page
@@ -105,7 +106,7 @@ const PaymentPage: React.FC = () => {
           bookingDate,
           bookingTime,
           bookingId: response.booking_id,
-          paymentMethod: selectedPaymentMethod
+          paymentMethod: 'pay_on_shop'
         }
       });
     } catch (error) {
@@ -120,16 +121,26 @@ const PaymentPage: React.FC = () => {
   const handleGoBack = () => {
     navigate(-1);
   };
+
   if (!merchant || !selectedServices || !bookingDate || !bookingTime) {
-    return <div className="h-screen flex flex-col items-center justify-center p-4">
+    return (
+      <div className="h-screen flex flex-col items-center justify-center p-4">
         <p className="text-gray-500 mb-4">Booking information missing</p>
         <Button onClick={() => navigate(-1)}>Go Back</Button>
-      </div>;
+      </div>
+    );
   }
-  return <div className="pb-24 bg-white min-h-screen">
+
+  return (
+    <div className="pb-24 bg-white min-h-screen">
       <div className="bg-booqit-primary text-white p-4 sticky top-0 z-10">
         <div className="relative flex items-center justify-center">
-          <Button variant="ghost" size="icon" className="absolute left-0 text-white hover:bg-white/20" onClick={handleGoBack}>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="absolute left-0 text-white hover:bg-white/20"
+            onClick={handleGoBack}
+          >
             <ChevronLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-xl font-medium font-righteous">Payment</h1>
@@ -151,9 +162,11 @@ const PaymentPage: React.FC = () => {
             <div className="flex justify-between">
               <span className="font-poppins text-gray-600">Services</span>
               <div className="text-right">
-                {selectedServices?.map((service: any, index: number) => <div key={index} className="font-poppins font-medium">
+                {selectedServices?.map((service: any, index: number) => (
+                  <div key={index} className="font-poppins font-medium">
                     {service.name}
-                  </div>)}
+                  </div>
+                ))}
               </div>
             </div>
             
@@ -184,22 +197,18 @@ const PaymentPage: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Payment Methods */}
+        {/* Payment Method */}
         <Card>
           <CardHeader>
             <CardTitle className="font-righteous text-lg font-light">Payment Method</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 rounded-full">
-              <Button variant={selectedPaymentMethod === 'upi' ? 'default' : 'outline'} className={`h-20 flex flex-col items-center space-y-2 font-poppins ${selectedPaymentMethod === 'upi' ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''}`} onClick={() => setSelectedPaymentMethod('upi')}>
-                <Smartphone className="h-6 w-6" />
-                <span>UPI</span>
-              </Button>
-              
-              <Button variant={selectedPaymentMethod === 'card' ? 'default' : 'outline'} className={`h-20 flex flex-col items-center space-y-2 font-poppins ${selectedPaymentMethod === 'card' ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''}`} onClick={() => setSelectedPaymentMethod('card')}>
-                <CreditCard className="h-6 w-6 mx-[45px] py-0 px-0 my-[6px]" />
-                <span>Card</span>
-              </Button>
+            <div className="flex items-center justify-center p-6 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="text-center">
+                <Smartphone className="h-8 w-8 mx-auto text-blue-600 mb-2" />
+                <span className="text-blue-800 font-medium font-poppins">Pay at Shop</span>
+                <p className="text-sm text-blue-600 mt-1">Complete payment at the shop</p>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -215,10 +224,17 @@ const PaymentPage: React.FC = () => {
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
-        <Button className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6 font-poppins" size="lg" onClick={handlePayment} disabled={isProcessing}>
+        <Button 
+          className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6 font-poppins"
+          size="lg"
+          onClick={handlePayment}
+          disabled={isProcessing}
+        >
           {isProcessing ? 'Processing...' : `Confirm Booking - Pay ₹${totalPrice} at Shop`}
         </Button>
       </div>
-    </div>;
+    </div>
+  );
 };
+
 export default PaymentPage;

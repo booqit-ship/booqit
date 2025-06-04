@@ -1,21 +1,20 @@
 
 import React, { useState, useEffect } from 'react';
-import { Staff } from '@/types';
-import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Trash2, UserPlus, Edit2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { 
+import { toast } from 'sonner';
+import {
   Sheet,
-  SheetClose,
   SheetContent,
   SheetDescription,
-  SheetFooter,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet";
-import { 
+  SheetTrigger,
+} from '@/components/ui/sheet';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -24,82 +23,68 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Loader2, UserPlus, Edit, Trash, Users } from 'lucide-react';
+} from '@/components/ui/alert-dialog';
+
+interface Staff {
+  id: string;
+  name: string;
+  created_at: string;
+}
 
 interface StaffManagementSheetProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  merchantId: string | null;
+  merchantId: string;
+  children: React.ReactNode;
 }
 
 const StaffManagementSheet: React.FC<StaffManagementSheetProps> = ({
-  open,
-  onOpenChange,
-  merchantId
+  merchantId,
+  children
 }) => {
-  const [staffList, setStaffList] = useState<Staff[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [staff, setStaff] = useState<Staff[]>([]);
+  const [loading, setLoading] = useState(false);
   const [newStaffName, setNewStaffName] = useState('');
-  const [isAddingStaff, setIsAddingStaff] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [currentStaffId, setCurrentStaffId] = useState<string | null>(null);
-  const [deleteStaffId, setDeleteStaffId] = useState<string | null>(null);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  
-  const { toast } = useToast();
+  const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
+  const [editStaffName, setEditStaffName] = useState('');
+  const [deletingStaffId, setDeletingStaffId] = useState<string | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
 
-  // Fetch staff list
-  useEffect(() => {
-    const fetchStaff = async () => {
-      if (!merchantId || !open) return;
-      
-      setIsLoading(true);
-      try {
-        console.log('Fetching staff for merchant:', merchantId);
-        const { data, error } = await supabase
-          .from('staff')
-          .select('*')
-          .eq('merchant_id', merchantId)
-          .order('name', { ascending: true });
-          
-        if (error) {
-          console.error('Error fetching staff:', error);
-          throw error;
-        }
-        
-        console.log('Fetched staff data:', data);
-        setStaffList(data as Staff[]);
-      } catch (error: any) {
-        console.error('Failed to fetch staff:', error);
-        toast({
-          title: "Error",
-          description: "Failed to fetch stylist data",
-          variant: "destructive"
-        });
-      } finally {
-        setIsLoading(false);
+  const fetchStaff = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('staff')
+        .select('*')
+        .eq('merchant_id', merchantId)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching staff:', error);
+        toast.error('Failed to load staff members');
+        return;
       }
-    };
-    
-    fetchStaff();
-  }, [merchantId, open, toast]);
+
+      setStaff(data || []);
+    } catch (error) {
+      console.error('Error:', error);
+      toast.error('Failed to load staff members');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen && merchantId) {
+      fetchStaff();
+    }
+  }, [isOpen, merchantId]);
 
   const handleAddStaff = async () => {
-    if (!merchantId || !newStaffName.trim()) {
-      toast({
-        title: "Error",
-        description: "Stylist name cannot be empty",
-        variant: "destructive"
-      });
+    if (!newStaffName.trim()) {
+      toast.error('Please enter a staff name');
       return;
     }
 
-    setIsAddingStaff(true);
     try {
-      console.log('Adding new staff:', { merchant_id: merchantId, name: newStaffName.trim() });
-      
       const { data, error } = await supabase
         .from('staff')
         .insert({
@@ -108,285 +93,218 @@ const StaffManagementSheet: React.FC<StaffManagementSheetProps> = ({
         })
         .select()
         .single();
-        
+
       if (error) {
         console.error('Error adding staff:', error);
-        throw error;
+        toast.error('Failed to add staff member');
+        return;
       }
-      
-      console.log('Staff added successfully:', data);
-      setStaffList(prev => [...prev, data as Staff]);
+
+      toast.success('Staff member added successfully');
       setNewStaffName('');
-      setIsEditing(false);
-      
-      toast({
-        title: "Success",
-        description: "Stylist added successfully"
-      });
-    } catch (error: any) {
-      console.error('Failed to add staff:', error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to add stylist",
-        variant: "destructive"
-      });
-    } finally {
-      setIsAddingStaff(false);
+      fetchStaff();
+    } catch (error) {
+      console.error('Error:', error);
+      toast.error('Failed to add staff member');
     }
   };
 
-  const handleEditStaff = async () => {
-    if (!currentStaffId || !newStaffName.trim()) return;
+  const handleUpdateStaff = async () => {
+    if (!editingStaff || !editStaffName.trim()) {
+      toast.error('Please enter a valid staff name');
+      return;
+    }
 
-    setIsAddingStaff(true);
     try {
-      console.log('Updating staff:', { id: currentStaffId, name: newStaffName.trim() });
-      
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('staff')
-        .update({ name: newStaffName.trim() })
-        .eq('id', currentStaffId)
-        .select()
-        .single();
-        
+        .update({ name: editStaffName.trim() })
+        .eq('id', editingStaff.id);
+
       if (error) {
         console.error('Error updating staff:', error);
-        throw error;
+        toast.error('Failed to update staff member');
+        return;
       }
-      
-      console.log('Staff updated successfully:', data);
-      setStaffList(prev => prev.map(staff => 
-        staff.id === currentStaffId ? { ...staff, name: newStaffName.trim() } : staff
-      ));
-      
-      setNewStaffName('');
-      setIsEditing(false);
-      setCurrentStaffId(null);
-      
-      toast({
-        title: "Success",
-        description: "Stylist updated successfully"
-      });
-    } catch (error: any) {
-      console.error('Failed to update staff:', error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update stylist",
-        variant: "destructive"
-      });
-    } finally {
-      setIsAddingStaff(false);
+
+      toast.success('Staff member updated successfully');
+      setEditingStaff(null);
+      setEditStaffName('');
+      fetchStaff();
+    } catch (error) {
+      console.error('Error:', error);
+      toast.error('Failed to update staff member');
     }
   };
 
-  const startEdit = (staff: Staff) => {
-    setNewStaffName(staff.name);
-    setCurrentStaffId(staff.id);
-    setIsEditing(true);
-  };
-
-  const cancelEdit = () => {
-    setNewStaffName('');
-    setCurrentStaffId(null);
-    setIsEditing(false);
-  };
-
-  const openDeleteDialog = (staffId: string) => {
-    setDeleteStaffId(staffId);
-    setIsDeleteDialogOpen(true);
-  };
-
-  const handleDeleteStaff = async () => {
-    if (!deleteStaffId) return;
-    
-    setIsDeleting(true);
+  const handleDeleteStaff = async (staffId: string) => {
     try {
-      console.log('Deleting staff:', deleteStaffId);
-      
+      // Check if staff has any bookings
+      const { data: bookings, error: bookingsError } = await supabase
+        .from('bookings')
+        .select('id')
+        .eq('staff_id', staffId)
+        .limit(1);
+
+      if (bookingsError) {
+        console.error('Error checking bookings:', bookingsError);
+        toast.error('Failed to check staff bookings');
+        return;
+      }
+
+      if (bookings && bookings.length > 0) {
+        toast.error('Cannot delete staff member with existing bookings');
+        return;
+      }
+
       const { error } = await supabase
         .from('staff')
         .delete()
-        .eq('id', deleteStaffId);
-        
+        .eq('id', staffId);
+
       if (error) {
         console.error('Error deleting staff:', error);
-        throw error;
+        toast.error('Failed to delete staff member');
+        return;
       }
-      
-      console.log('Staff deleted successfully');
-      setStaffList(prev => prev.filter(staff => staff.id !== deleteStaffId));
-      
-      toast({
-        title: "Success",
-        description: "Stylist deleted successfully"
-      });
-      
-      setIsDeleteDialogOpen(false);
-      setDeleteStaffId(null);
-    } catch (error: any) {
-      console.error('Failed to delete staff:', error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to delete stylist",
-        variant: "destructive"
-      });
-    } finally {
-      setIsDeleting(false);
+
+      toast.success('Staff member deleted successfully');
+      setDeletingStaffId(null);
+      fetchStaff();
+    } catch (error) {
+      console.error('Error:', error);
+      toast.error('Failed to delete staff member');
     }
+  };
+
+  const startEdit = (staffMember: Staff) => {
+    setEditingStaff(staffMember);
+    setEditStaffName(staffMember.name);
+  };
+
+  const cancelEdit = () => {
+    setEditingStaff(null);
+    setEditStaffName('');
   };
 
   return (
     <>
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="sm:max-w-md overflow-y-auto">
+      <Sheet open={isOpen} onOpenChange={setIsOpen}>
+        <SheetTrigger asChild>
+          {children}
+        </SheetTrigger>
+        <SheetContent className="w-[400px] sm:w-[540px]">
           <SheetHeader>
-            <SheetTitle className="flex items-center gap-2 font-righteous font-medium">
-              <Users className="h-5 w-5" /> 
-              Manage Stylists
-            </SheetTitle>
-            <SheetDescription className="font-poppins">
-              Add, edit or remove stylists who work at your salon
+            <SheetTitle>Manage Staff</SheetTitle>
+            <SheetDescription>
+              Add, edit, or remove staff members for your shop.
             </SheetDescription>
           </SheetHeader>
-          
-          <div className="mt-6">
-            <form 
-              onSubmit={(e) => {
-                e.preventDefault();
-                isEditing ? handleEditStaff() : handleAddStaff();
-              }}
-              className="space-y-4"
-            >
-              <div className="flex flex-col space-y-1.5">
-                <Label htmlFor="staffName" className="font-poppins">
-                  {isEditing ? "Edit Stylist Name" : "Add New Stylist"}
-                </Label>
-                <div className="flex space-x-2">
-                  <Input
-                    id="staffName"
-                    value={newStaffName}
-                    onChange={(e) => setNewStaffName(e.target.value)}
-                    placeholder="Enter stylist name"
-                    className="flex-grow font-poppins"
-                  />
-                  <Button 
-                    type="submit" 
-                    size="sm" 
-                    className="bg-booqit-primary hover:bg-booqit-primary/90 font-poppins"
-                    disabled={isAddingStaff || !newStaffName.trim()}
-                  >
-                    {isAddingStaff ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : isEditing ? (
-                      "Update"
-                    ) : (
-                      <>
-                        <UserPlus className="mr-1 h-4 w-4" />
-                        Add
-                      </>
-                    )}
-                  </Button>
-                  {isEditing && (
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={cancelEdit}
-                      className="font-poppins"
-                    >
-                      Cancel
-                    </Button>
-                  )}
-                </div>
+
+          <div className="space-y-6 mt-6">
+            {/* Add Staff Section */}
+            <div className="space-y-3">
+              <Label htmlFor="new-staff-name">Add New Staff Member</Label>
+              <div className="flex space-x-2">
+                <Input
+                  id="new-staff-name"
+                  placeholder="Enter staff name"
+                  value={newStaffName}
+                  onChange={(e) => setNewStaffName(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleAddStaff()}
+                />
+                <Button onClick={handleAddStaff} disabled={!newStaffName.trim()}>
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Add
+                </Button>
               </div>
-            </form>
-            
-            <div className="mt-6">
-              <h3 className="text-sm font-medium text-booqit-dark/90 mb-3 font-righteous">Your Stylists</h3>
-              
-              {isLoading ? (
-                <div className="flex justify-center py-8">
-                  <Loader2 className="h-8 w-8 text-booqit-primary animate-spin" />
+            </div>
+
+            {/* Staff List */}
+            <div className="space-y-3">
+              <Label>Current Staff Members</Label>
+              {loading ? (
+                <div className="flex justify-center py-4">
+                  <div className="animate-spin h-6 w-6 border-2 border-gray-300 border-t-blue-600 rounded-full"></div>
                 </div>
-              ) : staffList.length === 0 ? (
-                <div className="text-center py-8 px-4 border rounded-lg border-dashed border-gray-300">
-                  <Users className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground font-poppins">No stylists added yet</p>
-                  <p className="text-xs text-muted-foreground mt-1 mb-3 font-poppins">Add your first stylist to start managing your team</p>
+              ) : staff.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <UserPlus className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>No staff members added yet</p>
+                  <p className="text-sm">Add your first staff member above</p>
                 </div>
               ) : (
-                <ul className="space-y-2">
-                  {staffList.map(staff => (
-                    <li 
-                      key={staff.id} 
-                      className="flex justify-between items-center p-3 rounded-md border border-gray-200 bg-card hover:shadow-sm transition-shadow"
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {staff.map((staffMember) => (
+                    <div
+                      key={staffMember.id}
+                      className="flex items-center justify-between p-3 border rounded-lg"
                     >
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-booqit-dark font-poppins">
-                          {staff.name}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => startEdit(staff)}
-                          className="h-8 w-8 text-muted-foreground hover:bg-booqit-primary/10 hover:text-booqit-primary"
-                        >
-                          <Edit className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openDeleteDialog(staff.id)}
-                          className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                        >
-                          <Trash className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </li>
+                      {editingStaff?.id === staffMember.id ? (
+                        <div className="flex-1 flex items-center space-x-2">
+                          <Input
+                            value={editStaffName}
+                            onChange={(e) => setEditStaffName(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && handleUpdateStaff()}
+                            className="flex-1"
+                          />
+                          <Button size="sm" onClick={handleUpdateStaff}>
+                            Save
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={cancelEdit}>
+                            Cancel
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
+                          <span className="font-medium">{staffMember.name}</span>
+                          <div className="flex space-x-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => startEdit(staffMember)}
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => setDeletingStaffId(staffMember.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   ))}
-                </ul>
+                </div>
               )}
             </div>
           </div>
-          
-          <SheetFooter className="mt-6">
-            <SheetClose asChild>
-              <Button 
-                variant="outline" 
-                className="w-full sm:w-auto font-poppins"
-              >
-                Done
-              </Button>
-            </SheetClose>
-          </SheetFooter>
         </SheetContent>
       </Sheet>
-      
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog 
+        open={!!deletingStaffId} 
+        onOpenChange={() => setDeletingStaffId(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-righteous font-medium">Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription className="font-poppins">
-              This will permanently remove this stylist from your salon.
+            <AlertDialogTitle>Delete Staff Member</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this staff member? This action cannot be undone.
+              Staff members with existing bookings cannot be deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="font-poppins">Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              className="bg-destructive hover:bg-destructive/90 font-poppins"
-              onClick={handleDeleteStaff}
-              disabled={isDeleting}
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deletingStaffId && handleDeleteStaff(deletingStaffId)}
+              className="bg-red-600 hover:bg-red-700"
             >
-              {isDeleting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                "Delete"
-              )}
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

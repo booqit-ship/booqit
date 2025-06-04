@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
@@ -101,7 +102,7 @@ const DateTimeSelectionPage: React.FC = () => {
     fetchHolidays();
   }, [merchantId, selectedStaff]);
 
-  // Fetch available slots
+  // Fetch available slots with IST timing and buffering
   const fetchAvailableSlots = async () => {
     if (!selectedDate || !merchantId) return;
 
