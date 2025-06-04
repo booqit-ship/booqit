@@ -7,7 +7,6 @@ interface CancelBookingResult {
   success: boolean;
   error?: string;
   message?: string;
-  slots_released?: number;
 }
 
 export const useCancelBooking = () => {
@@ -19,8 +18,8 @@ export const useCancelBooking = () => {
     try {
       console.log('Cancelling booking:', bookingId, 'for user:', userId);
       
-      // Use the correct function name that exists in the database
-      const { data, error } = await supabase.rpc('cancel_booking_and_release_slots', {
+      // Use the new cancel_booking function
+      const { data, error } = await supabase.rpc('cancel_booking', {
         p_booking_id: bookingId,
         p_user_id: userId || null
       });
@@ -55,6 +54,8 @@ export const useCancelBooking = () => {
           toast.error('Cannot cancel booking because it\'s already completed');
         } else if (errorMessage.includes('not found')) {
           toast.error('Booking not found or you are not authorized to cancel it');
+        } else if (errorMessage.includes('already cancelled')) {
+          toast.error('Booking is already cancelled');
         } else {
           toast.error(errorMessage);
         }
@@ -62,7 +63,7 @@ export const useCancelBooking = () => {
       }
 
       console.log('Booking cancelled successfully:', result);
-      toast.success(`${result.message || 'Booking cancelled successfully'}${result.slots_released ? ` (${result.slots_released} slots released)` : ''}`);
+      toast.success(result.message || 'Booking cancelled successfully');
       
       // Force a small delay to ensure database consistency
       await new Promise(resolve => setTimeout(resolve, 500));

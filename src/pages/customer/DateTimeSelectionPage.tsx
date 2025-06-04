@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
@@ -54,38 +53,6 @@ const DateTimeSelectionPage: React.FC = () => {
   const actualServiceDuration = selectedServices && selectedServices.length > 0 
     ? selectedServices.reduce((total: number, service: any) => total + service.duration, 0)
     : totalDuration || 30;
-
-  // Generate IST buffer time with 40-minute buffer + 10-minute round-off
-  const getISTBufferTime = (): string => {
-    const now = getCurrentDateIST();
-    console.log('Current IST time:', formatDateInIST(now, 'HH:mm:ss'));
-    
-    // Add 40 minutes buffer
-    const bufferedTime = new Date(now.getTime() + 40 * 60000);
-    console.log('Time with 40-minute buffer:', formatDateInIST(bufferedTime, 'HH:mm:ss'));
-    
-    // Round up to next 10-minute interval
-    const minutes = bufferedTime.getMinutes();
-    const roundedMinutes = Math.ceil(minutes / 10) * 10;
-    
-    console.log('Original minutes:', minutes, 'Rounded minutes:', roundedMinutes);
-    
-    // Handle hour overflow
-    if (roundedMinutes >= 60) {
-      bufferedTime.setHours(bufferedTime.getHours() + 1);
-      bufferedTime.setMinutes(0);
-    } else {
-      bufferedTime.setMinutes(roundedMinutes);
-    }
-    
-    bufferedTime.setSeconds(0);
-    bufferedTime.setMilliseconds(0);
-    
-    const finalTime = formatDateInIST(bufferedTime, 'HH:mm');
-    console.log('Buffer time threshold:', finalTime);
-    
-    return finalTime;
-  };
 
   // Generate 3 days: today, tomorrow, day after tomorrow (using IST), excluding holidays
   const getAvailableDates = () => {
@@ -229,16 +196,7 @@ const DateTimeSelectionPage: React.FC = () => {
 
       console.log('Merchant operating hours:', merchantData.open_time, 'to', merchantData.close_time);
 
-      // Calculate buffer time for today
-      const isToday = isTodayIST(selectedDate);
-      const bufferTime = isToday ? getISTBufferTime() : '00:00';
-      console.log('Buffer time threshold:', bufferTime);
-
-      // Clean up expired locks first
-      console.log('Cleaning up expired locks...');
-      await supabase.rpc('cleanup_expired_locks' as any);
-
-      // Fetch slots using get_available_slots_with_validation
+      // Fetch slots using the new dynamic slot generation function
       console.log('Fetching available slots with validation...');
       const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_validation' as any, {
         p_merchant_id: merchantId,
@@ -273,7 +231,7 @@ const DateTimeSelectionPage: React.FC = () => {
         return;
       }
 
-      // Process and filter the slots data
+      // Process the slots data
       const processedSlots = slotsData.map((slot: any) => ({
         staff_id: slot.staff_id,
         staff_name: slot.staff_name,
@@ -282,17 +240,12 @@ const DateTimeSelectionPage: React.FC = () => {
         conflict_reason: slot.conflict_reason
       }));
 
-      // Filter slots based on buffer time for today
-      const filteredSlots = isToday 
-        ? processedSlots.filter((slot: any) => slot.time_slot >= bufferTime)
-        : processedSlots;
-
-      console.log('Final processed slots:', filteredSlots.length);
-      console.log('Available slots:', filteredSlots.filter((s: any) => s.is_available).length);
-      console.log('Unavailable slots:', filteredSlots.filter((s: any) => !s.is_available).length);
+      console.log('Final processed slots:', processedSlots.length);
+      console.log('Available slots:', processedSlots.filter((s: any) => s.is_available).length);
+      console.log('Unavailable slots:', processedSlots.filter((s: any) => !s.is_available).length);
       
       // Log slots for each stylist
-      const slotsByStylist = filteredSlots.reduce((acc: any, slot: any) => {
+      const slotsByStylist = processedSlots.reduce((acc: any, slot: any) => {
         if (!acc[slot.staff_id]) {
           acc[slot.staff_id] = { name: slot.staff_name, slots: [] };
         }
@@ -304,7 +257,7 @@ const DateTimeSelectionPage: React.FC = () => {
         console.log(`Slots for stylist ${data.name} (ID: ${staffId}):`, data.slots.length);
       });
       
-      setAvailableSlots(filteredSlots);
+      setAvailableSlots(processedSlots);
 
     } catch (error) {
       console.error('Error in fetchAvailableSlots:', error);
@@ -433,7 +386,7 @@ const DateTimeSelectionPage: React.FC = () => {
         actualServiceDuration
       });
 
-      // Create booking immediately with confirmed status using atomic function
+      // Create booking immediately with confirmed status using the new function
       const { data: bookingResult, error: bookingError } = await supabase.rpc('create_confirmed_booking' as any, {
         p_user_id: userId,
         p_merchant_id: merchantId,

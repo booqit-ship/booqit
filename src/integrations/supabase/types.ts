@@ -533,64 +533,6 @@ export type Database = {
           },
         ]
       }
-      stylist_time_slots: {
-        Row: {
-          booking_id: string | null
-          created_at: string
-          date: string
-          id: string
-          is_available: boolean
-          merchant_id: string
-          staff_id: string
-          time_slot: string
-          updated_at: string
-        }
-        Insert: {
-          booking_id?: string | null
-          created_at?: string
-          date: string
-          id?: string
-          is_available?: boolean
-          merchant_id: string
-          staff_id: string
-          time_slot: string
-          updated_at?: string
-        }
-        Update: {
-          booking_id?: string | null
-          created_at?: string
-          date?: string
-          id?: string
-          is_available?: boolean
-          merchant_id?: string
-          staff_id?: string
-          time_slot?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "stylist_time_slots_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: false
-            referencedRelation: "bookings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "stylist_time_slots_merchant_id_fkey"
-            columns: ["merchant_id"]
-            isOneToOne: false
-            referencedRelation: "merchants"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "stylist_time_slots_staff_id_fkey"
-            columns: ["staff_id"]
-            isOneToOne: false
-            referencedRelation: "staff"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
     }
     Views: {
       [_ in never]: never
@@ -614,6 +556,10 @@ export type Database = {
           p_booking_id: string
           p_service_duration?: number
         }
+        Returns: Json
+      }
+      cancel_booking: {
+        Args: { p_booking_id: string; p_user_id?: string }
         Returns: Json
       }
       cancel_booking_and_release_all_slots: {
@@ -673,22 +619,23 @@ export type Database = {
         Returns: undefined
       }
       get_available_slots: {
-        Args: {
-          p_merchant_id: string
-          p_date: string
-          p_staff_id?: string
-          p_service_duration?: number
-        }
+        Args:
+          | { p_merchant_id: string; p_date: string; p_staff_id?: string }
+          | {
+              p_merchant_id: string
+              p_date: string
+              p_staff_id?: string
+              p_service_duration?: number
+            }
         Returns: {
           staff_id: string
           staff_name: string
           time_slot: string
+          slot_timestamp: string
           is_shop_holiday: boolean
           is_stylist_holiday: boolean
           shop_holiday_reason: string
           stylist_holiday_reason: string
-          is_available: boolean
-          conflict_reason: string
         }[]
       }
       get_available_slots_with_validation: {
@@ -704,6 +651,14 @@ export type Database = {
           time_slot: string
           is_available: boolean
           conflict_reason: string
+        }[]
+      }
+      get_available_time_slots: {
+        Args: { merchant_id_param: string; date_param: string }
+        Returns: {
+          id: string
+          start_time: string
+          duration: number
         }[]
       }
       get_fresh_available_slots: {

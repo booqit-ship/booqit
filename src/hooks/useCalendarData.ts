@@ -91,37 +91,6 @@ export const useCalendarData = (userId: string | null, selectedDate: Date) => {
     fetchHolidays();
   }, [merchantId]);
 
-  // Generate slots for selected date - now with better error handling
-  useEffect(() => {
-    const generateSlots = async () => {
-      if (!merchantId || !selectedDate) return;
-      
-      try {
-        // Use IST date formatting for consistency with backend
-        const dateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
-        console.log('Generating slots for:', dateStr);
-        
-        // Use the fixed fresh slots function
-        const { data, error } = await supabase.rpc('get_fresh_available_slots', {
-          p_merchant_id: merchantId,
-          p_date: dateStr,
-          p_staff_id: null
-        });
-        
-        if (error) {
-          console.error('Error with slot generation:', error);
-          // Don't show toast for slot generation errors as this is background process
-        } else {
-          console.log('Slot generation completed for:', dateStr, 'Generated slots:', data?.length || 0);
-        }
-      } catch (error) {
-        console.error('Error generating slots:', error);
-      }
-    };
-    
-    generateSlots();
-  }, [merchantId, selectedDate]);
-
   // Fetch bookings for selected date
   const fetchBookings = async () => {
     if (!merchantId) return;
