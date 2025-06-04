@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
@@ -12,7 +13,6 @@ import {
   isTodayIST
 } from '@/utils/dateUtils';
 import { useAuth } from '@/contexts/AuthContext';
-import { useSlotLocking } from '@/hooks/useSlotLocking';
 import { useRealtimeSlots } from '@/hooks/useRealtimeSlots';
 
 interface AvailableSlot {
@@ -45,9 +45,6 @@ const DateTimeSelectionPage: React.FC = () => {
   const [holidays, setHolidays] = useState<string[]>([]);
   const [stylistHolidays, setStylistHolidays] = useState<string[]>([]);
   const [isCreatingBooking, setIsCreatingBooking] = useState(false);
-
-  // Use slot locking hook
-  const { lockSlot, releaseLock, isLocking, lockedSlot } = useSlotLocking();
 
   // Calculate actual service duration from selected services
   const actualServiceDuration = selectedServices && selectedServices.length > 0 
@@ -291,36 +288,6 @@ const DateTimeSelectionPage: React.FC = () => {
     onSelectedTimeInvalidated: () => setSelectedTime('')
   });
 
-  // Cleanup slot lock on unmount or navigation
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (lockedSlot) {
-        // Use sendBeacon for cleanup on page unload
-        navigator.sendBeacon(
-          'https://ggclvurfcykbwmhfftkn.supabase.co/rest/v1/rpc/release_slot_lock',
-          JSON.stringify({
-            p_staff_id: lockedSlot.staffId,
-            p_date: lockedSlot.date,
-            p_time_slot: lockedSlot.timeSlot
-          })
-        );
-      }
-    };
-
-    const handlePopState = () => {
-      releaseLock();
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    window.addEventListener('popstate', handlePopState);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      window.removeEventListener('popstate', handlePopState);
-      releaseLock();
-    };
-  }, [lockedSlot, releaseLock]);
-
   const handleTimeSlotClick = async (timeSlot: string) => {
     if (!selectedDate || !merchantId) return;
     
@@ -339,21 +306,9 @@ const DateTimeSelectionPage: React.FC = () => {
       return;
     }
 
-    const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
-    const finalStaffId = selectedStaff || availableSlot.staff_id;
-
-    // First, release any existing lock
-    if (lockedSlot) {
-      await releaseLock();
-    }
-
-    // Try to lock the new slot
-    const lockSuccess = await lockSlot(finalStaffId, selectedDateStr, timeSlot);
-    
-    if (lockSuccess) {
-      setSelectedTime(timeSlot);
-      console.log('Time slot selected and locked successfully:', timeSlot);
-    }
+    // Simply select the time slot - no locking needed
+    setSelectedTime(timeSlot);
+    console.log('Time slot selected:', timeSlot);
   };
 
   const handleContinue = async () => {
@@ -496,10 +451,7 @@ const DateTimeSelectionPage: React.FC = () => {
             variant="ghost" 
             size="icon" 
             className="absolute left-0 text-white hover:bg-white/20"
-            onClick={() => {
-              releaseLock();
-              navigate(-1);
-            }}
+            onClick={() => navigate(-1)}
           >
             <ChevronLeft className="h-5 w-5" />
           </Button>
@@ -562,11 +514,6 @@ const DateTimeSelectionPage: React.FC = () => {
             <h3 className="font-medium mb-3 flex items-center font-righteous">
               <Clock className="h-4 w-4 mr-2" />
               Available Time Slots
-              {lockedSlot && (
-                <span className="ml-2 text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded font-poppins">
-                  Slot Reserved (10 min)
-                </span>
-              )}
             </h3>
             
             {error && (
@@ -601,7 +548,6 @@ const DateTimeSelectionPage: React.FC = () => {
                         selectedTime === slot.time_slot ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
                       }`}
                       onClick={() => handleTimeSlotClick(slot.time_slot)}
-                      disabled={isLocking}
                     >
                       <span className="font-medium">{formatTimeToAmPm(slot.time_slot)}</span>
                     </Button>
@@ -658,9 +604,9 @@ const DateTimeSelectionPage: React.FC = () => {
           className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6 font-poppins"
           size="lg"
           onClick={handleContinue}
-          disabled={!selectedDate || !selectedTime || loading || isCreatingBooking || isLocking}
+          disabled={!selectedDate || !selectedTime || loading || isCreatingBooking}
         >
-          {isCreatingBooking ? 'Creating Booking...' : isLocking ? 'Reserving Slot...' : 'Continue to Payment'}
+          {isCreatingBooking ? 'Creating Booking...' : 'Continue to Payment'}
         </Button>
       </div>
     </div>

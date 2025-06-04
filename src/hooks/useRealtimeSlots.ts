@@ -52,33 +52,10 @@ export const useRealtimeSlots = ({
     }
   }, [selectedDate, selectedStaff, selectedTime, onSlotChange, onSelectedTimeInvalidated]);
 
-  const handleSlotLockChange = useCallback((payload: any) => {
-    console.log('Slot lock change detected:', payload);
-    
-    const lock = payload.new || payload.old;
-    if (!lock || !selectedDate) return;
-    
-    // Check if the change affects the current view
-    const lockDate = new Date(lock.date);
-    const currentViewDate = selectedDate;
-    
-    if (lockDate.toDateString() === currentViewDate.toDateString()) {
-      // If selected staff matches or no specific staff selected
-      if (!selectedStaff || lock.staff_id === selectedStaff) {
-        console.log('Relevant slot lock change detected, refreshing slots');
-        
-        // Refresh slots
-        setTimeout(() => {
-          onSlotChange();
-        }, 200);
-      }
-    }
-  }, [selectedDate, selectedStaff, onSlotChange]);
-
   useEffect(() => {
     if (!merchantId || !selectedDate) return;
 
-    console.log('Setting up realtime subscriptions for slots');
+    console.log('Setting up realtime subscriptions for bookings');
     
     // Subscribe to booking changes
     const bookingChannel = supabase
@@ -95,24 +72,9 @@ export const useRealtimeSlots = ({
       )
       .subscribe();
 
-    // Subscribe to slot lock changes
-    const lockChannel = supabase
-      .channel('slot-lock-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'slot_locks'
-        },
-        handleSlotLockChange
-      )
-      .subscribe();
-
     return () => {
       console.log('Cleaning up realtime subscriptions');
       supabase.removeChannel(bookingChannel);
-      supabase.removeChannel(lockChannel);
     };
-  }, [merchantId, selectedDate, selectedStaff, handleBookingChange, handleSlotLockChange]);
+  }, [merchantId, selectedDate, selectedStaff, handleBookingChange]);
 };
