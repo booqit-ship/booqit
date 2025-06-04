@@ -548,6 +548,18 @@ export type Database = {
         }
         Returns: Json
       }
+      book_slot_immediately: {
+        Args: {
+          p_user_id: string
+          p_merchant_id: string
+          p_service_id: string
+          p_staff_id: string
+          p_date: string
+          p_time_slot: string
+          p_service_duration: number
+        }
+        Returns: Json
+      }
       book_stylist_slot: {
         Args: {
           p_staff_id: string

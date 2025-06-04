@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
@@ -119,7 +120,7 @@ const DateTimeSelectionPage: React.FC = () => {
     try {
       const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
       
-      // Use the new simple slot function with proper type casting
+      // Use the updated get_available_slots_simple function
       const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_simple' as any, {
         p_merchant_id: merchantId,
         p_date: selectedDateStr,
@@ -182,7 +183,7 @@ const DateTimeSelectionPage: React.FC = () => {
     }
   });
 
-  // Handle slot selection - book immediately using reserve_slot
+  // Handle slot selection - book immediately using book_slot_immediately
   const handleTimeSlotClick = async (timeSlot: string) => {
     if (!selectedDate || !merchantId || !userId) return;
     
@@ -207,8 +208,8 @@ const DateTimeSelectionPage: React.FC = () => {
         return;
       }
 
-      // Reserve the slot immediately using the new reserve_slot function
-      const { data: bookingResult, error: bookingError } = await supabase.rpc('reserve_slot' as any, {
+      // Book the slot immediately using book_slot_immediately
+      const { data: bookingResult, error: bookingError } = await supabase.rpc('book_slot_immediately' as any, {
         p_user_id: userId,
         p_merchant_id: merchantId,
         p_service_id: serviceId,
