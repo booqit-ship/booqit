@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
@@ -183,7 +182,7 @@ const DateTimeSelectionPage: React.FC = () => {
     }
   });
 
-  // Handle slot selection - book immediately
+  // Handle slot selection - book immediately using reserve_slot
   const handleTimeSlotClick = async (timeSlot: string) => {
     if (!selectedDate || !merchantId || !userId) return;
     
@@ -208,8 +207,8 @@ const DateTimeSelectionPage: React.FC = () => {
         return;
       }
 
-      // Book the slot immediately with proper type casting
-      const { data: bookingResult, error: bookingError } = await supabase.rpc('book_slot_immediately' as any, {
+      // Reserve the slot immediately using the new reserve_slot function
+      const { data: bookingResult, error: bookingError } = await supabase.rpc('reserve_slot' as any, {
         p_user_id: userId,
         p_merchant_id: merchantId,
         p_service_id: serviceId,
