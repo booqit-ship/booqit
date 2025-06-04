@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, CreditCard, Smartphone } from 'lucide-react';
@@ -32,7 +31,7 @@ const PaymentPage: React.FC = () => {
     selectedStaffDetails,
     bookingDate,
     bookingTime,
-    bookingId // The reserved booking ID from the previous step
+    bookingId
   } = location.state || {};
 
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'upi' | 'card'>('upi');
@@ -49,11 +48,11 @@ const PaymentPage: React.FC = () => {
     try {
       console.log('Processing payment for booking:', bookingId);
 
-      // Simulate payment processing delay
+      // Simulate payment processing
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Confirm the pending booking after successful payment
-      const { data: confirmResult, error: confirmError } = await supabase.rpc('confirm_pending_booking', {
+      // Confirm the booking after payment
+      const { data: confirmResult, error: confirmError } = await supabase.rpc('confirm_booking_payment', {
         p_booking_id: bookingId,
         p_user_id: userId
       });
@@ -67,13 +66,10 @@ const PaymentPage: React.FC = () => {
       const response = confirmResult as unknown as ConfirmBookingResponse;
       
       if (!response.success) {
-        const errorMessage = response.error || 'Failed to confirm booking';
-        toast.error(errorMessage);
+        toast.error(response.error || 'Failed to confirm booking');
         return;
       }
 
-      console.log('Booking confirmed successfully:', bookingId);
-      
       // Create payment record
       const { error: paymentError } = await supabase
         .from('payments')
@@ -86,7 +82,6 @@ const PaymentPage: React.FC = () => {
 
       if (paymentError) {
         console.error('Error creating payment record:', paymentError);
-        // Don't fail the whole process for payment record error
         toast.warning('Booking confirmed but payment record creation failed');
       }
 
@@ -116,17 +111,17 @@ const PaymentPage: React.FC = () => {
     }
   };
 
-  // Cancel pending booking if user goes back
+  // Cancel booking if user goes back
   const handleGoBack = async () => {
     if (bookingId && userId) {
       try {
-        await supabase.rpc('cancel_pending_booking', {
+        await supabase.rpc('cancel_booking_simple', {
           p_booking_id: bookingId,
           p_user_id: userId
         });
-        console.log('Pending booking cancelled due to navigation back');
+        console.log('Booking cancelled due to navigation back');
       } catch (error) {
-        console.error('Error cancelling pending booking:', error);
+        console.error('Error cancelling booking:', error);
       }
     }
     navigate(-1);
@@ -240,10 +235,10 @@ const PaymentPage: React.FC = () => {
         </Card>
 
         {/* Status Message */}
-        <Card className="bg-blue-50 border-blue-200">
+        <Card className="bg-green-50 border-green-200">
           <CardContent className="p-4">
-            <p className="text-blue-800 text-sm font-poppins">
-              ⏳ Your time slot is reserved for 10 minutes. Complete payment to confirm your booking.
+            <p className="text-green-800 text-sm font-poppins">
+              ✓ Your time slot is booked! Complete payment to confirm your booking.
             </p>
           </CardContent>
         </Card>
