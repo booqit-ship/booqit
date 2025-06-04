@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, CreditCard, Smartphone } from 'lucide-react';
@@ -51,8 +52,8 @@ const PaymentPage: React.FC = () => {
       // Simulate payment processing
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Confirm the booking after payment
-      const { data: confirmResult, error: confirmError } = await supabase.rpc('confirm_booking_payment', {
+      // Confirm the booking after payment with proper type casting
+      const { data: confirmResult, error: confirmError } = await supabase.rpc('confirm_booking_payment' as any, {
         p_booking_id: bookingId,
         p_user_id: userId
       });
@@ -115,7 +116,7 @@ const PaymentPage: React.FC = () => {
   const handleGoBack = async () => {
     if (bookingId && userId) {
       try {
-        await supabase.rpc('cancel_booking_simple', {
+        await supabase.rpc('cancel_booking_simple' as any, {
           p_booking_id: bookingId,
           p_user_id: userId
         });

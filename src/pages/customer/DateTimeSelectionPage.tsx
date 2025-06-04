@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
@@ -119,8 +120,8 @@ const DateTimeSelectionPage: React.FC = () => {
     try {
       const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
       
-      // Use the new simple slot function
-      const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_simple', {
+      // Use the new simple slot function with proper type casting
+      const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_simple' as any, {
         p_merchant_id: merchantId,
         p_date: selectedDateStr,
         p_staff_id: selectedStaff || null,
@@ -134,14 +135,17 @@ const DateTimeSelectionPage: React.FC = () => {
         return;
       }
 
-      if (!slotsData || slotsData.length === 0) {
+      // Properly handle the response data
+      const slots = Array.isArray(slotsData) ? slotsData : [];
+      
+      if (slots.length === 0) {
         const isToday = isTodayIST(selectedDate);
         setError(isToday ? 'No slots available today.' : 'No slots available for this date.');
         setAvailableSlots([]);
         return;
       }
 
-      const processedSlots = slotsData.map((slot: any) => ({
+      const processedSlots = slots.map((slot: any) => ({
         staff_id: slot.staff_id,
         staff_name: slot.staff_name,
         time_slot: typeof slot.time_slot === 'string' ? slot.time_slot.substring(0, 5) : formatDateInIST(new Date(`2000-01-01T${slot.time_slot}`), 'HH:mm'),
@@ -204,8 +208,8 @@ const DateTimeSelectionPage: React.FC = () => {
         return;
       }
 
-      // Book the slot immediately
-      const { data: bookingResult, error: bookingError } = await supabase.rpc('book_slot_immediately', {
+      // Book the slot immediately with proper type casting
+      const { data: bookingResult, error: bookingError } = await supabase.rpc('book_slot_immediately' as any, {
         p_user_id: userId,
         p_merchant_id: merchantId,
         p_service_id: serviceId,
@@ -288,7 +292,7 @@ const DateTimeSelectionPage: React.FC = () => {
   useEffect(() => {
     return () => {
       if (bookedSlotId && userId) {
-        supabase.rpc('cancel_booking_simple', {
+        supabase.rpc('cancel_booking_simple' as any, {
           p_booking_id: bookedSlotId,
           p_user_id: userId
         });
