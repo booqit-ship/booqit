@@ -22,13 +22,6 @@ interface AvailableSlot {
   conflict_reason: string | null;
 }
 
-interface BookingResponse {
-  success: boolean;
-  booking_id?: string;
-  error?: string;
-  message?: string;
-}
-
 const DateTimeSelectionPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
@@ -43,8 +36,7 @@ const DateTimeSelectionPage: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [holidays, setHolidays] = useState<string[]>([]);
   const [stylistHolidays, setStylistHolidays] = useState<string[]>([]);
-  const [isBookingSlot, setIsBookingSlot] = useState(false);
-  const [bookedSlotId, setBookedSlotId] = useState<string | null>(null);
+  const [isCheckingSlot, setIsCheckingSlot] = useState(false);
 
   // Calculate actual service duration
   const actualServiceDuration = selectedServices && selectedServices.length > 0 
@@ -119,7 +111,6 @@ const DateTimeSelectionPage: React.FC = () => {
     try {
       const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
       
-      // Use the updated get_available_slots_simple function
       const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_simple' as any, {
         p_merchant_id: merchantId,
         p_date: selectedDateStr,
@@ -134,7 +125,6 @@ const DateTimeSelectionPage: React.FC = () => {
         return;
       }
 
-      // Properly handle the response data
       const slots = Array.isArray(slotsData) ? slotsData : [];
       
       if (slots.length === 0) {
@@ -166,7 +156,6 @@ const DateTimeSelectionPage: React.FC = () => {
   useEffect(() => {
     fetchAvailableSlots();
     setSelectedTime('');
-    setBookedSlotId(null);
   }, [selectedDate, merchantId, selectedStaff, actualServiceDuration]);
 
   // Set up real-time subscriptions
@@ -178,11 +167,10 @@ const DateTimeSelectionPage: React.FC = () => {
     selectedTime,
     onSelectedTimeInvalidated: () => {
       setSelectedTime('');
-      setBookedSlotId(null);
     }
   });
 
-  // Handle slot selection - book immediately using book_slot_immediately
+  // Handle slot selection - just select the slot, don't book
   const handleTimeSlotClick = async (timeSlot: string) => {
     if (!selectedDate || !merchantId || !userId) return;
     
@@ -195,7 +183,7 @@ const DateTimeSelectionPage: React.FC = () => {
       return;
     }
 
-    setIsBookingSlot(true);
+    setIsCheckingSlot(true);
 
     try {
       const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
@@ -207,7 +195,8 @@ const DateTimeSelectionPage: React.FC = () => {
         return;
       }
 
-      console.log('Booking slot with params:', {
+      // Just check if slot is available, don't book it
+      const { data: checkResult, error: checkError } = await supabase.rpc('reserve_slot_temporarily' as any, {
         p_user_id: userId,
         p_merchant_id: merchantId,
         p_service_id: serviceId,
@@ -217,25 +206,13 @@ const DateTimeSelectionPage: React.FC = () => {
         p_service_duration: actualServiceDuration
       });
 
-      // Book the slot immediately using book_slot_immediately
-      const { data: bookingResult, error: bookingError } = await supabase.rpc('book_slot_immediately' as any, {
-        p_user_id: userId,
-        p_merchant_id: merchantId,
-        p_service_id: serviceId,
-        p_staff_id: finalStaffId,
-        p_date: selectedDateStr,
-        p_time_slot: timeSlot,
-        p_service_duration: actualServiceDuration
-      });
-
-      if (bookingError) {
-        console.error('Error booking slot:', bookingError);
-        toast.error(`Failed to book slot: ${bookingError.message}`);
+      if (checkError) {
+        console.error('Error checking slot:', checkError);
+        toast.error(`Failed to check slot availability: ${checkError.message}`);
         return;
       }
 
-      console.log('Booking result:', bookingResult);
-      const response = bookingResult as unknown as BookingResponse;
+      const response = checkResult as unknown as { success: boolean; error?: string; message?: string };
       
       if (!response.success) {
         toast.error(response.error || 'Time slot is no longer available');
@@ -243,22 +220,20 @@ const DateTimeSelectionPage: React.FC = () => {
         return;
       }
 
-      // Successfully booked
+      // Just select the slot - no booking yet
       setSelectedTime(timeSlot);
-      setBookedSlotId(response.booking_id || null);
-      fetchAvailableSlots(); // Refresh to show updated availability
-      toast.success('Time slot booked successfully!');
+      toast.success('Time slot selected!');
 
     } catch (error) {
-      console.error('Error in slot booking:', error);
-      toast.error('Error booking slot. Please try again.');
+      console.error('Error checking slot:', error);
+      toast.error('Error checking slot availability. Please try again.');
     } finally {
-      setIsBookingSlot(false);
+      setIsCheckingSlot(false);
     }
   };
 
   const handleContinue = async () => {
-    if (!selectedDate || !selectedTime || !userId || !bookedSlotId) {
+    if (!selectedDate || !selectedTime || !userId) {
       toast.error('Please select a time slot first');
       return;
     }
@@ -277,7 +252,7 @@ const DateTimeSelectionPage: React.FC = () => {
       const finalStaffId = selectedStaff || selectedSlot.staff_id;
       const finalStaffDetails = selectedStaffDetails || { name: selectedSlot.staff_name };
 
-      // Navigate to payment with the booked slot ID
+      // Navigate to payment without booking - payment page will handle booking
       navigate(`/payment/${merchantId}`, {
         state: {
           merchant,
@@ -287,8 +262,7 @@ const DateTimeSelectionPage: React.FC = () => {
           selectedStaff: finalStaffId,
           selectedStaffDetails: finalStaffDetails,
           bookingDate: selectedDateStr,
-          bookingTime: selectedTime,
-          bookingId: bookedSlotId
+          bookingTime: selectedTime
         }
       });
 
@@ -298,19 +272,6 @@ const DateTimeSelectionPage: React.FC = () => {
     }
   };
 
-  // Cleanup on navigation away
-  useEffect(() => {
-    return () => {
-      if (bookedSlotId && userId) {
-        supabase.rpc('cancel_booking_simple' as any, {
-          p_booking_id: bookedSlotId,
-          p_user_id: userId
-        });
-      }
-    };
-  }, [bookedSlotId, userId]);
-
-  // ... keep existing code (formatDateDisplay function)
   const formatDateDisplay = (date: Date) => {
     const todayIST = getCurrentDateIST();
     const tomorrowIST = addDays(todayIST, 1);
@@ -324,7 +285,6 @@ const DateTimeSelectionPage: React.FC = () => {
     }
   };
 
-  // ... keep existing code (slot processing and UI rendering)
   const availableTimeSlots = availableSlots.filter(slot => slot.is_available);
   const unavailableSlots = availableSlots.filter(slot => !slot.is_available);
   
@@ -438,7 +398,7 @@ const DateTimeSelectionPage: React.FC = () => {
                         selectedTime === slot.time_slot ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
                       }`}
                       onClick={() => handleTimeSlotClick(slot.time_slot)}
-                      disabled={isBookingSlot}
+                      disabled={isCheckingSlot}
                     >
                       <span className="font-medium">{formatTimeToAmPm(slot.time_slot)}</span>
                     </Button>
@@ -485,9 +445,9 @@ const DateTimeSelectionPage: React.FC = () => {
           className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6 font-poppins"
           size="lg"
           onClick={handleContinue}
-          disabled={!selectedDate || !selectedTime || loading || isBookingSlot || !bookedSlotId}
+          disabled={!selectedDate || !selectedTime || loading || isCheckingSlot}
         >
-          {isBookingSlot ? 'Booking Slot...' : 'Continue to Payment'}
+          {isCheckingSlot ? 'Checking Availability...' : 'Continue to Payment'}
         </Button>
       </div>
     </div>

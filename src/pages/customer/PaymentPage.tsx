@@ -10,7 +10,7 @@ import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { formatDateInIST } from '@/utils/dateUtils';
 import { useAuth } from '@/contexts/AuthContext';
 
-interface ConfirmBookingResponse {
+interface BookingResponse {
   success: boolean;
   booking_id?: string;
   error?: string;
@@ -31,15 +31,19 @@ const PaymentPage: React.FC = () => {
     selectedStaff,
     selectedStaffDetails,
     bookingDate,
-    bookingTime,
-    bookingId
+    bookingTime
   } = location.state || {};
 
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'upi' | 'card'>('upi');
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handlePayment = async () => {
-    if (!bookingId || !userId) {
+    if (!userId || !merchantId) {
+      toast.error('Authentication required');
+      return;
+    }
+
+    if (!selectedServices || !selectedStaff || !bookingDate || !bookingTime) {
       toast.error('Booking information is missing');
       return;
     }
@@ -47,27 +51,34 @@ const PaymentPage: React.FC = () => {
     setIsProcessing(true);
 
     try {
-      console.log('Processing payment for booking:', bookingId);
+      console.log('Processing payment and creating booking...');
 
-      // Simulate payment processing
+      // Simulate payment processing (2 seconds)
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Confirm the booking after payment with proper type casting
-      const { data: confirmResult, error: confirmError } = await supabase.rpc('confirm_booking_payment' as any, {
-        p_booking_id: bookingId,
-        p_user_id: userId
+      // Create the actual booking after payment
+      const serviceId = selectedServices[0]?.id;
+      
+      const { data: bookingResult, error: bookingError } = await supabase.rpc('create_booking_from_payment' as any, {
+        p_user_id: userId,
+        p_merchant_id: merchantId,
+        p_service_id: serviceId,
+        p_staff_id: selectedStaff,
+        p_date: bookingDate,
+        p_time_slot: bookingTime,
+        p_service_duration: totalDuration
       });
 
-      if (confirmError) {
-        console.error('Error confirming booking:', confirmError);
-        toast.error(`Failed to confirm booking: ${confirmError.message}`);
+      if (bookingError) {
+        console.error('Error creating booking:', bookingError);
+        toast.error(`Failed to create booking: ${bookingError.message}`);
         return;
       }
 
-      const response = confirmResult as unknown as ConfirmBookingResponse;
+      const response = bookingResult as unknown as BookingResponse;
       
       if (!response.success) {
-        toast.error(response.error || 'Failed to confirm booking');
+        toast.error(response.error || 'Failed to create booking');
         return;
       }
 
@@ -75,7 +86,7 @@ const PaymentPage: React.FC = () => {
       const { error: paymentError } = await supabase
         .from('payments')
         .insert({
-          booking_id: bookingId,
+          booking_id: response.booking_id,
           method: selectedPaymentMethod,
           amount: totalPrice,
           status: 'completed'
@@ -89,7 +100,7 @@ const PaymentPage: React.FC = () => {
       toast.success('Payment successful! Your booking is confirmed.');
 
       // Navigate to receipt page
-      navigate(`/receipt/${bookingId}`, {
+      navigate(`/receipt/${response.booking_id}`, {
         state: {
           merchant,
           selectedServices,
@@ -99,7 +110,7 @@ const PaymentPage: React.FC = () => {
           selectedStaffDetails,
           bookingDate,
           bookingTime,
-          bookingId,
+          bookingId: response.booking_id,
           paymentMethod: selectedPaymentMethod
         }
       });
@@ -112,23 +123,12 @@ const PaymentPage: React.FC = () => {
     }
   };
 
-  // Cancel booking if user goes back
-  const handleGoBack = async () => {
-    if (bookingId && userId) {
-      try {
-        await supabase.rpc('cancel_booking_simple' as any, {
-          p_booking_id: bookingId,
-          p_user_id: userId
-        });
-        console.log('Booking cancelled due to navigation back');
-      } catch (error) {
-        console.error('Error cancelling booking:', error);
-      }
-    }
+  // Navigate back to datetime selection
+  const handleGoBack = () => {
     navigate(-1);
   };
 
-  if (!merchant || !bookingId) {
+  if (!merchant || !selectedServices || !bookingDate || !bookingTime) {
     return (
       <div className="h-screen flex flex-col items-center justify-center p-4">
         <p className="text-gray-500 mb-4">Booking information missing</p>
@@ -236,10 +236,10 @@ const PaymentPage: React.FC = () => {
         </Card>
 
         {/* Status Message */}
-        <Card className="bg-green-50 border-green-200">
+        <Card className="bg-blue-50 border-blue-200">
           <CardContent className="p-4">
-            <p className="text-green-800 text-sm font-poppins">
-              ✓ Your time slot is booked! Complete payment to confirm your booking.
+            <p className="text-blue-800 text-sm font-poppins">
+              ℹ️ Complete payment to confirm your booking. Payment is done at the shop.
             </p>
           </CardContent>
         </Card>
@@ -252,7 +252,7 @@ const PaymentPage: React.FC = () => {
           onClick={handlePayment}
           disabled={isProcessing}
         >
-          {isProcessing ? 'Processing Payment...' : `Pay ₹${totalPrice}`}
+          {isProcessing ? 'Processing...' : `Confirm Booking - Pay ₹${totalPrice} at Shop`}
         </Button>
       </div>
     </div>

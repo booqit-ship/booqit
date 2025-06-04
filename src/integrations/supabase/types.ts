@@ -538,18 +538,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      book_slot_immediately: {
-        Args: {
-          p_user_id: string
-          p_merchant_id: string
-          p_service_id: string
-          p_staff_id: string
-          p_date: string
-          p_time_slot: string
-          p_service_duration: number
-        }
-        Returns: Json
-      }
       book_stylist_slot: {
         Args: {
           p_staff_id: string
@@ -569,6 +557,10 @@ export type Database = {
         Returns: Json
       }
       cancel_booking_and_release_slots: {
+        Args: { p_booking_id: string; p_user_id?: string }
+        Returns: Json
+      }
+      cancel_booking_properly: {
         Args: { p_booking_id: string; p_user_id?: string }
         Returns: Json
       }
@@ -608,6 +600,18 @@ export type Database = {
       }
       confirm_pending_booking: {
         Args: { p_booking_id: string; p_user_id: string }
+        Returns: Json
+      }
+      create_booking_from_payment: {
+        Args: {
+          p_user_id: string
+          p_merchant_id: string
+          p_service_id: string
+          p_staff_id: string
+          p_date: string
+          p_time_slot: string
+          p_service_duration: number
+        }
         Returns: Json
       }
       create_confirmed_booking: {
@@ -752,6 +756,18 @@ export type Database = {
         Returns: Json
       }
       reserve_slot_immediately: {
+        Args: {
+          p_user_id: string
+          p_merchant_id: string
+          p_service_id: string
+          p_staff_id: string
+          p_date: string
+          p_time_slot: string
+          p_service_duration: number
+        }
+        Returns: Json
+      }
+      reserve_slot_temporarily: {
         Args: {
           p_user_id: string
           p_merchant_id: string

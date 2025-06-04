@@ -45,8 +45,8 @@ const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
         return;
       }
 
-      // Call the cancellation function
-      const { data, error } = await supabase.rpc('cancel_booking_and_release_all_slots', {
+      // Call the proper cancellation function
+      const { data, error } = await supabase.rpc('cancel_booking_properly', {
         p_booking_id: bookingId,
         p_user_id: user.id
       });
