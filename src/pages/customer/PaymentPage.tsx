@@ -187,7 +187,7 @@ const PaymentPage: React.FC = () => {
         {/* Payment Methods */}
         <Card>
           <CardHeader>
-            <CardTitle className="font-righteous">Payment Method</CardTitle>
+            <CardTitle className="font-righteous text-lg font-light">Payment Method</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4 rounded-full">
