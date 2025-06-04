@@ -140,7 +140,7 @@ const PaymentPage: React.FC = () => {
         {/* Booking Summary */}
         <Card>
           <CardHeader>
-            <CardTitle className="font-righteous">Booking Summary</CardTitle>
+            <CardTitle className="font-righteous text-lg font-light">Booking Summary</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex justify-between">
