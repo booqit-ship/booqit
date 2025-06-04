@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
@@ -208,6 +207,16 @@ const DateTimeSelectionPage: React.FC = () => {
         return;
       }
 
+      console.log('Booking slot with params:', {
+        p_user_id: userId,
+        p_merchant_id: merchantId,
+        p_service_id: serviceId,
+        p_staff_id: finalStaffId,
+        p_date: selectedDateStr,
+        p_time_slot: timeSlot,
+        p_service_duration: actualServiceDuration
+      });
+
       // Book the slot immediately using book_slot_immediately
       const { data: bookingResult, error: bookingError } = await supabase.rpc('book_slot_immediately' as any, {
         p_user_id: userId,
@@ -225,6 +234,7 @@ const DateTimeSelectionPage: React.FC = () => {
         return;
       }
 
+      console.log('Booking result:', bookingResult);
       const response = bookingResult as unknown as BookingResponse;
       
       if (!response.success) {
@@ -300,6 +310,7 @@ const DateTimeSelectionPage: React.FC = () => {
     };
   }, [bookedSlotId, userId]);
 
+  // ... keep existing code (formatDateDisplay function)
   const formatDateDisplay = (date: Date) => {
     const todayIST = getCurrentDateIST();
     const tomorrowIST = addDays(todayIST, 1);
@@ -313,6 +324,7 @@ const DateTimeSelectionPage: React.FC = () => {
     }
   };
 
+  // ... keep existing code (slot processing and UI rendering)
   const availableTimeSlots = availableSlots.filter(slot => slot.is_available);
   const unavailableSlots = availableSlots.filter(slot => !slot.is_available);
   
