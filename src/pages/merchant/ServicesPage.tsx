@@ -60,7 +60,6 @@ const ServicesPage: React.FC = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [isStaffSheetOpen, setIsStaffSheetOpen] = useState(false);
   
   const { toast } = useToast();
   const { userId } = useAuth();
@@ -321,14 +320,17 @@ const ServicesPage: React.FC = () => {
           >
             <PlusCircle className="mr-2 h-5 w-5" /> Add New Service
           </Button>
-          <Button 
-            onClick={openManageStylists} 
-            size={isMobile ? "default" : "lg"}
-            variant="outline"
-            className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary/10"
-          >
-            <Users className="mr-2 h-5 w-5" /> Manage Stylists
-          </Button>
+          {merchantId && (
+            <StaffManagementSheet merchantId={merchantId}>
+              <Button 
+                size={isMobile ? "default" : "lg"}
+                variant="outline"
+                className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary/10"
+              >
+                <Users className="mr-2 h-5 w-5" /> Manage Stylists
+              </Button>
+            </StaffManagementSheet>
+          )}
         </div>
       </div>
       
@@ -501,12 +503,6 @@ const ServicesPage: React.FC = () => {
         </SheetContent>
       </Sheet>
       
-      {/* Staff Management Sheet */}
-      <StaffManagementSheet 
-        open={isStaffSheetOpen} 
-        onOpenChange={setIsStaffSheetOpen}
-        merchantId={merchantId}
-      />
       
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
