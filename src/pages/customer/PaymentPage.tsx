@@ -191,11 +191,14 @@ const PaymentPage: React.FC = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4 rounded-full">
+              <Button variant={selectedPaymentMethod === 'upi' ? 'default' : 'outline'} className={`h-20 flex flex-col items-center space-y-2 font-poppins ${selectedPaymentMethod === 'upi' ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''}`} onClick={() => setSelectedPaymentMethod('upi')}>
+                <Smartphone className="h-6 w-6" />
+                <span>UPI</span>
+              </Button>
               
-              
-              <Button variant={selectedPaymentMethod === 'card' ? 'default' : 'outline'} onClick={() => setSelectedPaymentMethod('card')} className="">
+              <Button variant={selectedPaymentMethod === 'card' ? 'default' : 'outline'} className={`h-20 flex flex-col items-center space-y-2 font-poppins ${selectedPaymentMethod === 'card' ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''}`} onClick={() => setSelectedPaymentMethod('card')}>
                 <CreditCard className="h-6 w-6" />
-                <span></span>
+                <span>Card</span>
               </Button>
             </div>
           </CardContent>
