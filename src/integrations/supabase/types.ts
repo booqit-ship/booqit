@@ -570,6 +570,10 @@ export type Database = {
         Args: { p_booking_id: string; p_user_id?: string }
         Returns: Json
       }
+      cancel_pending_booking: {
+        Args: { p_booking_id: string; p_user_id: string }
+        Returns: Json
+      }
       check_slot_availability_with_duration: {
         Args: {
           p_staff_id: string
@@ -590,6 +594,10 @@ export type Database = {
       }
       clear_stylist_availability: {
         Args: { p_staff_id: string; p_date: string }
+        Returns: Json
+      }
+      confirm_pending_booking: {
+        Args: { p_booking_id: string; p_user_id: string }
         Returns: Json
       }
       create_confirmed_booking: {
@@ -704,6 +712,18 @@ export type Database = {
       }
       release_stylist_slots: {
         Args: { p_booking_id: string }
+        Returns: Json
+      }
+      reserve_slot_immediately: {
+        Args: {
+          p_user_id: string
+          p_merchant_id: string
+          p_service_id: string
+          p_staff_id: string
+          p_date: string
+          p_time_slot: string
+          p_service_duration: number
+        }
         Returns: Json
       }
       update_booking_status: {

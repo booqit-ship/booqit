@@ -1,15 +1,21 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, CreditCard, Smartphone, Wallet } from 'lucide-react';
+import { ChevronLeft, CreditCard, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { formatDateInIST } from '@/utils/dateUtils';
 import { useAuth } from '@/contexts/AuthContext';
+
+interface ConfirmBookingResponse {
+  success: boolean;
+  booking_id?: string;
+  error?: string;
+  message?: string;
+}
 
 const PaymentPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
@@ -17,228 +23,116 @@ const PaymentPage: React.FC = () => {
   const location = useLocation();
   const { userId } = useAuth();
   
-  const {
-    merchant,
-    selectedServices,
-    totalPrice,
+  const { 
+    merchant, 
+    selectedServices, 
+    totalPrice, 
     totalDuration,
     selectedStaff,
     selectedStaffDetails,
     bookingDate,
     bookingTime,
-    bookingId
+    bookingId // The reserved booking ID from the previous step
   } = location.state || {};
 
-  const [paymentMethod, setPaymentMethod] = useState<string>('upi');
-  const [processing, setProcessing] = useState(false);
-  const [bookingValid, setBookingValid] = useState(true);
-
-  useEffect(() => {
-    if (!merchant || !selectedServices || !bookingDate || !bookingTime || !bookingId) {
-      toast.error('Missing booking information');
-      navigate(-1);
-    }
-  }, []);
-
-  // Verify booking exists and is valid
-  useEffect(() => {
-    const verifyBooking = async () => {
-      if (!bookingId || !userId) return;
-
-      try {
-        const { data: booking, error } = await supabase
-          .from('bookings')
-          .select('*')
-          .eq('id', bookingId)
-          .eq('user_id', userId)
-          .single();
-
-        if (error || !booking) {
-          console.error('Booking verification failed:', error);
-          setBookingValid(false);
-          toast.error('Booking not found or expired');
-          navigate('/calendar', { 
-            state: { 
-              message: 'Booking reservation expired. Please select a new time slot.' 
-            }
-          });
-          return;
-        }
-
-        if (booking.status !== 'confirmed') {
-          console.error('Booking is not in confirmed state:', booking.status);
-          setBookingValid(false);
-          toast.error('Booking is not valid for payment');
-          navigate('/calendar');
-          return;
-        }
-
-        console.log('Booking verified successfully:', booking);
-      } catch (error) {
-        console.error('Error verifying booking:', error);
-        setBookingValid(false);
-        toast.error('Error verifying booking');
-        navigate('/calendar');
-      }
-    };
-
-    verifyBooking();
-  }, [bookingId, userId, navigate]);
-
-  // Handle navigation away from payment page
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (bookingId) {
-        // Cancel booking if navigating away without completing payment
-        navigator.sendBeacon(
-          'https://ggclvurfcykbwmhfftkn.supabase.co/rest/v1/bookings?id=eq.' + bookingId,
-          JSON.stringify({ status: 'cancelled', payment_status: 'failed' })
-        );
-      }
-    };
-
-    const handlePopState = () => {
-      if (bookingId) {
-        // Cancel booking if going back
-        supabase
-          .from('bookings')
-          .update({ status: 'cancelled', payment_status: 'failed' })
-          .eq('id', bookingId)
-          .then(() => {
-            console.log('Booking cancelled due to navigation back');
-          });
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    window.addEventListener('popstate', handlePopState);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [bookingId]);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'upi' | 'card'>('upi');
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const handlePayment = async () => {
-    if (!userId || !bookingId) {
-      toast.error('Missing booking information');
+    if (!bookingId || !userId) {
+      toast.error('Booking information is missing');
       return;
     }
 
-    setProcessing(true);
+    setIsProcessing(true);
 
     try {
       console.log('Processing payment for booking:', bookingId);
 
-      // Verify booking still exists and is in correct state
-      const { data: existingBooking, error: bookingCheckError } = await supabase
-        .from('bookings')
-        .select(`
-          *,
-          service:services(name, price),
-          merchant:merchants(shop_name, address)
-        `)
-        .eq('id', bookingId)
-        .eq('user_id', userId)
-        .single();
+      // Simulate payment processing delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
-      if (bookingCheckError || !existingBooking) {
-        console.error('Booking verification failed:', bookingCheckError);
-        toast.error('Booking no longer exists or has been cancelled');
-        navigate('/calendar');
+      // Confirm the pending booking after successful payment
+      const { data: confirmResult, error: confirmError } = await supabase.rpc('confirm_pending_booking', {
+        p_booking_id: bookingId,
+        p_user_id: userId
+      });
+
+      if (confirmError) {
+        console.error('Error confirming booking:', confirmError);
+        toast.error(`Failed to confirm booking: ${confirmError.message}`);
         return;
       }
 
-      if (existingBooking.status !== 'confirmed') {
-        toast.error('Booking is not in a valid state for payment');
-        navigate('/calendar');
+      const response = confirmResult as unknown as ConfirmBookingResponse;
+      
+      if (!response.success) {
+        const errorMessage = response.error || 'Failed to confirm booking';
+        toast.error(errorMessage);
         return;
       }
 
+      console.log('Booking confirmed successfully:', bookingId);
+      
       // Create payment record
-      const paymentData = {
-        booking_id: bookingId,
-        method: paymentMethod,
-        amount: totalPrice,
-        status: 'completed', // Simulating successful payment
-        timestamp: new Date().toISOString()
-      };
-
-      const { data: payment, error: paymentError } = await supabase
+      const { error: paymentError } = await supabase
         .from('payments')
-        .insert(paymentData)
-        .select()
-        .single();
+        .insert({
+          booking_id: bookingId,
+          method: selectedPaymentMethod,
+          amount: totalPrice,
+          status: 'completed'
+        });
 
       if (paymentError) {
-        console.error('Error creating payment:', paymentError);
-        
-        // Mark booking as cancelled with failed payment
-        await supabase
-          .from('bookings')
-          .update({ 
-            status: 'cancelled',
-            payment_status: 'failed'
-          })
-          .eq('id', bookingId);
-        
-        toast.error('Payment processing failed. Booking has been cancelled.');
-        return;
+        console.error('Error creating payment record:', paymentError);
+        // Don't fail the whole process for payment record error
+        toast.warning('Booking confirmed but payment record creation failed');
       }
 
-      // Update booking payment status to completed (keep status as confirmed)
-      const { error: updateError } = await supabase
-        .from('bookings')
-        .update({ 
-          payment_status: 'completed'
-        })
-        .eq('id', bookingId);
-
-      if (updateError) {
-        console.error('Error updating booking payment status:', updateError);
-        toast.error('Error confirming payment');
-        return;
-      }
-
-      toast.success('Payment completed successfully!');
+      toast.success('Payment successful! Your booking is confirmed.');
 
       // Navigate to receipt page
       navigate(`/receipt/${bookingId}`, {
         state: {
-          booking: {
-            ...existingBooking,
-            payment_status: 'completed'
-          },
-          payment,
           merchant,
           selectedServices,
-          selectedStaffDetails,
           totalPrice,
-          totalDuration
+          totalDuration,
+          selectedStaff,
+          selectedStaffDetails,
+          bookingDate,
+          bookingTime,
+          bookingId,
+          paymentMethod: selectedPaymentMethod
         }
       });
 
     } catch (error) {
       console.error('Error processing payment:', error);
-      
-      // Mark booking as cancelled with failed payment
-      if (bookingId) {
-        await supabase
-          .from('bookings')
-          .update({ 
-            status: 'cancelled',
-            payment_status: 'failed'
-          })
-          .eq('id', bookingId);
-      }
-      
-      toast.error('Payment processing failed. Booking has been cancelled.');
+      toast.error('Payment failed. Please try again.');
     } finally {
-      setProcessing(false);
+      setIsProcessing(false);
     }
   };
 
-  if (!merchant || !selectedServices) {
+  // Cancel pending booking if user goes back
+  const handleGoBack = async () => {
+    if (bookingId && userId) {
+      try {
+        await supabase.rpc('cancel_pending_booking', {
+          p_booking_id: bookingId,
+          p_user_id: userId
+        });
+        console.log('Pending booking cancelled due to navigation back');
+      } catch (error) {
+        console.error('Error cancelling pending booking:', error);
+      }
+    }
+    navigate(-1);
+  };
+
+  if (!merchant || !bookingId) {
     return (
       <div className="h-screen flex flex-col items-center justify-center p-4">
         <p className="text-gray-500 mb-4">Booking information missing</p>
@@ -255,20 +149,11 @@ const PaymentPage: React.FC = () => {
             variant="ghost" 
             size="icon" 
             className="absolute left-0 text-white hover:bg-white/20"
-            onClick={() => {
-              // Cancel booking when going back
-              if (bookingId) {
-                supabase
-                  .from('bookings')
-                  .update({ status: 'cancelled', payment_status: 'failed' })
-                  .eq('id', bookingId);
-              }
-              navigate(-1);
-            }}
+            onClick={handleGoBack}
           >
             <ChevronLeft className="h-5 w-5" />
           </Button>
-          <h1 className="text-xl font-medium">Payment</h1>
+          <h1 className="text-xl font-medium font-righteous">Payment</h1>
         </div>
       </div>
 
@@ -276,92 +161,102 @@ const PaymentPage: React.FC = () => {
         {/* Booking Summary */}
         <Card>
           <CardHeader>
-            <CardTitle>Booking Summary</CardTitle>
+            <CardTitle className="font-righteous">Booking Summary</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex justify-between">
-              <span className="text-gray-600">Shop</span>
-              <span className="font-medium">{merchant.shop_name}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Date</span>
-              <span className="font-medium">
-                {formatDateInIST(new Date(bookingDate), 'EEE, MMM d, yyyy')}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Time</span>
-              <span className="font-medium">{formatTimeToAmPm(bookingTime)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Stylist</span>
-              <span className="font-medium">{selectedStaffDetails?.name || 'Any Available'}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Duration</span>
-              <span className="font-medium">{totalDuration} minutes</span>
+              <span className="font-poppins text-gray-600">Shop</span>
+              <span className="font-poppins font-medium">{merchant.shop_name}</span>
             </div>
             
-            <div className="border-t pt-4">
-              <h4 className="font-medium mb-2">Services:</h4>
-              {selectedServices.map((service: any, index: number) => (
-                <div key={index} className="flex justify-between text-sm mb-1">
-                  <span>{service.name}</span>
-                  <span>₹{service.price}</span>
-                </div>
-              ))}
+            <div className="flex justify-between">
+              <span className="font-poppins text-gray-600">Services</span>
+              <div className="text-right">
+                {selectedServices?.map((service: any, index: number) => (
+                  <div key={index} className="font-poppins font-medium">
+                    {service.name}
+                  </div>
+                ))}
+              </div>
             </div>
             
-            <div className="border-t pt-4 flex justify-between text-lg font-semibold">
-              <span>Total</span>
-              <span>₹{totalPrice}</span>
+            <div className="flex justify-between">
+              <span className="font-poppins text-gray-600">Stylist</span>
+              <span className="font-poppins font-medium">{selectedStaffDetails?.name}</span>
+            </div>
+            
+            <div className="flex justify-between">
+              <span className="font-poppins text-gray-600">Date & Time</span>
+              <div className="text-right font-poppins font-medium">
+                <div>{formatDateInIST(new Date(bookingDate), 'MMM d, yyyy')}</div>
+                <div>{formatTimeToAmPm(bookingTime)}</div>
+              </div>
+            </div>
+            
+            <div className="flex justify-between">
+              <span className="font-poppins text-gray-600">Duration</span>
+              <span className="font-poppins font-medium">{totalDuration} minutes</span>
+            </div>
+            
+            <hr />
+            
+            <div className="flex justify-between text-lg font-semibold">
+              <span className="font-righteous">Total</span>
+              <span className="font-righteous">₹{totalPrice}</span>
             </div>
           </CardContent>
         </Card>
 
-        {/* Payment Method */}
+        {/* Payment Methods */}
         <Card>
           <CardHeader>
-            <CardTitle>Payment Method</CardTitle>
+            <CardTitle className="font-righteous">Payment Method</CardTitle>
           </CardHeader>
-          <CardContent>
-            <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
-              <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50">
-                <RadioGroupItem value="upi" id="upi" />
-                <Label htmlFor="upi" className="flex items-center space-x-2 cursor-pointer flex-1">
-                  <Smartphone className="h-5 w-5 text-blue-600" />
-                  <span>UPI</span>
-                </Label>
-              </div>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <Button
+                variant={selectedPaymentMethod === 'upi' ? 'default' : 'outline'}
+                className={`h-20 flex flex-col items-center space-y-2 font-poppins ${
+                  selectedPaymentMethod === 'upi' ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
+                }`}
+                onClick={() => setSelectedPaymentMethod('upi')}
+              >
+                <Smartphone className="h-6 w-6" />
+                <span>UPI</span>
+              </Button>
               
-              <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50">
-                <RadioGroupItem value="card" id="card" />
-                <Label htmlFor="card" className="flex items-center space-x-2 cursor-pointer flex-1">
-                  <CreditCard className="h-5 w-5 text-green-600" />
-                  <span>Credit/Debit Card</span>
-                </Label>
-              </div>
-              
-              <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50">
-                <RadioGroupItem value="wallet" id="wallet" />
-                <Label htmlFor="wallet" className="flex items-center space-x-2 cursor-pointer flex-1">
-                  <Wallet className="h-5 w-5 text-purple-600" />
-                  <span>Digital Wallet</span>
-                </Label>
-              </div>
-            </RadioGroup>
+              <Button
+                variant={selectedPaymentMethod === 'card' ? 'default' : 'outline'}
+                className={`h-20 flex flex-col items-center space-y-2 font-poppins ${
+                  selectedPaymentMethod === 'card' ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
+                }`}
+                onClick={() => setSelectedPaymentMethod('card')}
+              >
+                <CreditCard className="h-6 w-6" />
+                <span>Card</span>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Status Message */}
+        <Card className="bg-blue-50 border-blue-200">
+          <CardContent className="p-4">
+            <p className="text-blue-800 text-sm font-poppins">
+              ⏳ Your time slot is reserved for 10 minutes. Complete payment to confirm your booking.
+            </p>
           </CardContent>
         </Card>
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
         <Button 
-          className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6"
+          className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6 font-poppins"
           size="lg"
           onClick={handlePayment}
-          disabled={processing}
+          disabled={isProcessing}
         >
-          {processing ? 'Processing...' : `Pay ₹${totalPrice}`}
+          {isProcessing ? 'Processing Payment...' : `Pay ₹${totalPrice}`}
         </Button>
       </div>
     </div>
