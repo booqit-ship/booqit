@@ -196,9 +196,16 @@ const DateTimeSelectionPage: React.FC = () => {
 
       console.log('Merchant operating hours:', merchantData.open_time, 'to', merchantData.close_time);
 
-      // Fetch slots using the new dynamic slot generation function
+      // Fetch slots using the updated dynamic slot generation function
       console.log('Fetching available slots with validation...');
-      const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_validation' as any, {
+      console.log('Payload:', {
+        p_merchant_id: merchantId,
+        p_date: selectedDateStr,
+        p_staff_id: selectedStaff || null,
+        p_service_duration: actualServiceDuration
+      });
+
+      const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_validation', {
         p_merchant_id: merchantId,
         p_date: selectedDateStr,
         p_staff_id: selectedStaff || null,
@@ -210,13 +217,13 @@ const DateTimeSelectionPage: React.FC = () => {
         if (slotsError.message?.includes('Merchant not found')) {
           setError('Merchant not found. Please check the booking link.');
         } else {
-          setError('Unable to load time slots. Please try refreshing the page.');
+          setError(`Unable to load time slots: ${slotsError.message}. Please try refreshing the page.`);
         }
         setAvailableSlots([]);
         return;
       }
 
-      console.log('Raw slots data:', slotsData?.length || 0);
+      console.log('Raw slots data:', slotsData?.length || 0, 'slots returned');
 
       if (!slotsData || slotsData.length === 0) {
         console.log('No slots available for this date and service duration');
@@ -386,8 +393,8 @@ const DateTimeSelectionPage: React.FC = () => {
         actualServiceDuration
       });
 
-      // Create booking immediately with confirmed status using the new function
-      const { data: bookingResult, error: bookingError } = await supabase.rpc('create_confirmed_booking' as any, {
+      // Create booking immediately with confirmed status using the function
+      const { data: bookingResult, error: bookingError } = await supabase.rpc('create_confirmed_booking', {
         p_user_id: userId,
         p_merchant_id: merchantId,
         p_service_id: serviceId,
