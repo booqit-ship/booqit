@@ -72,7 +72,7 @@ BEGIN
     
     RAISE LOG 'Final buffer time for today: % (hours: %, minutes: %)', buffer_time, buffer_hours, buffer_minutes;
   ELSE
-    -- For future dates, no buffer needed - start from shop opening
+    -- For future dates, start from shop opening time
     buffer_time := '00:00:00'::TIME;
     RAISE LOG 'Future date, no buffer applied';
   END IF;

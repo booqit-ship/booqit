@@ -16,7 +16,6 @@ import {
 } from '@/utils/dateUtils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRealtimeSlots } from '@/hooks/useRealtimeSlots';
-import SlotDebugInfo from '@/components/customer/SlotDebugInfo';
 
 interface AvailableSlot {
   staff_id: string;
@@ -366,9 +365,6 @@ const DateTimeSelectionPage: React.FC = () => {
             </div>
           )}
         </div>
-
-        {/* Debug component for today's slots */}
-        <SlotDebugInfo selectedDate={selectedDate} availableSlots={availableSlots} />
 
         <div className="mb-6">
           <h3 className="font-medium mb-3 flex items-center font-righteous">
