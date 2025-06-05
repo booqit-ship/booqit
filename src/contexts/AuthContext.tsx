@@ -75,13 +75,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('Auth state stored in localStorage:', authState);
       } else {
         console.warn('Could not fetch user role, user may need to complete profile');
-        toast.error('Could not fetch user profile. Please try logging in again.', {
-          style: {
-            background: '#f3e8ff',
-            border: '1px solid #a855f7',
-            color: '#7c3aed'
-          }
-        });
+        // Don't show error immediately on startup, just log it
+        if (event !== 'INITIAL_SESSION') {
+          toast.error('Could not fetch user profile. Please try logging in again.', {
+            style: {
+              background: '#f3e8ff',
+              border: '1px solid #a855f7',
+              color: '#7c3aed'
+            }
+          });
+        }
       }
     } else {
       console.log('User signed out or no session');
@@ -93,62 +96,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.removeItem('booqit_auth');
     }
     
+    // Always clear loading state after handling auth change
     setLoading(false);
   };
 
   useEffect(() => {
     console.log('Setting up auth state management...');
     
+    let initialized = false;
+    
     // Set up authentication state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!initialized && event === 'INITIAL_SESSION') {
+        initialized = true;
+        console.log('Processing initial session...');
+        await handleAuthStateChange(event, session);
+      } else if (initialized) {
+        console.log('Processing auth state change:', event);
+        await handleAuthStateChange(event, session);
+      }
+    });
 
-    // THEN check for existing session
-    const initializeAuth = async () => {
-      try {
-        console.log('Checking for existing session...');
-        
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('Error getting session:', error);
-          toast.error('Session restoration failed. Please log in again.', {
-            style: {
-              background: '#f3e8ff',
-              border: '1px solid #a855f7',
-              color: '#7c3aed'
-            }
-          });
-          setLoading(false);
-          return;
-        }
-        
-        if (session) {
-          console.log('Existing session found, restoring auth state...');
-          await handleAuthStateChange('INITIAL_SESSION', session);
-        } else {
-          console.log('No existing session found');
-          setLoading(false);
-        }
-      } catch (error) {
-        console.error('Error in initializeAuth:', error);
-        toast.error('Failed to restore session. Please log in again.', {
-          style: {
-            background: '#f3e8ff',
-            border: '1px solid #a855f7',
-            color: '#7c3aed'
-          }
-        });
+    // Set a timeout to ensure loading doesn't get stuck
+    const timeoutId = setTimeout(() => {
+      if (loading) {
+        console.warn('Auth initialization timed out, clearing loading state');
         setLoading(false);
       }
-    };
-
-    initializeAuth();
+    }, 5000); // 5 second timeout
 
     return () => {
       console.log('Cleaning up auth subscription');
       subscription.unsubscribe();
+      clearTimeout(timeoutId);
     };
-  }, []);
+  }, []); // Remove loading dependency to prevent re-initialization
 
   const setAuth = (isAuthenticated: boolean, role: UserRole | null, id: string | null) => {
     console.log('Manual setAuth called:', { isAuthenticated, role, id });

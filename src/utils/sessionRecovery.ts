@@ -6,6 +6,14 @@ export const attemptSessionRecovery = async () => {
   try {
     console.log('Attempting session recovery...');
     
+    // First check if we have a current session
+    const { data: { session: currentSession } } = await supabase.auth.getSession();
+    
+    if (currentSession) {
+      console.log('Current session is valid');
+      return true;
+    }
+    
     // Try to refresh the session
     const { data: { session }, error } = await supabase.auth.refreshSession();
     
@@ -15,13 +23,16 @@ export const attemptSessionRecovery = async () => {
       // Clear any stale localStorage data
       localStorage.removeItem('booqit_auth');
       
-      toast.error('Your session has expired. Please log in again.', {
-        style: {
-          background: '#f3e8ff',
-          border: '1px solid #a855f7',
-          color: '#7c3aed'
-        }
-      });
+      // Only show toast if it's not a "refresh token not found" error (common on first load)
+      if (!error.message.includes('refresh_token_not_found')) {
+        toast.error('Your session has expired. Please log in again.', {
+          style: {
+            background: '#f3e8ff',
+            border: '1px solid #a855f7',
+            color: '#7c3aed'
+          }
+        });
+      }
       
       return false;
     }
@@ -38,6 +49,7 @@ export const attemptSessionRecovery = async () => {
     // Clear any stale localStorage data
     localStorage.removeItem('booqit_auth');
     
+    // Only show toast for unexpected errors
     toast.error('Failed to restore your session. Please log in again.', {
       style: {
         background: '#f3e8ff',
@@ -52,7 +64,7 @@ export const attemptSessionRecovery = async () => {
 
 export const scheduleSessionCheck = () => {
   // Check session validity every 5 minutes
-  setInterval(async () => {
+  const intervalId = setInterval(async () => {
     const { data: { session } } = await supabase.auth.getSession();
     
     if (!session) {
@@ -70,4 +82,7 @@ export const scheduleSessionCheck = () => {
       }
     }
   }, 5 * 60 * 1000); // Check every 5 minutes
+  
+  // Return cleanup function
+  return () => clearInterval(intervalId);
 };

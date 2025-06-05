@@ -127,7 +127,7 @@ const router = createBrowserRouter([
   },
 ]);
 
-// Loading component for app initialization
+// Enhanced loading component with timeout
 const AppLoading = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-booqit-primary/10 to-white flex items-center justify-center">
@@ -140,10 +140,11 @@ const AppLoading = () => {
   );
 };
 
-// App content wrapper to handle auth loading
+// App content wrapper to handle auth loading with timeout
 const AppContent = () => {
   const { loading } = useAuth();
 
+  // Show loading screen only briefly
   if (loading) {
     return <AppLoading />;
   }
