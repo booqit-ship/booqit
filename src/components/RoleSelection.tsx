@@ -37,20 +37,18 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
           <p className="text-gray-600 font-medium">Choose how you want to continue</p>
         </div>
 
-        {/* Hero Illustration */}
-        <div className="flex justify-center mb-8">
-          <div className="relative">
+        {/* Hero Illustration with overlapping Customer card */}
+        <div className="relative flex flex-col items-center">
+          <div className="relative z-10 mb-[-30px]">
             <img 
               src="/lovable-uploads/aa16b2b4-d26b-471d-9644-fb132cd3afc7.png"
               alt="Girl using phone"
               className="w-64 h-auto object-contain drop-shadow-lg"
             />
           </div>
-        </div>
 
-        {/* Role Selection Cards */}
-        <div className="space-y-4">
-          <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 border-0 bg-white/80 backdrop-blur-sm hover:bg-white hover:scale-[1.02]">
+          {/* Customer Card - positioned behind/below the image */}
+          <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 border-0 bg-white/80 backdrop-blur-sm hover:bg-white hover:scale-[1.02] relative z-0 pt-12 w-full">
             <CardContent className="p-6" onClick={() => onRoleSelect('customer')}>
               <div className="flex items-center space-x-4">
                 <div className="p-3 bg-purple-100 rounded-full">
@@ -65,7 +63,10 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
               </div>
             </CardContent>
           </Card>
+        </div>
 
+        {/* Business Owner Card */}
+        <div className="mt-4">
           <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 border-0 bg-white/80 backdrop-blur-sm hover:bg-white hover:scale-[1.02]">
             <CardContent className="p-6" onClick={() => onRoleSelect('merchant')}>
               <div className="flex items-center space-x-4">
