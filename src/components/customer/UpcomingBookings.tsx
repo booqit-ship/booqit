@@ -112,10 +112,7 @@ const UpcomingBookings: React.FC = () => {
             <div className="flex items-start justify-between">
               <div>
                 <CardTitle className="text-lg font-light">{booking.merchant.shop_name}</CardTitle>
-                <p className="text-sm text-gray-600 flex items-center mt-1">
-                  <MapPin className="h-4 w-4 mr-1" />
-                  {booking.merchant.address}
-                </p>
+                
               </div>
               <Badge className={getStatusColor(booking.status)}>
                 {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
@@ -129,7 +126,7 @@ const UpcomingBookings: React.FC = () => {
                 <CalendarIcon className="h-4 w-4 mr-2" />
                 {formatDateInIST(new Date(booking.date), 'EEE, MMM d, yyyy')}
               </div>
-              <div className="flex items-center text-sm text-gray-600">
+              <div className="flex items-center text-sm text-gray-600 px-0 py-0">
                 <Clock className="h-4 w-4 mr-2" />
                 {formatTimeToAmPm(booking.time_slot)} ({booking.service.duration} min)
               </div>
