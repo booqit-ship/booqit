@@ -54,31 +54,6 @@ const router = createBrowserRouter([
     path: "/terms-and-conditions",
     element: <TermsAndConditions />,
   },
-  {
-    path: "/customer",
-    element: <ProtectedRoute requiredRole="customer" />,
-    children: [
-      {
-        path: "/customer",
-        element: <CustomerLayout />,
-        children: [
-          { index: true, element: <Navigate to="/" replace /> },
-          { path: "home", element: <HomePage /> },
-          { path: "search", element: <SearchPage /> },
-          { path: "map", element: <MapPage /> },
-          { path: "calendar", element: <CalendarPage /> },
-          { path: "profile", element: <ProfilePage /> },
-          { path: "merchant/:merchantId", element: <MerchantDetailPage /> },
-          { path: "booking/:merchantId", element: <ServiceSelectionPage /> },
-          { path: "booking/:merchantId/staff", element: <StaffSelectionPage /> },
-          { path: "booking/:merchantId/datetime", element: <DateTimeSelectionPage /> },
-          { path: "booking/:merchantId/summary", element: <BookingSummaryPage /> },
-          { path: "payment/:merchantId", element: <PaymentPage /> },
-          { path: "receipt/:bookingId", element: <ReceiptPage /> },
-        ],
-      },
-    ],
-  },
   // Customer routes under root path
   {
     path: "/",
@@ -88,7 +63,7 @@ const router = createBrowserRouter([
         path: "/",
         element: <CustomerLayout />,
         children: [
-          { index: true, element: <HomePage /> },
+          { path: "home", element: <HomePage /> },
           { path: "search", element: <SearchPage /> },
           { path: "map", element: <MapPage /> },
           { path: "calendar", element: <CalendarPage /> },
