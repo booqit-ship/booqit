@@ -1,15 +1,12 @@
-
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Store, User } from 'lucide-react';
 import { UserRole } from '@/types';
-
 interface RoleSelectionProps {
   onRoleSelect: (role: UserRole) => void;
 }
-
 const RoleSelection: React.FC<RoleSelectionProps> = ({
   onRoleSelect
 }) => {
@@ -26,14 +23,16 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
         
         {/* Illustration Image */}
         <div className="text-center mb-6">
-          <motion.img 
-            src="/lovable-uploads/6fdc36d1-c6cb-4ac5-84c6-ba76af40a574.png"
-            alt="BooqIt Illustration"
-            className="w-48 h-48 mx-auto mb-4"
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-          />
+          <motion.img alt="BooqIt Illustration" className="w-48 h-48 mx-auto mb-4" initial={{
+          scale: 0.8,
+          opacity: 0
+        }} animate={{
+          scale: 1,
+          opacity: 1
+        }} transition={{
+          duration: 0.6,
+          delay: 0.2
+        }} src="/lovable-uploads/b28d7aee-b146-44af-88b3-050ccc45a25d.png" />
         </div>
 
         {/* Logo */}
@@ -84,5 +83,4 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
       </motion.div>
     </div>;
 };
-
 export default RoleSelection;
