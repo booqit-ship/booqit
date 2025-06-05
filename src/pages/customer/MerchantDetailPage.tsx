@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Clock, MapPin, Star, User } from 'lucide-react';
@@ -10,43 +11,46 @@ import { supabase } from '@/integrations/supabase/client';
 import { Merchant, Service, Staff } from '@/types';
 import { toast } from 'sonner';
 import ReviewsSection from '@/components/customer/ReviewsSection';
+
 const MerchantDetailPage: React.FC = () => {
-  const {
-    merchantId
-  } = useParams<{
-    merchantId: string;
-  }>();
+  const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
   const [merchant, setMerchant] = useState<Merchant | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
+
   useEffect(() => {
     const fetchMerchantDetails = async () => {
       try {
         if (!merchantId) return;
-
+        
         // Fetch merchant details
-        const {
-          data: merchantData,
-          error: merchantError
-        } = await supabase.from('merchants').select('*').eq('id', merchantId).single();
+        const { data: merchantData, error: merchantError } = await supabase
+          .from('merchants')
+          .select('*')
+          .eq('id', merchantId)
+          .single();
+          
         if (merchantError) throw merchantError;
-
+        
         // Fetch services for this merchant
-        const {
-          data: servicesData,
-          error: servicesError
-        } = await supabase.from('services').select('*').eq('merchant_id', merchantId);
+        const { data: servicesData, error: servicesError } = await supabase
+          .from('services')
+          .select('*')
+          .eq('merchant_id', merchantId);
+          
         if (servicesError) throw servicesError;
 
         // Fetch staff for this merchant
-        const {
-          data: staffData,
-          error: staffError
-        } = await supabase.from('staff').select('*').eq('merchant_id', merchantId);
+        const { data: staffData, error: staffError } = await supabase
+          .from('staff')
+          .select('*')
+          .eq('merchant_id', merchantId);
+          
         if (staffError) throw staffError;
+        
         console.log('Merchant data:', merchantData);
         console.log('Staff data:', staffData);
         setMerchant(merchantData);
@@ -59,15 +63,15 @@ const MerchantDetailPage: React.FC = () => {
         setLoading(false);
       }
     };
+    
     fetchMerchantDetails();
   }, [merchantId]);
+
   const getFormattedTime = (timeString: string) => {
     const time = new Date(`2000-01-01T${timeString}`);
-    return time.toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    return time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
+
   const getMerchantImage = (merchant: Merchant) => {
     if (merchant.image_url) {
       if (merchant.image_url.startsWith('http')) {
@@ -77,10 +81,12 @@ const MerchantDetailPage: React.FC = () => {
     }
     return 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
   };
+
   const handleImageError = () => {
     console.error('Failed to load merchant image');
     setImageError(true);
   };
+
   const handleBookServices = () => {
     navigate(`/booking/${merchantId}`, {
       state: {
@@ -89,28 +95,46 @@ const MerchantDetailPage: React.FC = () => {
       }
     });
   };
+
   if (loading) {
-    return <div className="h-screen flex items-center justify-center">
+    return (
+      <div className="h-screen flex items-center justify-center">
         <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
-      </div>;
+      </div>
+    );
   }
+
   if (!merchant) {
-    return <div className="h-screen flex flex-col items-center justify-center p-4">
+    return (
+      <div className="h-screen flex flex-col items-center justify-center p-4">
         <p className="text-gray-500 mb-4">Merchant not found</p>
         <Button onClick={() => navigate(-1)}>Go Back</Button>
-      </div>;
+      </div>
+    );
   }
-  return <div className="pb-20">
+
+  return (
+    <div className="pb-20">
       <div className="relative h-64 bg-gray-200">
-        <img src={imageError ? 'https://images.unsplash.com/photo-1582562124811-c09040d0a901' : getMerchantImage(merchant)} alt={merchant.shop_name} className="w-full h-full object-cover" onError={handleImageError} />
-        <Button variant="outline" size="icon" className="absolute top-4 left-4 bg-white/80 hover:bg-white" onClick={() => navigate(-1)}>
+        <img 
+          src={imageError ? 'https://images.unsplash.com/photo-1582562124811-c09040d0a901' : getMerchantImage(merchant)} 
+          alt={merchant.shop_name} 
+          className="w-full h-full object-cover"
+          onError={handleImageError}
+        />
+        <Button 
+          variant="outline" 
+          size="icon" 
+          className="absolute top-4 left-4 bg-white/80 hover:bg-white"
+          onClick={() => navigate(-1)}
+        >
           <ChevronLeft className="h-5 w-5" />
         </Button>
       </div>
       
       <div className="p-4 -mt-6 rounded-t-xl bg-white relative">
         <div className="flex justify-between items-start mb-3">
-          <h1 className="text-2xl font-light">{merchant.shop_name}</h1>
+          <h1 className="text-2xl font-bold">{merchant.shop_name}</h1>
           <div className="flex items-center text-yellow-500">
             <Star className="fill-yellow-500 stroke-yellow-500 h-4 w-4 mr-1" />
             <span>{merchant.rating || 'New'}</span>
@@ -130,24 +154,34 @@ const MerchantDetailPage: React.FC = () => {
         </div>
 
         {/* Staff Section */}
-        {staff.length > 0 && <div className="mb-4">
+        {staff.length > 0 && (
+          <div className="mb-4">
             <h3 className="font-medium mb-2">Available Stylists</h3>
             <div className="flex flex-wrap gap-2">
-              {staff.map(stylist => <Badge key={stylist.id} variant="outline" className="flex items-center">
+              {staff.map((stylist) => (
+                <Badge key={stylist.id} variant="outline" className="flex items-center">
                   <User className="h-3 w-3 mr-1" />
                   {stylist.name}
-                </Badge>)}
+                </Badge>
+              ))}
             </div>
-          </div>}
+          </div>
+        )}
         
         <Separator className="mb-6" />
 
         {/* Book Services Button */}
-        {services.length > 0 && <div className="mb-6">
-            <Button size="lg" onClick={handleBookServices} className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-base font-semibold">
+        {services.length > 0 && (
+          <div className="mb-6">
+            <Button 
+              className="w-full bg-booqit-primary hover:bg-booqit-primary/90"
+              size="lg"
+              onClick={handleBookServices}
+            >
               Book Services
             </Button>
-          </div>}
+          </div>
+        )}
         
         {/* Services and Reviews Tabs */}
         <Tabs defaultValue="services" className="w-full">
@@ -157,25 +191,31 @@ const MerchantDetailPage: React.FC = () => {
           </TabsList>
           
           <TabsContent value="services" className="mt-6">
-            {services.length > 0 ? <div className="space-y-4">
-                {services.map(service => <Card key={service.id} className="overflow-hidden">
+            {services.length > 0 ? (
+              <div className="space-y-4">
+                {services.map(service => (
+                  <Card key={service.id} className="overflow-hidden">
                     <CardContent className="p-4">
                       <div className="flex justify-between items-start mb-2">
-                        <h3 className="font-medium text-lg">{service.name}</h3>
-                        <span className="font-medium text-lg">₹{service.price}</span>
+                        <h3 className="font-medium">{service.name}</h3>
+                        <span className="font-medium">₹{service.price}</span>
                       </div>
                       
-                      <p className="text-gray-500 mb-3 text-sm font-normal">{service.description}</p>
+                      <p className="text-sm text-gray-500 mb-3">{service.description}</p>
                       
                       <div className="flex items-center text-gray-500 text-sm">
                         <Clock className="h-3 w-3 mr-1" />
                         <span>{service.duration} mins</span>
                       </div>
                     </CardContent>
-                  </Card>)}
-              </div> : <div className="text-center py-8 bg-gray-50 rounded-lg">
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 bg-gray-50 rounded-lg">
                 <p className="text-gray-500">No services available</p>
-              </div>}
+              </div>
+            )}
           </TabsContent>
           
           <TabsContent value="reviews" className="mt-6">
@@ -183,6 +223,8 @@ const MerchantDetailPage: React.FC = () => {
           </TabsContent>
         </Tabs>
       </div>
-    </div>;
+    </div>
+  );
 };
+
 export default MerchantDetailPage;
