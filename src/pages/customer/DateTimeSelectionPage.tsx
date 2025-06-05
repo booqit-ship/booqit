@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
@@ -5,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { addDays } from 'date-fns';
-import dayjs from 'dayjs';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { 
   formatDateInIST, 
@@ -104,41 +104,7 @@ const DateTimeSelectionPage: React.FC = () => {
     fetchHolidays();
   }, [merchantId, selectedStaff]);
 
-  // Frontend filter to remove past slots for today
-  const filterSlotsForToday = (slots: AvailableSlot[], selectedDate: Date): AvailableSlot[] => {
-    if (!isTodayIST(selectedDate)) {
-      return slots; // No filtering needed for future dates
-    }
-
-    const currentTimeWithBuffer = getCurrentTimeISTWithBuffer(40);
-    const selectedDateStr = formatDateInIST(selectedDate, 'YYYY-MM-DD');
-    
-    console.log('=== FRONTEND SLOT FILTERING ===');
-    console.log('Current time with buffer:', currentTimeWithBuffer);
-    console.log('Selected date:', selectedDateStr);
-    
-    const filteredSlots = slots.filter(slot => {
-      // Ensure slot.time_slot is in HH:mm format
-      const timeSlot = slot.time_slot.length === 5 ? slot.time_slot : slot.time_slot.substring(0, 5);
-      
-      // Create dayjs objects for comparison
-      const slotDateTime = dayjs(`${selectedDateStr} ${timeSlot}`, 'YYYY-MM-DD HH:mm');
-      const bufferDateTime = dayjs(`${selectedDateStr} ${currentTimeWithBuffer}`, 'YYYY-MM-DD HH:mm');
-      
-      const isAfterBuffer = slotDateTime.isAfter(bufferDateTime) || slotDateTime.isSame(bufferDateTime);
-      
-      console.log(`Slot ${timeSlot}: ${slotDateTime.format()} >= ${bufferDateTime.format()} = ${isAfterBuffer}`);
-      
-      return isAfterBuffer;
-    });
-    
-    console.log(`Filtered ${slots.length} slots to ${filteredSlots.length} slots for today`);
-    console.log('=== END FRONTEND SLOT FILTERING ===');
-    
-    return filteredSlots;
-  };
-
-  // Fetch available slots with IST timing and buffering
+  // Fetch available slots - now relying on SQL function for filtering
   const fetchAvailableSlots = async () => {
     if (!selectedDate || !merchantId) return;
 
@@ -158,7 +124,7 @@ const DateTimeSelectionPage: React.FC = () => {
       console.log('Current IST time:', currentTimeIST);
       console.log('Expected slot start time:', expectedStartTime);
       
-      // Use the function that properly handles IST timing and 40-minute buffer
+      // The SQL function now handles IST timing and 40-minute buffer internally
       const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_simple', {
         p_merchant_id: merchantId,
         p_date: selectedDateStr,
@@ -175,7 +141,7 @@ const DateTimeSelectionPage: React.FC = () => {
 
       const slots = Array.isArray(slotsData) ? slotsData : [];
       
-      console.log('Raw slots from database:', slots);
+      console.log('Raw slots from database (already filtered by SQL):', slots);
       
       if (slots.length === 0) {
         setError(isToday ? 
@@ -193,17 +159,11 @@ const DateTimeSelectionPage: React.FC = () => {
         conflict_reason: slot.conflict_reason
       }));
       
-      console.log('Processed slots before frontend filtering:', processedSlots);
-      
-      // Apply frontend filter for today's slots
-      const finalSlots = filterSlotsForToday(processedSlots, selectedDate);
-      
-      console.log('Final slots after frontend filtering:', finalSlots);
-      console.log('Available slots count:', finalSlots.filter(s => s.is_available).length);
-      
+      console.log('Final processed slots:', processedSlots);
+      console.log('Available slots count:', processedSlots.filter(s => s.is_available).length);
       console.log('=== END SLOT FETCHING DEBUG ===');
       
-      setAvailableSlots(finalSlots);
+      setAvailableSlots(processedSlots);
 
     } catch (error) {
       console.error('Error in fetchAvailableSlots:', error);
