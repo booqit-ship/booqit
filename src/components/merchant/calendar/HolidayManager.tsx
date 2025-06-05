@@ -109,7 +109,7 @@ const HolidayManager: React.FC<HolidayManagerProps> = ({
             </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle>Add Shop Holiday</DialogTitle>
+                <DialogTitle className="text-xl font-light">Add Shop Holiday</DialogTitle>
                 <DialogDescription>
                   Mark a date when your shop will be closed for business.
                 </DialogDescription>
