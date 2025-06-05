@@ -14,7 +14,6 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { useCancelBooking } from '@/hooks/useCancelBooking';
 import CancelBookingButton from '@/components/customer/CancelBookingButton';
-
 const CalendarPage: React.FC = () => {
   const [date, setDate] = useState<Date>(new Date());
   const [weekStart, setWeekStart] = useState<Date>(startOfWeek(new Date(), {
@@ -156,7 +155,6 @@ const CalendarPage: React.FC = () => {
   // Handle booking cancellation with improved error handling
   const handleCancelBooking = async (bookingId: string) => {
     console.log('Customer cancelling booking via direct function:', bookingId);
-    
     try {
       const success = await cancelBooking(bookingId, userId);
       if (success) {
@@ -218,15 +216,11 @@ const CalendarPage: React.FC = () => {
           <div className="flex justify-between items-center">
             <CardTitle className="text-booqit-dark text-base font-semibold">Calendar</CardTitle>
             <div className="flex items-center space-x-2">
-              <Button variant="outline" size="sm" onClick={() => navigateWeek('prev')} className="h-8 px-3">
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="sm" className="h-8 text-xs font-medium px-3" onClick={goToToday}>
+              
+              <Button variant="outline" size="sm" onClick={goToToday} className="h-8 font-medium text-sm px-[28px]">
                 Today
               </Button>
-              <Button variant="outline" size="sm" onClick={() => navigateWeek('next')} className="h-8 px-3">
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+              
             </div>
           </div>
         </CardHeader>
@@ -311,11 +305,7 @@ const CalendarPage: React.FC = () => {
                     </div>
                     
                     {booking.status !== 'cancelled' && booking.status !== 'completed' && <div className="flex justify-end">
-                        <CancelBookingButton 
-                          bookingId={booking.id} 
-                          onCancelled={() => fetchBookings()} 
-                          className="h-8 text-sm px-4" 
-                        />
+                        <CancelBookingButton bookingId={booking.id} onCancelled={() => fetchBookings()} className="h-8 text-sm px-4" />
                       </div>}
                   </CardContent>
                 </Card>)}
