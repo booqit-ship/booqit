@@ -350,7 +350,7 @@ const ServicesPage: React.FC = () => {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Are you sure?</DialogTitle>
+            <DialogTitle className="font-light">Are you sure?</DialogTitle>
             <DialogDescription>
               This action cannot be undone. This will permanently delete the service.
             </DialogDescription>
