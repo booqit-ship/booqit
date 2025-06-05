@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
@@ -6,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { addDays } from 'date-fns';
+import dayjs from 'dayjs';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { 
   formatDateInIST, 
@@ -104,6 +104,40 @@ const DateTimeSelectionPage: React.FC = () => {
     fetchHolidays();
   }, [merchantId, selectedStaff]);
 
+  // Frontend filter to remove past slots for today
+  const filterSlotsForToday = (slots: AvailableSlot[], selectedDate: Date): AvailableSlot[] => {
+    if (!isTodayIST(selectedDate)) {
+      return slots; // No filtering needed for future dates
+    }
+
+    const currentTimeWithBuffer = getCurrentTimeISTWithBuffer(40);
+    const selectedDateStr = formatDateInIST(selectedDate, 'YYYY-MM-DD');
+    
+    console.log('=== FRONTEND SLOT FILTERING ===');
+    console.log('Current time with buffer:', currentTimeWithBuffer);
+    console.log('Selected date:', selectedDateStr);
+    
+    const filteredSlots = slots.filter(slot => {
+      // Ensure slot.time_slot is in HH:mm format
+      const timeSlot = slot.time_slot.length === 5 ? slot.time_slot : slot.time_slot.substring(0, 5);
+      
+      // Create dayjs objects for comparison
+      const slotDateTime = dayjs(`${selectedDateStr} ${timeSlot}`, 'YYYY-MM-DD HH:mm');
+      const bufferDateTime = dayjs(`${selectedDateStr} ${currentTimeWithBuffer}`, 'YYYY-MM-DD HH:mm');
+      
+      const isAfterBuffer = slotDateTime.isAfter(bufferDateTime) || slotDateTime.isSame(bufferDateTime);
+      
+      console.log(`Slot ${timeSlot}: ${slotDateTime.format()} >= ${bufferDateTime.format()} = ${isAfterBuffer}`);
+      
+      return isAfterBuffer;
+    });
+    
+    console.log(`Filtered ${slots.length} slots to ${filteredSlots.length} slots for today`);
+    console.log('=== END FRONTEND SLOT FILTERING ===');
+    
+    return filteredSlots;
+  };
+
   // Fetch available slots with IST timing and buffering
   const fetchAvailableSlots = async () => {
     if (!selectedDate || !merchantId) return;
@@ -159,21 +193,17 @@ const DateTimeSelectionPage: React.FC = () => {
         conflict_reason: slot.conflict_reason
       }));
       
-      console.log('Processed slots for display:', processedSlots);
-      console.log('Available slots count:', processedSlots.filter(s => s.is_available).length);
+      console.log('Processed slots before frontend filtering:', processedSlots);
       
-      // Additional validation for today's slots
-      if (isToday) {
-        const validSlots = processedSlots.filter(slot => 
-          slot.time_slot >= expectedStartTime
-        );
-        console.log('Slots after time validation for today:', validSlots.length);
-        console.log('First available slot time:', processedSlots.find(s => s.is_available)?.time_slot);
-      }
+      // Apply frontend filter for today's slots
+      const finalSlots = filterSlotsForToday(processedSlots, selectedDate);
+      
+      console.log('Final slots after frontend filtering:', finalSlots);
+      console.log('Available slots count:', finalSlots.filter(s => s.is_available).length);
       
       console.log('=== END SLOT FETCHING DEBUG ===');
       
-      setAvailableSlots(processedSlots);
+      setAvailableSlots(finalSlots);
 
     } catch (error) {
       console.error('Error in fetchAvailableSlots:', error);
