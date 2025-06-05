@@ -104,7 +104,7 @@ const DateTimeSelectionPage: React.FC = () => {
     fetchHolidays();
   }, [merchantId, selectedStaff]);
 
-  // Fetch available slots - ONLY use backend-provided slots, no frontend generation
+  // Fetch available slots - backend now handles ALL filtering including today's buffer
   const fetchAvailableSlots = async () => {
     if (!selectedDate || !merchantId) return;
 
@@ -115,18 +115,15 @@ const DateTimeSelectionPage: React.FC = () => {
       const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
       const isToday = isTodayIST(selectedDate);
       
-      console.log('=== SLOT FETCHING DEBUG ===');
-      console.log('Fetching slots for date:', selectedDateStr);
-      console.log('Is today?', isToday);
+      console.log('=== FETCHING SLOTS ===');
+      console.log('Date:', selectedDateStr, '| Is today:', isToday);
       console.log('Service duration:', actualServiceDuration);
-      console.log('Selected staff:', selectedStaff || 'All staff');
-      
       if (isToday) {
-        console.log('Today - expected buffer start time:', getCurrentTimeISTWithBuffer(40));
-        console.log('Current IST time:', getCurrentTimeIST());
+        console.log('Current IST:', getCurrentTimeIST());
+        console.log('Expected start after buffer:', getCurrentTimeISTWithBuffer(40));
       }
       
-      // Call backend function - it handles ALL filtering including today's buffer
+      // Backend handles ALL filtering including today's IST buffer
       const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_simple', {
         p_merchant_id: merchantId,
         p_date: selectedDateStr,
@@ -135,19 +132,15 @@ const DateTimeSelectionPage: React.FC = () => {
       });
 
       if (slotsError) {
-        console.error('Error fetching slots from backend:', slotsError);
+        console.error('Backend error:', slotsError);
         setError('Unable to load time slots. Please try again.');
         setAvailableSlots([]);
         return;
       }
 
-      // Backend returns already filtered slots - use them directly
       const slots = Array.isArray(slotsData) ? slotsData : [];
-      
-      console.log('Raw slots from backend (already filtered):', slots.length);
+      console.log('Backend returned', slots.length, 'total slots');
       console.log('Available slots:', slots.filter(s => s.is_available).length);
-      console.log('Unavailable slots:', slots.filter(s => !s.is_available).length);
-      console.log('First few slots:', slots.slice(0, 5));
       
       if (slots.length === 0) {
         const errorMsg = isToday 
@@ -158,7 +151,7 @@ const DateTimeSelectionPage: React.FC = () => {
         return;
       }
 
-      // Process slots - format time only, don't filter (backend already did ALL filtering)
+      // Process slots - backend already did ALL filtering, just format time display
       const processedSlots = slots.map((slot: any) => ({
         staff_id: slot.staff_id,
         staff_name: slot.staff_name,
@@ -170,13 +163,12 @@ const DateTimeSelectionPage: React.FC = () => {
       }));
       
       console.log('Final processed slots:', processedSlots.length);
-      console.log('First 3 processed slots:', processedSlots.slice(0, 3));
-      console.log('=== END SLOT FETCHING DEBUG ===');
+      console.log('=== END SLOT FETCH ===');
       
       setAvailableSlots(processedSlots);
 
     } catch (error) {
-      console.error('Error in fetchAvailableSlots:', error);
+      console.error('Error fetching slots:', error);
       setError('Unable to load time slots. Please try again.');
       setAvailableSlots([]);
     } finally {
@@ -358,13 +350,6 @@ const DateTimeSelectionPage: React.FC = () => {
           <p className="text-gray-500 text-sm font-poppins">
             Select your preferred date and time slot. Service duration: {actualServiceDuration} minutes
           </p>
-          {isTodayIST(selectedDate || new Date()) && (
-            <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
-              <p className="text-blue-600 text-xs font-poppins">
-                Today's slots start from current time + 40 minutes (Current IST: {getCurrentTimeIST()}, Expected start: {getCurrentTimeISTWithBuffer(40)})
-              </p>
-            </div>
-          )}
         </div>
 
         <div className="mb-6">
