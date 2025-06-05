@@ -3,8 +3,7 @@ import { StrictMode } from 'react';
 import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/sonner';
-import { TooltipProvider } from '@/components/ui/tooltip';
-import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { AuthProvider } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import AuthPage from '@/pages/AuthPage';
 import Index from '@/pages/Index';
@@ -142,25 +141,17 @@ const AppLoading = () => {
 
 // App content wrapper to handle auth loading with timeout
 const AppContent = () => {
-  const { loading } = useAuth();
-
-  // Show loading screen only briefly
-  if (loading) {
-    return <AppLoading />;
-  }
-
+  // Remove the TooltipProvider from here and move it to individual components that need it
   return <RouterProvider router={router} />;
 };
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <AuthProvider>
-          <AppContent />
-          <Toaster />
-        </AuthProvider>
-      </TooltipProvider>
+      <AuthProvider>
+        <AppContent />
+        <Toaster />
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
