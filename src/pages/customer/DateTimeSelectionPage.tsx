@@ -113,12 +113,15 @@ const DateTimeSelectionPage: React.FC = () => {
     try {
       const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
       const isToday = isTodayIST(selectedDate);
+      const currentTimeIST = getCurrentTimeIST();
+      const expectedStartTime = isToday ? getCurrentTimeISTWithBuffer(40) : '09:00';
       
       console.log('=== SLOT FETCHING DEBUG ===');
       console.log('Fetching slots for date:', selectedDateStr);
       console.log('Is today?', isToday);
       console.log('Current IST date:', formatDateInIST(getCurrentDateIST(), 'yyyy-MM-dd'));
-      console.log('Current IST time:', getCurrentTimeIST());
+      console.log('Current IST time:', currentTimeIST);
+      console.log('Expected slot start time:', expectedStartTime);
       
       // Use the function that properly handles IST timing and 40-minute buffer
       const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_simple', {
@@ -140,7 +143,9 @@ const DateTimeSelectionPage: React.FC = () => {
       console.log('Raw slots from database:', slots);
       
       if (slots.length === 0) {
-        setError(isToday ? 'No slots available today. All slots are either in the past or booked.' : 'No slots available for this date.');
+        setError(isToday ? 
+          `No slots available today. All slots are either in the past (before ${expectedStartTime}) or booked.` : 
+          'No slots available for this date.');
         setAvailableSlots([]);
         return;
       }
@@ -155,6 +160,16 @@ const DateTimeSelectionPage: React.FC = () => {
       
       console.log('Processed slots for display:', processedSlots);
       console.log('Available slots count:', processedSlots.filter(s => s.is_available).length);
+      
+      // Additional validation for today's slots
+      if (isToday) {
+        const validSlots = processedSlots.filter(slot => 
+          slot.time_slot >= expectedStartTime
+        );
+        console.log('Slots after time validation for today:', validSlots.length);
+        console.log('First available slot time:', processedSlots.find(s => s.is_available)?.time_slot);
+      }
+      
       console.log('=== END SLOT FETCHING DEBUG ===');
       
       setAvailableSlots(processedSlots);
@@ -345,7 +360,7 @@ const DateTimeSelectionPage: React.FC = () => {
           {isTodayIST(selectedDate || new Date()) && (
             <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
               <p className="text-blue-600 text-xs font-poppins">
-                Today's slots start from current time + 40 minutes (Current IST: {getCurrentTimeIST()})
+                Today's slots start from current time + 40 minutes (Current IST: {getCurrentTimeIST()}, Expected start: {getCurrentTimeISTWithBuffer(40)})
               </p>
             </div>
           )}

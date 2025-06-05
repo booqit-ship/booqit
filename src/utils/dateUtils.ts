@@ -56,7 +56,7 @@ export const getCurrentTimeISTWithBuffer = (bufferMinutes: number = 40): string 
   
   // Round up to next 10-minute interval
   const minutes = timeWithBuffer.getMinutes();
-  const roundedMinutes = Math.ceil(minutes / 10) * 10;
+  const roundedMinutes = minutes % 10 === 0 ? minutes : Math.ceil(minutes / 10) * 10;
   
   console.log('Original minutes:', minutes, 'Rounded minutes:', roundedMinutes);
   
@@ -124,4 +124,9 @@ export const isTimeSlotAvailableToday = (timeSlot: string, bufferMinutes: number
   const result = timeSlot >= currentTimeWithBuffer;
   console.log('Checking time slot availability:', timeSlot, '>=', currentTimeWithBuffer, '=', result);
   return result;
+};
+
+// Get expected start time for today's slots (for display purposes)
+export const getExpectedTodayStartTime = (): string => {
+  return getCurrentTimeISTWithBuffer(40);
 };
