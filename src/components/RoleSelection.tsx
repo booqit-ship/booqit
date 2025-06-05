@@ -30,7 +30,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
         className="w-full max-w-sm flex flex-col items-center"
       >
         {/* App Title */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-6">
           <h1 className="text-3xl font-bold mb-2 text-black">
             booqit
           </h1>
@@ -40,7 +40,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
         {/* Girl Illustration */}
         <div className="mb-4">
           <img 
-            src="/lovable-uploads/aa16b2b4-d26b-471d-9644-fb132cd3afc7.png"
+            src="/lovable-uploads/6057967e-be37-4ef4-9cdc-05c999880b63.png"
             alt="Girl using phone"
             className="w-48 h-auto object-contain"
           />
