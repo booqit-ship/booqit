@@ -44,7 +44,7 @@ export const getCurrentTimeIST = (): string => {
 };
 
 // Get current time with buffer and rounded to next 10-minute mark (for display purposes ONLY)
-// The actual slot filtering is done by the backend SQL function
+// The actual slot filtering is now done by the backend SQL function
 export const getCurrentTimeISTWithBuffer = (bufferMinutes: number = 40): string => {
   const now = new Date();
   const istNow = convertUTCToIST(now);
@@ -87,9 +87,6 @@ export const isTodayIST = (date: Date | string): boolean => {
   const todayIST = getCurrentDateIST();
   return format(istDate, 'yyyy-MM-dd') === format(todayIST, 'yyyy-MM-dd');
 };
-
-// REMOVED: generateTimeSlots, getTodaySlots, isTimeSlotAvailableToday
-// These are now handled entirely by the backend SQL function
 
 // Get expected start time for today's slots (for display purposes only)
 export const getExpectedTodayStartTime = (): string => {

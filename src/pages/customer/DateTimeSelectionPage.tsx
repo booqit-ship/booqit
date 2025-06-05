@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
@@ -104,7 +103,7 @@ const DateTimeSelectionPage: React.FC = () => {
     fetchHolidays();
   }, [merchantId, selectedStaff]);
 
-  // Fetch available slots - backend now handles ALL filtering including today's buffer
+  // Fetch available slots using the new improved function
   const fetchAvailableSlots = async () => {
     if (!selectedDate || !merchantId) return;
 
@@ -115,7 +114,7 @@ const DateTimeSelectionPage: React.FC = () => {
       const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
       const isToday = isTodayIST(selectedDate);
       
-      console.log('=== FETCHING SLOTS ===');
+      console.log('=== FETCHING SLOTS WITH NEW FUNCTION ===');
       console.log('Date:', selectedDateStr, '| Is today:', isToday);
       console.log('Service duration:', actualServiceDuration);
       if (isToday) {
@@ -123,8 +122,8 @@ const DateTimeSelectionPage: React.FC = () => {
         console.log('Expected start after buffer:', getCurrentTimeISTWithBuffer(40));
       }
       
-      // Backend handles ALL filtering including today's IST buffer
-      const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_simple', {
+      // Use the new improved function with proper IST buffer handling
+      const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_ist_buffer', {
         p_merchant_id: merchantId,
         p_date: selectedDateStr,
         p_staff_id: selectedStaff || null,
@@ -132,14 +131,14 @@ const DateTimeSelectionPage: React.FC = () => {
       });
 
       if (slotsError) {
-        console.error('Backend error:', slotsError);
+        console.error('Error from new slot function:', slotsError);
         setError('Unable to load time slots. Please try again.');
         setAvailableSlots([]);
         return;
       }
 
       const slots = Array.isArray(slotsData) ? slotsData : [];
-      console.log('Backend returned', slots.length, 'total slots');
+      console.log('New function returned', slots.length, 'total slots');
       console.log('Available slots:', slots.filter(s => s.is_available).length);
       
       if (slots.length === 0) {
@@ -151,7 +150,7 @@ const DateTimeSelectionPage: React.FC = () => {
         return;
       }
 
-      // Process slots - backend already did ALL filtering, just format time display
+      // Process slots with improved time formatting
       const processedSlots = slots.map((slot: any) => ({
         staff_id: slot.staff_id,
         staff_name: slot.staff_name,
@@ -218,8 +217,8 @@ const DateTimeSelectionPage: React.FC = () => {
         return;
       }
 
-      // Just check if slot is available, don't book it
-      const { data: checkResult, error: checkError } = await supabase.rpc('reserve_slot_temporarily' as any, {
+      // Check slot availability using the reserve function
+      const { data: checkResult, error: checkError } = await supabase.rpc('reserve_slot_immediately' as any, {
         p_user_id: userId,
         p_merchant_id: merchantId,
         p_service_id: serviceId,
