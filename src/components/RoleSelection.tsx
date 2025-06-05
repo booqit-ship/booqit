@@ -1,15 +1,12 @@
-
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Store, User } from 'lucide-react';
 import { UserRole } from '@/types';
-
 interface RoleSelectionProps {
   onRoleSelect: (role: UserRole) => void;
 }
-
 const RoleSelection: React.FC<RoleSelectionProps> = ({
   onRoleSelect
 }) => {
@@ -34,14 +31,16 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
 
         {/* New uploaded image - positioned right above role selection */}
         <div className="flex justify-center mb-0">
-          <motion.img 
-            src="/lovable-uploads/10f1f54c-92d8-4cd0-ad62-b2d8651efd82.png"
-            alt="BooqIt Service Illustration"
-            className="w-64 h-auto"
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-          />
+          <motion.img src="/lovable-uploads/10f1f54c-92d8-4cd0-ad62-b2d8651efd82.png" alt="BooqIt Service Illustration" initial={{
+          scale: 0.8,
+          opacity: 0
+        }} animate={{
+          scale: 1,
+          opacity: 1
+        }} transition={{
+          duration: 0.6,
+          delay: 0.2
+        }} className="w-auto h-auto object-cover" />
         </div>
 
         {/* Role Selection Cards - no gap from image above */}
@@ -84,5 +83,4 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
       </motion.div>
     </div>;
 };
-
 export default RoleSelection;
