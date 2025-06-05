@@ -214,7 +214,7 @@ const CalendarPage: React.FC = () => {
       <Card className="mb-6 overflow-hidden shadow-sm">
         <CardHeader className="bg-gradient-to-r from-booqit-primary/5 to-booqit-primary/10 py-3">
           <div className="flex justify-between items-center">
-            <CardTitle className="text-booqit-dark text-base font-semibold">Calendar</CardTitle>
+            <CardTitle className="text-booqit-dark py-0 px-[10px] mx-0 my-0 font-medium text-xl">Calendar</CardTitle>
             <div className="flex items-center space-x-2">
               
               <Button variant="outline" size="sm" onClick={goToToday} className="h-8 font-medium text-sm px-[28px]">
