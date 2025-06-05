@@ -20,7 +20,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs';
-import { toast } from 'sonner';
+import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserRole } from '@/types';
 import RoleSelection from '@/components/RoleSelection';
@@ -35,6 +35,7 @@ const AuthPage: React.FC = () => {
   const [phone, setPhone] = useState('');
   const [agreeToPolicies, setAgreeToPolicies] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
   const navigate = useNavigate();
   const { setAuth } = useAuth();
 
@@ -70,9 +71,16 @@ const AuthPage: React.FC = () => {
         navigate('/');
       }
 
-      toast.success("You have been logged in successfully.");
+      toast({
+        title: "Success!",
+        description: "You have been logged in successfully.",
+      });
     } catch (error: any) {
-      toast.error(error.message || "Failed to login.");
+      toast({
+        title: "Error!",
+        description: error.message || "Failed to login.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -116,9 +124,16 @@ const AuthPage: React.FC = () => {
         navigate('/');
       }
 
-      toast.success("Your account has been created successfully.");
+      toast({
+        title: "Success!",
+        description: "Your account has been created successfully.",
+      });
     } catch (error: any) {
-      toast.error(error.message || "Failed to create account.");
+      toast({
+        title: "Error!",
+        description: error.message || "Failed to create account.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
