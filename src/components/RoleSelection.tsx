@@ -14,7 +14,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
   onRoleSelect
 }) => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-100 via-purple-50 to-white flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-purple-100 via-purple-50 to-white flex flex-col items-center justify-center p-4 pb-4">
       <motion.div
         initial={{
           scale: 0.9,
@@ -27,14 +27,14 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
         transition={{
           duration: 0.5
         }}
-        className="w-full max-w-md space-y-6"
+        className="w-full max-w-md space-y-6 flex flex-col items-center"
       >
         {/* App Title */}
         <div className="text-center mb-6">
-          <h1 className="text-4xl font-bold mb-2 text-black">
+          <h1 className="text-2xl font-bold mb-2 text-black">
             booqit
           </h1>
-          <p className="text-gray-600 font-medium">Choose how you want to continue</p>
+          <p className="text-gray-600 font-medium text-sm">Choose how you want to continue</p>
         </div>
 
         {/* Hero Illustration */}
@@ -43,14 +43,14 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
             <img 
               src="/lovable-uploads/aa16b2b4-d26b-471d-9644-fb132cd3afc7.png"
               alt="Girl using phone"
-              className="w-64 h-auto object-contain drop-shadow-lg"
+              className="w-48 max-w-[60%] h-auto object-contain drop-shadow-lg"
             />
           </div>
         </div>
 
-        {/* Role Selection Cards */}
-        <div className="space-y-4">
-          <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 border-0 bg-white/80 backdrop-blur-sm hover:bg-white hover:scale-[1.02]">
+        {/* Role Selection Cards - Positioned closer to image */}
+        <div className="space-y-4 w-full px-4 mt-[-20px]">
+          <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 border-0 bg-white/80 backdrop-blur-sm hover:bg-white hover:scale-[1.02] w-full">
             <CardContent className="p-6" onClick={() => onRoleSelect('customer')}>
               <div className="flex items-center space-x-4">
                 <div className="p-3 bg-purple-100 rounded-full">
@@ -66,7 +66,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
             </CardContent>
           </Card>
 
-          <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 border-0 bg-white/80 backdrop-blur-sm hover:bg-white hover:scale-[1.02]">
+          <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 border-0 bg-white/80 backdrop-blur-sm hover:bg-white hover:scale-[1.02] w-full">
             <CardContent className="p-6" onClick={() => onRoleSelect('merchant')}>
               <div className="flex items-center space-x-4">
                 <div className="p-3 bg-red-100 rounded-full">
