@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
@@ -12,8 +11,7 @@ import {
   getCurrentDateIST, 
   getCurrentTimeIST,
   getCurrentTimeISTWithBuffer,
-  isTodayIST,
-  getBufferCalculationDebug
+  isTodayIST
 } from '@/utils/dateUtils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRealtimeSlots } from '@/hooks/useRealtimeSlots';
@@ -105,7 +103,7 @@ const DateTimeSelectionPage: React.FC = () => {
     fetchHolidays();
   }, [merchantId, selectedStaff]);
 
-  // Fetch available slots - SQL function now handles all filtering
+  // Fetch available slots - ONLY use backend-provided slots, no frontend generation
   const fetchAvailableSlots = async () => {
     if (!selectedDate || !merchantId) return;
 
@@ -116,22 +114,18 @@ const DateTimeSelectionPage: React.FC = () => {
       const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
       const isToday = isTodayIST(selectedDate);
       
-      console.log('=== COMPREHENSIVE SLOT FETCHING DEBUG ===');
+      console.log('=== SLOT FETCHING DEBUG ===');
       console.log('Fetching slots for date:', selectedDateStr);
       console.log('Is today?', isToday);
-      console.log('Current IST date:', formatDateInIST(getCurrentDateIST(), 'yyyy-MM-dd'));
-      console.log('Current IST time:', getCurrentTimeIST());
-      
-      if (isToday) {
-        const bufferDebug = getBufferCalculationDebug();
-        console.log('Buffer calculation details:', bufferDebug);
-        console.log('Expected slot start time:', getCurrentTimeISTWithBuffer(40));
-      }
-      
-      console.log('Service duration for filtering:', actualServiceDuration);
+      console.log('Service duration:', actualServiceDuration);
       console.log('Selected staff:', selectedStaff || 'All staff');
       
-      // The SQL function now handles IST timing and 40-minute buffer internally
+      if (isToday) {
+        console.log('Today - expected buffer start time:', getCurrentTimeISTWithBuffer(40));
+        console.log('Current IST time:', getCurrentTimeIST());
+      }
+      
+      // Call backend function - it handles ALL filtering including today's buffer
       const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_simple', {
         p_merchant_id: merchantId,
         p_date: selectedDateStr,
@@ -140,52 +134,42 @@ const DateTimeSelectionPage: React.FC = () => {
       });
 
       if (slotsError) {
-        console.error('Error fetching slots:', slotsError);
+        console.error('Error fetching slots from backend:', slotsError);
         setError('Unable to load time slots. Please try again.');
         setAvailableSlots([]);
         return;
       }
 
+      // Backend returns already filtered slots - use them directly
       const slots = Array.isArray(slotsData) ? slotsData : [];
       
-      console.log('Raw slots from database (already filtered by SQL):', slots);
-      console.log('Total slots returned:', slots.length);
+      console.log('Raw slots from backend (already filtered):', slots.length);
       console.log('Available slots:', slots.filter(s => s.is_available).length);
       console.log('Unavailable slots:', slots.filter(s => !s.is_available).length);
       
       if (slots.length === 0) {
-        setError(isToday ? 
-          `No slots available today. All slots may be before ${getCurrentTimeISTWithBuffer(40)} or already booked.` : 
-          'No slots available for this date.');
+        const errorMsg = isToday 
+          ? `No slots available today after ${getCurrentTimeISTWithBuffer(40)}` 
+          : 'No slots available for this date';
+        setError(errorMsg);
         setAvailableSlots([]);
         return;
       }
 
+      // Process slots - format time only, don't filter (backend already did)
       const processedSlots = slots.map((slot: any) => ({
         staff_id: slot.staff_id,
         staff_name: slot.staff_name,
-        time_slot: typeof slot.time_slot === 'string' ? slot.time_slot.substring(0, 5) : formatDateInIST(new Date(`2000-01-01T${slot.time_slot}`), 'HH:mm'),
+        time_slot: typeof slot.time_slot === 'string' 
+          ? slot.time_slot.substring(0, 5) 
+          : formatDateInIST(new Date(`2000-01-01T${slot.time_slot}`), 'HH:mm'),
         is_available: slot.is_available,
         conflict_reason: slot.conflict_reason
       }));
       
-      console.log('Final processed slots:', processedSlots);
-      console.log('Available slots count:', processedSlots.filter(s => s.is_available).length);
-      
-      // Log first few slots for detailed inspection
-      if (processedSlots.length > 0) {
-        console.log('First 5 slots details:');
-        processedSlots.slice(0, 5).forEach((slot, index) => {
-          console.log(`Slot ${index + 1}:`, {
-            staff: slot.staff_name,
-            time: slot.time_slot,
-            available: slot.is_available,
-            reason: slot.conflict_reason
-          });
-        });
-      }
-      
-      console.log('=== END COMPREHENSIVE SLOT FETCHING DEBUG ===');
+      console.log('Final processed slots:', processedSlots.length);
+      console.log('First 3 slots:', processedSlots.slice(0, 3));
+      console.log('=== END SLOT FETCHING DEBUG ===');
       
       setAvailableSlots(processedSlots);
 
