@@ -14,7 +14,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
   onRoleSelect
 }) => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-100 via-purple-50 to-white flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-purple-100 via-purple-50 to-white flex flex-col justify-center items-center p-4 py-8">
       <motion.div
         initial={{
           scale: 0.9,
@@ -27,55 +27,60 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
         transition={{
           duration: 0.5
         }}
-        className="w-full max-w-md space-y-6"
+        className="w-full max-w-sm flex flex-col items-center"
       >
         {/* App Title */}
-        <div className="text-center mb-6">
-          <h1 className="text-4xl font-bold mb-2 text-black">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold mb-2 text-black">
             booqit
           </h1>
-          <p className="text-gray-600 font-medium">Choose how you want to continue</p>
+          <p className="text-gray-600 text-sm font-medium">Choose how you want to continue</p>
         </div>
 
-        {/* Hero Illustration with overlapping Customer card */}
-        <div className="relative flex flex-col items-center">
-          <div className="relative z-10 mb-[-30px]">
-            <img 
-              src="/lovable-uploads/aa16b2b4-d26b-471d-9644-fb132cd3afc7.png"
-              alt="Girl using phone"
-              className="w-64 h-auto object-contain drop-shadow-lg"
-            />
-          </div>
+        {/* Girl Illustration */}
+        <div className="mb-4">
+          <img 
+            src="/lovable-uploads/aa16b2b4-d26b-471d-9644-fb132cd3afc7.png"
+            alt="Girl using phone"
+            className="w-48 h-auto object-contain"
+          />
+        </div>
 
-          {/* Customer Card - positioned behind/below the image */}
-          <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 border-0 bg-white/80 backdrop-blur-sm hover:bg-white hover:scale-[1.02] relative z-0 pt-12 w-full">
-            <CardContent className="p-6" onClick={() => onRoleSelect('customer')}>
-              <div className="flex items-center space-x-4">
-                <div className="p-3 bg-purple-100 rounded-full">
-                  <User className="h-6 w-6 text-purple-600" />
+        {/* Role Selection Cards */}
+        <div className="w-full space-y-3">
+          {/* Customer Card */}
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-all duration-300 border border-gray-200 bg-white"
+            onClick={() => onRoleSelect('customer')}
+          >
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-purple-100 rounded-full flex-shrink-0">
+                  <User className="h-5 w-5 text-purple-600" />
                 </div>
                 <div className="flex-1">
                   <h3 className="text-lg font-bold text-black mb-1">I'm a Customer</h3>
-                  <p className="text-gray-600 text-sm font-medium">
+                  <p className="text-gray-600 text-xs">
                     Book appointments at Salons & Beauty Salon
                   </p>
                 </div>
               </div>
             </CardContent>
           </Card>
-        </div>
 
-        {/* Business Owner Card */}
-        <div className="mt-4">
-          <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 border-0 bg-white/80 backdrop-blur-sm hover:bg-white hover:scale-[1.02]">
-            <CardContent className="p-6" onClick={() => onRoleSelect('merchant')}>
-              <div className="flex items-center space-x-4">
-                <div className="p-3 bg-red-100 rounded-full">
-                  <Store className="h-6 w-6 text-red-500" />
+          {/* Business Owner Card */}
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-all duration-300 border border-gray-200 bg-white"
+            onClick={() => onRoleSelect('merchant')}
+          >
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-red-100 rounded-full flex-shrink-0">
+                  <Store className="h-5 w-5 text-red-500" />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-bold text-lg text-black mb-1">I'm a Business Owner</h3>
-                  <p className="text-gray-600 text-sm font-medium">
+                  <p className="text-gray-600 text-xs">
                     Manage my Salon or Beauty Salon business
                   </p>
                 </div>
@@ -84,9 +89,9 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
           </Card>
         </div>
 
-        {/* Additional Info */}
-        <div className="text-center mt-8">
-          <p className="text-xs text-gray-500 font-medium">
+        {/* Footer */}
+        <div className="text-center mt-6">
+          <p className="text-xs text-gray-500">
             By continuing, you agree to our Terms of Service and Privacy Policy
           </p>
         </div>
