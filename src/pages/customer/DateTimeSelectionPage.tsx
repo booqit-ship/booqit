@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, Clock, CalendarIcon } from 'lucide-react';
+import { ChevronLeft, Clock, CalendarIcon, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -39,6 +40,8 @@ const DateTimeSelectionPage: React.FC = () => {
   const [holidays, setHolidays] = useState<string[]>([]);
   const [stylistHolidays, setStylistHolidays] = useState<string[]>([]);
   const [isCheckingSlot, setIsCheckingSlot] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
+  const [nextValidSlotTime, setNextValidSlotTime] = useState<string>('');
 
   // Calculate actual service duration
   const actualServiceDuration = selectedServices && selectedServices.length > 0 
@@ -103,8 +106,8 @@ const DateTimeSelectionPage: React.FC = () => {
     fetchHolidays();
   }, [merchantId, selectedStaff]);
 
-  // Fetch available slots using the new improved function
-  const fetchAvailableSlots = async () => {
+  // Fetch available slots with proper buffer handling
+  const fetchAvailableSlots = useCallback(async () => {
     if (!selectedDate || !merchantId) return;
 
     setLoading(true);
@@ -114,7 +117,7 @@ const DateTimeSelectionPage: React.FC = () => {
       const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
       const isToday = isTodayIST(selectedDate);
       
-      console.log('=== FETCHING SLOTS WITH NEW FUNCTION ===');
+      console.log('=== FETCHING SLOTS WITH BUFFER LOGIC ===');
       console.log('Date:', selectedDateStr, '| Is today:', isToday);
       console.log('Service duration:', actualServiceDuration);
       if (isToday) {
@@ -122,7 +125,7 @@ const DateTimeSelectionPage: React.FC = () => {
         console.log('Expected start after buffer:', getCurrentTimeISTWithBuffer(40));
       }
       
-      // Use the new improved function with proper IST buffer handling
+      // Use the backend function that enforces IST buffer logic
       const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_ist_buffer', {
         p_merchant_id: merchantId,
         p_date: selectedDateStr,
@@ -131,17 +134,31 @@ const DateTimeSelectionPage: React.FC = () => {
       });
 
       if (slotsError) {
-        console.error('Error from new slot function:', slotsError);
+        console.error('Error from slot function:', slotsError);
         setError('Unable to load time slots. Please try again.');
         setAvailableSlots([]);
         return;
       }
 
       const slots = Array.isArray(slotsData) ? slotsData : [];
-      console.log('New function returned', slots.length, 'total slots');
-      console.log('Available slots:', slots.filter(s => s.is_available).length);
+      console.log('Backend returned', slots.length, 'total slots');
       
-      if (slots.length === 0) {
+      // Additional frontend filtering for today to ensure no expired slots
+      let filteredSlots = slots;
+      if (isToday) {
+        const currentBufferTime = getCurrentTimeISTWithBuffer(40);
+        filteredSlots = slots.filter(slot => {
+          const slotTime = typeof slot.time_slot === 'string' 
+            ? slot.time_slot.substring(0, 5) 
+            : formatDateInIST(new Date(`2000-01-01T${slot.time_slot}`), 'HH:mm');
+          return slotTime >= currentBufferTime;
+        });
+        console.log('After frontend filtering:', filteredSlots.length, 'slots remain');
+      }
+      
+      console.log('Available slots:', filteredSlots.filter(s => s.is_available).length);
+      
+      if (filteredSlots.length === 0) {
         const errorMsg = isToday 
           ? `No slots available today after ${getCurrentTimeISTWithBuffer(40)}` 
           : 'No slots available for this date';
@@ -151,7 +168,7 @@ const DateTimeSelectionPage: React.FC = () => {
       }
 
       // Process slots with improved time formatting
-      const processedSlots = slots.map((slot: any) => ({
+      const processedSlots = filteredSlots.map((slot: any) => ({
         staff_id: slot.staff_id,
         staff_name: slot.staff_name,
         time_slot: typeof slot.time_slot === 'string' 
@@ -161,10 +178,23 @@ const DateTimeSelectionPage: React.FC = () => {
         conflict_reason: slot.conflict_reason
       }));
       
+      // Find next valid slot for today
+      if (isToday) {
+        const availableSlots = processedSlots.filter(s => s.is_available);
+        if (availableSlots.length > 0) {
+          setNextValidSlotTime(availableSlots[0].time_slot);
+        } else {
+          setNextValidSlotTime('');
+        }
+      } else {
+        setNextValidSlotTime('');
+      }
+      
       console.log('Final processed slots:', processedSlots.length);
       console.log('=== END SLOT FETCH ===');
       
       setAvailableSlots(processedSlots);
+      setLastRefreshTime(new Date());
 
     } catch (error) {
       console.error('Error fetching slots:', error);
@@ -173,12 +203,24 @@ const DateTimeSelectionPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedDate, merchantId, selectedStaff, actualServiceDuration]);
 
+  // Initial fetch and setup periodic refresh for today's slots
   useEffect(() => {
     fetchAvailableSlots();
     setSelectedTime('');
-  }, [selectedDate, merchantId, selectedStaff, actualServiceDuration]);
+
+    // Set up periodic refresh for today's slots (every minute)
+    const isToday = selectedDate && isTodayIST(selectedDate);
+    if (isToday) {
+      const interval = setInterval(() => {
+        console.log('Auto-refreshing today slots to update buffer time');
+        fetchAvailableSlots();
+      }, 60000); // Refresh every minute
+
+      return () => clearInterval(interval);
+    }
+  }, [fetchAvailableSlots]);
 
   // Set up real-time subscriptions
   useRealtimeSlots({
@@ -192,9 +234,19 @@ const DateTimeSelectionPage: React.FC = () => {
     }
   });
 
-  // Handle slot selection
+  // Handle slot selection with validation
   const handleTimeSlotClick = async (timeSlot: string) => {
     if (!selectedDate || !merchantId || !userId) return;
+    
+    // Double-check if slot is still valid for today
+    if (isTodayIST(selectedDate)) {
+      const currentBufferTime = getCurrentTimeISTWithBuffer(40);
+      if (timeSlot < currentBufferTime) {
+        toast.error('This time slot is no longer available due to time passing');
+        fetchAvailableSlots(); // Refresh to remove expired slots
+        return;
+      }
+    }
     
     const availableSlot = availableSlots.find(slot => 
       slot.time_slot === timeSlot && slot.is_available
@@ -217,7 +269,7 @@ const DateTimeSelectionPage: React.FC = () => {
         return;
       }
 
-      // Check slot availability using the reserve function
+      // Reserve the slot immediately
       const { data: checkResult, error: checkError } = await supabase.rpc('reserve_slot_immediately' as any, {
         p_user_id: userId,
         p_merchant_id: merchantId,
@@ -242,7 +294,7 @@ const DateTimeSelectionPage: React.FC = () => {
         return;
       }
 
-      // Just select the slot - no booking yet
+      // Successfully selected slot
       setSelectedTime(timeSlot);
       toast.success('Time slot selected!');
 
@@ -274,7 +326,7 @@ const DateTimeSelectionPage: React.FC = () => {
       const finalStaffId = selectedStaff || selectedSlot.staff_id;
       const finalStaffDetails = selectedStaffDetails || { name: selectedSlot.staff_name };
 
-      // Navigate to payment without booking - payment page will handle booking
+      // Navigate to payment
       navigate(`/payment/${merchantId}`, {
         state: {
           merchant,
@@ -327,6 +379,8 @@ const DateTimeSelectionPage: React.FC = () => {
     );
   }
 
+  const isToday = selectedDate && isTodayIST(selectedDate);
+
   return (
     <div className="pb-24 bg-white min-h-screen">
       <div className="bg-booqit-primary text-white p-4 sticky top-0 z-10">
@@ -349,6 +403,13 @@ const DateTimeSelectionPage: React.FC = () => {
           <p className="text-gray-500 text-sm font-poppins">
             Select your preferred date and time slot. Service duration: {actualServiceDuration} minutes
           </p>
+          {isToday && nextValidSlotTime && (
+            <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
+              <p className="text-blue-700 text-sm font-poppins">
+                Next available slot: {formatTimeToAmPm(nextValidSlotTime)}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="mb-6">
@@ -386,10 +447,20 @@ const DateTimeSelectionPage: React.FC = () => {
 
         {selectedDate && (
           <div className="mb-6">
-            <h3 className="font-medium mb-3 flex items-center font-righteous">
-              <Clock className="h-4 w-4 mr-2" />
-              Available Time Slots
-            </h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-medium flex items-center font-righteous">
+                <Clock className="h-4 w-4 mr-2" />
+                Available Time Slots
+              </h3>
+              {isToday && (
+                <div className="flex items-center text-sm text-gray-500">
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  <span className="font-poppins">
+                    Updated {formatDateInIST(lastRefreshTime, 'HH:mm')}
+                  </span>
+                </div>
+              )}
+            </div>
             
             {error && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">

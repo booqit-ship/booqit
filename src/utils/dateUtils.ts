@@ -43,13 +43,13 @@ export const getCurrentTimeIST = (): string => {
   return formatTimeInIST(new Date(), 'HH:mm');
 };
 
-// Get current time with buffer and rounded to next 10-minute mark (for display purposes ONLY)
-// The actual slot filtering is now done by the backend SQL function
+// Get current time with buffer and rounded to next 10-minute mark
+// This matches EXACTLY the SQL logic for consistency
 export const getCurrentTimeISTWithBuffer = (bufferMinutes: number = 40): string => {
   const now = new Date();
   const istNow = convertUTCToIST(now);
   
-  // Convert to total minutes (same logic as SQL for consistency)
+  // Convert to total minutes (EXACT same logic as SQL)
   const currentHours = istNow.getHours();
   const currentMinutes = istNow.getMinutes();
   let totalMinutes = currentHours * 60 + currentMinutes;
@@ -58,27 +58,27 @@ export const getCurrentTimeISTWithBuffer = (bufferMinutes: number = 40): string 
   totalMinutes += bufferMinutes;
   
   // Calculate hours and minutes from total
-  let hours = Math.floor(totalMinutes / 60);
-  let minutes = totalMinutes % 60;
+  let bufferMinutes_calculated = totalMinutes % 60;
+  let bufferHours = Math.floor(totalMinutes / 60);
   
-  // Round up to next 10-minute interval (same logic as SQL)
-  if (minutes % 10 !== 0) {
-    minutes = Math.ceil(minutes / 10) * 10;
+  // Round minutes up to next 10-minute mark (EXACT same logic as SQL)
+  if (bufferMinutes_calculated % 10 !== 0) {
+    bufferMinutes_calculated = Math.ceil(bufferMinutes_calculated / 10) * 10;
   }
   
-  // Handle minute overflow
-  if (minutes >= 60) {
-    hours += 1;
-    minutes = 0;
+  // Handle minute overflow (EXACT same logic as SQL)
+  if (bufferMinutes_calculated >= 60) {
+    bufferHours += 1;
+    bufferMinutes_calculated = 0;
   }
   
-  // Handle day overflow (cap at 23:50)
-  if (hours >= 24) {
-    hours = 23;
-    minutes = 50;
+  // Handle day overflow (cap at 23:50) (EXACT same logic as SQL)
+  if (bufferHours >= 24) {
+    bufferHours = 23;
+    bufferMinutes_calculated = 50;
   }
   
-  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+  return `${bufferHours.toString().padStart(2, '0')}:${bufferMinutes_calculated.toString().padStart(2, '0')}`;
 };
 
 // Check if a date is today in IST
@@ -88,7 +88,27 @@ export const isTodayIST = (date: Date | string): boolean => {
   return format(istDate, 'yyyy-MM-dd') === format(todayIST, 'yyyy-MM-dd');
 };
 
-// Get expected start time for today's slots (for display purposes only)
+// Get expected start time for today's slots (for display purposes)
 export const getExpectedTodayStartTime = (): string => {
   return getCurrentTimeISTWithBuffer(40);
+};
+
+// Calculate time remaining until next valid slot
+export const getTimeUntilNextSlot = (): { minutes: number; seconds: number } => {
+  const now = new Date();
+  const istNow = convertUTCToIST(now);
+  const nextSlotTime = getCurrentTimeISTWithBuffer(40);
+  
+  const [hours, minutes] = nextSlotTime.split(':').map(Number);
+  const nextSlot = new Date(istNow);
+  nextSlot.setHours(hours, minutes, 0, 0);
+  
+  const diffMs = nextSlot.getTime() - istNow.getTime();
+  const diffMinutes = Math.floor(diffMs / (1000 * 60));
+  const diffSeconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+  
+  return {
+    minutes: Math.max(0, diffMinutes),
+    seconds: Math.max(0, diffSeconds)
+  };
 };
