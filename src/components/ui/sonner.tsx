@@ -1,20 +1,10 @@
-
+import { useTheme } from "next-themes"
 import { Toaster as Sonner, toast } from "sonner"
 
 type ToasterProps = React.ComponentProps<typeof Sonner>
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  // Use a fallback theme if useTheme is not available or returns null
-  let theme = "light";
-  
-  try {
-    const { useTheme } = require("next-themes");
-    const themeResult = useTheme();
-    theme = themeResult?.theme || "light";
-  } catch (error) {
-    // Fallback to light theme if next-themes is not available
-    theme = "light";
-  }
+  const { theme = "system" } = useTheme()
 
   return (
     <Sonner
