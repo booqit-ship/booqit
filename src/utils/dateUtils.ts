@@ -72,7 +72,7 @@ export const getCurrentTimeISTWithBuffer = (bufferMinutes: number = 40): string 
   timeWithBuffer.setMilliseconds(0);
   
   const finalTime = format(timeWithBuffer, 'HH:mm');
-  console.log('Final time threshold:', finalTime);
+  console.log('Final time threshold with 40min buffer and rounding:', finalTime);
   
   return finalTime;
 };

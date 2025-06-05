@@ -112,6 +112,10 @@ const DateTimeSelectionPage: React.FC = () => {
     try {
       const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
       
+      console.log('Fetching slots for date:', selectedDateStr);
+      console.log('Is today?', isTodayIST(selectedDate));
+      console.log('Current IST time:', getCurrentTimeIST());
+      
       const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_simple' as any, {
         p_merchant_id: merchantId,
         p_date: selectedDateStr,
@@ -128,9 +132,11 @@ const DateTimeSelectionPage: React.FC = () => {
 
       const slots = Array.isArray(slotsData) ? slotsData : [];
       
+      console.log('Raw slots from database:', slots);
+      
       if (slots.length === 0) {
         const isToday = isTodayIST(selectedDate);
-        setError(isToday ? 'No slots available today.' : 'No slots available for this date.');
+        setError(isToday ? 'No slots available today. Please try tomorrow.' : 'No slots available for this date.');
         setAvailableSlots([]);
         return;
       }
@@ -142,6 +148,8 @@ const DateTimeSelectionPage: React.FC = () => {
         is_available: slot.is_available,
         conflict_reason: slot.conflict_reason
       }));
+      
+      console.log('Processed slots for display:', processedSlots);
       
       setAvailableSlots(processedSlots);
 
