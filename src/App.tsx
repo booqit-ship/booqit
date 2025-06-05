@@ -148,7 +148,7 @@ const AppContent = () => {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
         <AuthProvider>
           <AppContent />
           <Toaster />
