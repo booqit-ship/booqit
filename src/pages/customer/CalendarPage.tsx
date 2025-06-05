@@ -258,7 +258,7 @@ const CalendarPage: React.FC = () => {
       {/* Today's Bookings */}
       <Card className="mb-6">
         <CardHeader className="py-4">
-          <CardTitle className="text-lg flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 text-lg font-thin">
             <CalendarIcon className="h-5 w-5 text-booqit-primary" />
             {format(date, 'MMMM d, yyyy')} Bookings
           </CardTitle>
@@ -281,7 +281,7 @@ const CalendarPage: React.FC = () => {
                           <Clock className="h-4 w-4 text-booqit-primary" />
                         </div>
                         <div className="flex-1">
-                          <h3 className="font-semibold text-gray-900 mb-1">{booking.service?.name}</h3>
+                          <h3 className="text-gray-900 mb-1 font-medium">{booking.service?.name}</h3>
                           <p className="text-sm text-booqit-primary font-medium">
                             {formatTimeToAmPm(booking.time_slot)}
                           </p>
