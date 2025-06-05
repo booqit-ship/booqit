@@ -205,7 +205,7 @@ const CalendarPage: React.FC = () => {
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-2">
           <CalendarIcon className="h-6 w-6 text-booqit-primary" />
-          <h1 className="text-2xl md:text-3xl font-bold">Your Calendar</h1>
+          <h1 className="text-2xl md:text-3xl font-light">Your Calendar</h1>
         </div>
         <p className="text-muted-foreground">Manage your appointments</p>
       </div>
@@ -214,7 +214,7 @@ const CalendarPage: React.FC = () => {
       <Card className="mb-6 overflow-hidden shadow-sm">
         <CardHeader className="bg-gradient-to-r from-booqit-primary/5 to-booqit-primary/10 py-3">
           <div className="flex justify-between items-center">
-            <CardTitle className="text-booqit-dark py-0 px-[10px] mx-0 my-0 font-medium text-xl">Calendar</CardTitle>
+            <CardTitle className="text-booqit-dark text-base font-semibold">Calendar</CardTitle>
             <div className="flex items-center space-x-2">
               
               <Button variant="outline" size="sm" onClick={goToToday} className="h-8 font-medium text-sm px-[28px]">
@@ -258,7 +258,7 @@ const CalendarPage: React.FC = () => {
       {/* Today's Bookings */}
       <Card className="mb-6">
         <CardHeader className="py-4">
-          <CardTitle className="flex items-center gap-2 text-lg font-thin">
+          <CardTitle className="flex items-center gap-2 font-thin text-xl">
             <CalendarIcon className="h-5 w-5 text-booqit-primary" />
             {format(date, 'MMMM d, yyyy')} Bookings
           </CardTitle>
@@ -281,7 +281,7 @@ const CalendarPage: React.FC = () => {
                           <Clock className="h-4 w-4 text-booqit-primary" />
                         </div>
                         <div className="flex-1">
-                          <h3 className="text-gray-900 mb-1 font-medium">{booking.service?.name}</h3>
+                          <h3 className="text-gray-900 mb-1 text-lg font-light">{booking.service?.name}</h3>
                           <p className="text-sm text-booqit-primary font-medium">
                             {formatTimeToAmPm(booking.time_slot)}
                           </p>
