@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
@@ -30,8 +29,8 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
           <p className="text-gray-600 font-poppins">Choose how you want to continue</p>
         </div>
 
-        {/* New uploaded image - positioned right above role selection with no gap */}
-        <div className="flex justify-center">
+        {/* New uploaded image - positioned right above role selection */}
+        <div className="flex justify-center mb-0">
           <motion.img src="/lovable-uploads/10f1f54c-92d8-4cd0-ad62-b2d8651efd82.png" alt="BooqIt Service Illustration" initial={{
           scale: 0.8,
           opacity: 0
@@ -44,8 +43,8 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
         }} className="w-auto h-auto object-cover" />
         </div>
 
-        {/* Role Selection Cards - directly connected to image above with no gap */}
-        <div className="space-y-4 -mt-8">
+        {/* Role Selection Cards - no gap from image above */}
+        <div className="space-y-4">
           <Card className="cursor-pointer hover:shadow-lg transition-all duration-200 border-2 hover:border-booqit-primary/50">
             <CardContent className="p-6" onClick={() => onRoleSelect('customer')}>
               <div className="flex items-center space-x-4">
