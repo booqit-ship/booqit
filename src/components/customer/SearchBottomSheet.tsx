@@ -195,14 +195,7 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
                     {/* Shop Image */}
                     <div className="w-full h-48 relative">
                       <img src={merchant.image_url || '/placeholder.svg'} alt={merchant.shop_name} className="w-full h-full object-cover rounded-t-2xl" />
-                      <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full">
-                        <div className="flex items-center">
-                          <Star className="w-4 h-4 text-yellow-400 mr-1" />
-                          <span className="text-sm font-semibold text-gray-800 font-poppins">
-                            {merchant.rating ? merchant.rating.toFixed(1) : 'New'}
-                          </span>
-                        </div>
-                      </div>
+                      
                     </div>
                     
                     <CardContent className="p-4">
@@ -211,14 +204,7 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
                         <h3 className="font-bold text-gray-900 mb-1 font-righteous font-medium text-xl">
                           {merchant.shop_name}
                         </h3>
-                        <div className="flex items-center text-gray-600">
-                          <Star className="w-4 h-4 text-yellow-400 mr-1" />
-                          <span className="text-sm font-medium mr-2 font-poppins">
-                            {merchant.rating ? merchant.rating.toFixed(1) : 'New'}
-                          </span>
-                          <span className="text-sm font-poppins">•</span>
-                          <span className="text-sm ml-2 font-poppins">{merchant.address.split(',')[0]}</span>
-                        </div>
+                        
                       </div>
 
                       {/* Services */}
