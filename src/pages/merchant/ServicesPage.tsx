@@ -261,7 +261,7 @@ const ServicesPage: React.FC = () => {
   };
   
   const openManageStylists = () => {
-    setIsStaffSheetOpen(true);
+    
   };
 
   const MobileServiceCard = ({ service }: { service: Service }) => {
