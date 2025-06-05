@@ -298,7 +298,7 @@ const DashboardPage: React.FC = () => {
                     </svg>
                   </div>
                   <p className="text-sm text-gray-500">{stat.title}</p>
-                  <h3 className="text-2xl font-bold">{stat.value}</h3>
+                  <h3 className="font-normal text-2xl">{stat.value}</h3>
                 </CardContent>
               </Card>)}
           </div>
@@ -307,7 +307,7 @@ const DashboardPage: React.FC = () => {
         <motion.div variants={itemVariants}>
           <Card className="border-none shadow-md mb-6">
             <CardHeader className="pb-2">
-              <CardTitle className="font-light text-lg">Today's Bookings</CardTitle>
+              <CardTitle className="font-light text-xl">Today's Bookings</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
