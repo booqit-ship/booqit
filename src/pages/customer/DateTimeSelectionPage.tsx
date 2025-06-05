@@ -10,6 +10,7 @@ import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { 
   formatDateInIST, 
   getCurrentDateIST, 
+  getCurrentTimeIST,
   isTodayIST
 } from '@/utils/dateUtils';
 import { useAuth } from '@/contexts/AuthContext';
