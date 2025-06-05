@@ -13,7 +13,29 @@
   "display_override": ["fullscreen", "standalone"],
   "background_color": "#ffffff",
   "theme_color": "#7E57C2",
+  "iarc_rating_id": "e84b072d-71b3-4d3e-86ae-31a8ce4e53b7",
   "prefer_related_applications": false,
+
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  },
+
+  "related_applications": [
+    {
+      "platform": "play",
+      "url": "https://play.google.com/store/apps/details?id=com.booqit.app",
+      "id": "com.booqit.app"
+    }
+  ],
+
+  "scope_extensions": [
+    {
+      "origin": "https://booqit.com"
+    },
+    {
+      "origin": "https://www.booqit.com"
+    }
+  ],
 
   "shortcuts": [
     {
@@ -27,14 +49,14 @@
       "name": "My Bookings",
       "short_name": "Bookings",
       "description": "View your upcoming appointments",
-      "url": "/calendar",
+      "url": "/customer/calendar",
       "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
     },
     {
       "name": "Find Services",
       "short_name": "Search",
       "description": "Search for services near you",
-      "url": "/search",
+      "url": "/customer/search",
       "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
     }
   ],

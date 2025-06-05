@@ -1,13 +1,16 @@
 
-// Enhanced PWA Service Worker for BooqIt
-const CACHE_NAME = 'booqit-cache-v1';
+// Enhanced PWA Service Worker for BooqIt with App Capabilities
+const CACHE_NAME = 'booqit-cache-v2';
 const OFFLINE_URL = '/';
 
 // Files to cache for offline functionality
 const STATIC_CACHE_URLS = [
   '/',
   '/auth',
+  '/customer',
+  '/merchant/dashboard',
   '/manifest.json',
+  '/lovable-uploads/ceaef400-e74a-4afa-87ec-96c4cfd7d3ea.png',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png'
 ];
@@ -84,7 +87,7 @@ self.addEventListener('fetch', (event) => {
                     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                     text-align: center; 
                     padding: 50px; 
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    background: linear-gradient(135deg, #7E57C2 0%, #9C27B0 100%);
                     color: white;
                     min-height: 100vh;
                     margin: 0;
@@ -95,12 +98,36 @@ self.addEventListener('fetch', (event) => {
                   }
                   h1 { font-size: 2.5rem; margin-bottom: 1rem; }
                   p { font-size: 1.1rem; opacity: 0.9; }
+                  button {
+                    background: rgba(255,255,255,0.2);
+                    border: 2px solid white;
+                    color: white;
+                    padding: 12px 24px;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-size: 1rem;
+                    margin-top: 20px;
+                  }
+                  .logo {
+                    width: 120px;
+                    height: 60px;
+                    background: white;
+                    border-radius: 12px;
+                    margin-bottom: 20px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: #7E57C2;
+                    font-weight: bold;
+                    font-size: 1.5rem;
+                  }
                 </style>
               </head>
               <body>
-                <h1>BooqIt</h1>
-                <p>You're offline. Please check your internet connection.</p>
-                <button onclick="window.location.reload()">Try Again</button>
+                <div class="logo">BooqIt</div>
+                <h1>You're Offline</h1>
+                <p>Please check your internet connection and try again.</p>
+                <button onclick="window.location.reload()">Retry</button>
               </body>
             </html>
           `, {
@@ -138,53 +165,86 @@ self.addEventListener('sync', (event) => {
   
   if (event.tag === 'background-booking-sync') {
     event.waitUntil(
-      // Handle offline booking sync when connection is restored
       syncOfflineBookings()
     );
   }
 });
 
-// Push notification handling
+// Push notification handling with enhanced capabilities
 self.addEventListener('push', (event) => {
   console.log('Push notification received:', event);
   
+  const data = event.data ? event.data.json() : {};
   const options = {
-    body: event.data ? event.data.text() : 'New notification from BooqIt',
-    icon: '/icons/icon-192x192.png',
+    body: data.body || 'New notification from BooqIt',
+    icon: '/lovable-uploads/ceaef400-e74a-4afa-87ec-96c4cfd7d3ea.png',
     badge: '/icons/icon-72x72.png',
-    vibrate: [100, 50, 100],
+    vibrate: [200, 100, 200],
     data: {
       dateOfArrival: Date.now(),
-      primaryKey: '1'
+      primaryKey: data.primaryKey || '1',
+      url: data.url || '/'
     },
     actions: [
       {
         action: 'explore',
         title: 'View Details',
-        icon: '/icons/icon-192x192.png'
+        icon: '/lovable-uploads/ceaef400-e74a-4afa-87ec-96c4cfd7d3ea.png'
       },
       {
         action: 'close',
         title: 'Close',
-        icon: '/icons/icon-192x192.png'
+        icon: '/lovable-uploads/ceaef400-e74a-4afa-87ec-96c4cfd7d3ea.png'
       }
-    ]
+    ],
+    tag: data.tag || 'general',
+    renotify: true,
+    requireInteraction: data.urgent || false
   };
   
   event.waitUntil(
-    self.registration.showNotification('BooqIt', options)
+    self.registration.showNotification(data.title || 'BooqIt', options)
   );
 });
 
-// Notification click handling
+// Enhanced notification click handling
 self.addEventListener('notificationclick', (event) => {
   console.log('Notification clicked:', event);
   event.notification.close();
   
+  const urlToOpen = event.notification.data?.url || '/';
+  
   if (event.action === 'explore') {
     event.waitUntil(
-      clients.openWindow('/')
+      clients.matchAll({ type: 'window', includeUncontrolled: true })
+        .then((clientList) => {
+          // Check if there's already a window/tab open with the target URL
+          for (const client of clientList) {
+            if (client.url === urlToOpen && 'focus' in client) {
+              return client.focus();
+            }
+          }
+          // If not, open a new window/tab
+          if (clients.openWindow) {
+            return clients.openWindow(urlToOpen);
+          }
+        })
     );
+  } else if (event.action === 'close') {
+    // Just close the notification (already handled above)
+    return;
+  } else {
+    // Default action - open the app
+    event.waitUntil(
+      clients.openWindow(urlToOpen)
+    );
+  }
+});
+
+// Periodic background sync for appointment reminders
+self.addEventListener('periodicsync', (event) => {
+  if (event.tag === 'appointment-reminder') {
+    event.waitUntil(checkAppointmentReminders());
   }
 });
 
@@ -192,9 +252,59 @@ self.addEventListener('notificationclick', (event) => {
 async function syncOfflineBookings() {
   try {
     console.log('Syncing offline bookings...');
-    // Implementation would depend on your offline storage strategy
-    // This is where you'd sync any offline booking data
+    // This would sync any offline booking data when connection is restored
+    // Implementation depends on your offline storage strategy
+    
+    // Example: Get offline data from IndexedDB and sync to server
+    const offlineBookings = await getOfflineBookings();
+    if (offlineBookings.length > 0) {
+      for (const booking of offlineBookings) {
+        await syncBookingToServer(booking);
+      }
+      await clearOfflineBookings();
+    }
   } catch (error) {
     console.error('Failed to sync offline bookings:', error);
   }
 }
+
+// Helper function for appointment reminders
+async function checkAppointmentReminders() {
+  try {
+    console.log('Checking appointment reminders...');
+    // This would check for upcoming appointments and send reminders
+    // Implementation would depend on your backend API
+  } catch (error) {
+    console.error('Failed to check appointment reminders:', error);
+  }
+}
+
+// Placeholder functions for offline booking management
+async function getOfflineBookings() {
+  // Implementation would use IndexedDB to get offline bookings
+  return [];
+}
+
+async function syncBookingToServer(booking) {
+  // Implementation would sync booking to your Supabase backend
+  console.log('Syncing booking:', booking);
+}
+
+async function clearOfflineBookings() {
+  // Implementation would clear synced bookings from IndexedDB
+  console.log('Clearing offline bookings');
+}
+
+// Handle app launch from different sources
+self.addEventListener('appinstalled', (event) => {
+  console.log('BooqIt PWA was installed');
+  // Track app installation
+});
+
+// Handle share target (if implemented)
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SHARE_TARGET') {
+    // Handle shared content
+    console.log('Received shared content:', event.data);
+  }
+});
