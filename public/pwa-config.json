@@ -1,0 +1,32 @@
+
+{
+  "pwabuilder": {
+    "platform": "android",
+    "package": {
+      "packageId": "com.booqit.app",
+      "name": "BooqIt",
+      "version": "1.0.0"
+    },
+    "signing": {
+      "file": "",
+      "alias": "",
+      "password": "",
+      "keystorePassword": ""
+    },
+    "features": {
+      "locationService": true,
+      "pushNotifications": true,
+      "webShare": true,
+      "fullScreen": true,
+      "orientation": "portrait"
+    },
+    "permissions": [
+      "android.permission.INTERNET",
+      "android.permission.ACCESS_NETWORK_STATE",
+      "android.permission.ACCESS_COARSE_LOCATION",
+      "android.permission.ACCESS_FINE_LOCATION",
+      "android.permission.VIBRATE",
+      "android.permission.WAKE_LOCK"
+    ]
+  }
+}
