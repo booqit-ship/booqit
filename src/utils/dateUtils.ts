@@ -1,3 +1,4 @@
+
 import { format, parseISO } from 'date-fns';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 
@@ -42,32 +43,40 @@ export const getCurrentTimeIST = (): string => {
   return formatTimeInIST(new Date(), 'HH:mm');
 };
 
-// Get current time with buffer and rounded to next 10-minute mark (for slot generation)
+// CRITICAL: Get current time with buffer and rounded to next 10-minute mark (for slot generation)
+// This MUST match the SQL function logic exactly
 export const getCurrentTimeISTWithBuffer = (bufferMinutes: number = 40): string => {
   const now = new Date();
   const istNow = convertUTCToIST(now);
   
+  console.log('=== BUFFER CALCULATION DEBUG ===');
+  console.log('Current UTC time:', format(now, 'HH:mm:ss'));
   console.log('Current IST time:', format(istNow, 'HH:mm:ss'));
   
-  // Convert to total minutes
+  // Convert to total minutes (EXACT same logic as SQL)
   const currentHours = istNow.getHours();
   const currentMinutes = istNow.getMinutes();
   let totalMinutes = currentHours * 60 + currentMinutes;
   
-  console.log('Current time in minutes:', totalMinutes);
+  console.log('Current time in total minutes:', totalMinutes);
+  console.log('Buffer minutes to add:', bufferMinutes);
   
   // Add buffer minutes
   totalMinutes += bufferMinutes;
-  console.log('Time with buffer in minutes:', totalMinutes);
+  console.log('Time with buffer in total minutes:', totalMinutes);
   
-  // Calculate hours and minutes
+  // Calculate hours and minutes from total
   let hours = Math.floor(totalMinutes / 60);
   let minutes = totalMinutes % 60;
   
-  // Round up to next 10-minute interval
+  console.log('Before rounding - hours:', hours, 'minutes:', minutes);
+  
+  // Round up to next 10-minute interval (EXACT same logic as SQL)
   if (minutes % 10 !== 0) {
     minutes = Math.ceil(minutes / 10) * 10;
   }
+  
+  console.log('After rounding - hours:', hours, 'minutes:', minutes);
   
   // Handle minute overflow
   if (minutes >= 60) {
@@ -82,7 +91,8 @@ export const getCurrentTimeISTWithBuffer = (bufferMinutes: number = 40): string 
   }
   
   const finalTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-  console.log('Final time threshold with 40min buffer and rounding:', finalTime);
+  console.log('Final buffer time:', finalTime);
+  console.log('=== END BUFFER CALCULATION DEBUG ===');
   
   return finalTime;
 };
@@ -139,4 +149,47 @@ export const isTimeSlotAvailableToday = (timeSlot: string, bufferMinutes: number
 // Get expected start time for today's slots (for display purposes)
 export const getExpectedTodayStartTime = (): string => {
   return getCurrentTimeISTWithBuffer(40);
+};
+
+// DEBUG: Get detailed buffer calculation info
+export const getBufferCalculationDebug = (): {
+  currentIST: string;
+  bufferTime: string;
+  totalMinutesOriginal: number;
+  totalMinutesWithBuffer: number;
+  roundedMinutes: number;
+} => {
+  const now = new Date();
+  const istNow = convertUTCToIST(now);
+  
+  const currentHours = istNow.getHours();
+  const currentMinutes = istNow.getMinutes();
+  const totalMinutesOriginal = currentHours * 60 + currentMinutes;
+  const totalMinutesWithBuffer = totalMinutesOriginal + 40;
+  
+  let hours = Math.floor(totalMinutesWithBuffer / 60);
+  let minutes = totalMinutesWithBuffer % 60;
+  
+  const originalMinutes = minutes;
+  if (minutes % 10 !== 0) {
+    minutes = Math.ceil(minutes / 10) * 10;
+  }
+  
+  if (minutes >= 60) {
+    hours += 1;
+    minutes = 0;
+  }
+  
+  if (hours >= 24) {
+    hours = 23;
+    minutes = 50;
+  }
+  
+  return {
+    currentIST: format(istNow, 'HH:mm:ss'),
+    bufferTime: `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`,
+    totalMinutesOriginal,
+    totalMinutesWithBuffer,
+    roundedMinutes: originalMinutes !== minutes ? minutes : originalMinutes
+  };
 };
