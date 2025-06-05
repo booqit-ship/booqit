@@ -302,7 +302,7 @@ const ServicesPage: React.FC = () => {
       <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
         <SheetContent className="sm:max-w-md">
           <SheetHeader>
-            <SheetTitle>{isEditMode ? 'Edit Service' : 'Add New Service'}</SheetTitle>
+            <SheetTitle className="text-xl font-light">{isEditMode ? 'Edit Service' : 'Add New Service'}</SheetTitle>
             <SheetDescription>
               {isEditMode ? 'Update the details of your service.' : 'Add a new service for your customers to book.'}
             </SheetDescription>
