@@ -147,6 +147,7 @@ const DateTimeSelectionPage: React.FC = () => {
       console.log('Raw slots from backend (already filtered):', slots.length);
       console.log('Available slots:', slots.filter(s => s.is_available).length);
       console.log('Unavailable slots:', slots.filter(s => !s.is_available).length);
+      console.log('First few slots:', slots.slice(0, 5));
       
       if (slots.length === 0) {
         const errorMsg = isToday 
@@ -157,7 +158,7 @@ const DateTimeSelectionPage: React.FC = () => {
         return;
       }
 
-      // Process slots - format time only, don't filter (backend already did)
+      // Process slots - format time only, don't filter (backend already did ALL filtering)
       const processedSlots = slots.map((slot: any) => ({
         staff_id: slot.staff_id,
         staff_name: slot.staff_name,
@@ -169,7 +170,7 @@ const DateTimeSelectionPage: React.FC = () => {
       }));
       
       console.log('Final processed slots:', processedSlots.length);
-      console.log('First 3 slots:', processedSlots.slice(0, 3));
+      console.log('First 3 processed slots:', processedSlots.slice(0, 3));
       console.log('=== END SLOT FETCHING DEBUG ===');
       
       setAvailableSlots(processedSlots);
