@@ -18,8 +18,8 @@ export const useCancelBooking = () => {
     try {
       console.log('Cancelling booking:', bookingId, 'for user:', userId);
       
-      // Use the new cancel_booking function
-      const { data, error } = await supabase.rpc('cancel_booking', {
+      // Use the updated cancel_booking_properly function
+      const { data, error } = await supabase.rpc('cancel_booking_properly', {
         p_booking_id: bookingId,
         p_user_id: userId || null
       });
