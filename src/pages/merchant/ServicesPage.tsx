@@ -320,7 +320,7 @@ const ServicesPage: React.FC = () => {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="duration">Duration (mins)</Label>
+                <Label htmlFor="duration">Duration(mins)</Label>
                 <Input id="duration" type="number" value={duration} onChange={e => setDuration(e.target.value)} required placeholder="e.g. 30" />
               </div>
             </div>
