@@ -1,0 +1,65 @@
+
+{
+  "appCapabilities": {
+    "geolocation": {
+      "required": true,
+      "description": "Find nearby salons and services",
+      "prompt": "BooqIt needs location access to show nearby salons and services"
+    },
+    "notifications": {
+      "required": true,
+      "description": "Receive booking confirmations and reminders",
+      "prompt": "Enable notifications to get booking updates and appointment reminders"
+    },
+    "camera": {
+      "required": false,
+      "description": "Take photos for profile or service reviews",
+      "prompt": "Allow camera access to add photos to your profile or reviews"
+    },
+    "storage": {
+      "required": true,
+      "description": "Store app data and work offline",
+      "prompt": "Allow storage to save your preferences and work offline"
+    },
+    "contacts": {
+      "required": false,
+      "description": "Share booking details with contacts",
+      "prompt": "Access contacts to easily share booking information"
+    },
+    "calendar": {
+      "required": false,
+      "description": "Add appointments to your calendar",
+      "prompt": "Add booking appointments to your device calendar"
+    }
+  },
+  "features": {
+    "offline": true,
+    "backgroundSync": true,
+    "pushNotifications": true,
+    "installPrompt": true,
+    "shareTarget": false,
+    "shortcutIcons": true,
+    "splashScreen": true
+  },
+  "permissions": {
+    "android": [
+      "android.permission.INTERNET",
+      "android.permission.ACCESS_NETWORK_STATE",
+      "android.permission.ACCESS_FINE_LOCATION",
+      "android.permission.ACCESS_COARSE_LOCATION",
+      "android.permission.VIBRATE",
+      "android.permission.WAKE_LOCK",
+      "android.permission.RECEIVE_BOOT_COMPLETED"
+    ],
+    "ios": [
+      "NSLocationWhenInUseUsageDescription",
+      "NSCameraUsageDescription",
+      "NSContactsUsageDescription",
+      "NSCalendarsUsageDescription"
+    ]
+  },
+  "targetSDK": {
+    "android": 34,
+    "minAndroid": 24
+  }
+}

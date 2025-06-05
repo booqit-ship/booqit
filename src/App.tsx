@@ -2,8 +2,8 @@
 import { StrictMode } from 'react';
 import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Toaster } from '@/components/ui/sonner';
-import { TooltipProvider } from '@/components/ui/tooltip';
+import { ThemeProvider } from 'next-themes';
+import SafeToaster from '@/components/SafeToaster';
 import { AuthProvider } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import AuthPage from '@/pages/AuthPage';
@@ -54,31 +54,6 @@ const router = createBrowserRouter([
     path: "/terms-and-conditions",
     element: <TermsAndConditions />,
   },
-  {
-    path: "/customer",
-    element: <ProtectedRoute requiredRole="customer" />,
-    children: [
-      {
-        path: "/customer",
-        element: <CustomerLayout />,
-        children: [
-          { index: true, element: <Navigate to="/" replace /> },
-          { path: "home", element: <HomePage /> },
-          { path: "search", element: <SearchPage /> },
-          { path: "map", element: <MapPage /> },
-          { path: "calendar", element: <CalendarPage /> },
-          { path: "profile", element: <ProfilePage /> },
-          { path: "merchant/:merchantId", element: <MerchantDetailPage /> },
-          { path: "booking/:merchantId", element: <ServiceSelectionPage /> },
-          { path: "booking/:merchantId/staff", element: <StaffSelectionPage /> },
-          { path: "booking/:merchantId/datetime", element: <DateTimeSelectionPage /> },
-          { path: "booking/:merchantId/summary", element: <BookingSummaryPage /> },
-          { path: "payment/:merchantId", element: <PaymentPage /> },
-          { path: "receipt/:bookingId", element: <ReceiptPage /> },
-        ],
-      },
-    ],
-  },
   // Customer routes under root path
   {
     path: "/",
@@ -88,7 +63,7 @@ const router = createBrowserRouter([
         path: "/",
         element: <CustomerLayout />,
         children: [
-          { index: true, element: <HomePage /> },
+          { path: "home", element: <HomePage /> },
           { path: "search", element: <SearchPage /> },
           { path: "map", element: <MapPage /> },
           { path: "calendar", element: <CalendarPage /> },
@@ -127,16 +102,31 @@ const router = createBrowserRouter([
   },
 ]);
 
+// Enhanced loading component with timeout
+const AppLoading = () => {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-booqit-primary/10 to-white flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin h-12 w-12 border-4 border-booqit-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+        <h1 className="text-3xl font-righteous mb-2 text-black">booqit</h1>
+        <p className="text-gray-600 font-poppins">Initializing...</p>
+      </div>
+    </div>
+  );
+};
+
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <AuthProvider>
-          <RouterProvider router={router} />
-          <Toaster />
-        </AuthProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+          <AuthProvider>
+            <RouterProvider router={router} />
+            <SafeToaster />
+          </AuthProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </StrictMode>
   );
 }
 
