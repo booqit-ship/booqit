@@ -39,7 +39,7 @@ const SettingsBankingForm: React.FC<SettingsBankingFormProps> = ({
 }) => {
   return <Card>
       <CardHeader>
-        <CardTitle className="text-2xl flex items-center gap-2">
+        <CardTitle className="text-2xl flex items-center gap-2 font-light">
           <Lock className="h-5 w-5 text-booqit-primary" />
           Banking Details
         </CardTitle>
