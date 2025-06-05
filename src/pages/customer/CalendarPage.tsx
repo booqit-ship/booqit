@@ -214,7 +214,7 @@ const CalendarPage: React.FC = () => {
       <Card className="mb-6 overflow-hidden shadow-sm">
         <CardHeader className="bg-gradient-to-r from-booqit-primary/5 to-booqit-primary/10 py-3">
           <div className="flex justify-between items-center">
-            <CardTitle className="text-booqit-dark text-base font-semibold">Calendar</CardTitle>
+            <CardTitle className="text-booqit-dark font-light text-lg">Calendar</CardTitle>
             <div className="flex items-center space-x-2">
               
               <Button variant="outline" size="sm" onClick={goToToday} className="h-8 font-medium text-sm px-[28px]">
@@ -258,7 +258,7 @@ const CalendarPage: React.FC = () => {
       {/* Today's Bookings */}
       <Card className="mb-6">
         <CardHeader className="py-4">
-          <CardTitle className="flex items-center gap-2 font-thin text-xl">
+          <CardTitle className="flex items-center gap-2 text-xl font-thin">
             <CalendarIcon className="h-5 w-5 text-booqit-primary" />
             {format(date, 'MMMM d, yyyy')} Bookings
           </CardTitle>
