@@ -38,7 +38,7 @@ export const getCurrentDateIST = (): Date => {
   return convertUTCToIST(new Date());
 };
 
-// Get current time in IST
+// Get current time in IST (HH:mm format)
 export const getCurrentTimeIST = (): string => {
   return formatTimeInIST(new Date(), 'HH:mm');
 };

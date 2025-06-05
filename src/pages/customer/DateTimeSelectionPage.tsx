@@ -112,12 +112,16 @@ const DateTimeSelectionPage: React.FC = () => {
     
     try {
       const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
+      const isToday = isTodayIST(selectedDate);
       
+      console.log('=== SLOT FETCHING DEBUG ===');
       console.log('Fetching slots for date:', selectedDateStr);
-      console.log('Is today?', isTodayIST(selectedDate));
+      console.log('Is today?', isToday);
+      console.log('Current IST date:', formatDateInIST(getCurrentDateIST(), 'yyyy-MM-dd'));
       console.log('Current IST time:', getCurrentTimeIST());
       
-      const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_simple' as any, {
+      // Use the function that properly handles IST timing and 40-minute buffer
+      const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_simple', {
         p_merchant_id: merchantId,
         p_date: selectedDateStr,
         p_staff_id: selectedStaff || null,
@@ -136,8 +140,7 @@ const DateTimeSelectionPage: React.FC = () => {
       console.log('Raw slots from database:', slots);
       
       if (slots.length === 0) {
-        const isToday = isTodayIST(selectedDate);
-        setError(isToday ? 'No slots available today. Please try tomorrow.' : 'No slots available for this date.');
+        setError(isToday ? 'No slots available today. All slots are either in the past or booked.' : 'No slots available for this date.');
         setAvailableSlots([]);
         return;
       }
@@ -151,6 +154,8 @@ const DateTimeSelectionPage: React.FC = () => {
       }));
       
       console.log('Processed slots for display:', processedSlots);
+      console.log('Available slots count:', processedSlots.filter(s => s.is_available).length);
+      console.log('=== END SLOT FETCHING DEBUG ===');
       
       setAvailableSlots(processedSlots);
 
@@ -337,6 +342,13 @@ const DateTimeSelectionPage: React.FC = () => {
           <p className="text-gray-500 text-sm font-poppins">
             Select your preferred date and time slot. Service duration: {actualServiceDuration} minutes
           </p>
+          {isTodayIST(selectedDate || new Date()) && (
+            <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
+              <p className="text-blue-600 text-xs font-poppins">
+                Today's slots start from current time + 40 minutes (Current IST: {getCurrentTimeIST()})
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="mb-6">
