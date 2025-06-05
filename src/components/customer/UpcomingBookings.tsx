@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +6,6 @@ import { CalendarIcon, Clock, MapPin, User } from 'lucide-react';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { formatDateInIST } from '@/utils/dateUtils';
 import CancelBookingButton from './CancelBookingButton';
-
 interface BookingWithDetails {
   id: string;
   user_id: string;
@@ -32,29 +30,29 @@ interface BookingWithDetails {
     duration: number;
   };
 }
-
 const UpcomingBookings: React.FC = () => {
   const [bookings, setBookings] = useState<BookingWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
-
   const fetchUpcomingBookings = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: {
+          user
+        }
+      } = await supabase.auth.getUser();
       if (!user) return;
-
-      const { data, error } = await supabase
-        .from('bookings')
-        .select(`
+      const {
+        data,
+        error
+      } = await supabase.from('bookings').select(`
           *,
           merchant:merchants!inner(shop_name, address),
           service:services!inner(name, duration)
-        `)
-        .eq('user_id', user.id)
-        .in('status', ['pending', 'confirmed'])
-        .gte('date', new Date().toISOString().split('T')[0])
-        .order('date', { ascending: true })
-        .order('time_slot', { ascending: true });
-
+        `).eq('user_id', user.id).in('status', ['pending', 'confirmed']).gte('date', new Date().toISOString().split('T')[0]).order('date', {
+        ascending: true
+      }).order('time_slot', {
+        ascending: true
+      });
       if (error) {
         console.error('Error fetching bookings:', error);
         return;
@@ -68,16 +66,13 @@ const UpcomingBookings: React.FC = () => {
       setLoading(false);
     }
   };
-
   useEffect(() => {
     fetchUpcomingBookings();
   }, []);
-
   const handleBookingCancelled = () => {
     // Refresh the bookings list after cancellation
     fetchUpcomingBookings();
   };
-
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'confirmed':
@@ -92,42 +87,31 @@ const UpcomingBookings: React.FC = () => {
         return 'bg-gray-100 text-gray-800';
     }
   };
-
   if (loading) {
-    return (
-      <div className="space-y-4">
-        {[1, 2, 3].map((i) => (
-          <Card key={i} className="animate-pulse">
+    return <div className="space-y-4">
+        {[1, 2, 3].map(i => <Card key={i} className="animate-pulse">
             <CardContent className="p-4">
               <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
               <div className="h-3 bg-gray-200 rounded w-1/2"></div>
             </CardContent>
-          </Card>
-        ))}
-      </div>
-    );
+          </Card>)}
+      </div>;
   }
-
   if (bookings.length === 0) {
-    return (
-      <Card>
+    return <Card>
         <CardContent className="p-6 text-center">
           <CalendarIcon className="h-12 w-12 mx-auto text-gray-400 mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No upcoming bookings</h3>
           <p className="text-gray-500">When you book appointments, they'll appear here.</p>
         </CardContent>
-      </Card>
-    );
+      </Card>;
   }
-
-  return (
-    <div className="space-y-4">
-      {bookings.map((booking) => (
-        <Card key={booking.id} className="overflow-hidden">
+  return <div className="space-y-4">
+      {bookings.map(booking => <Card key={booking.id} className="overflow-hidden">
           <CardHeader className="pb-3">
             <div className="flex items-start justify-between">
               <div>
-                <CardTitle className="text-lg">{booking.merchant.shop_name}</CardTitle>
+                <CardTitle className="text-lg font-light">{booking.merchant.shop_name}</CardTitle>
                 <p className="text-sm text-gray-600 flex items-center mt-1">
                   <MapPin className="h-4 w-4 mr-1" />
                   {booking.merchant.address}
@@ -149,12 +133,10 @@ const UpcomingBookings: React.FC = () => {
                 <Clock className="h-4 w-4 mr-2" />
                 {formatTimeToAmPm(booking.time_slot)} ({booking.service.duration} min)
               </div>
-              {booking.stylist_name && (
-                <div className="flex items-center text-sm text-gray-600 col-span-2">
+              {booking.stylist_name && <div className="flex items-center text-sm text-gray-600 col-span-2">
                   <User className="h-4 w-4 mr-2" />
                   Stylist: {booking.stylist_name}
-                </div>
-              )}
+                </div>}
             </div>
             
             <div className="border-t pt-3">
@@ -164,27 +146,16 @@ const UpcomingBookings: React.FC = () => {
                   <p className="text-sm text-gray-600">
                     Customer: {booking.customer_name}
                   </p>
-                  {booking.customer_phone && (
-                    <p className="text-sm text-gray-600">
+                  {booking.customer_phone && <p className="text-sm text-gray-600">
                       Phone: {booking.customer_phone}
-                    </p>
-                  )}
+                    </p>}
                 </div>
                 
-                {booking.status !== 'cancelled' && booking.status !== 'completed' && (
-                  <CancelBookingButton
-                    bookingId={booking.id}
-                    onCancelled={handleBookingCancelled}
-                    size="sm"
-                  />
-                )}
+                {booking.status !== 'cancelled' && booking.status !== 'completed' && <CancelBookingButton bookingId={booking.id} onCancelled={handleBookingCancelled} size="sm" />}
               </div>
             </div>
           </CardContent>
-        </Card>
-      ))}
-    </div>
-  );
+        </Card>)}
+    </div>;
 };
-
 export default UpcomingBookings;
