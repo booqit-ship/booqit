@@ -1,4 +1,3 @@
-
 import { format, parseISO } from 'date-fns';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 
@@ -50,28 +49,39 @@ export const getCurrentTimeISTWithBuffer = (bufferMinutes: number = 40): string 
   
   console.log('Current IST time:', format(istNow, 'HH:mm:ss'));
   
+  // Convert to total minutes
+  const currentHours = istNow.getHours();
+  const currentMinutes = istNow.getMinutes();
+  let totalMinutes = currentHours * 60 + currentMinutes;
+  
+  console.log('Current time in minutes:', totalMinutes);
+  
   // Add buffer minutes
-  const timeWithBuffer = new Date(istNow.getTime() + bufferMinutes * 60000);
-  console.log('Time with buffer:', format(timeWithBuffer, 'HH:mm:ss'));
+  totalMinutes += bufferMinutes;
+  console.log('Time with buffer in minutes:', totalMinutes);
+  
+  // Calculate hours and minutes
+  let hours = Math.floor(totalMinutes / 60);
+  let minutes = totalMinutes % 60;
   
   // Round up to next 10-minute interval
-  const minutes = timeWithBuffer.getMinutes();
-  const roundedMinutes = minutes % 10 === 0 ? minutes : Math.ceil(minutes / 10) * 10;
-  
-  console.log('Original minutes:', minutes, 'Rounded minutes:', roundedMinutes);
-  
-  // Handle hour overflow
-  if (roundedMinutes >= 60) {
-    timeWithBuffer.setHours(timeWithBuffer.getHours() + 1);
-    timeWithBuffer.setMinutes(0);
-  } else {
-    timeWithBuffer.setMinutes(roundedMinutes);
+  if (minutes % 10 !== 0) {
+    minutes = Math.ceil(minutes / 10) * 10;
   }
   
-  timeWithBuffer.setSeconds(0);
-  timeWithBuffer.setMilliseconds(0);
+  // Handle minute overflow
+  if (minutes >= 60) {
+    hours += 1;
+    minutes = 0;
+  }
   
-  const finalTime = format(timeWithBuffer, 'HH:mm');
+  // Handle day overflow (cap at 23:50)
+  if (hours >= 24) {
+    hours = 23;
+    minutes = 50;
+  }
+  
+  const finalTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
   console.log('Final time threshold with 40min buffer and rounding:', finalTime);
   
   return finalTime;
