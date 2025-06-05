@@ -24,27 +24,27 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
       duration: 0.5
     }} className="w-full max-w-md space-y-8">
         
-        {/* Illustration Image */}
-        <div className="text-center mb-6">
-          <motion.img 
-            src="/lovable-uploads/6fdc36d1-c6cb-4ac5-84c6-ba76af40a574.png"
-            alt="BooqIt Illustration"
-            className="w-48 h-48 mx-auto mb-4"
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-          />
-        </div>
-
-        {/* Logo */}
-        <div className="text-center">
+        {/* Logo - moved higher up */}
+        <div className="text-center mb-12">
           <h1 className="text-5xl font-righteous mb-2 text-black font-medium">
             booqit
           </h1>
           <p className="text-gray-600 font-poppins">Choose how you want to continue</p>
         </div>
 
-        {/* Role Selection Cards */}
+        {/* New uploaded image - positioned right above role selection */}
+        <div className="flex justify-center mb-0">
+          <motion.img 
+            src="/lovable-uploads/10f1f54c-92d8-4cd0-ad62-b2d8651efd82.png"
+            alt="BooqIt Service Illustration"
+            className="w-64 h-auto"
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+          />
+        </div>
+
+        {/* Role Selection Cards - no gap from image above */}
         <div className="space-y-4">
           <Card className="cursor-pointer hover:shadow-lg transition-all duration-200 border-2 hover:border-booqit-primary/50">
             <CardContent className="p-6" onClick={() => onRoleSelect('customer')}>
