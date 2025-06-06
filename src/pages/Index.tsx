@@ -10,30 +10,46 @@ const Index = () => {
   const { isAuthenticated, userRole, loading } = useAuth();
   const [showRoleSelection, setShowRoleSelection] = useState(false);
   const hasNavigated = useRef(false);
+  const navigationTimeout = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    // Prevent multiple navigations and memory leaks
+    // Clear any existing navigation timeout
+    if (navigationTimeout.current) {
+      clearTimeout(navigationTimeout.current);
+      navigationTimeout.current = null;
+    }
+
+    // Don't do anything while loading or if already navigated
     if (loading || hasNavigated.current) return;
 
     const handleNavigation = () => {
+      console.log('Index - handling navigation:', { isAuthenticated, userRole, loading });
+      
       if (isAuthenticated && userRole && !hasNavigated.current) {
         hasNavigated.current = true;
         
         if (userRole === "merchant") {
+          console.log('Navigating to merchant dashboard');
           navigate("/merchant", { replace: true });
         } else {
+          console.log('Customer authenticated, staying on index');
           // For customers, stay on this page and let routing handle it
           setShowRoleSelection(false);
         }
       } else if (!isAuthenticated && !loading) {
+        console.log('User not authenticated, showing role selection');
         setShowRoleSelection(true);
       }
     };
 
-    // Use timeout to prevent blocking
-    const timeoutId = setTimeout(handleNavigation, 0);
+    // Small delay to ensure auth state is settled
+    navigationTimeout.current = setTimeout(handleNavigation, 100);
     
-    return () => clearTimeout(timeoutId);
+    return () => {
+      if (navigationTimeout.current) {
+        clearTimeout(navigationTimeout.current);
+      }
+    };
   }, [isAuthenticated, userRole, loading, navigate]);
 
   const handleRoleSelect = (role: UserRole) => {
