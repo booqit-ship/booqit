@@ -14,7 +14,6 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { useCancelBooking } from '@/hooks/useCancelBooking';
 import CancelBookingButton from '@/components/customer/CancelBookingButton';
-
 const CalendarPage: React.FC = () => {
   const [date, setDate] = useState<Date>(new Date());
   const [weekStart, setWeekStart] = useState<Date>(startOfWeek(new Date(), {
@@ -311,12 +310,7 @@ const CalendarPage: React.FC = () => {
                     </div>
                     
                     {booking.status !== 'cancelled' && booking.status !== 'completed' && <div className="flex justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleViewReceipt(booking.id)}
-                          className="h-8 text-sm px-4"
-                        >
+                        <Button size="sm" variant="outline" onClick={() => handleViewReceipt(booking.id)} className="h-8 text-base font-medium px-[23px] mx-[20px]">
                           Receipt
                         </Button>
                         <CancelBookingButton bookingId={booking.id} onCancelled={() => fetchBookings()} className="h-8 text-sm px-4" />
@@ -328,5 +322,4 @@ const CalendarPage: React.FC = () => {
       </Card>
     </div>;
 };
-
 export default CalendarPage;
