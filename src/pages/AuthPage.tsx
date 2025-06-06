@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -212,13 +211,15 @@ const AuthPage: React.FC = () => {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Label htmlFor="password" className="font-poppins">Password</Label>
-                      <Button 
-                        variant="link" 
-                        size="sm" 
-                        className="text-xs p-0 h-auto font-poppins"
-                      >
-                        Forgot password?
-                      </Button>
+                      <Link to="/forgot-password">
+                        <Button 
+                          variant="link" 
+                          size="sm" 
+                          className="text-xs p-0 h-auto font-poppins text-booqit-primary hover:text-booqit-primary/80"
+                        >
+                          Forgot password?
+                        </Button>
+                      </Link>
                     </div>
                     <Input 
                       id="password" 
