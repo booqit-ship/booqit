@@ -6,6 +6,8 @@ import { Clock, User, Phone, Mail, CheckCircle, XCircle } from 'lucide-react';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
+
 interface BookingWithCustomerDetails {
   id: string;
   service?: {
@@ -17,14 +19,18 @@ interface BookingWithCustomerDetails {
   customer_phone?: string;
   customer_email?: string;
 }
+
 interface BookingCardProps {
   booking: BookingWithCustomerDetails;
   onStatusChange: (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => Promise<void>;
 }
+
 const BookingCard: React.FC<BookingCardProps> = ({
   booking,
   onStatusChange
 }) => {
+  const navigate = useNavigate();
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'confirmed':
@@ -38,6 +44,11 @@ const BookingCard: React.FC<BookingCardProps> = ({
         return 'bg-yellow-100 text-yellow-800 border-yellow-200';
     }
   };
+
+  const handleCardClick = () => {
+    navigate(`/merchant/booking-summary/${booking.id}`);
+  };
+
   const handleStatusUpdate = async (newStatus: 'confirmed' | 'completed' | 'cancelled') => {
     try {
       if (newStatus === 'cancelled') {
@@ -85,7 +96,12 @@ const BookingCard: React.FC<BookingCardProps> = ({
       toast.error('Failed to update booking status');
     }
   };
-  return <Card className="hover:shadow-lg transition-shadow duration-200 border-l-4 border-l-booqit-primary">
+
+  return (
+    <Card 
+      className="hover:shadow-lg transition-shadow duration-200 border-l-4 border-l-booqit-primary cursor-pointer" 
+      onClick={handleCardClick}
+    >
       <CardContent className="p-4">
         <div className="flex justify-between items-start mb-3">
           <div className="flex items-center space-x-2">
@@ -121,7 +137,8 @@ const BookingCard: React.FC<BookingCardProps> = ({
             </div>}
         </div>
 
-        {booking.status !== 'cancelled' && booking.status !== 'completed' && <div className="flex flex-wrap gap-2">
+        {booking.status !== 'cancelled' && booking.status !== 'completed' && (
+          <div className="flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
             {booking.status === 'pending' && <Button size="sm" onClick={() => handleStatusUpdate('confirmed')} className="bg-green-600 hover:bg-green-700 text-white">
                 <CheckCircle className="h-4 w-4 mr-1" />
                 Confirm
@@ -136,8 +153,11 @@ const BookingCard: React.FC<BookingCardProps> = ({
               <XCircle className="h-4 w-4 mr-1" />
               Cancel
             </Button>
-          </div>}
+          </div>
+        )}
       </CardContent>
-    </Card>;
+    </Card>
+  );
 };
+
 export default BookingCard;
