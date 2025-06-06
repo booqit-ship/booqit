@@ -11,6 +11,7 @@ import Index from '@/pages/Index';
 import NotFound from '@/pages/NotFound';
 import PrivacyPolicy from '@/pages/PrivacyPolicy';
 import TermsAndConditions from '@/pages/TermsAndConditions';
+import { useSessionPersistence } from '@/hooks/useSessionPersistence';
 
 // Customer Pages
 import CustomerLayout from '@/layouts/CustomerLayout';
@@ -45,6 +46,12 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// Component to handle session persistence
+const AppWithSessionPersistence = () => {
+  useSessionPersistence();
+  return null;
+};
 
 const router = createBrowserRouter([
   {
@@ -249,6 +256,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
+          <AppWithSessionPersistence />
           <RouterProvider router={router} />
           <Toaster />
         </AuthProvider>

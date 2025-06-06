@@ -1,8 +1,9 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types';
+import { validateCurrentSession } from '@/utils/sessionRecovery';
 
 interface ProtectedRouteProps {
   children?: React.ReactNode;
@@ -14,6 +15,18 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   requiredRole 
 }) => {
   const { isAuthenticated, userRole, loading } = useAuth();
+
+  // Validate session when component mounts and periodically
+  useEffect(() => {
+    if (!loading && isAuthenticated) {
+      // Validate session immediately
+      validateCurrentSession();
+      
+      // Set up periodic validation every 5 minutes
+      const intervalId = setInterval(validateCurrentSession, 300000);
+      return () => clearInterval(intervalId);
+    }
+  }, [loading, isAuthenticated]);
 
   // Show loading spinner while checking authentication
   if (loading) {
