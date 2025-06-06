@@ -67,7 +67,16 @@ const UpcomingBookings: React.FC = () => {
         return;
       }
 
-      setNextBooking(data || null);
+      // Type cast the status to ensure it matches our interface
+      if (data) {
+        const typedBooking = {
+          ...data,
+          status: data.status as 'pending' | 'confirmed' | 'completed' | 'cancelled'
+        } as BookingWithDetails;
+        setNextBooking(typedBooking);
+      } else {
+        setNextBooking(null);
+      }
     } catch (error) {
       console.error('Error fetching next upcoming booking:', error);
     } finally {
