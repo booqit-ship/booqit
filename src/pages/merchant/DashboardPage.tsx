@@ -9,6 +9,7 @@ import { Booking } from '@/types';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
+import { User, Scissors } from 'lucide-react';
 
 const DashboardPage: React.FC = () => {
   const { userId } = useAuth();
@@ -309,27 +310,18 @@ const DashboardPage: React.FC = () => {
                   recentBookings.map(booking => (
                     <div
                       key={booking.id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-gray-50 rounded-md gap-2"
+                      className="flex flex-col p-4 bg-gray-50 rounded-lg border border-gray-100 space-y-3"
                     >
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-base font-light truncate">
-                          {booking.customer_name || 'Walk-in Customer'}
-                        </h4>
-                        <div className="flex flex-wrap gap-1 sm:gap-2 items-center text-sm text-gray-500">
-                          <span className="truncate">{booking.service?.name}</span>
-                          <span className="text-gray-400 hidden sm:inline">•</span>
-                          <span className="whitespace-nowrap">{formatTimeToAmPm(booking.time_slot)}</span>
-                          {booking.stylist_name && (
-                            <>
-                              <span className="text-gray-400 hidden sm:inline">•</span>
-                              <span className="truncate">{booking.stylist_name}</span>
-                            </>
-                          )}
+                      {/* Header with customer name and status */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <User className="h-4 w-4 text-gray-600" />
+                          <h4 className="font-semibold text-gray-900">
+                            {booking.customer_name || 'Walk-in Customer'}
+                          </h4>
                         </div>
-                      </div>
-                      <div className="flex-shrink-0">
                         <span
-                          className={`text-sm px-2 py-1 rounded-full whitespace-nowrap ${
+                          className={`text-xs px-2 py-1 rounded-full font-medium ${
                             booking.status === 'confirmed'
                               ? 'bg-green-100 text-green-700'
                               : booking.status === 'completed'
@@ -341,6 +333,24 @@ const DashboardPage: React.FC = () => {
                         >
                           {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                         </span>
+                      </div>
+
+                      {/* Service and time information */}
+                      <div className="grid grid-cols-1 gap-2 text-sm text-gray-600">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-gray-800">{booking.service?.name}</span>
+                          <span className="font-semibold text-booqit-primary">
+                            {formatTimeToAmPm(booking.time_slot)}
+                          </span>
+                        </div>
+                        
+                        {/* Stylist information */}
+                        {booking.stylist_name && (
+                          <div className="flex items-center space-x-2">
+                            <Scissors className="h-4 w-4 text-gray-500" />
+                            <span>Stylist: {booking.stylist_name}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))
