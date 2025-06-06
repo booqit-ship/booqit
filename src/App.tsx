@@ -35,7 +35,14 @@ import CalendarManagementPage from '@/pages/merchant/CalendarManagementPage';
 import SettingsPage from '@/pages/merchant/SettingsPage';
 import OnboardingPage from '@/pages/merchant/OnboardingPage';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      gcTime: 10 * 60 * 1000, // 10 minutes
+    },
+  },
+});
 
 const router = createBrowserRouter([
   {
@@ -127,7 +134,7 @@ const router = createBrowserRouter([
   },
 ]);
 
-// Enhanced loading component with timeout
+// Simplified loading component
 const AppLoading = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-booqit-primary/10 to-white flex items-center justify-center">
@@ -140,11 +147,11 @@ const AppLoading = () => {
   );
 };
 
-// App content wrapper to handle auth loading with timeout
+// App content wrapper with simplified loading
 const AppContent = () => {
   const { loading } = useAuth();
 
-  // Show loading screen only briefly
+  // Show loading only briefly and with timeout protection
   if (loading) {
     return <AppLoading />;
   }

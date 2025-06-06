@@ -25,6 +25,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [initialized, setInitialized] = useState<boolean>(false);
 
   const fetchUserRole = async (userId: string) => {
     try {
@@ -60,30 +61,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsAuthenticated(true);
       setUserId(session.user.id);
       
-      // Fetch user role
-      const role = await fetchUserRole(session.user.id);
-      if (role) {
-        setUserRole(role);
-        
-        // Store auth state in localStorage for persistence
-        const authState = {
-          isAuthenticated: true,
-          role,
-          id: session.user.id
-        };
-        localStorage.setItem('booqit_auth', JSON.stringify(authState));
-        console.log('Auth state stored in localStorage:', authState);
-      } else {
-        console.warn('Could not fetch user role, user may need to complete profile');
-        // Don't show error immediately on startup, just log it
-        if (event !== 'INITIAL_SESSION') {
-          toast.error('Could not fetch user profile. Please try logging in again.', {
-            style: {
-              background: '#f3e8ff',
-              border: '1px solid #a855f7',
-              color: '#7c3aed'
-            }
-          });
+      // Fetch user role only if we don't have it or it's a new session
+      if (!userRole || event === 'SIGNED_IN') {
+        const role = await fetchUserRole(session.user.id);
+        if (role) {
+          setUserRole(role);
+          
+          // Store auth state in localStorage for persistence
+          const authState = {
+            isAuthenticated: true,
+            role,
+            id: session.user.id
+          };
+          localStorage.setItem('booqit_auth', JSON.stringify(authState));
+          console.log('Auth state stored in localStorage:', authState);
         }
       }
     } else {
@@ -96,41 +87,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.removeItem('booqit_auth');
     }
     
-    // Always clear loading state after handling auth change
-    setLoading(false);
+    // Set initialized after first auth state change
+    if (!initialized) {
+      setInitialized(true);
+    }
+    
+    // Clear loading only after initialization
+    if (initialized || event === 'INITIAL_SESSION') {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
+    if (initialized) return; // Prevent re-initialization
+    
     console.log('Setting up auth state management...');
     
-    let initialized = false;
-    
-    // Set up authentication state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!initialized && event === 'INITIAL_SESSION') {
-        initialized = true;
-        console.log('Processing initial session...');
-        await handleAuthStateChange(event, session);
-      } else if (initialized) {
-        console.log('Processing auth state change:', event);
-        await handleAuthStateChange(event, session);
-      }
-    });
+    // Set up authentication state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
 
-    // Set a timeout to ensure loading doesn't get stuck
+    // Set timeout to clear loading if auth takes too long
     const timeoutId = setTimeout(() => {
-      if (loading) {
+      if (loading && !initialized) {
         console.warn('Auth initialization timed out, clearing loading state');
         setLoading(false);
+        setInitialized(true);
       }
-    }, 5000); // 5 second timeout
+    }, 3000); // Reduced to 3 seconds
 
     return () => {
       console.log('Cleaning up auth subscription');
       subscription.unsubscribe();
       clearTimeout(timeoutId);
     };
-  }, []); // Remove loading dependency to prevent re-initialization
+  }, []); // Remove all dependencies to prevent re-initialization
 
   const setAuth = (isAuthenticated: boolean, role: UserRole | null, id: string | null) => {
     console.log('Manual setAuth called:', { isAuthenticated, role, id });
@@ -157,35 +147,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error) {
         console.error('Error during logout:', error);
-        toast.error('Logout failed. Please try again.', {
-          style: {
-            background: '#f3e8ff',
-            border: '1px solid #a855f7',
-            color: '#7c3aed'
-          }
-        });
+        toast.error('Logout failed. Please try again.');
       } else {
         console.log('Logout successful');
-        toast.success('Logged out successfully', {
-          style: {
-            background: '#f3e8ff',
-            border: '1px solid #a855f7',
-            color: '#7c3aed'
-          }
-        });
+        toast.success('Logged out successfully');
       }
       
       // Clear auth state (this will be handled by onAuthStateChange too)
       setAuth(false, null, null);
     } catch (error) {
       console.error('Exception during logout:', error);
-      toast.error('Logout failed. Please try again.', {
-        style: {
-          background: '#f3e8ff',
-          border: '1px solid #a855f7',
-          color: '#7c3aed'
-        }
-      });
+      toast.error('Logout failed. Please try again.');
     }
   };
 
