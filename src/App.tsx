@@ -4,7 +4,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { AuthProvider } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import AuthPage from '@/pages/AuthPage';
 import Index from '@/pages/Index';
@@ -63,13 +63,13 @@ const router = createBrowserRouter([
     path: "/terms-and-conditions",
     element: <TermsAndConditions />,
   },
-  // Customer routes under root path
+  // Customer routes
   {
-    path: "/",
+    path: "/home",
     element: <ProtectedRoute requiredRole="customer" />,
     children: [
       {
-        path: "/",
+        path: "/home",
         element: <CustomerLayout />,
         children: [
           { index: true, element: <HomePage /> },
@@ -111,32 +111,12 @@ const router = createBrowserRouter([
   },
 ]);
 
-// Simple App content wrapper
-const AppContent = () => {
-  const { loading } = useAuth();
-
-  // Show loading only during initial auth check
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-booqit-primary/10 to-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin h-12 w-12 border-4 border-booqit-primary border-t-transparent rounded-full mx-auto mb-4"></div>
-          <h1 className="text-3xl font-righteous mb-2 text-black">booqit</h1>
-          <p className="text-gray-600 font-poppins">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  return <RouterProvider router={router} />;
-};
-
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <AppContent />
+          <RouterProvider router={router} />
           <Toaster />
         </AuthProvider>
       </TooltipProvider>

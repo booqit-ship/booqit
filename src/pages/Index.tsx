@@ -25,8 +25,10 @@ const Index = () => {
       if (userRole === "merchant") {
         console.log('Navigating to merchant dashboard');
         navigate("/merchant", { replace: true });
+      } else if (userRole === "customer") {
+        console.log('Customer authenticated, redirecting to home');
+        navigate("/home", { replace: true });
       }
-      // For customers, stay on index page (will be handled by routes)
     }
   }, [isAuthenticated, userRole, loading, navigate]);
 
@@ -53,8 +55,15 @@ const Index = () => {
     return <RoleSelection onRoleSelect={handleRoleSelect} />;
   }
 
-  // For authenticated users, this will be handled by the routing in App.tsx
-  return null;
+  // Fallback for authenticated users while redirect happens
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-booqit-primary/20 to-white">
+      <div className="text-center">
+        <h1 className="text-2xl font-righteous mb-2">Welcome to BooqIt</h1>
+        <p className="text-gray-500 font-poppins">Redirecting...</p>
+      </div>
+    </div>
+  );
 };
 
 export default Index;
