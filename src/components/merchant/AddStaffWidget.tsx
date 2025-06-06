@@ -59,12 +59,19 @@ const AddStaffWidget: React.FC<AddStaffWidgetProps> = ({
         .eq('merchant_id', merchantId)
         .order('name', { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching staff:', error);
+        throw error;
+      }
+      
+      console.log('Fetched staff list:', data);
       setStaffList(data as Staff[]);
     } catch (error: any) {
+      console.error('Failed to fetch staff:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch staff members. Please try again."
+        description: "Failed to fetch staff members. Please try again.",
+        variant: "destructive"
       });
     } finally {
       setIsLoadingStaff(false);
@@ -82,7 +89,8 @@ const AddStaffWidget: React.FC<AddStaffWidgetProps> = ({
     if (!merchantId) {
       toast({
         title: "Error",
-        description: "Merchant information not found. Please complete onboarding first."
+        description: "Merchant information not found. Please complete onboarding first.",
+        variant: "destructive"
       });
       return;
     }
@@ -110,9 +118,11 @@ const AddStaffWidget: React.FC<AddStaffWidgetProps> = ({
       resetForm();
       onClose();
     } catch (error: any) {
+      console.error('Error adding staff:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to add staff member. Please try again."
+        description: error.message || "Failed to add staff member. Please try again.",
+        variant: "destructive"
       });
     } finally {
       setIsSubmitting(false);
@@ -134,7 +144,10 @@ const AddStaffWidget: React.FC<AddStaffWidgetProps> = ({
         .update({ name: editName.trim() })
         .eq('id', editingStaff.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error updating staff:', error);
+        throw error;
+      }
 
       toast({
         title: "Success",
@@ -145,9 +158,11 @@ const AddStaffWidget: React.FC<AddStaffWidgetProps> = ({
       setEditName('');
       fetchStaffList();
     } catch (error: any) {
+      console.error('Error updating staff:', error);
       toast({
         title: "Error",
-        description: "Failed to update staff member. Please try again."
+        description: "Failed to update staff member. Please try again.",
+        variant: "destructive"
       });
     } finally {
       setIsUpdating(false);
@@ -155,28 +170,44 @@ const AddStaffWidget: React.FC<AddStaffWidgetProps> = ({
   };
 
   const handleDeleteStaff = async () => {
-    if (!deleteConfirm) return;
+    if (!deleteConfirm) {
+      console.error('No staff member selected for deletion');
+      return;
+    }
 
+    console.log('Attempting to delete staff:', deleteConfirm);
     setIsDeleting(true);
+    
     try {
       const { error } = await supabase
         .from('staff')
         .delete()
         .eq('id', deleteConfirm.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase delete error:', error);
+        throw error;
+      }
 
+      console.log('Staff deleted successfully');
+      
       toast({
         title: "Success",
-        description: "Staff member deleted successfully."
+        description: `${deleteConfirm.name} has been deleted successfully.`
       });
 
+      // Close the confirmation dialog
       setDeleteConfirm(null);
-      fetchStaffList();
+      
+      // Refresh the staff list
+      await fetchStaffList();
+      
     } catch (error: any) {
+      console.error('Failed to delete staff:', error);
       toast({
         title: "Error",
-        description: "Failed to delete staff member. Please try again."
+        description: error.message || "Failed to delete staff member. Please try again.",
+        variant: "destructive"
       });
     } finally {
       setIsDeleting(false);
@@ -312,7 +343,10 @@ const AddStaffWidget: React.FC<AddStaffWidgetProps> = ({
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => setDeleteConfirm(staff)}
+                              onClick={() => {
+                                console.log('Delete button clicked for staff:', staff);
+                                setDeleteConfirm(staff);
+                              }}
                               className="h-8 w-8 hover:bg-red-100 hover:text-red-600"
                             >
                               <Trash className="h-3.5 w-3.5" />
