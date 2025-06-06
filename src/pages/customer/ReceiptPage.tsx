@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Store, Clock, User, CheckCircle2, CreditCard } from 'lucide-react';
+import { ChevronLeft, Store, Clock, User, CheckCircle2, CreditCard, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { format } from 'date-fns';
 import CancelBookingButton from '@/components/customer/CancelBookingButton';
+
 const ReceiptPage: React.FC = () => {
   const {
     bookingId
@@ -63,6 +64,13 @@ const ReceiptPage: React.FC = () => {
       ...prev,
       status: 'cancelled'
     }));
+  };
+  const handleOpenMapDirections = () => {
+    if (merchant?.address) {
+      const encodedAddress = encodeURIComponent(merchant.address);
+      const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`;
+      window.open(googleMapsUrl, '_blank');
+    }
   };
   if (loading) {
     return <div className="h-screen flex items-center justify-center">
@@ -200,11 +208,24 @@ const ReceiptPage: React.FC = () => {
           </Button>
         </div>
 
-        {/* Shop Address */}
-        {merchant?.address && <Card className="shadow-lg border-blue-200 bg-blue-50">
+        {/* Shop Location Map */}
+        {merchant?.address && <Card className="shadow-lg border-blue-200 bg-blue-50 cursor-pointer hover:bg-blue-100 transition-colors" onClick={handleOpenMapDirections}>
             <CardContent className="p-4">
-              <h4 className="font-medium text-blue-800 mb-2">📍 Shop Address</h4>
-              <p className="text-sm text-blue-700">{merchant.address}</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-medium text-blue-800 mb-2 flex items-center">
+                    <MapPin className="h-4 w-4 mr-2" />
+                    Shop Location
+                  </h4>
+                  <p className="text-sm text-blue-700">{merchant.address}</p>
+                </div>
+                <div className="text-blue-600">
+                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </div>
+              <p className="text-xs text-blue-600 mt-2">Tap to open directions in Google Maps</p>
             </CardContent>
           </Card>}
 
@@ -218,4 +239,5 @@ const ReceiptPage: React.FC = () => {
       </div>
     </div>;
 };
+
 export default ReceiptPage;
