@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import RoleSelection from "@/components/RoleSelection";
 import { UserRole } from "@/types";
-import { validateCurrentSession } from "@/utils/sessionRecovery";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -33,14 +32,6 @@ const Index = () => {
     }
   }, [isAuthenticated, userRole, loading, navigate]);
 
-  // Validate session periodically when user is on the index page
-  useEffect(() => {
-    if (!loading && isAuthenticated) {
-      const intervalId = setInterval(validateCurrentSession, 60000); // Check every minute
-      return () => clearInterval(intervalId);
-    }
-  }, [loading, isAuthenticated]);
-
   // Show loading while auth is initializing
   if (loading) {
     return (
@@ -48,7 +39,7 @@ const Index = () => {
         <div className="text-center">
           <div className="animate-spin h-10 w-10 border-4 border-booqit-primary border-t-transparent rounded-full mx-auto mb-4"></div>
           <h1 className="text-2xl font-righteous mb-2">Loading BooqIt</h1>
-          <p className="text-gray-500 font-poppins">Please wait...</p>
+          <p className="text-gray-500 font-poppins">Restoring your session...</p>
         </div>
       </div>
     );
