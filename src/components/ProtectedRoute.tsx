@@ -28,8 +28,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   if (!isAuthenticated) {
-    console.log('User not authenticated, redirecting to /auth');
-    return <Navigate to="/auth" replace />;
+    console.log('User not authenticated, redirecting to /');
+    return <Navigate to="/" replace />;
   }
 
   if (requiredRole && userRole !== requiredRole) {

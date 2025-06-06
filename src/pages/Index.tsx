@@ -12,8 +12,9 @@ const Index = () => {
   const [showRoleSelection, setShowRoleSelection] = useState(false);
 
   useEffect(() => {
+    // Don't do anything while loading
     if (loading) {
-      return; // Wait for auth to load
+      return;
     }
 
     console.log(`Index - Auth state:`, { 
@@ -28,7 +29,6 @@ const Index = () => {
         navigate("/merchant", { replace: true });
       } else {
         console.log('Customer authenticated, staying on index for customer features');
-        // For customers, they stay on index to access customer features
         setShowRoleSelection(false);
       }
     } else if (!isAuthenticated) {
@@ -36,12 +36,6 @@ const Index = () => {
       setShowRoleSelection(true);
     }
   }, [isAuthenticated, userRole, loading, navigate]);
-
-  const handleRoleSelect = (role: UserRole) => {
-    console.log('Role selected:', role);
-    const selectedRole = location.state?.selectedRole || role;
-    navigate("/auth", { state: { selectedRole }, replace: true });
-  };
 
   // Show loading while auth is initializing
   if (loading) {
@@ -58,6 +52,12 @@ const Index = () => {
 
   // Show role selection for unauthenticated users
   if (!isAuthenticated && showRoleSelection) {
+    const handleRoleSelect = (role: UserRole) => {
+      console.log('Role selected:', role);
+      const selectedRole = location.state?.selectedRole || role;
+      navigate("/auth", { state: { selectedRole }, replace: true });
+    };
+
     return <RoleSelection onRoleSelect={handleRoleSelect} />;
   }
 

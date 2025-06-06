@@ -58,57 +58,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const handleAuthStateChange = async (event: string, session: Session | null) => {
-    console.log('Auth state change event:', event, 'Session exists:', !!session);
-    
-    try {
-      if (session?.user) {
-        console.log('Processing authenticated session...');
-        
-        setSession(session);
-        setUser(session.user);
-        setIsAuthenticated(true);
-        setUserId(session.user.id);
-        
-        // Fetch user role
-        const role = await fetchUserRole(session.user.id);
-        if (role) {
-          setUserRole(role);
-          console.log('Auth state updated successfully');
-        } else {
-          console.error('Failed to fetch user role');
-          clearAuthState();
-        }
-      } else {
-        console.log('No session, clearing auth state');
-        clearAuthState();
-      }
-    } catch (error) {
-      console.error('Error in handleAuthStateChange:', error);
-      clearAuthState();
-      toast.error('Authentication error. Please try logging in again.');
-    }
-    
-    setLoading(false);
-  };
-
   useEffect(() => {
     console.log('Initializing auth system...');
     
     let mounted = true;
-    
+
     const initializeAuth = async () => {
       try {
-        // Set up auth listener first
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (event, session) => {
-            if (mounted) {
-              await handleAuthStateChange(event, session);
-            }
-          }
-        );
-
-        // Check for existing session
+        // Check for existing session first
         const { data: { session: existingSession }, error } = await supabase.auth.getSession();
         
         if (error) {
@@ -120,11 +77,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
-        if (existingSession && mounted) {
+        if (existingSession?.user && mounted) {
           console.log('Found existing session, processing...');
-          await handleAuthStateChange('SIGNED_IN', existingSession);
-        } else if (mounted) {
-          console.log('No existing session found');
+          setSession(existingSession);
+          setUser(existingSession.user);
+          setIsAuthenticated(true);
+          setUserId(existingSession.user.id);
+          
+          // Fetch user role
+          const role = await fetchUserRole(existingSession.user.id);
+          if (role && mounted) {
+            setUserRole(role);
+            console.log('Auth state updated successfully');
+          }
+        }
+
+        // Set up auth listener
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          async (event, session) => {
+            if (!mounted) return;
+            
+            console.log('Auth state change event:', event, 'Session exists:', !!session);
+            
+            if (session?.user) {
+              console.log('Processing authenticated session...');
+              
+              setSession(session);
+              setUser(session.user);
+              setIsAuthenticated(true);
+              setUserId(session.user.id);
+              
+              // Fetch user role
+              const role = await fetchUserRole(session.user.id);
+              if (role && mounted) {
+                setUserRole(role);
+                console.log('Auth state updated successfully');
+              }
+            } else {
+              console.log('No session, clearing auth state');
+              clearAuthState();
+            }
+          }
+        );
+
+        // Always set loading to false after initialization
+        if (mounted) {
           setLoading(false);
         }
 
@@ -149,7 +146,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn('Auth initialization timeout - forcing completion');
         setLoading(false);
       }
-    }, 10000);
+    }, 5000); // Reduced to 5 seconds
 
     return () => {
       mounted = false;
@@ -172,7 +169,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // Clear auth state immediately
       clearAuthState();
-      setLoading(false);
       
       const { error } = await supabase.auth.signOut();
       
