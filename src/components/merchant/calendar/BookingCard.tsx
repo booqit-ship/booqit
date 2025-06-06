@@ -89,13 +89,6 @@ const BookingCard: React.FC<BookingCardProps> = ({
     }
   };
 
-  // Format phone number for tel: links
-  const formatPhoneForTel = (phone?: string) => {
-    if (!phone) return '';
-    // Remove all non-digit characters
-    return phone.replace(/\D/g, '');
-  };
-
   return (
     <Card className="hover:shadow-lg transition-shadow duration-200 border-l-4 border-l-booqit-primary">
       <CardContent className="p-4">
@@ -132,12 +125,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
           {booking.customer_phone && (
             <div className="flex items-center space-x-2 text-gray-600">
               <Phone className="h-4 w-4 text-gray-500" />
-              <a 
-                href={`tel:${formatPhoneForTel(booking.customer_phone)}`} 
-                className="hover:underline hover:text-booqit-primary transition-colors"
-              >
-                {booking.customer_phone}
-              </a>
+              <span>{booking.customer_phone}</span>
             </div>
           )}
           

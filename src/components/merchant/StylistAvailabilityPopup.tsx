@@ -1,452 +1,446 @@
-
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { format } from 'date-fns';
-import { Clock, CalendarOff, CalendarX, Calendar, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Staff } from '@/types';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
+import { Calendar } from '@/components/ui/calendar';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
-
-interface TimeRange {
-  startTime: string;
-  endTime: string;
-}
-
+import { Staff } from '@/types';
+import { format, isBefore, startOfDay } from 'date-fns';
+import { formatTimeToAmPm } from '@/utils/timeUtils';
+import { User, Calendar as CalendarIcon, Clock, ChevronDown, Edit, Trash2 } from 'lucide-react';
 interface StylistAvailabilityPopupProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   merchantId: string;
   onAvailabilityChange: () => void;
 }
-
+interface TimeRange {
+  start_time: string;
+  end_time: string;
+}
+interface ExistingBlockedRange {
+  id: string;
+  start_time: string;
+  end_time: string;
+  description: string | null;
+}
+interface StylistHoliday {
+  id: string;
+  staff_id: string;
+  holiday_date: string;
+  description: string | null;
+}
 const StylistAvailabilityPopup: React.FC<StylistAvailabilityPopupProps> = ({
   open,
   onOpenChange,
   merchantId,
   onAvailabilityChange
 }) => {
-  const [step, setStep] = useState(1);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [selectedStaff, setSelectedStaff] = useState<string>('');
-  const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
-  const [modalTab, setModalTab] = useState<string>('full-day');
-  const [description, setDescription] = useState<string>('');
-  const [timeRanges, setTimeRanges] = useState<TimeRange[]>([{ startTime: '10:00', endTime: '11:00' }]);
-  const [isSaving, setIsSaving] = useState(false);
-  const [autoCancel, setAutoCancel] = useState(true);
-  const { toast } = useToast();
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [isFullDayHoliday, setIsFullDayHoliday] = useState(false);
+  const [selectedTimeRanges, setSelectedTimeRanges] = useState<TimeRange[]>([]);
+  const [description, setDescription] = useState('');
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [existingHoliday, setExistingHoliday] = useState<StylistHoliday | null>(null);
+  const [existingBlockedRanges, setExistingBlockedRanges] = useState<ExistingBlockedRange[]>([]);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [availableTimeRanges, setAvailableTimeRanges] = useState<TimeRange[]>([]);
+  const [merchantHours, setMerchantHours] = useState<{
+    open_time: string;
+    close_time: string;
+  } | null>(null);
+  const {
+    toast
+  } = useToast();
 
-  // Fetch staff members when modal opens
+  // Generate time ranges based on merchant hours (30-minute intervals)
+  const generateTimeRanges = (openTime: string, closeTime: string): TimeRange[] => {
+    const ranges: TimeRange[] = [];
+    const start = new Date(`2000-01-01T${openTime}`);
+    const end = new Date(`2000-01-01T${closeTime}`);
+    let current = new Date(start);
+    while (current < end) {
+      const next = new Date(current.getTime() + 30 * 60000); // Add 30 minutes
+      if (next <= end) {
+        ranges.push({
+          start_time: current.toTimeString().substring(0, 5),
+          end_time: next.toTimeString().substring(0, 5)
+        });
+      }
+      current = next;
+    }
+    return ranges;
+  };
   useEffect(() => {
-    const fetchStaff = async () => {
-      if (!open || !merchantId) return;
-      
+    const fetchMerchantAndStaff = async () => {
       try {
-        const { data, error } = await supabase
-          .from('staff')
-          .select('*')
-          .eq('merchant_id', merchantId)
-          .order('name');
+        console.log('Fetching merchant and staff data for:', merchantId);
 
-        if (error) throw error;
-        setStaff(data || []);
-        if (data && data.length > 0) {
-          setSelectedStaff(data[0].id);
+        // Fetch merchant hours
+        const {
+          data: merchantData,
+          error: merchantError
+        } = await supabase.from('merchants').select('open_time, close_time').eq('id', merchantId).single();
+        if (merchantError) {
+          console.error('Error fetching merchant:', merchantError);
+          throw merchantError;
         }
+        console.log('Loaded merchant hours:', merchantData);
+        setMerchantHours(merchantData);
+        if (merchantData) {
+          const ranges = generateTimeRanges(merchantData.open_time, merchantData.close_time);
+          console.log('Generated time ranges:', ranges);
+          setAvailableTimeRanges(ranges);
+        }
+
+        // Fetch staff
+        const {
+          data: staffData,
+          error: staffError
+        } = await supabase.from('staff').select('*').eq('merchant_id', merchantId);
+        if (staffError) {
+          console.error('Error fetching staff:', staffError);
+          throw staffError;
+        }
+        console.log('Loaded staff:', staffData);
+        setStaff(staffData || []);
       } catch (error) {
-        console.error('Error fetching staff:', error);
+        console.error('Error fetching data:', error);
         toast({
           title: "Error",
-          description: "Failed to load staff members",
+          description: "Failed to load merchant and staff data.",
           variant: "destructive"
         });
       }
     };
+    if (open && merchantId) {
+      fetchMerchantAndStaff();
+    }
+  }, [merchantId, open, toast]);
 
-    fetchStaff();
-  }, [open, merchantId, toast]);
+  // Reset form when dialog opens
+  useEffect(() => {
+    if (open) {
+      setSelectedStaff('');
+      setSelectedDate(new Date());
+      setIsFullDayHoliday(false);
+      setSelectedTimeRanges([]);
+      setDescription('');
+      setExistingHoliday(null);
+      setExistingBlockedRanges([]);
+      setIsEditMode(false);
+    }
+  }, [open]);
 
-  const resetForm = () => {
-    setStep(1);
-    setSelectedStaff('');
-    setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
-    setModalTab('full-day');
-    setDescription('');
-    setTimeRanges([{ startTime: '10:00', endTime: '11:00' }]);
-    setAutoCancel(true);
-    setIsSaving(false);
+  // Load existing availability data when staff and date change
+  useEffect(() => {
+    const loadExistingData = async () => {
+      if (!selectedStaff || !selectedDate) return;
+      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+      console.log('Loading existing data for staff:', selectedStaff, 'date:', selectedDateStr);
+      try {
+        // Check for existing holiday
+        const {
+          data: holidayData,
+          error: holidayError
+        } = await supabase.from('stylist_holidays').select('*').eq('staff_id', selectedStaff).eq('holiday_date', selectedDateStr).single();
+        if (holidayError && holidayError.code !== 'PGRST116') {
+          console.error('Error fetching holiday:', holidayError);
+        } else if (holidayData) {
+          console.log('Found existing holiday:', holidayData);
+          setExistingHoliday(holidayData);
+          setIsFullDayHoliday(true);
+          setDescription(holidayData.description || '');
+          setSelectedTimeRanges([]);
+          setIsEditMode(true);
+          return;
+        }
+
+        // Check for existing blocked ranges using direct query
+        const {
+          data: rangesData,
+          error: rangesError
+        } = await supabase.from('stylist_blocked_slots').select('id, start_time, end_time, description').eq('staff_id', selectedStaff).eq('blocked_date', selectedDateStr).not('start_time', 'is', null).not('end_time', 'is', null);
+        if (rangesError) {
+          console.error('Error fetching blocked ranges:', rangesError);
+        } else if (rangesData && rangesData.length > 0) {
+          console.log('Found existing blocked ranges:', rangesData);
+          setExistingBlockedRanges(rangesData);
+          setSelectedTimeRanges(rangesData.map(range => ({
+            start_time: range.start_time,
+            end_time: range.end_time
+          })));
+          setDescription(rangesData[0]?.description || '');
+          setIsFullDayHoliday(false);
+          setIsEditMode(true);
+        } else {
+          // No existing data
+          console.log('No existing availability restrictions found');
+          setExistingHoliday(null);
+          setExistingBlockedRanges([]);
+          setIsFullDayHoliday(false);
+          setSelectedTimeRanges([]);
+          setDescription('');
+          setIsEditMode(false);
+        }
+      } catch (error) {
+        console.error('Error loading existing data:', error);
+      }
+    };
+    loadExistingData();
+  }, [selectedStaff, selectedDate]);
+  const handleTimeRangeToggle = (range: TimeRange) => {
+    setSelectedTimeRanges(prev => {
+      const isSelected = prev.some(r => r.start_time === range.start_time && r.end_time === range.end_time);
+      if (isSelected) {
+        return prev.filter(r => !(r.start_time === range.start_time && r.end_time === range.end_time));
+      } else {
+        return [...prev, range];
+      }
+    });
   };
-
-  const handleClose = () => {
-    resetForm();
-    onOpenChange(false);
-  };
-
-  const handleNextStep = () => {
-    if (step === 1 && !selectedStaff) {
+  const handleSave = async () => {
+    if (!selectedStaff) {
       toast({
         title: "Error",
-        description: "Please select a stylist",
+        description: "Please select a stylist first.",
         variant: "destructive"
       });
       return;
     }
-    
-    setStep(step + 1);
-  };
-
-  const handleBackStep = () => {
-    setStep(step - 1);
-  };
-
-  const handleAddTimeRange = () => {
-    setTimeRanges([...timeRanges, { startTime: '10:00', endTime: '11:00' }]);
-  };
-
-  const handleRemoveTimeRange = (index: number) => {
-    const newTimeRanges = [...timeRanges];
-    newTimeRanges.splice(index, 1);
-    setTimeRanges(newTimeRanges);
-  };
-
-  const handleTimeRangeChange = (index: number, field: 'startTime' | 'endTime', value: string) => {
-    const newTimeRanges = [...timeRanges];
-    newTimeRanges[index] = { ...newTimeRanges[index], [field]: value };
-    setTimeRanges(newTimeRanges);
-  };
-
-  const validateTimeRanges = () => {
-    for (const range of timeRanges) {
-      if (!range.startTime || !range.endTime) {
-        toast({
-          title: "Error",
-          description: "Please enter both start and end times",
-          variant: "destructive"
-        });
-        return false;
-      }
-
-      if (range.startTime >= range.endTime) {
-        toast({
-          title: "Error",
-          description: "End time must be after start time",
-          variant: "destructive"
-        });
-        return false;
-      }
-    }
-    return true;
-  };
-
-  const handleSave = async () => {
-    if (step === 2 && modalTab === 'time-range' && !validateTimeRanges()) {
-      return;
-    }
-
-    setIsSaving(true);
-    
-    try {
-      if (modalTab === 'full-day') {
-        // Use the enhanced function with auto-cancellation
-        const { data, error } = await supabase.rpc('manage_stylist_availability', {
-          p_staff_id: selectedStaff,
-          p_merchant_id: merchantId,
-          p_date: selectedDate,
-          p_is_full_day: true,
-          p_description: description || null,
-          p_auto_cancel: autoCancel
-        });
-
-        if (error) throw error;
-        
-        const result = data as { success: boolean; message?: string; error?: string; cancellations?: any };
-        
-        if (result && result.success) {
-          // Show success message with cancellation info if available
-          if (result.cancellations && result.cancellations.cancelled_count > 0) {
-            toast({
-              title: "Success",
-              description: `Holiday saved successfully. ${result.cancellations.cancelled_count} affected bookings were automatically cancelled.`
-            });
-          } else {
-            toast({
-              title: "Success",
-              description: "Holiday saved successfully"
-            });
-          }
-        } else {
-          throw new Error(result?.error || 'Failed to save availability');
-        }
-      } else {
-        // Convert time ranges to jsonb array for the new function
-        const rangesArray = timeRanges.map(range => ({
-          start_time: range.startTime,
-          end_time: range.endTime
-        }));
-        
-        // Use the enhanced function with auto-cancellation
-        const { data, error } = await supabase.rpc('manage_stylist_availability_ranges', {
-          p_staff_id: selectedStaff,
-          p_merchant_id: merchantId,
-          p_date: selectedDate,
-          p_is_full_day: false,
-          p_blocked_ranges: rangesArray,
-          p_description: description || null,
-          p_auto_cancel: autoCancel
-        });
-
-        if (error) throw error;
-        
-        const result = data as { success: boolean; message?: string; error?: string; cancellations?: any };
-        
-        if (result && result.success) {
-          // Show success message with cancellation info if available
-          if (result.cancellations && result.cancellations.cancelled_count > 0) {
-            toast({
-              title: "Success",
-              description: `Time ranges saved successfully. ${result.cancellations.cancelled_count} affected bookings were automatically cancelled.`
-            });
-          } else {
-            toast({
-              title: "Success",
-              description: "Time ranges saved successfully"
-            });
-          }
-        } else {
-          throw new Error(result?.error || 'Failed to save time ranges');
-        }
-      }
-
-      // Update parent component and close modal
-      onAvailabilityChange();
-      handleClose();
-    } catch (error: any) {
-      console.error('Error saving availability:', error);
+    if (!isFullDayHoliday && selectedTimeRanges.length === 0) {
       toast({
         title: "Error",
-        description: error.message || "Failed to save availability settings",
+        description: "Please select time ranges to block or mark as full day holiday.",
+        variant: "destructive"
+      });
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+      console.log('Saving availability data:', {
+        staff_id: selectedStaff,
+        merchant_id: merchantId,
+        date: selectedDateStr,
+        is_full_day: isFullDayHoliday,
+        blocked_ranges: selectedTimeRanges,
+        description: description
+      });
+
+      // Convert TimeRange[] to JSON-compatible format for the function call
+      const blockedRangesJson = isFullDayHoliday ? null : selectedTimeRanges.map(range => ({
+        start_time: range.start_time,
+        end_time: range.end_time
+      }));
+      const {
+        data,
+        error
+      } = await supabase.rpc('manage_stylist_availability_ranges', {
+        p_staff_id: selectedStaff,
+        p_merchant_id: merchantId,
+        p_date: selectedDateStr,
+        p_is_full_day: isFullDayHoliday,
+        p_blocked_ranges: blockedRangesJson,
+        p_description: description || null
+      });
+      if (error) {
+        console.error('Error saving availability:', error);
+        throw error;
+      }
+      console.log('Save response:', data);
+      const response = data as {
+        success: boolean;
+        message?: string;
+      };
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to update availability');
+      }
+      toast({
+        title: "Success",
+        description: response.message || (isEditMode ? "Stylist availability updated successfully." : "Stylist availability saved successfully.")
+      });
+      onOpenChange(false);
+      onAvailabilityChange();
+    } catch (error: any) {
+      console.error('Save error:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update availability. Please try again.",
         variant: "destructive"
       });
     } finally {
-      setIsSaving(false);
+      setIsLoading(false);
     }
   };
+  const handleClear = async () => {
+    if (!selectedStaff || !selectedDate) return;
+    setIsLoading(true);
+    try {
+      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+      console.log('Clearing availability for staff:', selectedStaff, 'date:', selectedDateStr);
+      const {
+        data,
+        error
+      } = await supabase.rpc('clear_stylist_availability', {
+        p_staff_id: selectedStaff,
+        p_date: selectedDateStr
+      });
+      if (error) {
+        console.error('Error clearing availability:', error);
+        throw error;
+      }
+      console.log('Clear response:', data);
+      const response = data as {
+        success: boolean;
+        message?: string;
+      };
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to clear availability');
+      }
 
-  const renderStepContent = () => {
-    if (step === 1) {
-      return (
+      // Reset form
+      setIsFullDayHoliday(false);
+      setSelectedTimeRanges([]);
+      setDescription('');
+      setExistingHoliday(null);
+      setExistingBlockedRanges([]);
+      setIsEditMode(false);
+      toast({
+        title: "Success",
+        description: "Availability restrictions cleared successfully."
+      });
+      onAvailabilityChange();
+    } catch (error: any) {
+      console.error('Clear error:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to clear availability. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  const selectedStaffMember = staff.find(s => s.id === selectedStaff);
+  return <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-xl font-light">
+            {isEditMode ? <Edit className="h-4 w-4" /> : null}
+            {isEditMode ? 'Edit' : 'Manage'} Stylist Availability
+          </DialogTitle>
+          <DialogDescription>
+            {isEditMode ? 'Edit existing availability restrictions.' : 'Block time ranges or mark full day holidays for stylists.'}
+          </DialogDescription>
+        </DialogHeader>
+        
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium block mb-2">Select Stylist</label>
+            <label className="text-sm font-medium mb-2 block">Select Stylist</label>
             <Select value={selectedStaff} onValueChange={setSelectedStaff}>
               <SelectTrigger>
-                <SelectValue placeholder="Select stylist" />
+                <SelectValue placeholder="Choose a stylist" />
               </SelectTrigger>
               <SelectContent>
-                {staff.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.name}
-                  </SelectItem>
-                ))}
+                {staff.map(member => <SelectItem key={member.id} value={member.id}>
+                    <div className="flex items-center">
+                      <User className="h-4 w-4 mr-2" />
+                      {member.name}
+                    </div>
+                  </SelectItem>)}
               </SelectContent>
             </Select>
           </div>
 
           <div>
-            <label className="text-sm font-medium block mb-2">Select Date</label>
-            <Input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              min={format(new Date(), 'yyyy-MM-dd')}
-            />
+            <label className="text-sm font-medium mb-2 block">Select Date</label>
+            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-start text-left font-normal">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {format(selectedDate, 'PPP')}
+                  <ChevronDown className="ml-auto h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={selectedDate} onSelect={date => {
+                if (date) {
+                  setSelectedDate(date);
+                  setCalendarOpen(false);
+                }
+              }} disabled={date => isBefore(date, startOfDay(new Date()))} initialFocus />
+              </PopoverContent>
+            </Popover>
           </div>
-        </div>
-      );
-    }
 
-    if (step === 2) {
-      return (
-        <div className="space-y-4">
-          <Tabs value={modalTab} onValueChange={setModalTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="full-day">Full Day Off</TabsTrigger>
-              <TabsTrigger value="time-range">Specific Times</TabsTrigger>
-            </TabsList>
-            <TabsContent value="full-day" className="py-4">
-              <Card>
-                <CardContent className="pt-4">
-                  <div className="flex items-center justify-center p-4 rounded-md bg-red-50 mb-3">
-                    <CalendarOff className="h-12 w-12 text-red-500 mr-4" />
-                    <div>
-                      <h3 className="font-semibold text-red-800 mb-1">Full Day Holiday</h3>
-                      <p className="text-xs text-red-600">Stylist will not be available for the entire day</p>
-                    </div>
+          {selectedStaff && <>
+              {isEditMode && <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-blue-800">
+                      Editing existing restrictions for {selectedStaffMember?.name}
+                    </span>
+                    <Button variant="outline" size="sm" onClick={handleClear} disabled={isLoading} className="text-red-600 border-red-200 hover:bg-red-50">
+                      <Trash2 className="h-3 w-3 mr-1" />
+                      Clear All
+                    </Button>
                   </div>
-                  <div>
-                    <label className="text-sm font-medium block mb-2">Reason (Optional)</label>
-                    <Textarea
-                      placeholder="e.g., Personal leave, Training day, etc."
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      className="resize-none"
-                      rows={3}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-            <TabsContent value="time-range" className="py-4">
-              <Card>
-                <CardContent className="pt-4 space-y-4">
-                  <div className="flex items-center justify-center p-4 rounded-md bg-amber-50 mb-3">
-                    <Clock className="h-12 w-12 text-amber-500 mr-4" />
-                    <div>
-                      <h3 className="font-semibold text-amber-800 mb-1">Time Range Block</h3>
-                      <p className="text-xs text-amber-600">Block specific time ranges when stylist is not available</p>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium block mb-2">Reason (Optional)</label>
-                    <Textarea
-                      placeholder="e.g., Lunch break, Meeting, etc."
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      className="resize-none"
-                      rows={2}
-                    />
-                  </div>
-                  
-                  {timeRanges.map((range, index) => (
-                    <div key={index} className="flex flex-wrap items-end gap-2 py-2">
-                      <div className="flex-1 min-w-[120px]">
-                        <label className="text-xs font-medium block mb-1">Start Time</label>
-                        <Input
-                          type="time"
-                          value={range.startTime}
-                          onChange={(e) => handleTimeRangeChange(index, 'startTime', e.target.value)}
-                        />
-                      </div>
-                      <div className="flex-1 min-w-[120px]">
-                        <label className="text-xs font-medium block mb-1">End Time</label>
-                        <Input
-                          type="time"
-                          value={range.endTime}
-                          onChange={(e) => handleTimeRangeChange(index, 'endTime', e.target.value)}
-                        />
-                      </div>
-                      {timeRanges.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleRemoveTimeRange(index)}
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50 h-10 w-10"
-                        >
-                          <CalendarX className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                  
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleAddTimeRange}
-                    className="w-full mt-2"
-                  >
-                    Add Another Time Range
-                  </Button>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+                </div>}
 
-          <div className="pt-2 space-y-2">
-            <div className="flex items-center space-x-2">
-              <Switch 
-                id="auto-cancel" 
-                checked={autoCancel} 
-                onCheckedChange={setAutoCancel} 
-              />
-              <Label htmlFor="auto-cancel">
-                Auto-cancel affected bookings
-              </Label>
-            </div>
-            
-            {autoCancel && (
-              <div className="flex items-start space-x-2 text-xs text-amber-600 bg-amber-50 p-3 rounded-md">
-                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <p>
-                  Bookings that conflict with this {modalTab === 'full-day' ? 'holiday' : 'time block'} will be 
-                  automatically cancelled. Customers will be notified.
-                </p>
+              <div className="flex items-center space-x-2">
+                <Checkbox id="fullDayHoliday" checked={isFullDayHoliday} onCheckedChange={checked => {
+              setIsFullDayHoliday(checked as boolean);
+              if (checked) {
+                setSelectedTimeRanges([]);
+              }
+            }} />
+                <label htmlFor="fullDayHoliday" className="text-sm font-medium">
+                  Full Day Holiday
+                </label>
               </div>
-            )}
-          </div>
+
+              {!isFullDayHoliday && availableTimeRanges.length > 0 && <div>
+                  <label className="text-sm font-medium mb-2 block flex items-center">
+                    <Clock className="h-4 w-4 mr-1" />
+                    Block Time Ranges (30-minute slots)
+                  </label>
+                  <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto">
+                    {availableTimeRanges.map((range, index) => {
+                const isSelected = selectedTimeRanges.some(r => r.start_time === range.start_time && r.end_time === range.end_time);
+                return <Button key={index} variant={isSelected ? "destructive" : "outline"} size="sm" className="text-xs h-8 justify-start" onClick={() => handleTimeRangeToggle(range)}>
+                          {formatTimeToAmPm(range.start_time)} - {formatTimeToAmPm(range.end_time)}
+                        </Button>;
+              })}
+                  </div>
+                  
+                  {selectedTimeRanges.length > 0 && <div className="mt-2 text-xs text-muted-foreground">
+                      {selectedTimeRanges.length} range(s) selected
+                    </div>}
+                </div>}
+
+              <div>
+                <label className="text-sm font-medium mb-2 block">Description (Optional)</label>
+                <Textarea placeholder="Add a reason for the restriction" value={description} onChange={e => setDescription(e.target.value)} className="resize-none" rows={2} />
+              </div>
+            </>}
         </div>
-      );
-    }
 
-    return null;
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>
-            {step === 1 
-              ? "Manage Stylist Availability"
-              : modalTab === 'full-day'
-                ? "Add Holiday for Stylist"
-                : "Block Time Ranges"
-            }
-          </DialogTitle>
-          <DialogDescription>
-            {step === 1
-              ? "Select the stylist and date to manage availability"
-              : "Set up availability restrictions for the selected stylist"
-            }
-          </DialogDescription>
-        </DialogHeader>
-        
-        {renderStepContent()}
-        
         <DialogFooter>
-          {step > 1 && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleBackStep}
-              className="mr-auto"
-              disabled={isSaving}
-            >
-              Back
-            </Button>
-          )}
-          
-          {step < 2 ? (
-            <Button onClick={handleNextStep} disabled={!selectedStaff}>
-              Next
-            </Button>
-          ) : (
-            <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving ? "Saving..." : "Save Availability"}
-            </Button>
-          )}
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={isLoading || !selectedStaff || !isFullDayHoliday && selectedTimeRanges.length === 0}>
+            {isLoading ? 'Saving...' : isEditMode ? 'Update' : 'Save Changes'}
+          </Button>
         </DialogFooter>
       </DialogContent>
-    </Dialog>
-  );
+    </Dialog>;
 };
-
 export default StylistAvailabilityPopup;
