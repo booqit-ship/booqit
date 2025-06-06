@@ -90,17 +90,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUserRole(role);
             console.log('Auth state updated successfully');
           }
+        } else {
+          console.log('No existing session found');
+          if (mounted) {
+            clearAuthState();
+          }
         }
 
-        // Set up auth listener
+        // Set up simple auth listener - no auto refresh
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
           async (event, session) => {
             if (!mounted) return;
             
-            console.log('Auth state change event:', event, 'Session exists:', !!session);
+            console.log('Auth state change event:', event);
             
-            if (session?.user) {
-              console.log('Processing authenticated session...');
+            if (event === 'SIGNED_IN' && session?.user) {
+              console.log('User signed in, processing session...');
               
               setSession(session);
               setUser(session.user);
@@ -111,12 +116,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               const role = await fetchUserRole(session.user.id);
               if (role && mounted) {
                 setUserRole(role);
-                console.log('Auth state updated successfully');
+                console.log('Sign in completed successfully');
               }
-            } else {
-              console.log('No session, clearing auth state');
+            } else if (event === 'SIGNED_OUT') {
+              console.log('User signed out, clearing state');
               clearAuthState();
             }
+            // Ignore TOKEN_REFRESHED and other events to prevent loops
           }
         );
 
@@ -146,7 +152,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn('Auth initialization timeout - forcing completion');
         setLoading(false);
       }
-    }, 5000); // Reduced to 5 seconds
+    }, 3000);
 
     return () => {
       mounted = false;

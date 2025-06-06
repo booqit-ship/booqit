@@ -1,15 +1,13 @@
 
-import React, { useEffect, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import React, { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import RoleSelection from "@/components/RoleSelection";
 import { UserRole } from "@/types";
 
 const Index = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const { isAuthenticated, userRole, loading } = useAuth();
-  const [showRoleSelection, setShowRoleSelection] = useState(false);
 
   useEffect(() => {
     // Don't do anything while loading
@@ -27,13 +25,8 @@ const Index = () => {
       if (userRole === "merchant") {
         console.log('Navigating to merchant dashboard');
         navigate("/merchant", { replace: true });
-      } else {
-        console.log('Customer authenticated, staying on index for customer features');
-        setShowRoleSelection(false);
       }
-    } else if (!isAuthenticated) {
-      console.log('User not authenticated, showing role selection');
-      setShowRoleSelection(true);
+      // For customers, stay on index page (will be handled by routes)
     }
   }, [isAuthenticated, userRole, loading, navigate]);
 
@@ -51,17 +44,16 @@ const Index = () => {
   }
 
   // Show role selection for unauthenticated users
-  if (!isAuthenticated && showRoleSelection) {
+  if (!isAuthenticated) {
     const handleRoleSelect = (role: UserRole) => {
       console.log('Role selected:', role);
-      const selectedRole = location.state?.selectedRole || role;
-      navigate("/auth", { state: { selectedRole }, replace: true });
+      navigate("/auth", { state: { selectedRole: role }, replace: true });
     };
 
     return <RoleSelection onRoleSelect={handleRoleSelect} />;
   }
 
-  // For authenticated customers, this will be handled by the routing in App.tsx
+  // For authenticated users, this will be handled by the routing in App.tsx
   return null;
 };
 
