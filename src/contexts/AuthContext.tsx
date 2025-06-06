@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserRole } from '../types';
 import { supabase } from '@/integrations/supabase/client';
