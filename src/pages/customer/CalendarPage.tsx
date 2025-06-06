@@ -9,11 +9,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { Booking } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { format, parseISO, addDays, isSameDay, startOfWeek, isToday } from 'date-fns';
-import { Calendar as CalendarIcon, Clock, Store, Check, X, CalendarX, Scissors, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, Store, Check, X, CalendarX, Scissors, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { useCancelBooking } from '@/hooks/useCancelBooking';
 import CancelBookingButton from '@/components/customer/CancelBookingButton';
+
 const CalendarPage: React.FC = () => {
   const [date, setDate] = useState<Date>(new Date());
   const [weekStart, setWeekStart] = useState<Date>(startOfWeek(new Date(), {
@@ -45,6 +46,11 @@ const CalendarPage: React.FC = () => {
   // Navigate to search page
   const handleExploreServices = () => {
     navigate('/search');
+  };
+
+  // Navigate to receipt page
+  const handleViewReceipt = (bookingId: string) => {
+    navigate(`/receipt/${bookingId}`);
   };
 
   // Fetch bookings for the user with stylist names
@@ -287,9 +293,19 @@ const CalendarPage: React.FC = () => {
                           </p>
                         </div>
                       </div>
-                      <Badge className={`${getStatusColor(booking.status)} text-white border-0`}>
-                        {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleViewReceipt(booking.id)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <FileText className="h-4 w-4" />
+                        </Button>
+                        <Badge className={`${getStatusColor(booking.status)} text-white border-0`}>
+                          {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                        </Badge>
+                      </div>
                     </div>
                     
                     <div className="space-y-2 mb-4">
@@ -312,8 +328,7 @@ const CalendarPage: React.FC = () => {
             </div>}
         </CardContent>
       </Card>
-      
-      
     </div>;
 };
+
 export default CalendarPage;
