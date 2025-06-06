@@ -26,38 +26,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const initialized = useRef(false);
-  const sessionCheckInterval = useRef<NodeJS.Timeout | null>(null);
-
-  // Store session info in localStorage for persistence
-  const storeSessionData = (session: Session | null, role: UserRole | null) => {
-    if (session && role) {
-      localStorage.setItem('booqit-session-data', JSON.stringify({
-        userId: session.user.id,
-        userRole: role,
-        sessionExpiry: session.expires_at,
-        lastActivity: Date.now()
-      }));
-    } else {
-      localStorage.removeItem('booqit-session-data');
-    }
-  };
-
-  // Retrieve session data from localStorage
-  const getStoredSessionData = () => {
-    try {
-      const stored = localStorage.getItem('booqit-session-data');
-      if (stored) {
-        const data = JSON.parse(stored);
-        // Check if session hasn't expired
-        if (data.sessionExpiry && data.sessionExpiry * 1000 > Date.now()) {
-          return data;
-        }
-      }
-    } catch (error) {
-      console.warn('Error reading stored session data:', error);
-    }
-    return null;
-  };
 
   const clearAuthState = () => {
     console.log('Clearing auth state');
@@ -66,7 +34,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUserRole(null);
     setUserId(null);
     setSession(null);
-    localStorage.removeItem('booqit-session-data');
   };
 
   const fetchUserRole = async (userId: string): Promise<UserRole | null> => {
@@ -92,7 +59,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const updateAuthState = async (session: Session | null, skipRoleFetch = false) => {
+  const updateAuthState = async (session: Session | null) => {
     console.log('Updating auth state with session:', !!session);
     
     if (session?.user) {
@@ -101,63 +68,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsAuthenticated(true);
       setUserId(session.user.id);
       
-      let role: UserRole | null = null;
-      
-      // Try to get role from stored data first to avoid unnecessary API calls
-      if (skipRoleFetch) {
-        const storedData = getStoredSessionData();
-        if (storedData && storedData.userId === session.user.id) {
-          role = storedData.userRole;
-          setUserRole(role);
-          console.log('Using cached role:', role);
-        }
+      // Fetch user role
+      const role = await fetchUserRole(session.user.id);
+      if (role) {
+        setUserRole(role);
+        console.log('Auth state updated successfully with role:', role);
+      } else {
+        console.warn('Could not fetch user role, clearing auth state');
+        clearAuthState();
       }
-      
-      // Fetch role if not available from cache
-      if (!role) {
-        role = await fetchUserRole(session.user.id);
-        if (role) {
-          setUserRole(role);
-          console.log('Auth state updated successfully with role:', role);
-        } else {
-          console.warn('Could not fetch user role, clearing auth state');
-          clearAuthState();
-          return;
-        }
-      }
-      
-      // Store session data for persistence
-      storeSessionData(session, role);
-      
     } else {
       console.log('No valid session, clearing auth state');
       clearAuthState();
-    }
-  };
-
-  // Check for session validity periodically
-  const validateSession = async () => {
-    try {
-      const { data: { session: currentSession }, error } = await supabase.auth.getSession();
-      
-      if (error) {
-        console.error('Session validation error:', error);
-        clearAuthState();
-        return;
-      }
-      
-      if (currentSession) {
-        // Update last activity
-        const storedData = getStoredSessionData();
-        if (storedData) {
-          storedData.lastActivity = Date.now();
-          localStorage.setItem('booqit-session-data', JSON.stringify(storedData));
-        }
-      } else {
-        clearAuthState();
-      }
-    } catch (error) {
-      console.error('Session validation exception:', error);
     }
   };
 
@@ -168,11 +90,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         console.log('Initializing auth system...');
         
-        // First, check if we have stored session data
-        const storedData = getStoredSessionData();
-        console.log('Stored session data:', !!storedData);
+        // Get existing session first
+        const { data: { session: existingSession }, error } = await supabase.auth.getSession();
         
-        // Set up auth state change listener first
+        if (error) {
+          console.error('Error getting session:', error);
+          if (mounted) {
+            clearAuthState();
+            setLoading(false);
+          }
+          return;
+        }
+
+        if (existingSession && mounted) {
+          console.log('Found existing session, updating auth state');
+          await updateAuthState(existingSession);
+        } else {
+          console.log('No existing session found');
+          if (mounted) {
+            clearAuthState();
+          }
+        }
+
+        // Set up auth state change listener
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
           async (event, session) => {
             if (!mounted) return;
@@ -189,65 +129,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               console.log('Token refreshed, updating session');
               setSession(session);
               setUser(session.user);
-              // Update stored session data with new expiry
-              const storedData = getStoredSessionData();
-              if (storedData) {
-                storeSessionData(session, storedData.userRole);
-              }
-            } else if (event === 'INITIAL_SESSION' && session) {
-              console.log('Initial session detected');
-              await updateAuthState(session, true); // Skip role fetch for initial session
+              // Don't refetch role on token refresh, just update session
             }
+            // Ignore other events to prevent unnecessary state changes
           }
         );
-
-        // Then get existing session
-        const { data: { session: existingSession }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('Error getting session:', error);
-          if (mounted) {
-            clearAuthState();
-            setLoading(false);
-          }
-          return;
-        }
-
-        if (existingSession && mounted) {
-          console.log('Found existing session, updating auth state');
-          await updateAuthState(existingSession, true); // Use cached role for faster loading
-        } else if (storedData && mounted) {
-          // If we have stored data but no session, try to refresh
-          console.log('No session but have stored data, attempting refresh...');
-          const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
-          
-          if (!refreshError && refreshedSession && mounted) {
-            console.log('Session refreshed successfully');
-            await updateAuthState(refreshedSession);
-          } else {
-            console.log('Could not refresh session, clearing stored data');
-            clearAuthState();
-          }
-        } else {
-          console.log('No existing session or stored data found');
-          if (mounted) {
-            clearAuthState();
-          }
-        }
 
         if (mounted) {
           setLoading(false);
           initialized.current = true;
-          
-          // Set up periodic session validation
-          sessionCheckInterval.current = setInterval(validateSession, 5 * 60 * 1000); // Every 5 minutes
         }
 
         return () => {
           subscription.unsubscribe();
-          if (sessionCheckInterval.current) {
-            clearInterval(sessionCheckInterval.current);
-          }
         };
       } catch (error) {
         console.error('Error during auth initialization:', error);
@@ -262,21 +156,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       initializeAuth();
     }
 
-    // Handle visibility change to refresh session when tab becomes active
-    const handleVisibilityChange = () => {
-      if (!document.hidden && isAuthenticated) {
-        validateSession();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
     return () => {
       mounted = false;
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      if (sessionCheckInterval.current) {
-        clearInterval(sessionCheckInterval.current);
-      }
     };
   }, []);
 
@@ -294,11 +175,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // Clear auth state immediately for better UX
       clearAuthState();
-      
-      // Clear the session check interval
-      if (sessionCheckInterval.current) {
-        clearInterval(sessionCheckInterval.current);
-      }
       
       const { error } = await supabase.auth.signOut();
       

@@ -81,13 +81,11 @@ const MapView: React.FC = () => {
       }
       
       if (data) {
-        // Type assertion to ensure data matches Merchant[] type
-        const merchantData = data as Merchant[];
-        setMerchants(merchantData);
+        setMerchants(data);
         
         // If user location is available, calculate distances
         if (userLocation) {
-          const merchantsWithDistance = calculateMerchantsDistance(merchantData, userLocation);
+          const merchantsWithDistance = calculateMerchantsDistance(data, userLocation);
           setMerchants(merchantsWithDistance);
         }
       }

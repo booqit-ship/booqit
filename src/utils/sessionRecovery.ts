@@ -10,23 +10,18 @@ export const validateCurrentSession = async () => {
     
     if (error) {
       console.error('Session validation failed:', error);
-      // Don't show error toast for normal session expiry
+      toast.error('Session validation failed. Please login again.', {
+        style: {
+          background: '#f3e8ff',
+          border: '1px solid #d8b4fe',
+          color: '#7c3aed'
+        }
+      });
       return false;
     }
     
     if (session) {
       console.log('Session validated successfully');
-      // Update activity timestamp in localStorage
-      const storedData = localStorage.getItem('booqit-session-data');
-      if (storedData) {
-        try {
-          const sessionData = JSON.parse(storedData);
-          sessionData.lastActivity = Date.now();
-          localStorage.setItem('booqit-session-data', JSON.stringify(sessionData));
-        } catch (e) {
-          console.warn('Could not update session activity timestamp');
-        }
-      }
       return true;
     }
     
@@ -34,6 +29,13 @@ export const validateCurrentSession = async () => {
     return false;
   } catch (error) {
     console.error('Exception during session validation:', error);
+    toast.error('Session error. Please refresh the page.', {
+      style: {
+        background: '#f3e8ff',
+        border: '1px solid #d8b4fe',
+        color: '#7c3aed'
+      }
+    });
     return false;
   }
 };
@@ -46,7 +48,7 @@ export const recoverSession = async () => {
     
     if (error) {
       console.error('Session recovery failed:', error);
-      toast.error('Session expired. Please login again.', {
+      toast.error('Unable to restore session. Please login again.', {
         style: {
           background: '#f3e8ff',
           border: '1px solid #d8b4fe',
@@ -58,7 +60,7 @@ export const recoverSession = async () => {
     
     if (session) {
       console.log('Session recovered successfully');
-      toast.success('Session restored', {
+      toast.success('Session restored successfully', {
         style: {
           background: '#f3e8ff',
           border: '1px solid #d8b4fe',
@@ -72,24 +74,5 @@ export const recoverSession = async () => {
   } catch (error) {
     console.error('Exception during session recovery:', error);
     return null;
-  }
-};
-
-export const getSessionTimeRemaining = () => {
-  try {
-    const storedData = localStorage.getItem('booqit-session-data');
-    if (!storedData) return 0;
-    
-    const sessionData = JSON.parse(storedData);
-    if (!sessionData.sessionExpiry) return 0;
-    
-    const expiryTime = sessionData.sessionExpiry * 1000; // Convert to milliseconds
-    const currentTime = Date.now();
-    const timeRemaining = expiryTime - currentTime;
-    
-    return Math.max(0, timeRemaining);
-  } catch (error) {
-    console.warn('Error calculating session time remaining:', error);
-    return 0;
   }
 };

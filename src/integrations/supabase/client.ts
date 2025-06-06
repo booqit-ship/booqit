@@ -15,18 +15,6 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    flowType: 'pkce',
-    // Store additional session info in localStorage
-    storageKey: 'booqit-auth-token',
-    // Extend session expiry
-    refreshTokenRotationEnabled: true,
-    // Prevent automatic logout on tab switch
-    sessionRefreshMarginSeconds: 60
-  },
-  // Additional options for better persistence
-  global: {
-    headers: {
-      'x-application': 'booqit-pwa'
-    }
+    flowType: 'pkce'
   }
 });
