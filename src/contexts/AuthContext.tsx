@@ -2,13 +2,15 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserRole } from '../types';
 import { supabase } from '@/integrations/supabase/client';
-import { Session } from '@supabase/supabase-js';
+import { Session, User } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 
 interface AuthContextType {
   isAuthenticated: boolean;
   userRole: UserRole | null;
   userId: string | null;
+  user: User | null;
+  session: Session | null;
   loading: boolean;
   setAuth: (isAuthenticated: boolean, role: UserRole | null, id: string | null) => void;
   logout: () => void;
@@ -17,233 +19,198 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  console.log('[AuthProvider] Component mounted');
-  
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  useEffect(() => {
-    console.log('[Auth] Initializing authentication...');
+  const fetchUserRole = async (userId: string) => {
+    try {
+      console.log('Fetching user role for userId:', userId);
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching user role:', error);
+        return null;
+      }
+      
+      console.log('User role fetched successfully:', data?.role);
+      return data?.role as UserRole;
+    } catch (error) {
+      console.error('Exception in fetchUserRole:', error);
+      return null;
+    }
+  };
+
+  const handleAuthStateChange = async (event: string, session: Session | null) => {
+    console.log('Auth state change event:', event, 'Session:', !!session);
     
-    const restoreSession = async () => {
-      setLoading(true);
-      try {
-        console.log('[Auth] Checking for existing session...');
-        const { data: { session }, error } = await supabase.auth.getSession();
+    setSession(session);
+    
+    if (session && session.user) {
+      console.log('User authenticated, setting up session...');
+      setUser(session.user);
+      setIsAuthenticated(true);
+      setUserId(session.user.id);
+      
+      // Fetch user role
+      const role = await fetchUserRole(session.user.id);
+      if (role) {
+        setUserRole(role);
         
-        if (error) {
-          console.error('[Auth] Session restoration error:', error);
-          throw error;
-        }
-
-        if (session && session.user) {
-          console.log('[Auth] Session restored successfully:', session.user.id);
-          setSession(session);
-          setIsAuthenticated(true);
-          setUserId(session.user.id);
-          
-          // Fetch user role from profiles table
-          try {
-            const { data: profileData, error: profileError } = await supabase
-              .from('profiles')
-              .select('role')
-              .eq('id', session.user.id)
-              .single();
-            
-            if (profileData && !profileError) {
-              const role = profileData.role as UserRole;
-              setUserRole(role);
-              console.log('[Auth] User role restored:', role);
-              
-              // Store in localStorage for quick access
-              localStorage.setItem('booqit_auth', JSON.stringify({ 
-                isAuthenticated: true, 
-                role: role, 
-                id: session.user.id 
-              }));
-              
-              toast.success('Welcome back! Session restored successfully.', {
-                style: {
-                  background: '#E6E6FA',
-                  color: '#5B21B6',
-                  fontFamily: 'Poppins, sans-serif',
-                }
-              });
-            } else {
-              console.error('[Auth] Failed to fetch user role:', profileError);
-              toast.error('Failed to restore user profile. Please log in again.', {
-                style: {
-                  background: '#E6E6FA',
-                  color: '#5B21B6',
-                  fontFamily: 'Poppins, sans-serif',
-                }
-              });
+        // Store auth state in localStorage for persistence
+        const authState = {
+          isAuthenticated: true,
+          role,
+          id: session.user.id
+        };
+        localStorage.setItem('booqit_auth', JSON.stringify(authState));
+        console.log('Auth state stored in localStorage:', authState);
+      } else {
+        console.warn('Could not fetch user role, user may need to complete profile');
+        // Don't show error immediately on startup, just log it
+        if (event !== 'INITIAL_SESSION') {
+          toast.error('Could not fetch user profile. Please try logging in again.', {
+            style: {
+              background: '#f3e8ff',
+              border: '1px solid #a855f7',
+              color: '#7c3aed'
             }
-          } catch (error) {
-            console.error('[Auth] Exception in user role query:', error);
-          }
-        } else {
-          console.log('[Auth] No existing session found');
-          setIsAuthenticated(false);
-          setUserRole(null);
-          setUserId(null);
-          localStorage.removeItem('booqit_auth');
+          });
         }
-      } catch (err) {
-        console.error('[Auth] Session restoration failed:', err);
-        setIsAuthenticated(false);
-        setUserRole(null);
-        setUserId(null);
-        localStorage.removeItem('booqit_auth');
-        
-        toast.error('Failed to restore your session. Please log in again.', {
-          style: {
-            background: '#E6E6FA',
-            color: '#5B21B6',
-            fontFamily: 'Poppins, sans-serif',
-          }
-        });
-      } finally {
+      }
+    } else {
+      console.log('User signed out or no session');
+      // Clear all authentication state
+      setUser(null);
+      setIsAuthenticated(false);
+      setUserRole(null);
+      setUserId(null);
+      localStorage.removeItem('booqit_auth');
+    }
+    
+    // Always clear loading state after handling auth change
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    console.log('Setting up auth state management...');
+    
+    let initialized = false;
+    
+    // Set up authentication state listener FIRST
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!initialized && event === 'INITIAL_SESSION') {
+        initialized = true;
+        console.log('Processing initial session...');
+        await handleAuthStateChange(event, session);
+      } else if (initialized) {
+        console.log('Processing auth state change:', event);
+        await handleAuthStateChange(event, session);
+      }
+    });
+
+    // Set a timeout to ensure loading doesn't get stuck
+    const timeoutId = setTimeout(() => {
+      if (loading) {
+        console.warn('Auth initialization timed out, clearing loading state');
         setLoading(false);
-        console.log('[Auth] Session restoration completed');
       }
-    };
-
-    // Set up authentication state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('[Auth] Auth state changed:', event, session?.user?.id);
-        setSession(session);
-
-        if (session && session.user) {
-          setIsAuthenticated(true);
-          setUserId(session.user.id);
-          
-          // For sign-in events, fetch user role
-          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-            try {
-              const { data: profileData } = await supabase
-                .from('profiles')
-                .select('role')
-                .eq('id', session.user.id)
-                .single();
-              
-              if (profileData) {
-                const role = profileData.role as UserRole;
-                setUserRole(role);
-                localStorage.setItem('booqit_auth', JSON.stringify({ 
-                  isAuthenticated: true, 
-                  role: role, 
-                  id: session.user.id 
-                }));
-                console.log('[Auth] User role set:', role);
-              }
-            } catch (error) {
-              console.error('[Auth] Error fetching user role on auth change:', error);
-            }
-          }
-          
-          if (event === 'SIGNED_IN') {
-            toast.success('Successfully logged in!', {
-              style: {
-                background: '#E6E6FA',
-                color: '#5B21B6',
-                fontFamily: 'Poppins, sans-serif',
-              }
-            });
-          }
-        } else {
-          // User is signed out
-          console.log('[Auth] User signed out or session expired');
-          setIsAuthenticated(false);
-          setUserRole(null);
-          setUserId(null);
-          localStorage.removeItem('booqit_auth');
-          
-          if (event === 'SIGNED_OUT') {
-            toast.success('Successfully logged out!', {
-              style: {
-                background: '#E6E6FA',
-                color: '#5B21B6',
-                fontFamily: 'Poppins, sans-serif',
-              }
-            });
-          }
-        }
-      }
-    );
-
-    // Restore session on app startup
-    restoreSession();
+    }, 5000); // 5 second timeout
 
     return () => {
-      console.log('[Auth] Cleaning up auth listener');
+      console.log('Cleaning up auth subscription');
       subscription.unsubscribe();
+      clearTimeout(timeoutId);
     };
-  }, []);
+  }, []); // Remove loading dependency to prevent re-initialization
 
   const setAuth = (isAuthenticated: boolean, role: UserRole | null, id: string | null) => {
-    console.log('[Auth] Manual auth update:', { isAuthenticated, role, id });
+    console.log('Manual setAuth called:', { isAuthenticated, role, id });
+    
     setIsAuthenticated(isAuthenticated);
     setUserRole(role);
     setUserId(id);
     
     if (isAuthenticated && role && id) {
-      localStorage.setItem('booqit_auth', JSON.stringify({ isAuthenticated, role, id }));
+      const authState = { isAuthenticated, role, id };
+      localStorage.setItem('booqit_auth', JSON.stringify(authState));
+      console.log('Auth state manually stored:', authState);
     } else {
       localStorage.removeItem('booqit_auth');
+      console.log('Auth state cleared from localStorage');
     }
   };
 
   const logout = async () => {
     try {
-      console.log('[Auth] Logging out user...');
-      await supabase.auth.signOut();
+      console.log('Logging out user...');
+      
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        console.error('Error during logout:', error);
+        toast.error('Logout failed. Please try again.', {
+          style: {
+            background: '#f3e8ff',
+            border: '1px solid #a855f7',
+            color: '#7c3aed'
+          }
+        });
+      } else {
+        console.log('Logout successful');
+        toast.success('Logged out successfully', {
+          style: {
+            background: '#f3e8ff',
+            border: '1px solid #a855f7',
+            color: '#7c3aed'
+          }
+        });
+      }
+      
+      // Clear auth state (this will be handled by onAuthStateChange too)
       setAuth(false, null, null);
-      console.log('[Auth] Logout completed');
     } catch (error) {
-      console.error('[Auth] Error logging out:', error);
-      toast.error('Error logging out. Please try again.', {
+      console.error('Exception during logout:', error);
+      toast.error('Logout failed. Please try again.', {
         style: {
-          background: '#E6E6FA',
-          color: '#5B21B6',
-          fontFamily: 'Poppins, sans-serif',
+          background: '#f3e8ff',
+          border: '1px solid #a855f7',
+          color: '#7c3aed'
         }
       });
     }
   };
 
-  console.log('[AuthProvider] Providing context with values:', { 
-    isAuthenticated, 
-    userRole, 
-    userId, 
-    loading 
-  });
+  const contextValue: AuthContextType = {
+    isAuthenticated,
+    userRole,
+    userId,
+    user,
+    session,
+    loading,
+    setAuth,
+    logout
+  };
 
   return (
-    <AuthContext.Provider value={{ 
-      isAuthenticated, 
-      userRole, 
-      userId, 
-      loading, 
-      setAuth, 
-      logout 
-    }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
 };
 
 export const useAuth = () => {
-  console.log('[useAuth] Hook called');
   const context = useContext(AuthContext);
   if (context === undefined) {
-    console.error('[useAuth] ERROR: Hook called outside of AuthProvider!');
     throw new Error('useAuth must be used within an AuthProvider');
   }
-  console.log('[useAuth] Context found:', context);
   return context;
 };
