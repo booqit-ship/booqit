@@ -37,6 +37,20 @@ import OnboardingPage from '@/pages/merchant/OnboardingPage';
 
 const queryClient = new QueryClient();
 
+// Root layout component that wraps everything with AuthProvider
+const RootLayout = () => {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <AuthProvider>
+          <RouterProvider router={router} />
+          <Toaster />
+        </AuthProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
+
 const router = createBrowserRouter([
   {
     path: "/",
@@ -128,16 +142,7 @@ const router = createBrowserRouter([
 ]);
 
 function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <AuthProvider>
-          <RouterProvider router={router} />
-          <Toaster />
-        </AuthProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
-  );
+  return <RootLayout />;
 }
 
 export default App;

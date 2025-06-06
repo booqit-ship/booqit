@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserRole } from '../types';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,6 +16,8 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  console.log('[AuthProvider] Component mounted');
+  
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
@@ -214,6 +215,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  console.log('[AuthProvider] Providing context with values:', { 
+    isAuthenticated, 
+    userRole, 
+    userId, 
+    loading 
+  });
+
   return (
     <AuthContext.Provider value={{ 
       isAuthenticated, 
@@ -229,9 +237,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 };
 
 export const useAuth = () => {
+  console.log('[useAuth] Hook called');
   const context = useContext(AuthContext);
   if (context === undefined) {
+    console.error('[useAuth] ERROR: Hook called outside of AuthProvider!');
     throw new Error('useAuth must be used within an AuthProvider');
   }
+  console.log('[useAuth] Context found:', context);
   return context;
 };
