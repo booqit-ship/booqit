@@ -63,7 +63,7 @@ const router = createBrowserRouter([
     path: "/terms-and-conditions",
     element: <TermsAndConditions />,
   },
-  // Customer routes
+  // Customer routes - direct paths
   {
     path: "/home",
     element: <ProtectedRoute requiredRole="customer" />,
@@ -73,21 +73,154 @@ const router = createBrowserRouter([
         element: <CustomerLayout />,
         children: [
           { index: true, element: <HomePage /> },
-          { path: "search", element: <SearchPage /> },
-          { path: "map", element: <MapPage /> },
-          { path: "calendar", element: <CalendarPage /> },
-          { path: "profile", element: <ProfilePage /> },
-          { path: "merchant/:merchantId", element: <MerchantDetailPage /> },
-          { path: "booking/:merchantId", element: <ServiceSelectionPage /> },
-          { path: "booking/:merchantId/staff", element: <StaffSelectionPage /> },
-          { path: "booking/:merchantId/datetime", element: <DateTimeSelectionPage /> },
-          { path: "booking/:merchantId/summary", element: <BookingSummaryPage /> },
-          { path: "payment/:merchantId", element: <PaymentPage /> },
-          { path: "receipt/:bookingId", element: <ReceiptPage /> },
         ],
       },
     ],
   },
+  {
+    path: "/search",
+    element: <ProtectedRoute requiredRole="customer" />,
+    children: [
+      {
+        path: "/search",
+        element: <CustomerLayout />,
+        children: [
+          { index: true, element: <SearchPage /> },
+        ],
+      },
+    ],
+  },
+  {
+    path: "/map",
+    element: <ProtectedRoute requiredRole="customer" />,
+    children: [
+      {
+        path: "/map",
+        element: <CustomerLayout />,
+        children: [
+          { index: true, element: <MapPage /> },
+        ],
+      },
+    ],
+  },
+  {
+    path: "/calendar",
+    element: <ProtectedRoute requiredRole="customer" />,
+    children: [
+      {
+        path: "/calendar",
+        element: <CustomerLayout />,
+        children: [
+          { index: true, element: <CalendarPage /> },
+        ],
+      },
+    ],
+  },
+  {
+    path: "/profile",
+    element: <ProtectedRoute requiredRole="customer" />,
+    children: [
+      {
+        path: "/profile",
+        element: <CustomerLayout />,
+        children: [
+          { index: true, element: <ProfilePage /> },
+        ],
+      },
+    ],
+  },
+  {
+    path: "/merchant/:merchantId",
+    element: <ProtectedRoute requiredRole="customer" />,
+    children: [
+      {
+        path: "/merchant/:merchantId",
+        element: <CustomerLayout />,
+        children: [
+          { index: true, element: <MerchantDetailPage /> },
+        ],
+      },
+    ],
+  },
+  {
+    path: "/booking/:merchantId",
+    element: <ProtectedRoute requiredRole="customer" />,
+    children: [
+      {
+        path: "/booking/:merchantId",
+        element: <CustomerLayout />,
+        children: [
+          { index: true, element: <ServiceSelectionPage /> },
+        ],
+      },
+    ],
+  },
+  {
+    path: "/booking/:merchantId/staff",
+    element: <ProtectedRoute requiredRole="customer" />,
+    children: [
+      {
+        path: "/booking/:merchantId/staff",
+        element: <CustomerLayout />,
+        children: [
+          { index: true, element: <StaffSelectionPage /> },
+        ],
+      },
+    ],
+  },
+  {
+    path: "/booking/:merchantId/datetime",
+    element: <ProtectedRoute requiredRole="customer" />,
+    children: [
+      {
+        path: "/booking/:merchantId/datetime",
+        element: <CustomerLayout />,
+        children: [
+          { index: true, element: <DateTimeSelectionPage /> },
+        ],
+      },
+    ],
+  },
+  {
+    path: "/booking/:merchantId/summary",
+    element: <ProtectedRoute requiredRole="customer" />,
+    children: [
+      {
+        path: "/booking/:merchantId/summary",
+        element: <CustomerLayout />,
+        children: [
+          { index: true, element: <BookingSummaryPage /> },
+        ],
+      },
+    ],
+  },
+  {
+    path: "/payment/:merchantId",
+    element: <ProtectedRoute requiredRole="customer" />,
+    children: [
+      {
+        path: "/payment/:merchantId",
+        element: <CustomerLayout />,
+        children: [
+          { index: true, element: <PaymentPage /> },
+        ],
+      },
+    ],
+  },
+  {
+    path: "/receipt/:bookingId",
+    element: <ProtectedRoute requiredRole="customer" />,
+    children: [
+      {
+        path: "/receipt/:bookingId",
+        element: <CustomerLayout />,
+        children: [
+          { index: true, element: <ReceiptPage /> },
+        ],
+      },
+    ],
+  },
+  // Merchant routes
   {
     path: "/merchant",
     element: <ProtectedRoute requiredRole="merchant" />,
