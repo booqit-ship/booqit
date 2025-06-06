@@ -1,9 +1,10 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/sonner';
-import { useAuth } from '@/contexts/AuthContext';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import SplashScreen from '@/components/SplashScreen';
 import CustomerLayout from '@/layouts/CustomerLayout';
 import MapPage from '@/pages/customer/MapPage';
@@ -24,7 +25,7 @@ import AuthPage from '@/pages/AuthPage';
 import Index from '@/pages/Index';
 import MerchantBookingSummaryPage from '@/pages/merchant/BookingSummaryPage';
 
-function App() {
+function AppContent() {
   const [isLoading, setIsLoading] = useState(true);
   const { isAuthenticated, userRole } = useAuth();
 
@@ -94,4 +95,13 @@ function App() {
   );
 }
 
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
+}
+
 export default App;
+
