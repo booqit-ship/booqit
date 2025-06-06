@@ -41,7 +41,7 @@ const DashboardPage: React.FC = () => {
       try {
         const { data: merchantData, error: merchantError } = await supabase
           .from('merchants')
-          .select('id, shop_image, shop_name')
+          .select('id, image_url, shop_name')
           .eq('user_id', userId)
           .single();
 
@@ -52,7 +52,7 @@ const DashboardPage: React.FC = () => {
 
         if (merchantData) {
           setMerchantId(merchantData.id);
-          setShopImage(merchantData.shop_image);
+          setShopImage(merchantData.image_url);
           setShopName(merchantData.shop_name || 'Merchant');
           return merchantData.id;
         }
