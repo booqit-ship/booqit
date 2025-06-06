@@ -16,15 +16,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 }) => {
   const { isAuthenticated, userRole, loading } = useAuth();
 
-  // Validate session when component mounts and periodically
+  // Validate session when component mounts
   useEffect(() => {
     if (!loading && isAuthenticated) {
-      // Validate session immediately
       validateCurrentSession();
-      
-      // Set up periodic validation every 5 minutes
-      const intervalId = setInterval(validateCurrentSession, 300000);
-      return () => clearInterval(intervalId);
     }
   }, [loading, isAuthenticated]);
 
@@ -34,19 +29,20 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       <div className="min-h-screen bg-gradient-to-br from-booqit-primary/10 to-white flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin h-12 w-12 border-4 border-booqit-primary border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-gray-600 font-poppins">Loading...</p>
+          <h2 className="text-xl font-righteous text-booqit-dark mb-2">Loading BooqIt</h2>
+          <p className="text-gray-600 font-poppins">Validating your session...</p>
         </div>
       </div>
     );
   }
 
   if (!isAuthenticated) {
-    console.log('User not authenticated, redirecting to /');
+    console.log('🚫 User not authenticated, redirecting to /');
     return <Navigate to="/" replace />;
   }
 
   if (requiredRole && userRole !== requiredRole) {
-    console.log('User role mismatch, redirecting based on role:', userRole);
+    console.log('🚫 User role mismatch, redirecting based on role:', userRole);
     // Redirect to the appropriate dashboard based on role
     return <Navigate to={userRole === 'merchant' ? '/merchant' : '/'} replace />;
   }

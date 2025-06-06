@@ -1,29 +1,48 @@
 
-export const logAuthState = (label: string, data: any) => {
-  if (process.env.NODE_ENV === 'development') {
-    console.group(`🔐 AUTH DEBUG: ${label}`);
-    console.log('Timestamp:', new Date().toISOString());
-    console.log('Data:', data);
-    console.log('LocalStorage booqit_auth:', localStorage.getItem('booqit_auth'));
-    console.groupEnd();
-  }
-};
+import { supabase } from '@/integrations/supabase/client';
 
-export const validateAuthState = () => {
-  if (process.env.NODE_ENV === 'development') {
-    const stored = localStorage.getItem('booqit_auth');
-    console.group('🔍 AUTH VALIDATION');
-    console.log('LocalStorage auth data:', stored);
+export const debugAuthState = async () => {
+  console.group('🔍 Auth Debug Information');
+  
+  try {
+    // Check current session
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    console.log('Session Data:', sessionData);
+    console.log('Session Error:', sessionError);
     
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        console.log('Parsed auth data:', parsed);
-        console.log('Is valid structure:', !!(parsed.isAuthenticated && parsed.role && parsed.id));
-      } catch (error) {
-        console.error('Invalid JSON in localStorage:', error);
+    // Check user
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    console.log('User Data:', userData);
+    console.log('User Error:', userError);
+    
+    // Check localStorage
+    const localStorageKeys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.includes('supabase')) {
+        localStorageKeys.push({
+          key,
+          value: localStorage.getItem(key)
+        });
       }
     }
-    console.groupEnd();
+    console.log('Supabase LocalStorage:', localStorageKeys);
+    
+    // Connection test
+    const { data: testData, error: testError } = await supabase
+      .from('profiles')
+      .select('count')
+      .limit(1);
+    console.log('Connection Test:', { testData, testError });
+    
+  } catch (error) {
+    console.error('Debug Error:', error);
   }
+  
+  console.groupEnd();
 };
+
+// Make it available globally for debugging
+if (typeof window !== 'undefined') {
+  (window as any).debugAuth = debugAuthState;
+}
