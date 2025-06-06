@@ -26,10 +26,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   
-  // Use refs to prevent infinite loops and track initialization
+  // Use refs to prevent issues and track state
   const isInitialized = useRef(false);
   const authSubscription = useRef<any>(null);
-  const currentSessionId = useRef<string | null>(null);
+  const initializationPromise = useRef<Promise<void> | null>(null);
+  const cleanupTimeouts = useRef<NodeJS.Timeout[]>([]);
+
+  // Cleanup function
+  const cleanup = () => {
+    cleanupTimeouts.current.forEach(timeout => clearTimeout(timeout));
+    cleanupTimeouts.current = [];
+  };
 
   const clearAuthState = () => {
     console.log('Clearing auth state');
@@ -38,11 +45,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUserRole(null);
     setUserId(null);
     setSession(null);
-    currentSessionId.current = null;
     localStorage.removeItem('booqit_auth');
   };
 
-  const fetchUserRole = async (userId: string) => {
+  const fetchUserRole = async (userId: string): Promise<UserRole | null> => {
     try {
       console.log('Fetching user role for userId:', userId);
       
@@ -66,46 +72,68 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const handleAuthStateChange = async (event: string, session: Session | null) => {
+    // Prevent concurrent auth state changes
+    if (initializationPromise.current) {
+      await initializationPromise.current;
+    }
+
     console.log('Auth state change event:', event, 'Session exists:', !!session);
     
-    // If we have a session
-    if (session?.user) {
-      const newSessionId = session.access_token;
-      
-      // Check if this is a different session than what we currently have
-      if (currentSessionId.current && currentSessionId.current !== newSessionId) {
-        console.log('New session detected, clearing old auth state');
+    try {
+      if (session?.user) {
+        console.log('Processing authenticated session...');
+        
+        // Clear any existing conflicting auth data
+        const storedAuth = localStorage.getItem('booqit_auth');
+        if (storedAuth) {
+          try {
+            const parsedAuth = JSON.parse(storedAuth);
+            const storedSessionId = parsedAuth.sessionId;
+            const currentSessionId = session.access_token;
+            
+            if (storedSessionId && storedSessionId !== currentSessionId) {
+              console.log('Session mismatch detected, clearing old data');
+              localStorage.removeItem('booqit_auth');
+            }
+          } catch (e) {
+            console.log('Invalid stored auth data, clearing');
+            localStorage.removeItem('booqit_auth');
+          }
+        }
+        
+        setSession(session);
+        setUser(session.user);
+        setIsAuthenticated(true);
+        setUserId(session.user.id);
+        
+        // Fetch user role
+        const role = await fetchUserRole(session.user.id);
+        if (role) {
+          setUserRole(role);
+          
+          // Store auth state with session identifier
+          const authState = {
+            isAuthenticated: true,
+            role,
+            id: session.user.id,
+            sessionId: session.access_token
+          };
+          localStorage.setItem('booqit_auth', JSON.stringify(authState));
+          console.log('Auth state updated successfully');
+        } else {
+          console.error('Failed to fetch user role');
+          clearAuthState();
+        }
+      } else {
+        console.log('No session, clearing auth state');
         clearAuthState();
       }
-      
-      console.log('User authenticated, setting up session...');
-      currentSessionId.current = newSessionId;
-      setSession(session);
-      setUser(session.user);
-      setIsAuthenticated(true);
-      setUserId(session.user.id);
-      
-      // Fetch user role
-      const role = await fetchUserRole(session.user.id);
-      if (role) {
-        setUserRole(role);
-        
-        // Store minimal auth state with session identifier
-        const authState = {
-          isAuthenticated: true,
-          role,
-          id: session.user.id,
-          sessionId: newSessionId
-        };
-        localStorage.setItem('booqit_auth', JSON.stringify(authState));
-        console.log('Auth state stored with new session');
-      }
-    } else {
-      console.log('User signed out or no session');
+    } catch (error) {
+      console.error('Error in handleAuthStateChange:', error);
       clearAuthState();
     }
     
-    // Always clear loading after processing auth state
+    // Always ensure loading is cleared
     setLoading(false);
     isInitialized.current = true;
   };
@@ -114,70 +142,67 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Prevent re-initialization
     if (isInitialized.current) return;
     
-    console.log('Initializing auth...');
+    console.log('Initializing auth system...');
     
-    // Check for existing session first
-    const checkExistingSession = async () => {
+    const initializeAuth = async () => {
       try {
-        const { data: { session: existingSession } } = await supabase.auth.getSession();
+        // Set up auth listener first
+        if (authSubscription.current) {
+          authSubscription.current.data.subscription.unsubscribe();
+        }
+        authSubscription.current = supabase.auth.onAuthStateChange(handleAuthStateChange);
+
+        // Check for existing session
+        const { data: { session: existingSession }, error } = await supabase.auth.getSession();
         
+        if (error) {
+          console.error('Error getting session:', error);
+          clearAuthState();
+          setLoading(false);
+          isInitialized.current = true;
+          return;
+        }
+
         if (existingSession) {
-          console.log('Found existing session');
-          // Check if localStorage has conflicting data
-          const storedAuth = localStorage.getItem('booqit_auth');
-          if (storedAuth) {
-            try {
-              const parsedAuth = JSON.parse(storedAuth);
-              const storedSessionId = parsedAuth.sessionId;
-              const currentSessionId = existingSession.access_token;
-              
-              if (storedSessionId && storedSessionId !== currentSessionId) {
-                console.log('Session mismatch detected, clearing stale data');
-                localStorage.removeItem('booqit_auth');
-              }
-            } catch (e) {
-              console.log('Invalid stored auth data, clearing');
-              localStorage.removeItem('booqit_auth');
-            }
-          }
-          
-          // Process the existing session
+          console.log('Found existing session, processing...');
           await handleAuthStateChange('SIGNED_IN', existingSession);
         } else {
           console.log('No existing session found');
+          clearAuthState();
           setLoading(false);
           isInitialized.current = true;
         }
       } catch (error) {
-        console.error('Error checking existing session:', error);
+        console.error('Error during auth initialization:', error);
         clearAuthState();
         setLoading(false);
         isInitialized.current = true;
       }
     };
 
-    // Set up auth listener
-    authSubscription.current = supabase.auth.onAuthStateChange(handleAuthStateChange);
+    // Store initialization promise to prevent concurrent calls
+    initializationPromise.current = initializeAuth();
 
-    // Check existing session
-    checkExistingSession();
-
-    // Safety timeout to ensure loading clears
-    const timeoutId = setTimeout(() => {
+    // Safety timeout to prevent infinite loading
+    const safetyTimeout = setTimeout(() => {
       if (loading && !isInitialized.current) {
-        console.warn('Auth initialization timeout - clearing loading state');
+        console.warn('Auth initialization timeout - forcing completion');
         setLoading(false);
         isInitialized.current = true;
       }
-    }, 3000);
+    }, 5000);
+    
+    cleanupTimeouts.current.push(safetyTimeout);
 
     // Cleanup function
     return () => {
-      console.log('Cleaning up auth');
+      console.log('Cleaning up auth provider');
+      cleanup();
       if (authSubscription.current) {
         authSubscription.current.data.subscription.unsubscribe();
+        authSubscription.current = null;
       }
-      clearTimeout(timeoutId);
+      initializationPromise.current = null;
     };
   }, []); // Empty dependency array - only run once
 
@@ -193,7 +218,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated, 
         role, 
         id,
-        sessionId: currentSessionId.current 
+        sessionId: session?.access_token || null
       };
       localStorage.setItem('booqit_auth', JSON.stringify(authState));
     } else {
@@ -205,8 +230,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('Logging out user...');
       
-      // Clear auth state immediately to prevent UI delays
+      // Clear auth state immediately
       clearAuthState();
+      setLoading(false);
       
       const { error } = await supabase.auth.signOut();
       

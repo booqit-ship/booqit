@@ -1,6 +1,6 @@
 
 import { StrictMode } from 'react';
-import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -40,7 +40,8 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 5 * 60 * 1000, // 5 minutes
       gcTime: 10 * 60 * 1000, // 10 minutes
-      retry: 1, // Reduce retries to prevent hanging
+      retry: 1,
+      refetchOnWindowFocus: false, // Prevent unnecessary refetches
     },
   },
 });
@@ -61,31 +62,6 @@ const router = createBrowserRouter([
   {
     path: "/terms-and-conditions",
     element: <TermsAndConditions />,
-  },
-  {
-    path: "/customer",
-    element: <ProtectedRoute requiredRole="customer" />,
-    children: [
-      {
-        path: "/customer",
-        element: <CustomerLayout />,
-        children: [
-          { index: true, element: <Navigate to="/" replace /> },
-          { path: "home", element: <HomePage /> },
-          { path: "search", element: <SearchPage /> },
-          { path: "map", element: <MapPage /> },
-          { path: "calendar", element: <CalendarPage /> },
-          { path: "profile", element: <ProfilePage /> },
-          { path: "merchant/:merchantId", element: <MerchantDetailPage /> },
-          { path: "booking/:merchantId", element: <ServiceSelectionPage /> },
-          { path: "booking/:merchantId/staff", element: <StaffSelectionPage /> },
-          { path: "booking/:merchantId/datetime", element: <DateTimeSelectionPage /> },
-          { path: "booking/:merchantId/summary", element: <BookingSummaryPage /> },
-          { path: "payment/:merchantId", element: <PaymentPage /> },
-          { path: "receipt/:bookingId", element: <ReceiptPage /> },
-        ],
-      },
-    ],
   },
   // Customer routes under root path
   {
@@ -135,7 +111,7 @@ const router = createBrowserRouter([
   },
 ]);
 
-// Simplified loading component with timeout
+// Simplified loading component
 const AppLoading = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-booqit-primary/10 to-white flex items-center justify-center">
@@ -152,7 +128,7 @@ const AppLoading = () => {
 const AppContent = () => {
   const { loading } = useAuth();
 
-  // Show loading only briefly
+  // Show loading only when necessary
   if (loading) {
     return <AppLoading />;
   }

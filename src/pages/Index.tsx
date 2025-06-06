@@ -10,20 +10,28 @@ const Index = () => {
   const { isAuthenticated, userRole, loading } = useAuth();
   const [showRoleSelection, setShowRoleSelection] = useState(false);
   const hasNavigated = useRef(false);
-  const navigationTimeout = useRef<NodeJS.Timeout | null>(null);
+  const navigationAttempts = useRef(0);
+  const maxNavigationAttempts = 3;
 
   useEffect(() => {
-    // Clear any existing navigation timeout
-    if (navigationTimeout.current) {
-      clearTimeout(navigationTimeout.current);
-      navigationTimeout.current = null;
+    // Reset navigation tracking when auth state changes
+    hasNavigated.current = false;
+    navigationAttempts.current = 0;
+  }, [isAuthenticated, userRole]);
+
+  useEffect(() => {
+    // Don't do anything while loading or if already navigated or too many attempts
+    if (loading || hasNavigated.current || navigationAttempts.current >= maxNavigationAttempts) {
+      return;
     }
 
-    // Don't do anything while loading or if already navigated
-    if (loading || hasNavigated.current) return;
-
     const handleNavigation = () => {
-      console.log('Index - handling navigation:', { isAuthenticated, userRole, loading });
+      navigationAttempts.current++;
+      console.log(`Index - navigation attempt ${navigationAttempts.current}:`, { 
+        isAuthenticated, 
+        userRole, 
+        loading 
+      });
       
       if (isAuthenticated && userRole && !hasNavigated.current) {
         hasNavigated.current = true;
@@ -33,7 +41,6 @@ const Index = () => {
           navigate("/merchant", { replace: true });
         } else {
           console.log('Customer authenticated, staying on index');
-          // For customers, stay on this page and let routing handle it
           setShowRoleSelection(false);
         }
       } else if (!isAuthenticated && !loading) {
@@ -42,20 +49,17 @@ const Index = () => {
       }
     };
 
-    // Small delay to ensure auth state is settled
-    navigationTimeout.current = setTimeout(handleNavigation, 100);
+    // Small delay to ensure auth state is fully settled
+    const timeoutId = setTimeout(handleNavigation, 150);
     
-    return () => {
-      if (navigationTimeout.current) {
-        clearTimeout(navigationTimeout.current);
-      }
-    };
+    return () => clearTimeout(timeoutId);
   }, [isAuthenticated, userRole, loading, navigate]);
 
   const handleRoleSelect = (role: UserRole) => {
     if (!hasNavigated.current) {
       hasNavigated.current = true;
-      navigate("/auth", { state: { selectedRole: role } });
+      console.log('Role selected:', role);
+      navigate("/auth", { state: { selectedRole: role }, replace: true });
     }
   };
 
@@ -74,6 +78,11 @@ const Index = () => {
 
   // Show role selection for unauthenticated users
   if (showRoleSelection && !isAuthenticated) {
+    return <RoleSelection onRoleSelect={handleRoleSelect} />;
+  }
+
+  // Fallback for edge cases - prevent white screen
+  if (!loading && !isAuthenticated && !showRoleSelection) {
     return <RoleSelection onRoleSelect={handleRoleSelect} />;
   }
 
