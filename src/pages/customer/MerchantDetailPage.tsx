@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Merchant, Service, Staff } from '@/types';
 import { toast } from 'sonner';
 import ReviewsSection from '@/components/customer/ReviewsSection';
+
 const MerchantDetailPage: React.FC = () => {
   const {
     merchantId
@@ -22,6 +23,29 @@ const MerchantDetailPage: React.FC = () => {
   const [staff, setStaff] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
+
+  const formatCategory = (category: string) => {
+    return category.replace(/_/g, ' ').split(' ').map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1)
+    ).join(' ').replace('Shop', '');
+  };
+
+  const getGenderSpecification = (merchant: Merchant) => {
+    // You can add logic here to determine gender specification
+    // For now, defaulting to "Unisex" - this can be customized based on your data structure
+    return merchant.gender_specification || "Unisex";
+  };
+
+  const formatStylistDisplay = (staff: Staff[]) => {
+    if (staff.length <= 2) {
+      return staff.map(stylist => stylist.name).join(', ');
+    } else {
+      const firstTwo = staff.slice(0, 2).map(stylist => stylist.name).join(', ');
+      const remaining = staff.length - 2;
+      return `${firstTwo} +${remaining} stylists`;
+    }
+  };
+
   useEffect(() => {
     const fetchMerchantDetails = async () => {
       try {
@@ -61,6 +85,7 @@ const MerchantDetailPage: React.FC = () => {
     };
     fetchMerchantDetails();
   }, [merchantId]);
+
   const getFormattedTime = (timeString: string) => {
     const time = new Date(`2000-01-01T${timeString}`);
     return time.toLocaleTimeString([], {
@@ -68,6 +93,7 @@ const MerchantDetailPage: React.FC = () => {
       minute: '2-digit'
     });
   };
+
   const getMerchantImage = (merchant: Merchant) => {
     if (merchant.image_url) {
       if (merchant.image_url.startsWith('http')) {
@@ -77,10 +103,12 @@ const MerchantDetailPage: React.FC = () => {
     }
     return 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
   };
+
   const handleImageError = () => {
     console.error('Failed to load merchant image');
     setImageError(true);
   };
+
   const handleBookServices = () => {
     navigate(`/booking/${merchantId}`, {
       state: {
@@ -89,17 +117,20 @@ const MerchantDetailPage: React.FC = () => {
       }
     });
   };
+
   if (loading) {
     return <div className="h-screen flex items-center justify-center">
         <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
       </div>;
   }
+
   if (!merchant) {
     return <div className="h-screen flex flex-col items-center justify-center p-4">
         <p className="text-gray-500 mb-4">Merchant not found</p>
         <Button onClick={() => navigate(-1)}>Go Back</Button>
       </div>;
   }
+
   return <div className="pb-20">
       <div className="relative h-64 bg-gray-200">
         <img src={imageError ? 'https://images.unsplash.com/photo-1582562124811-c09040d0a901' : getMerchantImage(merchant)} alt={merchant.shop_name} className="w-full h-full object-cover" onError={handleImageError} />
@@ -111,13 +142,15 @@ const MerchantDetailPage: React.FC = () => {
       <div className="p-4 -mt-6 rounded-t-xl bg-white relative">
         <div className="flex justify-between items-start mb-3">
           <h1 className="text-2xl font-light">{merchant.shop_name}</h1>
-          <div className="flex items-center text-yellow-500">
-            <Star className="fill-yellow-500 stroke-yellow-500 h-4 w-4 mr-1" />
-            <span>{merchant.rating || 'New'}</span>
-          </div>
+          {merchant.rating && (
+            <div className="flex items-center text-yellow-500">
+              <Star className="fill-yellow-500 stroke-yellow-500 h-4 w-4 mr-1" />
+              <span>{merchant.rating}</span>
+            </div>
+          )}
         </div>
         
-        <p className="text-gray-500 mb-4">{merchant.category}</p>
+        <p className="text-gray-500 mb-4">{formatCategory(merchant.category)}</p>
         
         <div className="flex items-center text-gray-500 mb-2">
           <MapPin className="h-4 w-4 mr-2" />
@@ -129,14 +162,19 @@ const MerchantDetailPage: React.FC = () => {
           <p>{getFormattedTime(merchant.open_time)} - {getFormattedTime(merchant.close_time)}</p>
         </div>
 
+        {/* Gender Specification */}
+        <div className="mb-3">
+          <Badge variant="outline" className="text-sm">
+            {getGenderSpecification(merchant)}
+          </Badge>
+        </div>
+
         {/* Staff Section */}
         {staff.length > 0 && <div className="mb-4">
             <h3 className="font-medium mb-2">Available Stylists</h3>
-            <div className="flex flex-wrap gap-2">
-              {staff.map(stylist => <Badge key={stylist.id} variant="outline" className="flex items-center">
-                  <User className="h-3 w-3 mr-1" />
-                  {stylist.name}
-                </Badge>)}
+            <div className="flex items-center">
+              <User className="h-4 w-4 mr-2 text-gray-500" />
+              <span className="text-gray-700">{formatStylistDisplay(staff)}</span>
             </div>
           </div>}
         
@@ -185,4 +223,5 @@ const MerchantDetailPage: React.FC = () => {
       </div>
     </div>;
 };
+
 export default MerchantDetailPage;
