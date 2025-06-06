@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -27,71 +26,45 @@ export const useSlotLocking = () => {
     try {
       console.log('Attempting to lock slot:', { staffId, date, timeSlot });
       
-      // Use direct RPC call with proper casting
-      const { data, error } = await supabase.rpc('create_slot_lock' as any, {
-        p_staff_id: staffId,
+      // Check if the slot is available without creating a pending booking
+      const { data: slotsData } = await supabase.rpc('get_available_slots_with_ist_buffer', {
+        p_merchant_id: staffId.split('-')[0], // Quick way to get merchant ID from staff ID
         p_date: date,
-        p_time_slot: timeSlot,
-        p_lock_duration_minutes: 10
+        p_staff_id: staffId,
+        p_service_duration: 30 // Default assumption
       });
-
-      if (error) {
-        console.error('Error locking slot:', error);
-        toast.error('Failed to reserve slot. Please try again.');
-        return false;
-      }
-
-      const result = data as unknown as SlotLockResult;
       
-      if (!result.success) {
-        console.log('Slot lock failed:', result.error);
-        toast.error(result.error || 'Slot is not available');
+      const availableSlots = Array.isArray(slotsData) ? slotsData : [];
+      const isSlotAvailable = availableSlots.some(slot => 
+        slot.staff_id === staffId && 
+        slot.time_slot === timeSlot && 
+        slot.is_available
+      );
+      
+      if (!isSlotAvailable) {
+        console.log('Slot not available:', { staffId, date, timeSlot });
+        toast.error('This time slot is no longer available');
         return false;
       }
 
-      console.log('Slot locked successfully:', result);
+      // Just keep track of the slot locally without creating a pending booking
       setLockedSlot({ staffId, date, timeSlot });
-      toast.success('Slot reserved for 10 minutes');
+      toast.success('Slot selected');
       return true;
       
     } catch (error) {
       console.error('Error in lockSlot:', error);
-      toast.error('Failed to reserve slot. Please try again.');
+      toast.error('Failed to select slot. Please try again.');
       return false;
     } finally {
       setIsLocking(false);
     }
   }, []);
 
-  const releaseLock = useCallback(async (
-    staffId?: string,
-    date?: string,
-    timeSlot?: string
-  ) => {
-    const lockToRelease = lockedSlot || (staffId && date && timeSlot ? { staffId, date, timeSlot } : null);
-    
-    if (!lockToRelease) return;
-
-    try {
-      console.log('Releasing slot lock:', lockToRelease);
-      
-      // Use direct RPC call with proper casting
-      const { error } = await supabase.rpc('release_slot_lock' as any, {
-        p_staff_id: lockToRelease.staffId,
-        p_date: lockToRelease.date,
-        p_time_slot: lockToRelease.timeSlot
-      });
-
-      if (error) {
-        console.error('Error releasing lock:', error);
-      } else {
-        console.log('Lock released successfully');
-        setLockedSlot(null);
-      }
-    } catch (error) {
-      console.error('Error in releaseLock:', error);
-    }
-  }, [lockedSlot]);
+  const releaseLock = useCallback(() => {
+    // Just clear the local state
+    setLockedSlot(null);
+  }, []);
 
   return {
     lockSlot,

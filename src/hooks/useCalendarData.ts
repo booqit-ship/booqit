@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -91,51 +90,48 @@ export const useCalendarData = (userId: string | null, selectedDate: Date) => {
     fetchHolidays();
   }, [merchantId]);
 
-  // Fetch bookings for selected date
-  const fetchBookings = async () => {
-    if (!merchantId) return;
+  // Modified to only fetch confirmed bookings, not pending ones
+  const fetchBookings = useCallback(async () => {
+    if (!userId || !merchantId) return;
     
     setLoading(true);
+    
     try {
-      // Use IST date formatting for consistency with backend
-      const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
+      const dateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
       
       const { data, error } = await supabase
         .from('bookings')
         .select(`
           id,
+          service_id,
+          service:services(name),
+          staff_id,
+          stylist_name,
+          date,
           time_slot,
           status,
+          payment_status,
           customer_name,
           customer_phone,
-          customer_email,
-          stylist_name,
-          created_at,
-          service:services(name, price)
+          customer_email
         `)
         .eq('merchant_id', merchantId)
-        .eq('date', selectedDateStr)
-        .order('time_slot', { ascending: true });
+        .eq('date', dateStr)
+        .eq('status', 'confirmed') // Only get confirmed bookings
+        .order('time_slot');
         
       if (error) {
         console.error('Error fetching bookings:', error);
-        toast.error('Failed to load bookings');
         return;
       }
       
-      const typedBookings = (data || []).map(booking => ({
-        ...booking,
-        status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled'
-      }));
-      
-      setBookings(typedBookings);
-    } catch (error: any) {
-      console.error('Error:', error);
-      toast.error('Failed to load bookings');
+      setBookings(data || []);
+    } catch (error) {
+      console.error('Error in fetchBookings:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId, merchantId, selectedDate]);
 
   useEffect(() => {
     fetchBookings();

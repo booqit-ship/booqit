@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Clock, CalendarIcon, RefreshCw } from 'lucide-react';
@@ -234,7 +233,7 @@ const DateTimeSelectionPage: React.FC = () => {
     }
   });
 
-  // Handle slot selection with validation
+  // Handle slot selection without creating pending bookings
   const handleTimeSlotClick = async (timeSlot: string) => {
     if (!selectedDate || !merchantId || !userId) return;
     
@@ -248,6 +247,7 @@ const DateTimeSelectionPage: React.FC = () => {
       }
     }
     
+    // Find if the slot is available
     const availableSlot = availableSlots.find(slot => 
       slot.time_slot === timeSlot && slot.is_available
     );
@@ -260,47 +260,12 @@ const DateTimeSelectionPage: React.FC = () => {
     setIsCheckingSlot(true);
 
     try {
-      const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
-      const finalStaffId = selectedStaff || availableSlot.staff_id;
-      const serviceId = selectedServices[0]?.id;
-
-      if (!serviceId) {
-        toast.error('Service information is missing');
-        return;
-      }
-
-      // Reserve the slot immediately
-      const { data: checkResult, error: checkError } = await supabase.rpc('reserve_slot_immediately' as any, {
-        p_user_id: userId,
-        p_merchant_id: merchantId,
-        p_service_id: serviceId,
-        p_staff_id: finalStaffId,
-        p_date: selectedDateStr,
-        p_time_slot: timeSlot,
-        p_service_duration: actualServiceDuration
-      });
-
-      if (checkError) {
-        console.error('Error checking slot:', checkError);
-        toast.error(`Failed to check slot availability: ${checkError.message}`);
-        return;
-      }
-
-      const response = checkResult as unknown as { success: boolean; error?: string; message?: string };
-      
-      if (!response.success) {
-        toast.error(response.error || 'Time slot is no longer available');
-        fetchAvailableSlots(); // Refresh slots
-        return;
-      }
-
-      // Successfully selected slot
+      // Simply mark the slot as selected without creating a pending booking
       setSelectedTime(timeSlot);
       toast.success('Time slot selected!');
-
     } catch (error) {
-      console.error('Error checking slot:', error);
-      toast.error('Error checking slot availability. Please try again.');
+      console.error('Error selecting slot:', error);
+      toast.error('Error selecting time slot. Please try again.');
     } finally {
       setIsCheckingSlot(false);
     }

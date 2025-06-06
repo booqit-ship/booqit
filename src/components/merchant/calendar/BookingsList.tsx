@@ -15,6 +15,7 @@ interface BookingWithCustomerDetails {
   customer_name?: string;
   customer_phone?: string;
   customer_email?: string;
+  stylist_name?: string;
 }
 
 interface BookingsListProps {
@@ -30,6 +31,9 @@ const BookingsList: React.FC<BookingsListProps> = ({
   isLoading,
   onStatusChange,
 }) => {
+  // Filter to only show confirmed bookings (not pending ones)
+  const confirmedBookings = bookings.filter(booking => booking.status === 'confirmed');
+
   return (
     <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-gray-50/30">
       <CardHeader className="bg-gradient-to-r from-booqit-primary to-booqit-primary/80 text-white rounded-t-lg py-5">
@@ -43,7 +47,7 @@ const BookingsList: React.FC<BookingsListProps> = ({
           <div className="flex justify-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-3 border-booqit-primary border-t-transparent"></div>
           </div>
-        ) : bookings.length === 0 ? (
+        ) : confirmedBookings.length === 0 ? (
           <div className="text-center py-12 bg-gray-50 rounded-xl border border-gray-200">
             <CalendarIcon className="h-16 w-16 mx-auto text-gray-400 mb-4" />
             <p className="text-gray-600 text-xl font-medium">No bookings for this date</p>
@@ -51,7 +55,7 @@ const BookingsList: React.FC<BookingsListProps> = ({
           </div>
         ) : (
           <div className="space-y-4">
-            {bookings.map(booking => (
+            {confirmedBookings.map(booking => (
               <BookingCard
                 key={booking.id}
                 booking={booking}
