@@ -212,10 +212,7 @@ const ReceiptPage: React.FC = () => {
         {booking.status === 'confirmed' && <Card className="border-orange-200 bg-orange-50">
             <CardContent className="p-4">
               <h4 className="font-medium text-orange-800 mb-2">📋 Important Note</h4>
-              <p className="text-sm text-orange-700">
-                Please arrive on time and pay the amount at the shop. 
-                You can cancel or reschedule up to 2 hours before your appointment.
-              </p>
+              <p className="text-sm text-orange-700">Please arrive on time and pay the amount at the shop. You can cancel up to 30 mins before your appointment.</p>
             </CardContent>
           </Card>}
       </div>
