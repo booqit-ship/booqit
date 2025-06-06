@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -8,7 +9,7 @@ import CustomerLayout from '@/layouts/CustomerLayout';
 import MapPage from '@/pages/customer/MapPage';
 import SearchPage from '@/pages/customer/SearchPage';
 import CalendarPage from '@/pages/customer/CalendarPage';
-import BookingPage from '@/pages/customer/BookingPage';
+import ServiceSelectionPage from '@/pages/customer/ServiceSelectionPage';
 import PaymentPage from '@/pages/customer/PaymentPage';
 import ReceiptPage from '@/pages/customer/ReceiptPage';
 import ProfilePage from '@/pages/customer/ProfilePage';
@@ -16,12 +17,11 @@ import UpcomingBookings from '@/components/customer/UpcomingBookings';
 import BookingSummaryPage from '@/pages/customer/BookingSummaryPage';
 import MerchantLayout from '@/layouts/MerchantLayout';
 import CalendarManagementPage from '@/pages/merchant/CalendarManagementPage';
-import AvailabilityManagementPage from '@/pages/merchant/AvailabilityManagementPage';
-import StaffManagementPage from '@/pages/merchant/StaffManagementPage';
-import ServiceManagementPage from '@/pages/merchant/ServiceManagementPage';
-import LoginPage from '@/pages/LoginPage';
-import RegisterPage from '@/pages/RegisterPage';
-import HomePage from '@/pages/HomePage';
+import OnboardingPage from '@/pages/merchant/OnboardingPage';
+import ServicesPage from '@/pages/merchant/ServicesPage';
+import SettingsPage from '@/pages/merchant/SettingsPage';
+import AuthPage from '@/pages/AuthPage';
+import Index from '@/pages/Index';
 import MerchantBookingSummaryPage from '@/pages/merchant/BookingSummaryPage';
 
 function App() {
@@ -45,9 +45,8 @@ function App() {
         <Router>
           <Routes>
             {/* Public Routes */}
-            <Route path="/login" element={!isAuthenticated ? <LoginPage /> : <Navigate to="/" />} />
-            <Route path="/register" element={!isAuthenticated ? <RegisterPage /> : <Navigate to="/" />} />
-            <Route path="/home" element={<HomePage />} />
+            <Route path="/auth" element={!isAuthenticated ? <AuthPage /> : <Navigate to="/" />} />
+            <Route path="/home" element={<Index />} />
 
             {/* Customer Routes */}
             <Route path="/" element={<CustomerLayout />}>
@@ -55,7 +54,7 @@ function App() {
               <Route path="map" element={<MapPage />} />
               <Route path="search" element={<SearchPage />} />
               <Route path="calendar" element={<CalendarPage />} />
-              <Route path="booking/:merchantId" element={<BookingPage />} />
+              <Route path="booking/:merchantId" element={<ServiceSelectionPage />} />
               <Route path="payment/:merchantId" element={<PaymentPage />} />
               <Route path="receipt/:merchantId" element={<ReceiptPage />} />
               <Route path="profile" element={<ProfilePage />} />
@@ -66,9 +65,9 @@ function App() {
             <Route path="/merchant" element={<MerchantLayout />}>
               <Route index element={<CalendarManagementPage />} />
               <Route path="calendar" element={<CalendarManagementPage />} />
-              <Route path="availability" element={<AvailabilityManagementPage />} />
-              <Route path="staff" element={<StaffManagementPage />} />
-              <Route path="services" element={<ServiceManagementPage />} />
+              <Route path="onboarding" element={<OnboardingPage />} />
+              <Route path="services" element={<ServicesPage />} />
+              <Route path="settings" element={<SettingsPage />} />
               <Route path="booking-summary/:bookingId" element={<MerchantBookingSummaryPage />} />
             </Route>
 
@@ -83,7 +82,7 @@ function App() {
                     <Navigate to="/" replace />
                   )
                 ) : (
-                  <Navigate to="/login" replace />
+                  <Navigate to="/auth" replace />
                 )
               }
             />
