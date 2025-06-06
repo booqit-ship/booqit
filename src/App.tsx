@@ -1,107 +1,168 @@
 
-
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { StrictMode } from 'react';
+import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/sonner';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
-import SplashScreen from '@/components/SplashScreen';
-import CustomerLayout from '@/layouts/CustomerLayout';
-import MapPage from '@/pages/customer/MapPage';
-import SearchPage from '@/pages/customer/SearchPage';
-import CalendarPage from '@/pages/customer/CalendarPage';
-import ServiceSelectionPage from '@/pages/customer/ServiceSelectionPage';
-import PaymentPage from '@/pages/customer/PaymentPage';
-import ReceiptPage from '@/pages/customer/ReceiptPage';
-import ProfilePage from '@/pages/customer/ProfilePage';
-import UpcomingBookings from '@/components/customer/UpcomingBookings';
-import BookingSummaryPage from '@/pages/customer/BookingSummaryPage';
-import MerchantLayout from '@/layouts/MerchantLayout';
-import CalendarManagementPage from '@/pages/merchant/CalendarManagementPage';
-import OnboardingPage from '@/pages/merchant/OnboardingPage';
-import ServicesPage from '@/pages/merchant/ServicesPage';
-import SettingsPage from '@/pages/merchant/SettingsPage';
+import ProtectedRoute from '@/components/ProtectedRoute';
 import AuthPage from '@/pages/AuthPage';
 import Index from '@/pages/Index';
-import MerchantBookingSummaryPage from '@/pages/merchant/BookingSummaryPage';
+import NotFound from '@/pages/NotFound';
+import PrivacyPolicy from '@/pages/PrivacyPolicy';
+import TermsAndConditions from '@/pages/TermsAndConditions';
 
-function AppContent() {
-  const [isLoading, setIsLoading] = useState(true);
-  const { isAuthenticated, userRole } = useAuth();
+// Customer Pages
+import CustomerLayout from '@/layouts/CustomerLayout';
+import HomePage from '@/pages/customer/HomePage';
+import SearchPage from '@/pages/customer/SearchPage';
+import MapPage from '@/pages/customer/MapPage';
+import CalendarPage from '@/pages/customer/CalendarPage';
+import ProfilePage from '@/pages/customer/ProfilePage';
+import MerchantDetailPage from '@/pages/customer/MerchantDetailPage';
+import ServiceSelectionPage from '@/pages/customer/ServiceSelectionPage';
+import StaffSelectionPage from '@/pages/customer/StaffSelectionPage';
+import DateTimeSelectionPage from '@/pages/customer/DateTimeSelectionPage';
+import BookingSummaryPage from '@/pages/customer/BookingSummaryPage';
+import PaymentPage from '@/pages/customer/PaymentPage';
+import ReceiptPage from '@/pages/customer/ReceiptPage';
 
-  useEffect(() => {
-    // Simulate loading
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 1500);
-  }, []);
+// Merchant Pages
+import MerchantLayout from '@/layouts/MerchantLayout';
+import DashboardPage from '@/pages/merchant/DashboardPage';
+import ServicesPage from '@/pages/merchant/ServicesPage';
+import CalendarManagementPage from '@/pages/merchant/CalendarManagementPage';
+import SettingsPage from '@/pages/merchant/SettingsPage';
+import OnboardingPage from '@/pages/merchant/OnboardingPage';
 
-  if (isLoading) {
-    return <SplashScreen />;
+const queryClient = new QueryClient();
+
+const router = createBrowserRouter([
+  {
+    path: "/",
+    element: <Index />,
+  },
+  {
+    path: "/auth",
+    element: <AuthPage />,
+  },
+  {
+    path: "/privacy-policy",
+    element: <PrivacyPolicy />,
+  },
+  {
+    path: "/terms-and-conditions",
+    element: <TermsAndConditions />,
+  },
+  {
+    path: "/customer",
+    element: <ProtectedRoute requiredRole="customer" />,
+    children: [
+      {
+        path: "/customer",
+        element: <CustomerLayout />,
+        children: [
+          { index: true, element: <Navigate to="/" replace /> },
+          { path: "home", element: <HomePage /> },
+          { path: "search", element: <SearchPage /> },
+          { path: "map", element: <MapPage /> },
+          { path: "calendar", element: <CalendarPage /> },
+          { path: "profile", element: <ProfilePage /> },
+          { path: "merchant/:merchantId", element: <MerchantDetailPage /> },
+          { path: "booking/:merchantId", element: <ServiceSelectionPage /> },
+          { path: "booking/:merchantId/staff", element: <StaffSelectionPage /> },
+          { path: "booking/:merchantId/datetime", element: <DateTimeSelectionPage /> },
+          { path: "booking/:merchantId/summary", element: <BookingSummaryPage /> },
+          { path: "payment/:merchantId", element: <PaymentPage /> },
+          { path: "receipt/:bookingId", element: <ReceiptPage /> },
+        ],
+      },
+    ],
+  },
+  // Customer routes under root path
+  {
+    path: "/",
+    element: <ProtectedRoute requiredRole="customer" />,
+    children: [
+      {
+        path: "/",
+        element: <CustomerLayout />,
+        children: [
+          { index: true, element: <HomePage /> },
+          { path: "search", element: <SearchPage /> },
+          { path: "map", element: <MapPage /> },
+          { path: "calendar", element: <CalendarPage /> },
+          { path: "profile", element: <ProfilePage /> },
+          { path: "merchant/:merchantId", element: <MerchantDetailPage /> },
+          { path: "booking/:merchantId", element: <ServiceSelectionPage /> },
+          { path: "booking/:merchantId/staff", element: <StaffSelectionPage /> },
+          { path: "booking/:merchantId/datetime", element: <DateTimeSelectionPage /> },
+          { path: "booking/:merchantId/summary", element: <BookingSummaryPage /> },
+          { path: "payment/:merchantId", element: <PaymentPage /> },
+          { path: "receipt/:bookingId", element: <ReceiptPage /> },
+        ],
+      },
+    ],
+  },
+  {
+    path: "/merchant",
+    element: <ProtectedRoute requiredRole="merchant" />,
+    children: [
+      {
+        path: "/merchant",
+        element: <MerchantLayout />,
+        children: [
+          { index: true, element: <DashboardPage /> },
+          { path: "services", element: <ServicesPage /> },
+          { path: "calendar", element: <CalendarManagementPage /> },
+          { path: "settings", element: <SettingsPage /> },
+        ],
+      },
+      { path: "onboarding", element: <OnboardingPage /> },
+    ],
+  },
+  {
+    path: "*",
+    element: <NotFound />,
+  },
+]);
+
+// Enhanced loading component with timeout
+const AppLoading = () => {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-booqit-primary/10 to-white flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin h-12 w-12 border-4 border-booqit-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+        <h1 className="text-3xl font-righteous mb-2 text-black">booqit</h1>
+        <p className="text-gray-600 font-poppins">Initializing...</p>
+      </div>
+    </div>
+  );
+};
+
+// App content wrapper to handle auth loading with timeout
+const AppContent = () => {
+  const { loading } = useAuth();
+
+  // Show loading screen only briefly
+  if (loading) {
+    return <AppLoading />;
   }
 
+  return <RouterProvider router={router} />;
+};
+
+function App() {
   return (
-    <QueryClientProvider client={new QueryClient()}>
-      <div className="App">
-        <Router>
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/auth" element={!isAuthenticated ? <AuthPage /> : <Navigate to="/" />} />
-            <Route path="/home" element={<Index />} />
-
-            {/* Customer Routes */}
-            <Route path="/" element={<CustomerLayout />}>
-              <Route index element={<UpcomingBookings />} />
-              <Route path="map" element={<MapPage />} />
-              <Route path="search" element={<SearchPage />} />
-              <Route path="calendar" element={<CalendarPage />} />
-              <Route path="booking/:merchantId" element={<ServiceSelectionPage />} />
-              <Route path="payment/:merchantId" element={<PaymentPage />} />
-              <Route path="receipt/:merchantId" element={<ReceiptPage />} />
-              <Route path="profile" element={<ProfilePage />} />
-              <Route path="booking-summary/:merchantId" element={<BookingSummaryPage />} />
-            </Route>
-
-            {/* Merchant Routes */}
-            <Route path="/merchant" element={<MerchantLayout />}>
-              <Route index element={<CalendarManagementPage />} />
-              <Route path="calendar" element={<CalendarManagementPage />} />
-              <Route path="onboarding" element={<OnboardingPage />} />
-              <Route path="services" element={<ServicesPage />} />
-              <Route path="settings" element={<SettingsPage />} />
-              <Route path="booking-summary/:bookingId" element={<MerchantBookingSummaryPage />} />
-            </Route>
-
-            {/* Catch-all route to redirect to home if not authenticated, or to merchant calendar if merchant */}
-            <Route
-              path="*"
-              element={
-                isAuthenticated ? (
-                  userRole === 'merchant' ? (
-                    <Navigate to="/merchant/calendar" replace />
-                  ) : (
-                    <Navigate to="/" replace />
-                  )
-                ) : (
-                  <Navigate to="/auth" replace />
-                )
-              }
-            />
-          </Routes>
-        </Router>
-        <Toaster />
-      </div>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <AuthProvider>
+          <AppContent />
+          <Toaster />
+        </AuthProvider>
+      </TooltipProvider>
     </QueryClientProvider>
   );
 }
 
-function App() {
-  return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
-  );
-}
-
 export default App;
-

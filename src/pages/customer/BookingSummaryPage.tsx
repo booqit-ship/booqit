@@ -11,17 +11,15 @@ const BookingSummaryPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  
-  // Safely destructure location.state with fallbacks
-  const {
-    merchant = null,
-    selectedServices = null,
-    totalPrice = 0,
-    totalDuration = 0,
-    selectedStaff = null,
-    selectedDate = null,
-    selectedTime = null
-  } = location.state || {};
+  const { 
+    merchant, 
+    selectedServices, 
+    totalPrice, 
+    totalDuration, 
+    selectedStaff, 
+    selectedDate, 
+    selectedTime 
+  } = location.state;
 
   const handleProceedToPayment = () => {
     navigate(`/payment/${merchantId}`, {
@@ -39,14 +37,12 @@ const BookingSummaryPage: React.FC = () => {
 
   // Auto-navigate to payment after 3 seconds
   useEffect(() => {
-    if (merchant && selectedServices) {
-      const timer = setTimeout(() => {
-        handleProceedToPayment();
-      }, 3000);
+    const timer = setTimeout(() => {
+      handleProceedToPayment();
+    }, 3000);
 
-      return () => clearTimeout(timer);
-    }
-  }, [merchant, selectedServices]);
+    return () => clearTimeout(timer);
+  }, []);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -58,7 +54,6 @@ const BookingSummaryPage: React.FC = () => {
     });
   };
 
-  // Show error state if required data is missing
   if (!merchant || !selectedServices) {
     return (
       <div className="h-screen flex flex-col items-center justify-center p-4">
@@ -144,23 +139,21 @@ const BookingSummaryPage: React.FC = () => {
         </Card>
 
         {/* Date & Time */}
-        {selectedDate && selectedTime && (
-          <Card>
-            <CardContent className="p-4">
-              <h3 className="font-semibold mb-3">Date & Time</h3>
-              <div className="space-y-2">
-                <div className="flex items-center">
-                  <CalendarIcon className="h-4 w-4 mr-3 text-gray-500" />
-                  <span>{formatDate(selectedDate)}</span>
-                </div>
-                <div className="flex items-center">
-                  <Clock className="h-4 w-4 mr-3 text-gray-500" />
-                  <span>{selectedTime} ({totalDuration} minutes)</span>
-                </div>
+        <Card>
+          <CardContent className="p-4">
+            <h3 className="font-semibold mb-3">Date & Time</h3>
+            <div className="space-y-2">
+              <div className="flex items-center">
+                <CalendarIcon className="h-4 w-4 mr-3 text-gray-500" />
+                <span>{formatDate(selectedDate)}</span>
               </div>
-            </CardContent>
-          </Card>
-        )}
+              <div className="flex items-center">
+                <Clock className="h-4 w-4 mr-3 text-gray-500" />
+                <span>{selectedTime} ({totalDuration} minutes)</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Stylist */}
         <Card>
