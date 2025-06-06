@@ -105,7 +105,7 @@ export const useCalendarData = (userId: string | null, selectedDate: Date) => {
         .select(`
           id,
           service_id,
-          service:services(name),
+          service:services(name, price),
           staff_id,
           stylist_name,
           date,
@@ -130,7 +130,7 @@ export const useCalendarData = (userId: string | null, selectedDate: Date) => {
       // Ensure the data matches the BookingWithCustomer interface
       const typedBookings: BookingWithCustomer[] = data ? data.map(booking => ({
         id: booking.id,
-        service: booking.service,
+        service: booking.service as { name: string; price: number },
         time_slot: booking.time_slot,
         status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
         customer_name: booking.customer_name,
