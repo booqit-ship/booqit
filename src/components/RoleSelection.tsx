@@ -22,21 +22,9 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
       opacity: 1
     }} transition={{
       duration: 0.5
-    }} className="w-full max-w-md space-y-8">
+    }} className="w-full max-w-md space-y-6">
         
-        {/* Illustration Image */}
-        <div className="text-center mb-6">
-          <motion.img 
-            src="/lovable-uploads/6fdc36d1-c6cb-4ac5-84c6-ba76af40a574.png"
-            alt="BooqIt Illustration"
-            className="w-48 h-48 mx-auto mb-4"
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-          />
-        </div>
-
-        {/* Logo */}
+        {/* Logo - moved up */}
         <div className="text-center">
           <h1 className="text-5xl font-righteous mb-2 text-black font-medium">
             booqit
@@ -44,7 +32,19 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
           <p className="text-gray-600 font-poppins">Choose how you want to continue</p>
         </div>
 
-        {/* Role Selection Cards */}
+        {/* New Image - positioned above role buttons with no gap */}
+        <div className="text-center">
+          <motion.img 
+            src="/lovable-uploads/d7dc2456-35dc-4a91-bbac-3783a243d686.png"
+            alt="BooqIt Service Illustration"
+            className="w-full h-48 mx-auto object-contain"
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+          />
+        </div>
+
+        {/* Role Selection Cards - no gap with image above */}
         <div className="space-y-4">
           <Card className="cursor-pointer hover:shadow-lg transition-all duration-200 border-2 hover:border-booqit-primary/50">
             <CardContent className="p-6" onClick={() => onRoleSelect('customer')}>
