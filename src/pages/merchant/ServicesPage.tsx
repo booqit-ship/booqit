@@ -3,38 +3,28 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Service } from '@/types';
 import { PlusCircle, Edit, Trash, Loader2, Clock, Users } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
 import StaffManagementSheet from '@/components/merchant/StaffManagementSheet';
+import AddServiceWidget from '@/components/merchant/AddServiceWidget';
+import AddStaffWidget from '@/components/merchant/AddStaffWidget';
+
 const ServicesPage: React.FC = () => {
   const [services, setServices] = useState<Service[]>([]);
   const [merchantId, setMerchantId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [currentServiceId, setCurrentServiceId] = useState<string | null>(null);
-  const [name, setName] = useState('');
-  const [price, setPrice] = useState('');
-  const [duration, setDuration] = useState('');
-  const [description, setDescription] = useState('');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const {
-    toast
-  } = useToast();
-  const {
-    userId
-  } = useAuth();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isServiceWidgetOpen, setIsServiceWidgetOpen] = useState(false);
+  const [isStaffWidgetOpen, setIsStaffWidgetOpen] = useState(false);
+  
+  const { toast } = useToast();
+  const { userId } = useAuth();
   const isMobile = useIsMobile();
 
   // Fetch merchant ID for the current user
@@ -81,82 +71,18 @@ const ServicesPage: React.FC = () => {
     };
     fetchServices();
   }, [merchantId]);
-  const resetForm = () => {
-    setName('');
-    setPrice('');
-    setDuration('');
-    setDescription('');
-    setIsEditMode(false);
-    setCurrentServiceId(null);
-  };
-  const handleCreateOrUpdateService = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!merchantId) {
-      toast({
-        title: "Error",
-        description: "Merchant information not found. Please complete onboarding first."
-      });
-      return;
-    }
-    setIsSubmitting(true);
-    try {
-      if (isEditMode && currentServiceId) {
-        // Update service
-        const {
-          error
-        } = await supabase.from('services').update({
-          name,
-          price: parseFloat(price),
-          duration: parseInt(duration),
-          description
-        }).eq('id', currentServiceId);
-        if (error) throw error;
 
-        // Update local state
-        setServices(services.map(service => service.id === currentServiceId ? {
-          ...service,
-          name,
-          price: parseFloat(price),
-          duration: parseInt(duration),
-          description
-        } : service));
-        toast({
-          title: "Success",
-          description: "Service updated successfully."
-        });
-      } else {
-        // Create new service
-        const {
-          data,
-          error
-        } = await supabase.from('services').insert({
-          merchant_id: merchantId,
-          name,
-          price: parseFloat(price),
-          duration: parseInt(duration),
-          description
-        }).select();
-        if (error) throw error;
-        const newService = data[0] as Service;
-
-        // Update local state
-        setServices([...services, newService]);
-        toast({
-          title: "Success",
-          description: "Service created successfully."
-        });
-      }
-      resetForm();
-      setIsSheetOpen(false);
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to save service. Please try again."
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+  const handleServiceAdded = (newService: Service) => {
+    setServices([...services, newService]);
   };
+
+  const handleStaffAdded = (newStaff: any) => {
+    toast({
+      title: "Success",
+      description: "Staff member added successfully. You can now manage their availability."
+    });
+  };
+
   const handleEditService = async (service: Service) => {
     setName(service.name);
     setPrice(service.price.toString());
@@ -232,22 +158,34 @@ const ServicesPage: React.FC = () => {
         </CardContent>
       </Card>;
   };
-  return <div className="container mx-auto px-4 py-6 pb-24 max-w-6xl relative">
+
+  return (
+    <div className="container mx-auto px-4 py-6 pb-24 max-w-6xl relative">
       <div className="mb-8">
         <h1 className="text-booqit-dark text-center font-light text-2xl">Service Management</h1>
         <p className="text-booqit-dark/70 mt-2 mb-6 text-center">Create and manage the services you offer to your customers</p>
+        
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Button onClick={openAddNewService} size={isMobile ? "default" : "lg"} className="bg-booqit-primary hover:bg-booqit-primary/90">
+          <Button 
+            onClick={() => setIsServiceWidgetOpen(true)} 
+            size={isMobile ? "default" : "lg"} 
+            className="bg-booqit-primary hover:bg-booqit-primary/90"
+          >
             <PlusCircle className="mr-2 h-5 w-5" /> Add New Service
           </Button>
-          {merchantId && <StaffManagementSheet merchantId={merchantId}>
-              <Button size={isMobile ? "default" : "lg"} variant="outline" className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary/10">
-                <Users className="mr-2 h-5 w-5" /> Manage Stylists
-              </Button>
-            </StaffManagementSheet>}
+          
+          <Button 
+            onClick={() => setIsStaffWidgetOpen(true)} 
+            size={isMobile ? "default" : "lg"} 
+            variant="outline" 
+            className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary/10"
+          >
+            <Users className="mr-2 h-5 w-5" /> Add Staff Member
+          </Button>
         </div>
       </div>
-      
+
+      {/* Services Display Card */}
       <Card className="shadow-md">
         <CardHeader className="border-b bg-muted/30">
           <CardTitle className="text-booqit-dark font-light text-xl">Your Services </CardTitle>
@@ -297,55 +235,27 @@ const ServicesPage: React.FC = () => {
             </div>}
         </CardContent>
       </Card>
-      
-      {/* Service Form in Sheet/Drawer */}
-      <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-        <SheetContent className="sm:max-w-md">
-          <SheetHeader>
-            <SheetTitle className="text-xl font-light">{isEditMode ? 'Edit Service' : 'Add New Service'}</SheetTitle>
-            <SheetDescription>
-              {isEditMode ? 'Update the details of your service.' : 'Add a new service for your customers to book.'}
-            </SheetDescription>
-          </SheetHeader>
-          <form onSubmit={handleCreateOrUpdateService} className="mt-6 space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="name">Service Name</Label>
-              <Input id="name" value={name} onChange={e => setName(e.target.value)} required placeholder="e.g. Haircut, Massage, Consultation" />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="price">Price (₹)</Label>
-                <Input id="price" type="number" value={price} onChange={e => setPrice(e.target.value)} required placeholder="e.g. 499" />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="duration">Duration(mins)</Label>
-                <Input id="duration" type="number" value={duration} onChange={e => setDuration(e.target.value)} required placeholder="e.g. 30" />
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="description">Description (Optional)</Label>
-              <Textarea id="description" value={description} onChange={e => setDescription(e.target.value)} rows={3} placeholder="Describe your service in detail..." />
-            </div>
-            
-            <SheetFooter className="flex justify-between items-center pt-4">
-              <Button type="button" variant="outline" onClick={() => setIsSheetOpen(false)} disabled={isSubmitting}>
-                Cancel
-              </Button>
-              <Button type="submit" className="bg-booqit-primary hover:bg-booqit-primary/90" disabled={isSubmitting}>
-                {isSubmitting ? <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {isEditMode ? "Updating..." : "Adding..."}
-                  </> : isEditMode ? "Update Service" : "Add Service"}
-              </Button>
-            </SheetFooter>
-          </form>
-        </SheetContent>
-      </Sheet>
-      
-      
+
+      {/* Add Service Widget */}
+      {merchantId && (
+        <AddServiceWidget
+          merchantId={merchantId}
+          onServiceAdded={handleServiceAdded}
+          isOpen={isServiceWidgetOpen}
+          onClose={() => setIsServiceWidgetOpen(false)}
+        />
+      )}
+
+      {/* Add Staff Widget */}
+      {merchantId && (
+        <AddStaffWidget
+          merchantId={merchantId}
+          onStaffAdded={handleStaffAdded}
+          isOpen={isStaffWidgetOpen}
+          onClose={() => setIsStaffWidgetOpen(false)}
+        />
+      )}
+
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
@@ -368,6 +278,8 @@ const ServicesPage: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>;
+    </div>
+  );
 };
+
 export default ServicesPage;
