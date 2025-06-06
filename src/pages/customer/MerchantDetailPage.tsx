@@ -31,9 +31,9 @@ const MerchantDetailPage: React.FC = () => {
   };
 
   const getGenderSpecification = (merchant: Merchant) => {
-    // You can add logic here to determine gender specification
-    // For now, defaulting to "Unisex" - this can be customized based on your data structure
-    return merchant.gender_specification || "Unisex";
+    // Use gender_focus from the Merchant type and format it properly
+    const genderFocus = merchant.gender_focus || "unisex";
+    return genderFocus.charAt(0).toUpperCase() + genderFocus.slice(1);
   };
 
   const formatStylistDisplay = (staff: Staff[]) => {
