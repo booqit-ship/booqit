@@ -29,14 +29,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Use refs to prevent issues and track state
   const isInitialized = useRef(false);
   const authSubscription = useRef<any>(null);
-  const initializationPromise = useRef<Promise<void> | null>(null);
-  const cleanupTimeouts = useRef<NodeJS.Timeout[]>([]);
-
-  // Cleanup function
-  const cleanup = () => {
-    cleanupTimeouts.current.forEach(timeout => clearTimeout(timeout));
-    cleanupTimeouts.current = [];
-  };
+  const sessionCache = useRef<Session | null>(null);
+  const lastSessionCheck = useRef<number>(0);
+  const SESSION_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
   const clearAuthState = () => {
     console.log('Clearing auth state');
@@ -45,6 +40,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUserRole(null);
     setUserId(null);
     setSession(null);
+    sessionCache.current = null;
+    lastSessionCheck.current = 0;
     localStorage.removeItem('booqit_auth');
   };
 
@@ -71,42 +68,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const handleAuthStateChange = async (event: string, session: Session | null) => {
-    // Prevent concurrent auth state changes
-    if (initializationPromise.current) {
-      await initializationPromise.current;
+  const setAuthState = (session: Session | null) => {
+    if (session?.user) {
+      sessionCache.current = session;
+      lastSessionCheck.current = Date.now();
+      setSession(session);
+      setUser(session.user);
+      setIsAuthenticated(true);
+      setUserId(session.user.id);
+    } else {
+      clearAuthState();
     }
+  };
 
+  const handleAuthStateChange = async (event: string, session: Session | null) => {
     console.log('Auth state change event:', event, 'Session exists:', !!session);
     
     try {
       if (session?.user) {
         console.log('Processing authenticated session...');
         
-        // Clear any existing conflicting auth data
-        const storedAuth = localStorage.getItem('booqit_auth');
-        if (storedAuth) {
-          try {
-            const parsedAuth = JSON.parse(storedAuth);
-            const storedSessionId = parsedAuth.sessionId;
-            const currentSessionId = session.access_token;
-            
-            if (storedSessionId && storedSessionId !== currentSessionId) {
-              console.log('Session mismatch detected, clearing old data');
-              localStorage.removeItem('booqit_auth');
-            }
-          } catch (e) {
-            console.log('Invalid stored auth data, clearing');
-            localStorage.removeItem('booqit_auth');
-          }
+        // Check if we already have this session cached
+        if (sessionCache.current?.access_token === session.access_token && userRole) {
+          console.log('Using cached session and role');
+          setAuthState(session);
+          setUserRole(userRole);
+          setLoading(false);
+          return;
         }
         
-        setSession(session);
-        setUser(session.user);
-        setIsAuthenticated(true);
-        setUserId(session.user.id);
+        setAuthState(session);
         
-        // Fetch user role
+        // Fetch user role only if we don't have it or session changed
         const role = await fetchUserRole(session.user.id);
         if (role) {
           setUserRole(role);
@@ -116,7 +109,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             isAuthenticated: true,
             role,
             id: session.user.id,
-            sessionId: session.access_token
+            sessionId: session.access_token,
+            timestamp: Date.now()
           };
           localStorage.setItem('booqit_auth', JSON.stringify(authState));
           console.log('Auth state updated successfully');
@@ -133,7 +127,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       clearAuthState();
     }
     
-    // Always ensure loading is cleared
     setLoading(false);
     isInitialized.current = true;
   };
@@ -146,7 +139,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     const initializeAuth = async () => {
       try {
-        // Set up auth listener first
+        // Check for cached auth state first
+        const storedAuth = localStorage.getItem('booqit_auth');
+        if (storedAuth) {
+          try {
+            const parsedAuth = JSON.parse(storedAuth);
+            const now = Date.now();
+            const isRecent = parsedAuth.timestamp && (now - parsedAuth.timestamp) < SESSION_CACHE_DURATION;
+            
+            if (isRecent && parsedAuth.isAuthenticated && parsedAuth.role && parsedAuth.id) {
+              console.log('Using cached auth state');
+              setIsAuthenticated(true);
+              setUserRole(parsedAuth.role);
+              setUserId(parsedAuth.id);
+              lastSessionCheck.current = now;
+            }
+          } catch (e) {
+            console.log('Invalid stored auth data, clearing');
+            localStorage.removeItem('booqit_auth');
+          }
+        }
+
+        // Set up auth listener
         if (authSubscription.current) {
           authSubscription.current.data.subscription.unsubscribe();
         }
@@ -180,8 +194,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
 
-    // Store initialization promise to prevent concurrent calls
-    initializationPromise.current = initializeAuth();
+    initializeAuth();
 
     // Safety timeout to prevent infinite loading
     const safetyTimeout = setTimeout(() => {
@@ -190,19 +203,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLoading(false);
         isInitialized.current = true;
       }
-    }, 5000);
-    
-    cleanupTimeouts.current.push(safetyTimeout);
+    }, 3000); // Reduced from 5 seconds
 
     // Cleanup function
     return () => {
-      console.log('Cleaning up auth provider');
-      cleanup();
+      clearTimeout(safetyTimeout);
       if (authSubscription.current) {
         authSubscription.current.data.subscription.unsubscribe();
         authSubscription.current = null;
       }
-      initializationPromise.current = null;
     };
   }, []); // Empty dependency array - only run once
 
@@ -218,7 +227,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated, 
         role, 
         id,
-        sessionId: session?.access_token || null
+        sessionId: session?.access_token || null,
+        timestamp: Date.now()
       };
       localStorage.setItem('booqit_auth', JSON.stringify(authState));
     } else {

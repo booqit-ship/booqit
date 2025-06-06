@@ -10,31 +10,31 @@ const Index = () => {
   const { isAuthenticated, userRole, loading } = useAuth();
   const [showRoleSelection, setShowRoleSelection] = useState(false);
   const hasNavigated = useRef(false);
-  const navigationAttempts = useRef(0);
-  const maxNavigationAttempts = 3;
+  const isNavigating = useRef(false);
 
+  // Reset navigation tracking when auth state changes
   useEffect(() => {
-    // Reset navigation tracking when auth state changes
     hasNavigated.current = false;
-    navigationAttempts.current = 0;
+    isNavigating.current = false;
   }, [isAuthenticated, userRole]);
 
   useEffect(() => {
-    // Don't do anything while loading or if already navigated or too many attempts
-    if (loading || hasNavigated.current || navigationAttempts.current >= maxNavigationAttempts) {
+    // Don't do anything while loading or if already navigated/navigating
+    if (loading || hasNavigated.current || isNavigating.current) {
       return;
     }
 
     const handleNavigation = () => {
-      navigationAttempts.current++;
-      console.log(`Index - navigation attempt ${navigationAttempts.current}:`, { 
+      console.log(`Index - navigation check:`, { 
         isAuthenticated, 
         userRole, 
-        loading 
+        loading,
+        hasNavigated: hasNavigated.current
       });
       
-      if (isAuthenticated && userRole && !hasNavigated.current) {
+      if (isAuthenticated && userRole && !hasNavigated.current && !isNavigating.current) {
         hasNavigated.current = true;
+        isNavigating.current = true;
         
         if (userRole === "merchant") {
           console.log('Navigating to merchant dashboard');
@@ -43,21 +43,22 @@ const Index = () => {
           console.log('Customer authenticated, staying on index');
           setShowRoleSelection(false);
         }
-      } else if (!isAuthenticated && !loading) {
+      } else if (!isAuthenticated && !loading && !hasNavigated.current) {
         console.log('User not authenticated, showing role selection');
         setShowRoleSelection(true);
       }
     };
 
-    // Small delay to ensure auth state is fully settled
-    const timeoutId = setTimeout(handleNavigation, 150);
+    // Only delay navigation on initial load
+    const timeoutId = setTimeout(handleNavigation, 100);
     
     return () => clearTimeout(timeoutId);
   }, [isAuthenticated, userRole, loading, navigate]);
 
   const handleRoleSelect = (role: UserRole) => {
-    if (!hasNavigated.current) {
+    if (!hasNavigated.current && !isNavigating.current) {
       hasNavigated.current = true;
+      isNavigating.current = true;
       console.log('Role selected:', role);
       navigate("/auth", { state: { selectedRole: role }, replace: true });
     }
