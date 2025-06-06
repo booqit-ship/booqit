@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -113,7 +114,8 @@ export const useCalendarData = (userId: string | null, selectedDate: Date) => {
           payment_status,
           customer_name,
           customer_phone,
-          customer_email
+          customer_email,
+          created_at
         `)
         .eq('merchant_id', merchantId)
         .eq('date', dateStr)
@@ -125,7 +127,20 @@ export const useCalendarData = (userId: string | null, selectedDate: Date) => {
         return;
       }
       
-      setBookings(data || []);
+      // Ensure the data matches the BookingWithCustomer interface
+      const typedBookings: BookingWithCustomer[] = data ? data.map(booking => ({
+        id: booking.id,
+        service: booking.service,
+        time_slot: booking.time_slot,
+        status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
+        customer_name: booking.customer_name,
+        customer_phone: booking.customer_phone,
+        customer_email: booking.customer_email,
+        stylist_name: booking.stylist_name,
+        created_at: booking.created_at
+      })) : [];
+      
+      setBookings(typedBookings);
     } catch (error) {
       console.error('Error in fetchBookings:', error);
     } finally {
