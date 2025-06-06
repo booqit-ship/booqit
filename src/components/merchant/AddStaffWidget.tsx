@@ -45,6 +45,7 @@ const AddStaffWidget: React.FC<AddStaffWidgetProps> = ({
     setShowStaffList(false);
     setEditingStaff(null);
     setEditName('');
+    setDeleteConfirm(null);
   };
 
   const fetchStaffList = async () => {
