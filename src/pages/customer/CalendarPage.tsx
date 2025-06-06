@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Booking } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { format, parseISO, addDays, isSameDay, startOfWeek, isToday } from 'date-fns';
-import { Calendar as CalendarIcon, Clock, Store, Check, X, CalendarX, Scissors, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, Store, Check, X, CalendarX, Scissors, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { useCancelBooking } from '@/hooks/useCancelBooking';
@@ -293,19 +293,9 @@ const CalendarPage: React.FC = () => {
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleViewReceipt(booking.id)}
-                          className="h-8 w-8 p-0"
-                        >
-                          <FileText className="h-4 w-4" />
-                        </Button>
-                        <Badge className={`${getStatusColor(booking.status)} text-white border-0`}>
-                          {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-                        </Badge>
-                      </div>
+                      <Badge className={`${getStatusColor(booking.status)} text-white border-0`}>
+                        {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                      </Badge>
                     </div>
                     
                     <div className="space-y-2 mb-4">
@@ -320,7 +310,15 @@ const CalendarPage: React.FC = () => {
                         </div>}
                     </div>
                     
-                    {booking.status !== 'cancelled' && booking.status !== 'completed' && <div className="flex justify-end">
+                    {booking.status !== 'cancelled' && booking.status !== 'completed' && <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleViewReceipt(booking.id)}
+                          className="h-8 text-sm px-4"
+                        >
+                          Receipt
+                        </Button>
                         <CancelBookingButton bookingId={booking.id} onCancelled={() => fetchBookings()} className="h-8 text-sm px-4" />
                       </div>}
                   </CardContent>
