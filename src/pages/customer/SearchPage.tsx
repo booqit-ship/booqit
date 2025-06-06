@@ -330,20 +330,33 @@ const SearchPage: React.FC = () => {
     };
   }, []);
 
-  const mapMarkers = filteredMerchants.map(merchant => ({
-    lat: merchant.lat,
-    lng: merchant.lng,
-    title: merchant.shop_name
-  }));
+  // Create map markers from filtered merchants - ensure they always update
+  const mapMarkers = React.useMemo(() => {
+    console.log(`Creating markers for ${filteredMerchants.length} merchants`);
+    return filteredMerchants
+      .filter(merchant => merchant.lat && merchant.lng) // Only include merchants with valid coordinates
+      .map(merchant => ({
+        lat: merchant.lat,
+        lng: merchant.lng,
+        title: merchant.shop_name
+      }));
+  }, [filteredMerchants]);
+
+  console.log(`Map markers count: ${mapMarkers.length}`);
 
   const handleMarkerClick = (index: number) => {
-    const merchant = filteredMerchants[index];
-    setSelectedMerchant(merchant);
-    setMapPopupMerchant(merchant);
+    // Find the merchant that corresponds to this marker
+    const merchantsWithCoords = filteredMerchants.filter(merchant => merchant.lat && merchant.lng);
+    const merchant = merchantsWithCoords[index];
     
-    // Center the map on the selected merchant with smooth animation
-    setMapCenter({ lat: merchant.lat, lng: merchant.lng });
-    setMapZoom(16);
+    if (merchant) {
+      setSelectedMerchant(merchant);
+      setMapPopupMerchant(merchant);
+      
+      // Center the map on the selected merchant with smooth animation
+      setMapCenter({ lat: merchant.lat, lng: merchant.lng });
+      setMapZoom(16);
+    }
   };
 
   const handleCloseMapPopup = () => {
