@@ -32,21 +32,54 @@ const ForgotPasswordPage: React.FC = () => {
         throw new Error("Please enter your email address");
       }
 
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        throw new Error("Please enter a valid email address");
+      }
+
+      console.log('Sending password reset email to:', email);
+      console.log('Site URL:', window.location.origin);
+
+      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
 
-      if (error) throw error;
+      console.log('Reset password response:', { data, error });
 
+      if (error) {
+        console.error('Reset password error:', error);
+        
+        // Handle specific error cases
+        if (error.message.includes('rate limit')) {
+          throw new Error("Too many reset attempts. Please wait a few minutes and try again.");
+        } else if (error.message.includes('invalid_email')) {
+          throw new Error("Please enter a valid email address.");
+        } else if (error.message.includes('user_not_found')) {
+          // For security, we don't reveal if email exists or not
+          // Still show success message
+          setEmailSent(true);
+          toast({
+            title: "Reset link sent!",
+            description: "If an account with this email exists, you'll receive a password reset link.",
+          });
+          return;
+        } else {
+          throw new Error(error.message || "Failed to send reset email. Please try again.");
+        }
+      }
+
+      console.log('Password reset email sent successfully');
       setEmailSent(true);
       toast({
         title: "Reset link sent!",
         description: "Check your email for a password reset link.",
       });
     } catch (error: any) {
+      console.error('Password reset error:', error);
       toast({
         title: "Error!",
-        description: error.message || "Failed to send reset email.",
+        description: error.message || "Failed to send reset email. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -146,6 +179,7 @@ const ForgotPasswordPage: React.FC = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   className="font-poppins"
                   required
+                  autoComplete="email"
                 />
               </div>
             </CardContent>

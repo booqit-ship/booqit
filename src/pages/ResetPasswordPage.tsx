@@ -28,11 +28,46 @@ const ResetPasswordPage: React.FC = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Handle the password reset session
+    // Check if we have the required URL parameters for password reset
     const handlePasswordReset = async () => {
-      const { data, error } = await supabase.auth.getSession();
+      console.log('Checking for password reset session...');
       
-      if (error || !data.session) {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      console.log('Session data:', sessionData, 'Error:', sessionError);
+      
+      // Check for access_token and refresh_token in URL parameters
+      const accessToken = searchParams.get('access_token');
+      const refreshToken = searchParams.get('refresh_token');
+      const type = searchParams.get('type');
+      
+      console.log('URL params:', { accessToken: !!accessToken, refreshToken: !!refreshToken, type });
+      
+      if (type === 'recovery' && accessToken && refreshToken) {
+        console.log('Valid reset link detected, setting session...');
+        
+        try {
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          
+          if (error) {
+            console.error('Error setting session:', error);
+            throw error;
+          }
+          
+          console.log('Session set successfully:', data);
+        } catch (error) {
+          console.error('Failed to set session:', error);
+          toast({
+            title: "Invalid Reset Link",
+            description: "The reset link is invalid or has expired. Please request a new one.",
+            variant: "destructive",
+          });
+          navigate('/forgot-password');
+        }
+      } else if (!sessionData.session) {
+        console.log('No valid session or reset parameters found');
         toast({
           title: "Invalid Reset Link",
           description: "The reset link is invalid or has expired. Please request a new one.",
@@ -43,7 +78,7 @@ const ResetPasswordPage: React.FC = () => {
     };
 
     handlePasswordReset();
-  }, [navigate, toast]);
+  }, [navigate, toast, searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,20 +97,31 @@ const ResetPasswordPage: React.FC = () => {
         throw new Error("Password must be at least 6 characters long");
       }
 
-      const { error } = await supabase.auth.updateUser({
+      console.log('Updating password...');
+
+      const { data, error } = await supabase.auth.updateUser({
         password: password
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Password update error:', error);
+        throw error;
+      }
+
+      console.log('Password updated successfully:', data);
 
       toast({
         title: "Password Updated!",
         description: "Your password has been successfully updated.",
       });
 
+      // Sign out the user after successful password reset
+      await supabase.auth.signOut();
+
       // Redirect to login page
       navigate('/auth');
     } catch (error: any) {
+      console.error('Password reset error:', error);
       toast({
         title: "Error!",
         description: error.message || "Failed to update password.",
