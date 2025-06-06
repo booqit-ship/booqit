@@ -1,67 +1,46 @@
 
-import React, { useEffect, useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import RoleSelection from "@/components/RoleSelection";
 import { UserRole } from "@/types";
 
 const Index = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isAuthenticated, userRole, loading } = useAuth();
   const [showRoleSelection, setShowRoleSelection] = useState(false);
-  const hasNavigated = useRef(false);
-  const isNavigating = useRef(false);
-
-  // Reset navigation tracking when auth state changes
-  useEffect(() => {
-    hasNavigated.current = false;
-    isNavigating.current = false;
-  }, [isAuthenticated, userRole]);
 
   useEffect(() => {
-    // Don't do anything while loading or if already navigated/navigating
-    if (loading || hasNavigated.current || isNavigating.current) {
-      return;
+    if (loading) {
+      return; // Wait for auth to load
     }
 
-    const handleNavigation = () => {
-      console.log(`Index - navigation check:`, { 
-        isAuthenticated, 
-        userRole, 
-        loading,
-        hasNavigated: hasNavigated.current
-      });
-      
-      if (isAuthenticated && userRole && !hasNavigated.current && !isNavigating.current) {
-        hasNavigated.current = true;
-        isNavigating.current = true;
-        
-        if (userRole === "merchant") {
-          console.log('Navigating to merchant dashboard');
-          navigate("/merchant", { replace: true });
-        } else {
-          console.log('Customer authenticated, staying on index');
-          setShowRoleSelection(false);
-        }
-      } else if (!isAuthenticated && !loading && !hasNavigated.current) {
-        console.log('User not authenticated, showing role selection');
-        setShowRoleSelection(true);
-      }
-    };
+    console.log(`Index - Auth state:`, { 
+      isAuthenticated, 
+      userRole, 
+      loading 
+    });
 
-    // Only delay navigation on initial load
-    const timeoutId = setTimeout(handleNavigation, 100);
-    
-    return () => clearTimeout(timeoutId);
+    if (isAuthenticated && userRole) {
+      if (userRole === "merchant") {
+        console.log('Navigating to merchant dashboard');
+        navigate("/merchant", { replace: true });
+      } else {
+        console.log('Customer authenticated, staying on index for customer features');
+        // For customers, they stay on index to access customer features
+        setShowRoleSelection(false);
+      }
+    } else if (!isAuthenticated) {
+      console.log('User not authenticated, showing role selection');
+      setShowRoleSelection(true);
+    }
   }, [isAuthenticated, userRole, loading, navigate]);
 
   const handleRoleSelect = (role: UserRole) => {
-    if (!hasNavigated.current && !isNavigating.current) {
-      hasNavigated.current = true;
-      isNavigating.current = true;
-      console.log('Role selected:', role);
-      navigate("/auth", { state: { selectedRole: role }, replace: true });
-    }
+    console.log('Role selected:', role);
+    const selectedRole = location.state?.selectedRole || role;
+    navigate("/auth", { state: { selectedRole }, replace: true });
   };
 
   // Show loading while auth is initializing
@@ -78,12 +57,7 @@ const Index = () => {
   }
 
   // Show role selection for unauthenticated users
-  if (showRoleSelection && !isAuthenticated) {
-    return <RoleSelection onRoleSelect={handleRoleSelect} />;
-  }
-
-  // Fallback for edge cases - prevent white screen
-  if (!loading && !isAuthenticated && !showRoleSelection) {
+  if (!isAuthenticated && showRoleSelection) {
     return <RoleSelection onRoleSelect={handleRoleSelect} />;
   }
 

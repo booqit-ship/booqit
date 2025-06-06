@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserRole } from '../types';
 import { supabase } from '@/integrations/supabase/client';
 import { Session, User } from '@supabase/supabase-js';
@@ -25,13 +25,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  
-  // Use refs to prevent issues and track state
-  const isInitialized = useRef(false);
-  const authSubscription = useRef<any>(null);
-  const sessionCache = useRef<Session | null>(null);
-  const lastSessionCheck = useRef<number>(0);
-  const SESSION_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
   const clearAuthState = () => {
     console.log('Clearing auth state');
@@ -40,9 +33,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUserRole(null);
     setUserId(null);
     setSession(null);
-    sessionCache.current = null;
-    lastSessionCheck.current = 0;
-    localStorage.removeItem('booqit_auth');
   };
 
   const fetchUserRole = async (userId: string): Promise<UserRole | null> => {
@@ -68,19 +58,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const setAuthState = (session: Session | null) => {
-    if (session?.user) {
-      sessionCache.current = session;
-      lastSessionCheck.current = Date.now();
-      setSession(session);
-      setUser(session.user);
-      setIsAuthenticated(true);
-      setUserId(session.user.id);
-    } else {
-      clearAuthState();
-    }
-  };
-
   const handleAuthStateChange = async (event: string, session: Session | null) => {
     console.log('Auth state change event:', event, 'Session exists:', !!session);
     
@@ -88,31 +65,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (session?.user) {
         console.log('Processing authenticated session...');
         
-        // Check if we already have this session cached
-        if (sessionCache.current?.access_token === session.access_token && userRole) {
-          console.log('Using cached session and role');
-          setAuthState(session);
-          setUserRole(userRole);
-          setLoading(false);
-          return;
-        }
+        setSession(session);
+        setUser(session.user);
+        setIsAuthenticated(true);
+        setUserId(session.user.id);
         
-        setAuthState(session);
-        
-        // Fetch user role only if we don't have it or session changed
+        // Fetch user role
         const role = await fetchUserRole(session.user.id);
         if (role) {
           setUserRole(role);
-          
-          // Store auth state with session identifier
-          const authState = {
-            isAuthenticated: true,
-            role,
-            id: session.user.id,
-            sessionId: session.access_token,
-            timestamp: Date.now()
-          };
-          localStorage.setItem('booqit_auth', JSON.stringify(authState));
           console.log('Auth state updated successfully');
         } else {
           console.error('Failed to fetch user role');
@@ -125,95 +86,77 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Error in handleAuthStateChange:', error);
       clearAuthState();
+      toast.error('Authentication error. Please try logging in again.');
     }
     
     setLoading(false);
-    isInitialized.current = true;
   };
 
   useEffect(() => {
-    // Prevent re-initialization
-    if (isInitialized.current) return;
-    
     console.log('Initializing auth system...');
+    
+    let mounted = true;
     
     const initializeAuth = async () => {
       try {
-        // Check for cached auth state first
-        const storedAuth = localStorage.getItem('booqit_auth');
-        if (storedAuth) {
-          try {
-            const parsedAuth = JSON.parse(storedAuth);
-            const now = Date.now();
-            const isRecent = parsedAuth.timestamp && (now - parsedAuth.timestamp) < SESSION_CACHE_DURATION;
-            
-            if (isRecent && parsedAuth.isAuthenticated && parsedAuth.role && parsedAuth.id) {
-              console.log('Using cached auth state');
-              setIsAuthenticated(true);
-              setUserRole(parsedAuth.role);
-              setUserId(parsedAuth.id);
-              lastSessionCheck.current = now;
+        // Set up auth listener first
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          async (event, session) => {
+            if (mounted) {
+              await handleAuthStateChange(event, session);
             }
-          } catch (e) {
-            console.log('Invalid stored auth data, clearing');
-            localStorage.removeItem('booqit_auth');
           }
-        }
-
-        // Set up auth listener
-        if (authSubscription.current) {
-          authSubscription.current.data.subscription.unsubscribe();
-        }
-        authSubscription.current = supabase.auth.onAuthStateChange(handleAuthStateChange);
+        );
 
         // Check for existing session
         const { data: { session: existingSession }, error } = await supabase.auth.getSession();
         
         if (error) {
           console.error('Error getting session:', error);
-          clearAuthState();
-          setLoading(false);
-          isInitialized.current = true;
+          if (mounted) {
+            clearAuthState();
+            setLoading(false);
+          }
           return;
         }
 
-        if (existingSession) {
+        if (existingSession && mounted) {
           console.log('Found existing session, processing...');
           await handleAuthStateChange('SIGNED_IN', existingSession);
-        } else {
+        } else if (mounted) {
           console.log('No existing session found');
-          clearAuthState();
           setLoading(false);
-          isInitialized.current = true;
         }
+
+        // Cleanup function
+        return () => {
+          subscription.unsubscribe();
+        };
       } catch (error) {
         console.error('Error during auth initialization:', error);
-        clearAuthState();
-        setLoading(false);
-        isInitialized.current = true;
+        if (mounted) {
+          clearAuthState();
+          setLoading(false);
+        }
       }
     };
 
-    initializeAuth();
+    const cleanup = initializeAuth();
 
     // Safety timeout to prevent infinite loading
     const safetyTimeout = setTimeout(() => {
-      if (loading && !isInitialized.current) {
+      if (mounted && loading) {
         console.warn('Auth initialization timeout - forcing completion');
         setLoading(false);
-        isInitialized.current = true;
       }
-    }, 3000); // Reduced from 5 seconds
+    }, 10000);
 
-    // Cleanup function
     return () => {
+      mounted = false;
       clearTimeout(safetyTimeout);
-      if (authSubscription.current) {
-        authSubscription.current.data.subscription.unsubscribe();
-        authSubscription.current = null;
-      }
+      cleanup?.then?.(cb => cb?.());
     };
-  }, []); // Empty dependency array - only run once
+  }, []);
 
   const setAuth = (isAuthenticated: boolean, role: UserRole | null, id: string | null) => {
     console.log('Manual setAuth called:', { isAuthenticated, role, id });
@@ -221,19 +164,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAuthenticated(isAuthenticated);
     setUserRole(role);
     setUserId(id);
-    
-    if (isAuthenticated && role && id) {
-      const authState = { 
-        isAuthenticated, 
-        role, 
-        id,
-        sessionId: session?.access_token || null,
-        timestamp: Date.now()
-      };
-      localStorage.setItem('booqit_auth', JSON.stringify(authState));
-    } else {
-      clearAuthState();
-    }
   };
 
   const logout = async () => {
