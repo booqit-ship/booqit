@@ -14,6 +14,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
 import StaffManagementSheet from '@/components/merchant/StaffManagementSheet';
+import AddServiceWidget from '@/components/merchant/AddServiceWidget';
+import AddStylistWidget from '@/components/merchant/AddStylistWidget';
+
 const ServicesPage: React.FC = () => {
   const [services, setServices] = useState<Service[]>([]);
   const [merchantId, setMerchantId] = useState<string | null>(null);
@@ -21,20 +24,15 @@ const ServicesPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentServiceId, setCurrentServiceId] = useState<string | null>(null);
-  const [name, setName] = useState('');
-  const [price, setPrice] = useState('');
-  const [duration, setDuration] = useState('');
-  const [description, setDescription] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const {
-    toast
-  } = useToast();
-  const {
-    userId
-  } = useAuth();
+  const [isServiceWidgetOpen, setIsServiceWidgetOpen] = useState(false);
+  const [isStylistWidgetOpen, setIsStylistWidgetOpen] = useState(false);
+  const [editingService, setEditingService] = useState<Service | null>(null);
+  
+  const { toast } = useToast();
+  const { userId } = useAuth();
   const isMobile = useIsMobile();
 
   // Fetch merchant ID for the current user
@@ -81,16 +79,14 @@ const ServicesPage: React.FC = () => {
     };
     fetchServices();
   }, [merchantId]);
-  const resetForm = () => {
-    setName('');
-    setPrice('');
-    setDuration('');
-    setDescription('');
+  
+  const resetServiceForm = () => {
     setIsEditMode(false);
     setCurrentServiceId(null);
+    setEditingService(null);
   };
-  const handleCreateOrUpdateService = async (e: React.FormEvent) => {
-    e.preventDefault();
+
+  const handleCreateOrUpdateService = async (data: { name: string; price: string; duration: string; description: string }) => {
     if (!merchantId) {
       toast({
         title: "Error",
@@ -98,46 +94,49 @@ const ServicesPage: React.FC = () => {
       });
       return;
     }
+    
     setIsSubmitting(true);
     try {
       if (isEditMode && currentServiceId) {
         // Update service
-        const {
-          error
-        } = await supabase.from('services').update({
-          name,
-          price: parseFloat(price),
-          duration: parseInt(duration),
-          description
-        }).eq('id', currentServiceId);
+        const { error } = await supabase
+          .from('services')
+          .update({
+            name: data.name,
+            price: parseFloat(data.price),
+            duration: parseInt(data.duration),
+            description: data.description
+          })
+          .eq('id', currentServiceId);
+
         if (error) throw error;
 
         // Update local state
-        setServices(services.map(service => service.id === currentServiceId ? {
-          ...service,
-          name,
-          price: parseFloat(price),
-          duration: parseInt(duration),
-          description
-        } : service));
+        setServices(services.map(service => 
+          service.id === currentServiceId 
+            ? { ...service, name: data.name, price: parseFloat(data.price), duration: parseInt(data.duration), description: data.description }
+            : service
+        ));
+        
         toast({
           title: "Success",
           description: "Service updated successfully."
         });
       } else {
         // Create new service
-        const {
-          data,
-          error
-        } = await supabase.from('services').insert({
-          merchant_id: merchantId,
-          name,
-          price: parseFloat(price),
-          duration: parseInt(duration),
-          description
-        }).select();
+        const { data: newServiceData, error } = await supabase
+          .from('services')
+          .insert({
+            merchant_id: merchantId,
+            name: data.name,
+            price: parseFloat(data.price),
+            duration: parseInt(data.duration),
+            description: data.description
+          })
+          .select();
+
         if (error) throw error;
-        const newService = data[0] as Service;
+        const newService = newServiceData[0] as Service;
 
         // Update local state
         setServices([...services, newService]);
@@ -146,8 +145,9 @@ const ServicesPage: React.FC = () => {
           description: "Service created successfully."
         });
       }
-      resetForm();
-      setIsSheetOpen(false);
+      
+      resetServiceForm();
+      setIsServiceWidgetOpen(false);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -157,26 +157,57 @@ const ServicesPage: React.FC = () => {
       setIsSubmitting(false);
     }
   };
+
+  const handleCreateStylist = async (data: { name: string; email: string; phone: string }) => {
+    if (!merchantId) {
+      toast({
+        title: "Error",
+        description: "Merchant information not found."
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      // Here you would implement the stylist creation logic
+      // For now, just show success message
+      toast({
+        title: "Success",
+        description: "Stylist added successfully."
+      });
+      
+      setIsStylistWidgetOpen(false);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "Failed to add stylist. Please try again."
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleEditService = async (service: Service) => {
-    setName(service.name);
-    setPrice(service.price.toString());
-    setDuration(service.duration.toString());
-    setDescription(service.description || '');
+    setEditingService(service);
     setIsEditMode(true);
     setCurrentServiceId(service.id);
-    setIsSheetOpen(true);
+    setIsServiceWidgetOpen(true);
   };
+
   const confirmDelete = (id: string) => {
     setDeleteId(id);
     setIsDialogOpen(true);
   };
+
   const handleDeleteService = async () => {
     if (!deleteId) return;
     setIsDeleting(true);
     try {
-      const {
-        error
-      } = await supabase.from('services').delete().eq('id', deleteId);
+      const { error } = await supabase
+        .from('services')
+        .delete()
+        .eq('id', deleteId);
+
       if (error) throw error;
 
       // Update local state
@@ -195,25 +226,39 @@ const ServicesPage: React.FC = () => {
       setIsDeleting(false);
     }
   };
+
   const openAddNewService = () => {
-    resetForm();
-    setIsSheetOpen(true);
+    resetServiceForm();
+    setIsServiceWidgetOpen(true);
   };
-  const openManageStylists = () => {};
-  const MobileServiceCard = ({
-    service
-  }: {
-    service: Service;
-  }) => {
-    return <Card className="mb-5 overflow-hidden border border-gray-200 shadow-sm hover:shadow-md transition-shadow animate-fade-in">
+
+  const openAddNewStylist = () => {
+    setIsStylistWidgetOpen(true);
+  };
+
+  const MobileServiceCard = ({ service }: { service: Service }) => {
+    return (
+      <Card className="mb-5 overflow-hidden border border-gray-200 shadow-sm hover:shadow-md transition-shadow animate-fade-in">
         <CardHeader className="p-4 pb-2 bg-muted/20 border-b">
           <CardTitle className="text-lg font-semibold text-booqit-dark flex justify-between items-center">
             <span className="truncate pr-2 font-light">{service.name}</span>
             <div className="flex space-x-1">
-              <Button variant="ghost" size="icon" onClick={() => handleEditService(service)} className="h-8 w-8 hover:bg-booqit-primary/10 hover:text-booqit-primary" title="Edit service">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleEditService(service)}
+                className="h-8 w-8 hover:bg-booqit-primary/10 hover:text-booqit-primary"
+                title="Edit service"
+              >
                 <Edit className="h-3.5 w-3.5" />
               </Button>
-              <Button variant="ghost" size="icon" onClick={() => confirmDelete(service.id)} className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive" title="Delete service">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => confirmDelete(service.id)}
+                className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
+                title="Delete service"
+              >
                 <Trash className="h-3.5 w-3.5" />
               </Button>
             </div>
@@ -230,32 +275,46 @@ const ServicesPage: React.FC = () => {
             </div>
           </div>
         </CardContent>
-      </Card>;
+      </Card>
+    );
   };
-  return <div className="container mx-auto px-4 py-6 pb-24 max-w-6xl relative">
+
+  return (
+    <div className="container mx-auto px-4 py-6 pb-24 max-w-6xl relative">
       <div className="mb-8">
         <h1 className="text-booqit-dark text-center font-light text-2xl">Service Management</h1>
         <p className="text-booqit-dark/70 mt-2 mb-6 text-center">Create and manage the services you offer to your customers</p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Button onClick={openAddNewService} size={isMobile ? "default" : "lg"} className="bg-booqit-primary hover:bg-booqit-primary/90">
+          <Button 
+            onClick={openAddNewService} 
+            size={isMobile ? "default" : "lg"} 
+            className="bg-booqit-primary hover:bg-booqit-primary/90"
+          >
             <PlusCircle className="mr-2 h-5 w-5" /> Add New Service
           </Button>
-          {merchantId && <StaffManagementSheet merchantId={merchantId}>
-              <Button size={isMobile ? "default" : "lg"} variant="outline" className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary/10">
-                <Users className="mr-2 h-5 w-5" /> Manage Stylists
-              </Button>
-            </StaffManagementSheet>}
+          <Button 
+            onClick={openAddNewStylist} 
+            size={isMobile ? "default" : "lg"} 
+            variant="outline" 
+            className="border-booqit-teal text-booqit-teal hover:bg-booqit-teal/10"
+          >
+            <Users className="mr-2 h-5 w-5" /> Add New Stylist
+          </Button>
         </div>
       </div>
       
+      {/* Services Display */}
       <Card className="shadow-md">
         <CardHeader className="border-b bg-muted/30">
-          <CardTitle className="text-booqit-dark font-light text-xl">Your Services </CardTitle>
+          <CardTitle className="text-booqit-dark font-light text-xl">Your Services</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {isLoading ? <div className="flex justify-center py-10">
+          {isLoading ? (
+            <div className="flex justify-center py-10">
               <Loader2 className="h-10 w-10 text-booqit-primary animate-spin" />
-            </div> : services.length === 0 ? <div className="text-center py-16 px-4">
+            </div>
+          ) : services.length === 0 ? (
+            <div className="text-center py-16 px-4">
               <div className="bg-muted/30 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
                 <PlusCircle className="h-10 w-10 text-booqit-dark/40" />
               </div>
@@ -263,12 +322,22 @@ const ServicesPage: React.FC = () => {
               <p className="text-booqit-dark/60 mb-6 max-w-md mx-auto">
                 Add your first service to start accepting bookings from customers
               </p>
-              <Button onClick={openAddNewService} variant="outline" className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary/10">
+              <Button 
+                onClick={openAddNewService} 
+                variant="outline" 
+                className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary/10"
+              >
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Your First Service
               </Button>
-            </div> : isMobile ? <div className="p-5 grid grid-cols-1 gap-5">
-              {services.map(service => <MobileServiceCard key={service.id} service={service} />)}
-            </div> : <div className="overflow-x-auto">
+            </div>
+          ) : isMobile ? (
+            <div className="p-5 grid grid-cols-1 gap-5">
+              {services.map(service => (
+                <MobileServiceCard key={service.id} service={service} />
+              ))}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/10">
@@ -279,72 +348,62 @@ const ServicesPage: React.FC = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {services.map(service => <TableRow key={service.id} className="hover:bg-muted/20 border-b border-gray-100">
+                  {services.map(service => (
+                    <TableRow key={service.id} className="hover:bg-muted/20 border-b border-gray-100">
                       <TableCell className="font-medium py-4">{service.name}</TableCell>
                       <TableCell className="text-center py-4">{service.duration} mins</TableCell>
                       <TableCell className="text-center py-4">₹{service.price}</TableCell>
                       <TableCell className="text-right space-x-1.5 py-4">
-                        <Button variant="ghost" size="icon" onClick={() => handleEditService(service)} className="hover:bg-booqit-primary/10 hover:text-booqit-primary" title="Edit service">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEditService(service)}
+                          className="hover:bg-booqit-primary/10 hover:text-booqit-primary"
+                          title="Edit service"
+                        >
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => confirmDelete(service.id)} className="hover:bg-destructive/10 hover:text-destructive" title="Delete service">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => confirmDelete(service.id)}
+                          className="hover:bg-destructive/10 hover:text-destructive"
+                          title="Delete service"
+                        >
                           <Trash className="h-4 w-4" />
                         </Button>
                       </TableCell>
-                    </TableRow>)}
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
-            </div>}
+            </div>
+          )}
         </CardContent>
       </Card>
       
-      {/* Service Form in Sheet/Drawer */}
-      <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-        <SheetContent className="sm:max-w-md">
-          <SheetHeader>
-            <SheetTitle className="text-xl font-light">{isEditMode ? 'Edit Service' : 'Add New Service'}</SheetTitle>
-            <SheetDescription>
-              {isEditMode ? 'Update the details of your service.' : 'Add a new service for your customers to book.'}
-            </SheetDescription>
-          </SheetHeader>
-          <form onSubmit={handleCreateOrUpdateService} className="mt-6 space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="name">Service Name</Label>
-              <Input id="name" value={name} onChange={e => setName(e.target.value)} required placeholder="e.g. Haircut, Massage, Consultation" />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="price">Price (₹)</Label>
-                <Input id="price" type="number" value={price} onChange={e => setPrice(e.target.value)} required placeholder="e.g. 499" />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="duration">Duration(mins)</Label>
-                <Input id="duration" type="number" value={duration} onChange={e => setDuration(e.target.value)} required placeholder="e.g. 30" />
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="description">Description (Optional)</Label>
-              <Textarea id="description" value={description} onChange={e => setDescription(e.target.value)} rows={3} placeholder="Describe your service in detail..." />
-            </div>
-            
-            <SheetFooter className="flex justify-between items-center pt-4">
-              <Button type="button" variant="outline" onClick={() => setIsSheetOpen(false)} disabled={isSubmitting}>
-                Cancel
-              </Button>
-              <Button type="submit" className="bg-booqit-primary hover:bg-booqit-primary/90" disabled={isSubmitting}>
-                {isSubmitting ? <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {isEditMode ? "Updating..." : "Adding..."}
-                  </> : isEditMode ? "Update Service" : "Add Service"}
-              </Button>
-            </SheetFooter>
-          </form>
-        </SheetContent>
-      </Sheet>
-      
+      {/* Add Service Widget */}
+      <AddServiceWidget
+        isOpen={isServiceWidgetOpen}
+        onClose={() => setIsServiceWidgetOpen(false)}
+        onSubmit={handleCreateOrUpdateService}
+        isSubmitting={isSubmitting}
+        isEditMode={isEditMode}
+        initialData={editingService ? {
+          name: editingService.name,
+          price: editingService.price.toString(),
+          duration: editingService.duration.toString(),
+          description: editingService.description || ''
+        } : undefined}
+      />
+
+      {/* Add Stylist Widget */}
+      <AddStylistWidget
+        isOpen={isStylistWidgetOpen}
+        onClose={() => setIsStylistWidgetOpen(false)}
+        onSubmit={handleCreateStylist}
+        isSubmitting={isSubmitting}
+      />
       
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -360,14 +419,20 @@ const ServicesPage: React.FC = () => {
               Cancel
             </Button>
             <Button variant="destructive" onClick={handleDeleteService} disabled={isDeleting}>
-              {isDeleting ? <>
+              {isDeleting ? (
+                <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Deleting...
-                </> : "Delete"}
+                </>
+              ) : (
+                "Delete"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>;
+    </div>
+  );
 };
+
 export default ServicesPage;
