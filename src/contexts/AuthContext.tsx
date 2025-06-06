@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { UserRole } from '../types';
 import { supabase } from '@/integrations/supabase/client';
 import { Session, User } from '@supabase/supabase-js';
@@ -25,7 +25,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [initialized, setInitialized] = useState<boolean>(false);
+  
+  // Use refs to prevent infinite loops
+  const isInitialized = useRef(false);
+  const authSubscription = useRef<any>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchUserRole = async (userId: string) => {
     try {
@@ -51,35 +55,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const handleAuthStateChange = async (event: string, session: Session | null) => {
-    console.log('Auth state change event:', event, 'Session:', !!session);
+    console.log('Auth state change event:', event, 'Session exists:', !!session);
+    
+    // Clear any existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
     
     setSession(session);
     
-    if (session && session.user) {
+    if (session?.user) {
       console.log('User authenticated, setting up session...');
       setUser(session.user);
       setIsAuthenticated(true);
       setUserId(session.user.id);
       
-      // Fetch user role only if we don't have it or it's a new session
-      if (!userRole || event === 'SIGNED_IN') {
-        const role = await fetchUserRole(session.user.id);
-        if (role) {
-          setUserRole(role);
-          
-          // Store auth state in localStorage for persistence
-          const authState = {
-            isAuthenticated: true,
-            role,
-            id: session.user.id
-          };
-          localStorage.setItem('booqit_auth', JSON.stringify(authState));
-          console.log('Auth state stored in localStorage:', authState);
-        }
+      // Fetch user role
+      const role = await fetchUserRole(session.user.id);
+      if (role) {
+        setUserRole(role);
+        
+        // Store minimal auth state
+        const authState = {
+          isAuthenticated: true,
+          role,
+          id: session.user.id
+        };
+        localStorage.setItem('booqit_auth', JSON.stringify(authState));
+        console.log('Auth state stored');
       }
     } else {
       console.log('User signed out or no session');
-      // Clear all authentication state
       setUser(null);
       setIsAuthenticated(false);
       setUserRole(null);
@@ -87,40 +94,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.removeItem('booqit_auth');
     }
     
-    // Set initialized after first auth state change
-    if (!initialized) {
-      setInitialized(true);
-    }
-    
-    // Clear loading only after initialization
-    if (initialized || event === 'INITIAL_SESSION') {
-      setLoading(false);
-    }
+    // Always clear loading after processing auth state
+    setLoading(false);
+    isInitialized.current = true;
   };
 
   useEffect(() => {
-    if (initialized) return; // Prevent re-initialization
+    // Prevent re-initialization
+    if (isInitialized.current) return;
     
-    console.log('Setting up auth state management...');
+    console.log('Initializing auth...');
     
-    // Set up authentication state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
+    // Set up auth listener only once
+    authSubscription.current = supabase.auth.onAuthStateChange(handleAuthStateChange);
 
-    // Set timeout to clear loading if auth takes too long
-    const timeoutId = setTimeout(() => {
-      if (loading && !initialized) {
-        console.warn('Auth initialization timed out, clearing loading state');
+    // Safety timeout to ensure loading clears
+    timeoutRef.current = setTimeout(() => {
+      if (loading) {
+        console.warn('Auth initialization timeout - clearing loading state');
         setLoading(false);
-        setInitialized(true);
+        isInitialized.current = true;
       }
-    }, 3000); // Reduced to 3 seconds
+    }, 2000);
 
+    // Cleanup function
     return () => {
-      console.log('Cleaning up auth subscription');
-      subscription.unsubscribe();
-      clearTimeout(timeoutId);
+      console.log('Cleaning up auth');
+      if (authSubscription.current) {
+        authSubscription.current.data.subscription.unsubscribe();
+      }
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
     };
-  }, []); // Remove all dependencies to prevent re-initialization
+  }, []); // Empty dependency array - only run once
 
   const setAuth = (isAuthenticated: boolean, role: UserRole | null, id: string | null) => {
     console.log('Manual setAuth called:', { isAuthenticated, role, id });
@@ -132,10 +139,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (isAuthenticated && role && id) {
       const authState = { isAuthenticated, role, id };
       localStorage.setItem('booqit_auth', JSON.stringify(authState));
-      console.log('Auth state manually stored:', authState);
     } else {
       localStorage.removeItem('booqit_auth');
-      console.log('Auth state cleared from localStorage');
     }
   };
 
@@ -153,7 +158,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         toast.success('Logged out successfully');
       }
       
-      // Clear auth state (this will be handled by onAuthStateChange too)
+      // Clear auth state immediately
       setAuth(false, null, null);
     } catch (error) {
       console.error('Exception during logout:', error);

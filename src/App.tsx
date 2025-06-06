@@ -40,6 +40,7 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 5 * 60 * 1000, // 5 minutes
       gcTime: 10 * 60 * 1000, // 10 minutes
+      retry: 1, // Reduce retries to prevent hanging
     },
   },
 });
@@ -134,24 +135,24 @@ const router = createBrowserRouter([
   },
 ]);
 
-// Simplified loading component
+// Simplified loading component with timeout
 const AppLoading = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-booqit-primary/10 to-white flex items-center justify-center">
       <div className="text-center">
         <div className="animate-spin h-12 w-12 border-4 border-booqit-primary border-t-transparent rounded-full mx-auto mb-4"></div>
         <h1 className="text-3xl font-righteous mb-2 text-black">booqit</h1>
-        <p className="text-gray-600 font-poppins">Initializing...</p>
+        <p className="text-gray-600 font-poppins">Loading...</p>
       </div>
     </div>
   );
 };
 
-// App content wrapper with simplified loading
+// Optimized App content wrapper
 const AppContent = () => {
   const { loading } = useAuth();
 
-  // Show loading only briefly and with timeout protection
+  // Show loading only briefly
   if (loading) {
     return <AppLoading />;
   }

@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import RoleSelection from "@/components/RoleSelection";
@@ -9,29 +9,38 @@ const Index = () => {
   const navigate = useNavigate();
   const { isAuthenticated, userRole, loading } = useAuth();
   const [showRoleSelection, setShowRoleSelection] = useState(false);
-  const [hasNavigated, setHasNavigated] = useState(false);
+  const hasNavigated = useRef(false);
 
   useEffect(() => {
-    // Don't do anything while loading or if already navigated
-    if (loading || hasNavigated) return;
+    // Prevent multiple navigations and memory leaks
+    if (loading || hasNavigated.current) return;
 
-    if (isAuthenticated && userRole) {
-      setHasNavigated(true);
-      if (userRole === "merchant") {
-        navigate("/merchant", { replace: true });
-      } else {
-        // For customers, show the homepage content instead of redirecting
-        setShowRoleSelection(false);
+    const handleNavigation = () => {
+      if (isAuthenticated && userRole && !hasNavigated.current) {
+        hasNavigated.current = true;
+        
+        if (userRole === "merchant") {
+          navigate("/merchant", { replace: true });
+        } else {
+          // For customers, stay on this page and let routing handle it
+          setShowRoleSelection(false);
+        }
+      } else if (!isAuthenticated && !loading) {
+        setShowRoleSelection(true);
       }
-    } else if (!isAuthenticated && !loading) {
-      // Show role selection for unauthenticated users
-      setShowRoleSelection(true);
-    }
-  }, [isAuthenticated, userRole, loading, navigate, hasNavigated]);
+    };
+
+    // Use timeout to prevent blocking
+    const timeoutId = setTimeout(handleNavigation, 0);
+    
+    return () => clearTimeout(timeoutId);
+  }, [isAuthenticated, userRole, loading, navigate]);
 
   const handleRoleSelect = (role: UserRole) => {
-    // Navigate to auth page with selected role
-    navigate("/auth", { state: { selectedRole: role } });
+    if (!hasNavigated.current) {
+      hasNavigated.current = true;
+      navigate("/auth", { state: { selectedRole: role } });
+    }
   };
 
   // Show loading while auth is initializing

@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -33,38 +33,61 @@ export const useCalendarData = (userId: string | null, selectedDate: Date) => {
   const [merchantId, setMerchantId] = useState<string | null>(null);
   const [holidays, setHolidays] = useState<HolidayDate[]>([]);
   const [holidaysLoading, setHolidaysLoading] = useState(false);
+  
+  // Use refs to prevent memory leaks
+  const abortController = useRef<AbortController | null>(null);
+  const isMounted = useRef(true);
 
-  // Fetch merchant ID
+  // Cleanup on unmount
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+      if (abortController.current) {
+        abortController.current.abort();
+      }
+    };
+  }, []);
+
+  // Fetch merchant ID with cleanup
   useEffect(() => {
     const fetchMerchantId = async () => {
-      if (!userId) return;
+      if (!userId || !isMounted.current) return;
       
       try {
+        // Abort previous request if any
+        if (abortController.current) {
+          abortController.current.abort();
+        }
+        abortController.current = new AbortController();
+
         const { data: merchant, error } = await supabase
           .from('merchants')
           .select('id')
           .eq('user_id', userId)
           .single();
           
-        if (error) {
+        if (error || !isMounted.current) {
           console.error('Error fetching merchant:', error);
           return;
         }
         
-        if (merchant) {
+        if (merchant && isMounted.current) {
           setMerchantId(merchant.id);
         }
       } catch (error) {
-        console.error('Error:', error);
+        if (isMounted.current) {
+          console.error('Error:', error);
+        }
       }
     };
     
     fetchMerchantId();
   }, [userId]);
 
-  // Fetch holidays
-  const fetchHolidays = async () => {
-    if (!merchantId) return;
+  // Fetch holidays with cleanup
+  const fetchHolidays = useCallback(async () => {
+    if (!merchantId || !isMounted.current) return;
     
     setHolidaysLoading(true);
     try {
@@ -74,26 +97,34 @@ export const useCalendarData = (userId: string | null, selectedDate: Date) => {
         .eq('merchant_id', merchantId)
         .order('holiday_date', { ascending: true });
         
-      if (error) {
+      if (error || !isMounted.current) {
         console.error('Error fetching holidays:', error);
         return;
       }
       
-      setHolidays(data || []);
+      if (isMounted.current) {
+        setHolidays(data || []);
+      }
     } catch (error) {
-      console.error('Error:', error);
+      if (isMounted.current) {
+        console.error('Error:', error);
+      }
     } finally {
-      setHolidaysLoading(false);
+      if (isMounted.current) {
+        setHolidaysLoading(false);
+      }
     }
-  };
-
-  useEffect(() => {
-    fetchHolidays();
   }, [merchantId]);
 
-  // Modified to only fetch confirmed bookings, not pending ones
+  useEffect(() => {
+    if (merchantId) {
+      fetchHolidays();
+    }
+  }, [merchantId, fetchHolidays]);
+
+  // Optimized booking fetch with cleanup
   const fetchBookings = useCallback(async () => {
-    if (!userId || !merchantId) return;
+    if (!userId || !merchantId || !isMounted.current) return;
     
     setLoading(true);
     
@@ -119,15 +150,15 @@ export const useCalendarData = (userId: string | null, selectedDate: Date) => {
         `)
         .eq('merchant_id', merchantId)
         .eq('date', dateStr)
-        .eq('status', 'confirmed') // Only get confirmed bookings
+        .eq('status', 'confirmed')
         .order('time_slot');
         
-      if (error) {
+      if (error || !isMounted.current) {
         console.error('Error fetching bookings:', error);
         return;
       }
       
-      // Ensure the data matches the BookingWithCustomer interface
+      // Ensure proper typing and component is still mounted
       const typedBookings: BookingWithCustomer[] = data ? data.map(booking => ({
         id: booking.id,
         service: booking.service as { name: string; price: number },
@@ -140,19 +171,29 @@ export const useCalendarData = (userId: string | null, selectedDate: Date) => {
         created_at: booking.created_at
       })) : [];
       
-      setBookings(typedBookings);
+      if (isMounted.current) {
+        setBookings(typedBookings);
+      }
     } catch (error) {
-      console.error('Error in fetchBookings:', error);
+      if (isMounted.current) {
+        console.error('Error in fetchBookings:', error);
+      }
     } finally {
-      setLoading(false);
+      if (isMounted.current) {
+        setLoading(false);
+      }
     }
   }, [userId, merchantId, selectedDate]);
 
   useEffect(() => {
-    fetchBookings();
-  }, [selectedDate, merchantId]);
+    if (merchantId) {
+      fetchBookings();
+    }
+  }, [selectedDate, merchantId, fetchBookings]);
 
   const handleDeleteHoliday = async (holidayId: string) => {
+    if (!isMounted.current) return;
+    
     try {
       const { error } = await supabase
         .from('shop_holidays')
@@ -166,7 +207,9 @@ export const useCalendarData = (userId: string | null, selectedDate: Date) => {
       }
 
       toast.success('Holiday deleted successfully');
-      fetchHolidays();
+      if (isMounted.current) {
+        fetchHolidays();
+      }
     } catch (error) {
       console.error('Error deleting holiday:', error);
       toast.error('Failed to delete holiday');
