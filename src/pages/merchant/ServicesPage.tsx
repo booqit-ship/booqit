@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,6 @@ import { Service } from '@/types';
 import { PlusCircle, Edit, Trash, Loader2, Clock, Users } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useIsMobile } from '@/hooks/use-mobile';
-import StaffManagementSheet from '@/components/merchant/StaffManagementSheet';
 import AddServiceWidget from '@/components/merchant/AddServiceWidget';
 import AddStaffWidget from '@/components/merchant/AddStaffWidget';
 
@@ -32,10 +32,11 @@ const ServicesPage: React.FC = () => {
     const fetchMerchantId = async () => {
       if (!userId) return;
       try {
-        const {
-          data,
-          error
-        } = await supabase.from('merchants').select('id').eq('user_id', userId).single();
+        const { data, error } = await supabase
+          .from('merchants')
+          .select('id')
+          .eq('user_id', userId)
+          .single();
         if (error) throw error;
         setMerchantId(data.id);
       } catch (error) {
@@ -51,12 +52,11 @@ const ServicesPage: React.FC = () => {
       if (!merchantId) return;
       setIsLoading(true);
       try {
-        const {
-          data,
-          error
-        } = await supabase.from('services').select('*').eq('merchant_id', merchantId).order('name', {
-          ascending: true
-        });
+        const { data, error } = await supabase
+          .from('services')
+          .select('*')
+          .eq('merchant_id', merchantId)
+          .order('name', { ascending: true });
         if (error) throw error;
         setServices(data as Service[]);
       } catch (error: any) {
@@ -84,25 +84,26 @@ const ServicesPage: React.FC = () => {
   };
 
   const handleEditService = async (service: Service) => {
-    setName(service.name);
-    setPrice(service.price.toString());
-    setDuration(service.duration.toString());
-    setDescription(service.description || '');
-    setIsEditMode(true);
-    setCurrentServiceId(service.id);
-    setIsSheetOpen(true);
+    // TODO: Implement edit functionality with a separate edit widget
+    toast({
+      title: "Info",
+      description: "Edit functionality coming soon!"
+    });
   };
+
   const confirmDelete = (id: string) => {
     setDeleteId(id);
     setIsDialogOpen(true);
   };
+
   const handleDeleteService = async () => {
     if (!deleteId) return;
     setIsDeleting(true);
     try {
-      const {
-        error
-      } = await supabase.from('services').delete().eq('id', deleteId);
+      const { error } = await supabase
+        .from('services')
+        .delete()
+        .eq('id', deleteId);
       if (error) throw error;
 
       // Update local state
@@ -121,25 +122,30 @@ const ServicesPage: React.FC = () => {
       setIsDeleting(false);
     }
   };
-  const openAddNewService = () => {
-    resetForm();
-    setIsSheetOpen(true);
-  };
-  const openManageStylists = () => {};
-  const MobileServiceCard = ({
-    service
-  }: {
-    service: Service;
-  }) => {
-    return <Card className="mb-5 overflow-hidden border border-gray-200 shadow-sm hover:shadow-md transition-shadow animate-fade-in">
+
+  const MobileServiceCard = ({ service }: { service: Service }) => {
+    return (
+      <Card className="mb-5 overflow-hidden border border-gray-200 shadow-sm hover:shadow-md transition-shadow animate-fade-in">
         <CardHeader className="p-4 pb-2 bg-muted/20 border-b">
           <CardTitle className="text-lg font-semibold text-booqit-dark flex justify-between items-center">
             <span className="truncate pr-2 font-light">{service.name}</span>
             <div className="flex space-x-1">
-              <Button variant="ghost" size="icon" onClick={() => handleEditService(service)} className="h-8 w-8 hover:bg-booqit-primary/10 hover:text-booqit-primary" title="Edit service">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleEditService(service)}
+                className="h-8 w-8 hover:bg-booqit-primary/10 hover:text-booqit-primary"
+                title="Edit service"
+              >
                 <Edit className="h-3.5 w-3.5" />
               </Button>
-              <Button variant="ghost" size="icon" onClick={() => confirmDelete(service.id)} className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive" title="Delete service">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => confirmDelete(service.id)}
+                className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
+                title="Delete service"
+              >
                 <Trash className="h-3.5 w-3.5" />
               </Button>
             </div>
@@ -156,7 +162,8 @@ const ServicesPage: React.FC = () => {
             </div>
           </div>
         </CardContent>
-      </Card>;
+      </Card>
+    );
   };
 
   return (
@@ -188,12 +195,15 @@ const ServicesPage: React.FC = () => {
       {/* Services Display Card */}
       <Card className="shadow-md">
         <CardHeader className="border-b bg-muted/30">
-          <CardTitle className="text-booqit-dark font-light text-xl">Your Services </CardTitle>
+          <CardTitle className="text-booqit-dark font-light text-xl">Your Services</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {isLoading ? <div className="flex justify-center py-10">
+          {isLoading ? (
+            <div className="flex justify-center py-10">
               <Loader2 className="h-10 w-10 text-booqit-primary animate-spin" />
-            </div> : services.length === 0 ? <div className="text-center py-16 px-4">
+            </div>
+          ) : services.length === 0 ? (
+            <div className="text-center py-16 px-4">
               <div className="bg-muted/30 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
                 <PlusCircle className="h-10 w-10 text-booqit-dark/40" />
               </div>
@@ -201,12 +211,22 @@ const ServicesPage: React.FC = () => {
               <p className="text-booqit-dark/60 mb-6 max-w-md mx-auto">
                 Add your first service to start accepting bookings from customers
               </p>
-              <Button onClick={openAddNewService} variant="outline" className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary/10">
+              <Button 
+                onClick={() => setIsServiceWidgetOpen(true)} 
+                variant="outline" 
+                className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary/10"
+              >
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Your First Service
               </Button>
-            </div> : isMobile ? <div className="p-5 grid grid-cols-1 gap-5">
-              {services.map(service => <MobileServiceCard key={service.id} service={service} />)}
-            </div> : <div className="overflow-x-auto">
+            </div>
+          ) : isMobile ? (
+            <div className="p-5 grid grid-cols-1 gap-5">
+              {services.map(service => (
+                <MobileServiceCard key={service.id} service={service} />
+              ))}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/10">
@@ -217,22 +237,37 @@ const ServicesPage: React.FC = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {services.map(service => <TableRow key={service.id} className="hover:bg-muted/20 border-b border-gray-100">
+                  {services.map(service => (
+                    <TableRow key={service.id} className="hover:bg-muted/20 border-b border-gray-100">
                       <TableCell className="font-medium py-4">{service.name}</TableCell>
                       <TableCell className="text-center py-4">{service.duration} mins</TableCell>
                       <TableCell className="text-center py-4">₹{service.price}</TableCell>
                       <TableCell className="text-right space-x-1.5 py-4">
-                        <Button variant="ghost" size="icon" onClick={() => handleEditService(service)} className="hover:bg-booqit-primary/10 hover:text-booqit-primary" title="Edit service">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEditService(service)}
+                          className="hover:bg-booqit-primary/10 hover:text-booqit-primary"
+                          title="Edit service"
+                        >
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => confirmDelete(service.id)} className="hover:bg-destructive/10 hover:text-destructive" title="Delete service">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => confirmDelete(service.id)}
+                          className="hover:bg-destructive/10 hover:text-destructive"
+                          title="Delete service"
+                        >
                           <Trash className="h-4 w-4" />
                         </Button>
                       </TableCell>
-                    </TableRow>)}
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
-            </div>}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -270,10 +305,14 @@ const ServicesPage: React.FC = () => {
               Cancel
             </Button>
             <Button variant="destructive" onClick={handleDeleteService} disabled={isDeleting}>
-              {isDeleting ? <>
+              {isDeleting ? (
+                <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Deleting...
-                </> : "Delete"}
+                </>
+              ) : (
+                "Delete"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
