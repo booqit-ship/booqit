@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import {
   BrowserRouter,
@@ -10,8 +11,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Index from "@/pages/Index";
 import AuthPage from "@/pages/AuthPage";
-import Home from "@/pages/Home";
-import ProfilePage from "@/pages/ProfilePage";
+import Home from "@/pages/customer/HomePage";
+import ProfilePage from "@/pages/customer/ProfilePage";
 import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -47,17 +48,17 @@ function App() {
             <Route path="/reset-password" element={<ResetPasswordPage />} />
 
             {/* Customer Routes */}
-            <Route path="/home" element={<ProtectedRoute allowedRoles={["customer"]} />}>
+            <Route path="/home" element={<ProtectedRoute requiredRole="customer" />}>
               <Route path="" element={<Home />} />
             </Route>
 
             {/* User Profile Route */}
-            <Route path="/profile" element={<ProtectedRoute allowedRoles={["customer", "merchant"]} />}>
+            <Route path="/profile" element={<ProtectedRoute />}>
               <Route path="" element={<ProfilePage />} />
             </Route>
             
             {/* Merchant Routes */}
-            <Route path="/merchant" element={<ProtectedRoute allowedRoles={["merchant"]} />}>
+            <Route path="/merchant" element={<ProtectedRoute requiredRole="merchant" />}>
               <Route path="" element={<MerchantLayout />}>
                 <Route index element={<Navigate to="/merchant/dashboard" replace />} />
                 <Route path="dashboard" element={<DashboardPage />} />
