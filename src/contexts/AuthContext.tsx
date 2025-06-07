@@ -4,7 +4,6 @@ import { UserRole } from '../types';
 import { supabase } from '@/integrations/supabase/client';
 import { Session, User } from '@supabase/supabase-js';
 import { toast } from 'sonner';
-import { detectCacheClearing, clearSupabaseLocalStorage } from '@/utils/sessionRecovery';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -19,11 +18,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-/**
- * Timeout for auth initialization (5 seconds)
- */
-const AUTH_INIT_TIMEOUT = 5000;
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
@@ -33,7 +27,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState<boolean>(true);
   const initialized = useRef(false);
   const authSubscription = useRef<any>(null);
-  const initTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const clearAuthState = () => {
     console.log('🔄 Clearing auth state');
@@ -96,165 +89,92 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  /**
-   * Initialize auth with timeout protection
-   */
-  const initializeAuthWithTimeout = async () => {
-    try {
-      console.log('🚀 Initializing auth system with timeout protection...');
-      
-      // Set up a timeout to prevent infinite loading
-      initTimeoutRef.current = setTimeout(() => {
-        console.error('⏰ Auth initialization timed out after 5 seconds');
-        clearAuthState();
-        setLoading(false);
-        
-        // Check if cache was cleared
-        if (detectCacheClearing()) {
-          console.log('🧹 Cache clearing detected, redirecting to auth...');
-          window.location.href = '/auth';
-        }
-      }, AUTH_INIT_TIMEOUT);
+  useEffect(() => {
+    let mounted = true;
 
-      // Check for cache clearing before attempting session operations
-      if (detectCacheClearing()) {
-        console.log('🧹 Cache clearing detected during init, redirecting to auth...');
-        clearAuthState();
-        setLoading(false);
-        window.location.href = '/auth';
-        return;
-      }
-
-      // Set up auth state change listener FIRST
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(
-        async (event, session) => {
-          console.log('🔔 Auth state change event:', event, 'Session exists:', !!session);
-          
-          // Clear timeout since we got a response
-          if (initTimeoutRef.current) {
-            clearTimeout(initTimeoutRef.current);
-            initTimeoutRef.current = null;
-          }
-          
-          try {
-            if (event === 'SIGNED_IN' && session) {
-              console.log('👤 User signed in, updating auth state');
-              await updateAuthState(session);
-            } else if (event === 'SIGNED_OUT') {
-              console.log('👋 User signed out, clearing auth state');
-              clearAuthState();
-            } else if (event === 'TOKEN_REFRESHED' && session) {
-              console.log('🔄 Token refreshed, updating session');
-              setSession(session);
-              setUser(session.user);
-            } else if (event === 'INITIAL_SESSION' && session) {
-              console.log('🎯 Initial session detected');
-              await updateAuthState(session);
-            }
-          } catch (error) {
-            console.error('❌ Error handling auth state change:', error);
-            toast.error('Authentication error occurred', {
-              style: {
-                background: '#f3e8ff',
-                border: '1px solid #d8b4fe',
-                color: '#7c3aed'
-              }
-            });
-            clearAuthState();
-          } finally {
-            setLoading(false);
-          }
-        }
-      );
-
-      authSubscription.current = subscription;
-      
-      // THEN get existing session with timeout protection
-      const sessionPromise = supabase.auth.getSession();
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Session retrieval timed out')), AUTH_INIT_TIMEOUT - 1000);
-      });
-
+    const initializeAuth = async () => {
       try {
-        const { data: { session: existingSession }, error } = await Promise.race([
-          sessionPromise,
-          timeoutPromise
-        ]) as any;
+        console.log('🚀 Initializing auth system...');
         
-        // Clear timeout since we got a response
-        if (initTimeoutRef.current) {
-          clearTimeout(initTimeoutRef.current);
-          initTimeoutRef.current = null;
-        }
+        // Set up auth state change listener FIRST
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          async (event, session) => {
+            if (!mounted) return;
+            
+            console.log('🔔 Auth state change event:', event, 'Session exists:', !!session);
+            
+            try {
+              if (event === 'SIGNED_IN' && session) {
+                console.log('👤 User signed in, updating auth state');
+                await updateAuthState(session);
+              } else if (event === 'SIGNED_OUT') {
+                console.log('👋 User signed out, clearing auth state');
+                clearAuthState();
+              } else if (event === 'TOKEN_REFRESHED' && session) {
+                console.log('🔄 Token refreshed, updating session');
+                setSession(session);
+                setUser(session.user);
+              } else if (event === 'INITIAL_SESSION' && session) {
+                console.log('🎯 Initial session detected');
+                await updateAuthState(session);
+              }
+            } catch (error) {
+              console.error('❌ Error handling auth state change:', error);
+              toast.error('Authentication error occurred', {
+                style: {
+                  background: '#f3e8ff',
+                  border: '1px solid #d8b4fe',
+                  color: '#7c3aed'
+                }
+              });
+            }
+          }
+        );
+
+        authSubscription.current = subscription;
+        
+        // THEN get existing session
+        const { data: { session: existingSession }, error } = await supabase.auth.getSession();
         
         if (error) {
           console.error('❌ Error getting session:', error);
-          clearAuthState();
-          setLoading(false);
+          if (mounted) {
+            clearAuthState();
+            setLoading(false);
+          }
           return;
         }
 
-        if (existingSession) {
+        if (existingSession && mounted) {
           console.log('📦 Found existing session, updating auth state');
           await updateAuthState(existingSession);
         } else {
           console.log('❌ No existing session found');
+          if (mounted) {
+            clearAuthState();
+          }
+        }
+
+        if (mounted) {
+          setLoading(false);
+          initialized.current = true;
+        }
+
+      } catch (error) {
+        console.error('❌ Error during auth initialization:', error);
+        if (mounted) {
           clearAuthState();
-        }
-
-        setLoading(false);
-        initialized.current = true;
-
-      } catch (sessionError) {
-        console.error('❌ Session retrieval failed or timed out:', sessionError);
-        
-        // Clear timeout
-        if (initTimeoutRef.current) {
-          clearTimeout(initTimeoutRef.current);
-          initTimeoutRef.current = null;
-        }
-        
-        clearAuthState();
-        setLoading(false);
-        
-        // If session retrieval fails, check for cache clearing
-        if (detectCacheClearing()) {
-          console.log('🧹 Session failed + cache cleared, redirecting to auth...');
-          window.location.href = '/auth';
+          setLoading(false);
         }
       }
+    };
 
-    } catch (error) {
-      console.error('❌ Error during auth initialization:', error);
-      
-      // Clear timeout
-      if (initTimeoutRef.current) {
-        clearTimeout(initTimeoutRef.current);
-        initTimeoutRef.current = null;
-      }
-      
-      clearAuthState();
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    let mounted = true;
-
-    if (!initialized.current && mounted) {
-      initializeAuthWithTimeout();
+    if (!initialized.current) {
+      initializeAuth();
     }
 
     return () => {
       mounted = false;
-      
-      // Cleanup timeout
-      if (initTimeoutRef.current) {
-        clearTimeout(initTimeoutRef.current);
-        initTimeoutRef.current = null;
-      }
-      
-      // Cleanup subscription
       if (authSubscription.current) {
         authSubscription.current.unsubscribe();
       }
@@ -271,13 +191,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
-      console.log('👋 Logging out user with complete cleanup...');
+      console.log('👋 Logging out user...');
       
       // Clear auth state immediately for better UX
       clearAuthState();
-      
-      // Clear all Supabase localStorage keys
-      clearSupabaseLocalStorage();
       
       const { error } = await supabase.auth.signOut();
       
@@ -300,25 +217,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         });
       }
-      
-      // Redirect to auth page
-      window.location.href = '/auth';
     } catch (error) {
       console.error('❌ Exception during logout:', error);
-      
-      // Even if logout fails, clear everything and redirect
-      clearSupabaseLocalStorage();
-      clearAuthState();
-      
-      toast.error('Logout completed with cleanup', {
+      toast.error('Logout failed. Please try again.', {
         style: {
           background: '#f3e8ff',
           border: '1px solid #d8b4fe',
           color: '#7c3aed'
         }
       });
-      
-      window.location.href = '/auth';
     }
   };
 
