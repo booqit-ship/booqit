@@ -83,8 +83,14 @@ const AnalyticsPage: React.FC = () => {
   const [bookingsPopoverOpen, setBookingsPopoverOpen] = useState(false);
   const [staffPopoverOpen, setStaffPopoverOpen] = useState(false);
 
+  // Add states to track if custom data should be fetched
+  const [shouldFetchEarningsData, setShouldFetchEarningsData] = useState(false);
+  const [shouldFetchBookingsData, setShouldFetchBookingsData] = useState(false);
+  const [shouldFetchStaffData, setShouldFetchStaffData] = useState(false);
+
+  // Initial data fetch (without custom ranges)
   useEffect(() => {
-    const fetchAnalyticsData = async () => {
+    const fetchInitialData = async () => {
       if (!userId) return;
       
       try {
@@ -131,7 +137,7 @@ const AnalyticsPage: React.FC = () => {
         }
 
         if (completedBookings) {
-          // Calculate earnings
+          // Calculate earnings (without custom range)
           const totalEarnings = completedBookings.reduce((sum, booking) => 
             sum + (booking.services?.price || 0), 0
           );
@@ -148,49 +154,30 @@ const AnalyticsPage: React.FC = () => {
             .filter(booking => booking.date >= monthStart && booking.date <= monthEnd)
             .reduce((sum, booking) => sum + (booking.services?.price || 0), 0);
 
-          // Calculate custom range earnings
-          let customEarnings = 0;
-          if (earningsDateRange.from && earningsDateRange.to) {
-            const fromDate = format(earningsDateRange.from, 'yyyy-MM-dd');
-            const toDate = format(earningsDateRange.to, 'yyyy-MM-dd');
-            customEarnings = completedBookings
-              .filter(booking => booking.date >= fromDate && booking.date <= toDate)
-              .reduce((sum, booking) => sum + (booking.services?.price || 0), 0);
-          }
-
           setEarnings({
             total: totalEarnings,
             today: todayEarnings,
             thisWeek: weekEarnings,
             thisMonth: monthEarnings,
-            customRange: customEarnings,
+            customRange: 0,
           });
 
-          // Calculate bookings counts
+          // Calculate bookings counts (without custom range)
           const totalBookingsCount = completedBookings.length;
           const todayBookingsCount = completedBookings.filter(b => b.date === today).length;
           const weekBookingsCount = completedBookings.filter(b => b.date >= weekStart && b.date <= weekEnd).length;
           const monthBookingsCount = completedBookings.filter(b => b.date >= monthStart && b.date <= monthEnd).length;
-
-          // Calculate custom range bookings
-          let customBookings = 0;
-          if (bookingsDateRange.from && bookingsDateRange.to) {
-            const fromDate = format(bookingsDateRange.from, 'yyyy-MM-dd');
-            const toDate = format(bookingsDateRange.to, 'yyyy-MM-dd');
-            customBookings = completedBookings
-              .filter(booking => booking.date >= fromDate && booking.date <= toDate).length;
-          }
 
           setBookings({
             total: totalBookingsCount,
             today: todayBookingsCount,
             thisWeek: weekBookingsCount,
             thisMonth: monthBookingsCount,
-            customRange: customBookings,
+            customRange: 0,
           });
         }
 
-        // Fetch staff data
+        // Fetch staff data (without custom range initially)
         const { data: staffList, error: staffError } = await supabase
           .from('staff')
           .select('id, name')
@@ -203,15 +190,7 @@ const AnalyticsPage: React.FC = () => {
 
         if (staffList && completedBookings) {
           const staffEarningsData = staffList.map(staff => {
-            let staffBookings = completedBookings.filter(b => b.staff_id === staff.id);
-            
-            // Filter by custom date range if selected
-            if (staffDateRange.from && staffDateRange.to) {
-              const fromDate = format(staffDateRange.from, 'yyyy-MM-dd');
-              const toDate = format(staffDateRange.to, 'yyyy-MM-dd');
-              staffBookings = staffBookings.filter(b => b.date >= fromDate && b.date <= toDate);
-            }
-            
+            const staffBookings = completedBookings.filter(b => b.staff_id === staff.id);
             const staffEarnings = staffBookings.reduce((sum, booking) => 
               sum + (booking.services?.price || 0), 0
             );
@@ -237,8 +216,104 @@ const AnalyticsPage: React.FC = () => {
       }
     };
 
-    fetchAnalyticsData();
-  }, [userId, earningsDateRange, bookingsDateRange, staffDateRange]);
+    fetchInitialData();
+  }, [userId]);
+
+  // Separate effect for custom range data fetching
+  useEffect(() => {
+    const fetchCustomRangeData = async () => {
+      if (!merchantId) return;
+
+      try {
+        // Fetch earnings custom range
+        if (shouldFetchEarningsData && earningsDateRange.from && earningsDateRange.to) {
+          const fromDate = format(earningsDateRange.from, 'yyyy-MM-dd');
+          const toDate = format(earningsDateRange.to, 'yyyy-MM-dd');
+          
+          const { data: earningsBookings } = await supabase
+            .from('bookings')
+            .select(`services!inner(price)`)
+            .eq('merchant_id', merchantId)
+            .eq('payment_status', 'completed')
+            .gte('date', fromDate)
+            .lte('date', toDate);
+
+          if (earningsBookings) {
+            const customEarnings = earningsBookings.reduce((sum, booking) => 
+              sum + (booking.services?.price || 0), 0
+            );
+            setEarnings(prev => ({ ...prev, customRange: customEarnings }));
+          }
+          setShouldFetchEarningsData(false);
+        }
+
+        // Fetch bookings custom range
+        if (shouldFetchBookingsData && bookingsDateRange.from && bookingsDateRange.to) {
+          const fromDate = format(bookingsDateRange.from, 'yyyy-MM-dd');
+          const toDate = format(bookingsDateRange.to, 'yyyy-MM-dd');
+          
+          const { data: bookingsData } = await supabase
+            .from('bookings')
+            .select('id')
+            .eq('merchant_id', merchantId)
+            .eq('payment_status', 'completed')
+            .gte('date', fromDate)
+            .lte('date', toDate);
+
+          if (bookingsData) {
+            setBookings(prev => ({ ...prev, customRange: bookingsData.length }));
+          }
+          setShouldFetchBookingsData(false);
+        }
+
+        // Fetch staff custom range
+        if (shouldFetchStaffData && staffDateRange.from && staffDateRange.to) {
+          const fromDate = format(staffDateRange.from, 'yyyy-MM-dd');
+          const toDate = format(staffDateRange.to, 'yyyy-MM-dd');
+          
+          const { data: staffList } = await supabase
+            .from('staff')
+            .select('id, name')
+            .eq('merchant_id', merchantId);
+
+          const { data: staffBookings } = await supabase
+            .from('bookings')
+            .select(`
+              staff_id,
+              services!inner(price)
+            `)
+            .eq('merchant_id', merchantId)
+            .eq('payment_status', 'completed')
+            .gte('date', fromDate)
+            .lte('date', toDate);
+
+          if (staffList && staffBookings) {
+            const staffEarningsData = staffList.map(staff => {
+              const staffBookingsFiltered = staffBookings.filter(b => b.staff_id === staff.id);
+              const staffEarnings = staffBookingsFiltered.reduce((sum, booking) => 
+                sum + (booking.services?.price || 0), 0
+              );
+              
+              return {
+                id: staff.id,
+                name: staff.name,
+                earnings: staffEarnings,
+                bookings: staffBookingsFiltered.length,
+              };
+            });
+
+            setStaffData(staffEarningsData);
+          }
+          setShouldFetchStaffData(false);
+        }
+
+      } catch (error) {
+        console.error('Error fetching custom range data:', error);
+      }
+    };
+
+    fetchCustomRangeData();
+  }, [shouldFetchEarningsData, shouldFetchBookingsData, shouldFetchStaffData, merchantId, earningsDateRange, bookingsDateRange, staffDateRange]);
 
   const DateRangePicker = ({ 
     dateRange, 
@@ -247,7 +322,8 @@ const AnalyticsPage: React.FC = () => {
     calendarMonth,
     setCalendarMonth,
     popoverOpen,
-    setPopoverOpen
+    setPopoverOpen,
+    onDone
   }: {
     dateRange: DateRange;
     setDateRange: (range: DateRange) => void;
@@ -256,21 +332,26 @@ const AnalyticsPage: React.FC = () => {
     setCalendarMonth: (date: Date) => void;
     popoverOpen: boolean;
     setPopoverOpen: (open: boolean) => void;
+    onDone: () => void;
   }) => {
     
     const handleDateSelect = (range: DateRange | undefined) => {
       if (range) {
         setDateRange(range);
-        // Close popover only when both dates are selected
-        if (range.from && range.to) {
-          setPopoverOpen(false);
-        }
+        // Don't close popover automatically - let user click Done
       }
     };
 
     const handleClear = () => {
       setDateRange({ from: undefined, to: undefined });
       setPopoverOpen(false);
+    };
+
+    const handleDone = () => {
+      if (dateRange.from && dateRange.to) {
+        onDone();
+        setPopoverOpen(false);
+      }
     };
 
     return (
@@ -336,6 +417,7 @@ const AnalyticsPage: React.FC = () => {
               classNames={{
                 nav_button_previous: "hidden",
                 nav_button_next: "hidden",
+                caption: "hidden", // Hide the default calendar header to prevent duplicate
               }}
             />
 
@@ -353,7 +435,7 @@ const AnalyticsPage: React.FC = () => {
               {dateRange.from && dateRange.to && (
                 <Button
                   size="sm"
-                  onClick={() => setPopoverOpen(false)}
+                  onClick={handleDone}
                 >
                   Done
                 </Button>
@@ -420,6 +502,7 @@ const AnalyticsPage: React.FC = () => {
             setCalendarMonth={setEarningsCalendarMonth}
             popoverOpen={earningsPopoverOpen}
             setPopoverOpen={setEarningsPopoverOpen}
+            onDone={() => setShouldFetchEarningsData(true)}
           />
         </div>
         
@@ -480,6 +563,7 @@ const AnalyticsPage: React.FC = () => {
             setCalendarMonth={setBookingsCalendarMonth}
             popoverOpen={bookingsPopoverOpen}
             setPopoverOpen={setBookingsPopoverOpen}
+            onDone={() => setShouldFetchBookingsData(true)}
           />
         </div>
         
@@ -540,6 +624,7 @@ const AnalyticsPage: React.FC = () => {
             setCalendarMonth={setStaffCalendarMonth}
             popoverOpen={staffPopoverOpen}
             setPopoverOpen={setStaffPopoverOpen}
+            onDone={() => setShouldFetchStaffData(true)}
           />
         </div>
         
