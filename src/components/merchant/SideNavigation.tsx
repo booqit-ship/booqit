@@ -1,148 +1,158 @@
-
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
-  LayoutDashboard, 
+  Home, 
+  List, 
   Calendar, 
-  Users, 
-  CreditCard, 
-  Settings,
-  Briefcase,
-  Menu,
-  X,
-  BarChart3
+  Settings, 
+  LogOut 
 } from 'lucide-react';
 
-const SideNavigation: React.FC = () => {
-  const [isOpen, setIsOpen] = useState(false);
-  const location = useLocation();
+interface NavItem {
+  path: string;
+  label: string;
+  icon: JSX.Element;
+}
 
-  const navItems = [
+const SideNavigation: React.FC = () => {
+  const location = useLocation();
+  const { logout } = useAuth();
+  const [isCollapsed, setIsCollapsed] = useState(true);
+  
+  const navItems: NavItem[] = [
     {
-      path: '/merchant/dashboard',
+      path: '/merchant',
       label: 'Dashboard',
-      icon: LayoutDashboard,
-    },
-    {
-      path: '/merchant/calendar',
-      label: 'Calendar',
-      icon: Calendar,
+      icon: <Home className="w-5 h-5" />
     },
     {
       path: '/merchant/services',
       label: 'Services',
-      icon: Briefcase,
+      icon: <List className="w-5 h-5" />
     },
     {
-      path: '/merchant/earnings',
-      label: 'Earnings',
-      icon: CreditCard,
-    },
-    {
-      path: '/merchant/analytics',
-      label: 'Analytics',
-      icon: BarChart3,
+      path: '/merchant/calendar',
+      label: 'Calendar',
+      icon: <Calendar className="w-5 h-5" />
     },
     {
       path: '/merchant/settings',
       label: 'Settings',
-      icon: Settings,
-    },
+      icon: <Settings className="w-5 h-5" />
+    }
   ];
-
-  const toggleSidebar = () => setIsOpen(!isOpen);
 
   return (
     <>
-      {/* Mobile Menu Button */}
-      <button
-        onClick={toggleSidebar}
-        className="md:hidden fixed top-4 left-4 z-50 bg-white p-2 rounded-lg shadow-lg border"
-      >
-        {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-      </button>
-
-      {/* Overlay */}
-      {isOpen && (
-        <div
-          className="md:hidden fixed inset-0 bg-black/50 z-40"
-          onClick={toggleSidebar}
-        />
-      )}
-
-      {/* Sidebar */}
-      <aside
-        className={cn(
-          "fixed left-0 top-0 h-full bg-white border-r border-gray-200 z-40 transition-transform duration-300",
-          "w-64 md:w-20",
-          isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-        )}
-      >
-        <div className="p-4">
-          <div className="mb-8">
-            <h1 className="text-xl font-bold text-booqit-primary md:hidden">BooqIt</h1>
-            <div className="hidden md:block w-8 h-8 bg-booqit-primary rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">B</span>
-            </div>
-          </div>
-          
-          <nav className="space-y-2">
+      {/* Mobile bottom navigation for merchants */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
+        <div className="flex justify-around items-center h-16 px-1">
+          {navItems.map((item) => {
+            const isActive = location.pathname === item.path;
+            
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={cn(
+                  "flex flex-col items-center justify-center py-2 px-3 rounded-lg transition-colors relative flex-1 max-w-[80px]",
+                  isActive 
+                    ? "text-booqit-primary bg-booqit-primary/5" 
+                    : "text-gray-500 hover:text-booqit-primary/80"
+                )}
+              >
+                <div className="flex flex-col items-center space-y-1">
+                  {item.icon}
+                  <span className={cn(
+                    "text-xs leading-none",
+                    isActive ? "font-medium" : "font-normal"
+                  )}>
+                    {item.label}
+                  </span>
+                </div>
+                
+                {isActive && (
+                  <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-6 h-0.5 bg-booqit-primary rounded-full" />
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+      
+      {/* Desktop side navigation */}
+      <div className={cn(
+        "hidden md:flex fixed left-0 top-0 h-screen bg-white z-40 flex-col transition-all duration-300 shadow-md",
+        isCollapsed ? "w-20" : "w-64"
+      )}>
+        <div className="flex items-center justify-between p-4 border-b">
+          {!isCollapsed && (
+            <h1 className="font-bold text-xl text-booqit-primary">BooqIt</h1>
+          )}
+          <button 
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className={cn(
+              "p-2 rounded-md hover:bg-gray-100",
+              isCollapsed ? "mx-auto" : ""
+            )}
+          >
+            {isCollapsed ? (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path>
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"></path>
+              </svg>
+            )}
+          </button>
+        </div>
+        
+        <nav className="flex-1 py-6">
+          <ul className="space-y-1 px-2">
             {navItems.map((item) => {
               const isActive = location.pathname === item.path;
-              const Icon = item.icon;
               
               return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  onClick={() => setIsOpen(false)}
-                  className={cn(
-                    "flex items-center gap-3 px-3 py-3 rounded-lg transition-colors group",
-                    isActive
-                      ? "bg-booqit-primary text-white"
-                      : "text-gray-700 hover:bg-gray-100"
-                  )}
-                >
-                  <Icon className="h-5 w-5 flex-shrink-0" />
-                  <span className="md:hidden lg:block font-medium">{item.label}</span>
-                  
-                  {/* Tooltip for medium screens */}
-                  <div className="hidden md:block lg:hidden absolute left-16 bg-gray-800 text-white px-2 py-1 rounded text-sm opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-                    {item.label}
-                  </div>
-                </Link>
+                <li key={item.path}>
+                  <Link
+                    to={item.path}
+                    className={cn(
+                      "flex items-center py-3 px-3 rounded-md transition-colors",
+                      isActive 
+                        ? "bg-booqit-primary/10 text-booqit-primary" 
+                        : "text-gray-600 hover:bg-gray-100",
+                      isCollapsed ? "justify-center" : ""
+                    )}
+                  >
+                    {item.icon}
+                    {!isCollapsed && (
+                      <span className="ml-3">{item.label}</span>
+                    )}
+                  </Link>
+                </li>
               );
             })}
-          </nav>
+          </ul>
+        </nav>
+        
+        <div className="p-4 border-t">
+          <Button
+            variant="ghost"
+            onClick={logout}
+            className={cn(
+              "w-full justify-center",
+              isCollapsed ? "p-2" : ""
+            )}
+          >
+            <LogOut className="w-5 h-5" />
+            {!isCollapsed && <span className="ml-2">Logout</span>}
+          </Button>
         </div>
-
-        {/* Bottom Navigation for Mobile */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-2">
-          <div className="grid grid-cols-4 gap-1">
-            {navItems.slice(0, 4).map((item) => {
-              const isActive = location.pathname === item.path;
-              const Icon = item.icon;
-              
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={cn(
-                    "flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-colors",
-                    isActive
-                      ? "bg-booqit-primary text-white"
-                      : "text-gray-600"
-                  )}
-                >
-                  <Icon className="h-5 w-5" />
-                  <span className="text-xs font-medium">{item.label}</span>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      </aside>
+      </div>
     </>
   );
 };
