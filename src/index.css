@@ -1,80 +1,87 @@
 
-@import url("https://fonts.googleapis.com/css2?family=Righteous:wght@400&family=Poppins:wght@100;200;300;400;500;600;700;800;900&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Mini spinner for inline loading indicators */
-.mini-spinner {
-  display: inline-block;
-  width: 18px;
-  height: 18px;
-  border: 2px solid #c3b6f7;
-  border-top: 2px solid #6d38e0;
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
-  margin-left: 8px;
-  vertical-align: middle;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 20 14.3% 4.1%;
+    --background: 210 20% 98%;
+    --foreground: 224 71% 4%;
+
     --card: 0 0% 100%;
-    --card-foreground: 20 14.3% 4.1%;
+    --card-foreground: 224 71% 4%;
+
     --popover: 0 0% 100%;
-    --popover-foreground: 20 14.3% 4.1%;
-    --primary: 24 9.8% 10%;
-    --primary-foreground: 60 9.1% 97.8%;
-    --secondary: 60 4.8% 95.9%;
-    --secondary-foreground: 24 9.8% 10%;
-    --muted: 60 4.8% 95.9%;
-    --muted-foreground: 25 5.3% 44.7%;
-    --accent: 60 4.8% 95.9%;
-    --accent-foreground: 24 9.8% 10%;
+    --popover-foreground: 224 71% 4%;
+
+    --primary: 262 44% 55%;
+    --primary-foreground: 210 20% 98%;
+
+    --secondary: 0 77% 70%;
+    --secondary-foreground: 210 20% 98%;
+
+    --muted: 220 14.3% 95.9%;
+    --muted-foreground: 220 8.9% 46.1%;
+
+    --accent: 262 44% 90%;
+    --accent-foreground: 262 44% 55%;
+
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 60 9.1% 97.8%;
-    --border: 20 5.9% 90%;
-    --input: 20 5.9% 90%;
-    --ring: 20 14.3% 4.1%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
+    --destructive-foreground: 210 20% 98%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 262 44% 55%;
+
     --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
   .dark {
-    --background: 20 14.3% 4.1%;
-    --foreground: 60 9.1% 97.8%;
-    --card: 20 14.3% 4.1%;
-    --card-foreground: 60 9.1% 97.8%;
-    --popover: 20 14.3% 4.1%;
-    --popover-foreground: 60 9.1% 97.8%;
-    --primary: 60 9.1% 97.8%;
-    --primary-foreground: 24 9.8% 10%;
-    --secondary: 12 6.5% 15.1%;
-    --secondary-foreground: 60 9.1% 97.8%;
-    --muted: 12 6.5% 15.1%;
-    --muted-foreground: 24 5.4% 63.9%;
-    --accent: 12 6.5% 15.1%;
-    --accent-foreground: 60 9.1% 97.8%;
+    --background: 224 71% 4%;
+    --foreground: 210 20% 98%;
+
+    --card: 224 71% 4%;
+    --card-foreground: 210 20% 98%;
+
+    --popover: 224 71% 4%;
+    --popover-foreground: 210 20% 98%;
+
+    --primary: 262 44% 55%;
+    --primary-foreground: 210 20% 98%;
+
+    --secondary: 0 77% 70%;
+    --secondary-foreground: 210 20% 98%;
+
+    --muted: 215 27.9% 16.9%;
+    --muted-foreground: 217.9 10.6% 64.9%;
+
+    --accent: 262 44% 20%;
+    --accent-foreground: 262 44% 90%;
+
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 60 9.1% 97.8%;
-    --border: 12 6.5% 15.1%;
-    --input: 12 6.5% 15.1%;
-    --ring: 24 5.7% 82.9%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    --destructive-foreground: 210 20% 98%;
+
+    --border: 215 27.9% 16.9%;
+    --input: 215 27.9% 16.9%;
+    --ring: 262 44% 55%;
+
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
 
@@ -82,78 +89,51 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground font-poppins;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Typography classes for consistent font usage */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-righteous font-medium;
+  }
+
+  .logo-text {
+    @apply font-righteous font-medium;
+  }
+
+  .main-text {
+    @apply font-righteous font-medium;
+  }
+
+  .body-text {
+    @apply font-poppins;
   }
 }
 
-.font-righteous {
-  font-family: "Righteous", cursive;
+@layer components {
+  /* Custom typography utilities */
+  .font-logo {
+    @apply font-righteous font-medium;
+  }
+  
+  .font-heading {
+    @apply font-righteous font-medium;
+  }
+  
+  .font-main {
+    @apply font-righteous font-medium;
+  }
+  
+  .font-body {
+    @apply font-poppins;
+  }
 }
 
-.font-poppins {
-  font-family: "Poppins", sans-serif;
-}
-
-/* Custom loading skeleton animations */
-.skeleton {
-  @apply animate-pulse bg-gray-200 dark:bg-gray-700;
-}
-
-.skeleton-text {
-  @apply h-4 bg-gray-200 dark:bg-gray-700 rounded;
-}
-
-.skeleton-avatar {
-  @apply h-10 w-10 bg-gray-200 dark:bg-gray-700 rounded-full;
-}
-
-/* Booqit color classes */
-.text-booqit-primary {
-  color: #6d38e0;
-}
-
-.bg-booqit-primary {
-  background-color: #6d38e0;
-}
-
-.text-booqit-dark {
-  color: #1a1a1a;
-}
-
-.bg-booqit-dark {
-  background-color: #1a1a1a;
-}
-
-.border-booqit-primary {
-  border-color: #6d38e0;
-}
-
-/* Form enhancements */
-.form-input:focus {
-  @apply border-booqit-primary ring-booqit-primary;
-}
-
-/* Custom scrollbar */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  @apply bg-gray-100;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  @apply bg-gray-300 rounded-full;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  @apply bg-gray-400;
-}
-
-/* Responsive utilities */
-@media (max-width: 768px) {
-  .mobile-padding {
-    @apply px-4;
+@layer utilities {
+  .tap-highlight-transparent {
+    -webkit-tap-highlight-color: transparent;
   }
 }

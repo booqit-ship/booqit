@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -30,7 +31,7 @@ const CalendarManagementPage: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(getCurrentDateIST());
   const queryClient = useQueryClient();
 
-  // Get merchant data with caching - show cached data instantly
+  // Get merchant data with caching
   const { data: merchant, isFetching: isMerchantFetching } = useQuery({
     queryKey: ['merchant', userId],
     queryFn: async () => {
@@ -53,12 +54,11 @@ const CalendarManagementPage: React.FC = () => {
     },
     enabled: !!userId,
     staleTime: 10 * 60 * 1000, // 10 minutes
-    refetchOnWindowFocus: false, // Don't refetch on tab switch
   });
 
   const merchantId = merchant?.id;
 
-  // Get bookings with caching - show cached data instantly
+  // Get bookings with caching and proper typing
   const { data: bookings = [], isFetching: isBookingsFetching } = useQuery({
     queryKey: ['bookings', merchantId, formatDateInIST(selectedDate, 'yyyy-MM-dd')],
     queryFn: async (): Promise<BookingWithCustomerDetails[]> => {
@@ -95,11 +95,10 @@ const CalendarManagementPage: React.FC = () => {
       }));
     },
     enabled: !!merchantId,
-    staleTime: 2 * 60 * 1000, // 2 minutes for bookings (more dynamic data)
-    refetchOnWindowFocus: false, // Don't refetch on tab switch
+    staleTime: 2 * 60 * 1000, // 2 minutes
   });
 
-  // Get holidays with caching - show cached data instantly
+  // Get holidays with caching
   const { data: holidays = [], isFetching: isHolidaysFetching } = useQuery({
     queryKey: ['shop_holidays', merchantId],
     queryFn: async () => {
@@ -116,7 +115,6 @@ const CalendarManagementPage: React.FC = () => {
     },
     enabled: !!merchantId,
     staleTime: 15 * 60 * 1000, // 15 minutes
-    refetchOnWindowFocus: false, // Don't refetch on tab switch
   });
 
   // Generate visible days based on selected date
@@ -133,7 +131,7 @@ const CalendarManagementPage: React.FC = () => {
 
   const visibleDays = React.useMemo(() => getVisibleDays(selectedDate), [selectedDate]);
 
-  // Get appointment counts with caching - show cached data instantly
+  // Get appointment counts with caching
   const { data: appointmentCounts = {}, isFetching: isCountsFetching } = useQuery({
     queryKey: ['appointment-counts', merchantId, visibleDays.map(d => formatDateInIST(d, 'yyyy-MM-dd'))],
     queryFn: async () => {
@@ -162,7 +160,6 @@ const CalendarManagementPage: React.FC = () => {
     },
     enabled: !!merchantId,
     staleTime: 5 * 60 * 1000, // 5 minutes
-    refetchOnWindowFocus: false, // Don't refetch on tab switch
   });
 
   const handleStatusChange = async (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
@@ -237,25 +234,10 @@ const CalendarManagementPage: React.FC = () => {
     queryClient.invalidateQueries({ queryKey: ['shop_holidays', merchantId] });
   };
 
-  // Show cached data immediately - only show loading for initial load
-  if (!merchantId && isMerchantFetching) {
+  if (!merchantId) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-booqit-primary"></div>
-      </div>
-    );
-  }
-
-  // Show "no merchant" state immediately if no data
-  if (!merchantId && !isMerchantFetching) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-center">
-          <p className="text-gray-500">No merchant data found</p>
-          <button onClick={() => window.location.href = '/merchant/onboarding'} className="mt-4 bg-booqit-primary text-white px-4 py-2 rounded">
-            Complete Onboarding
-          </button>
-        </div>
       </div>
     );
   }
@@ -268,7 +250,7 @@ const CalendarManagementPage: React.FC = () => {
         <div className="flex items-center gap-2 mb-2">
           <CalendarIcon className="h-6 w-6 text-booqit-primary" />
           <h1 className="md:text-3xl text-2xl font-light">Calendar Management</h1>
-          {(isMerchantFetching || isBookingsFetching || isHolidaysFetching || isCountsFetching) && (
+          {isLoading && (
             <Loader2 className="h-4 w-4 animate-spin text-booqit-primary ml-2" />
           )}
         </div>
