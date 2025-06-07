@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,7 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { format, startOfWeek, startOfMonth, endOfWeek, endOfMonth, addMonths, subMonths } from 'date-fns';
-import { ArrowLeft, TrendingUp, Calendar as CalendarIcon, Users, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, TrendingUp, Calendar as CalendarIcon, Users, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import type { DateRange } from 'react-day-picker';
@@ -76,6 +77,11 @@ const AnalyticsPage: React.FC = () => {
   const [earningsCalendarMonth, setEarningsCalendarMonth] = useState(new Date());
   const [bookingsCalendarMonth, setBookingsCalendarMonth] = useState(new Date());
   const [staffCalendarMonth, setStaffCalendarMonth] = useState(new Date());
+
+  // Popover open states
+  const [earningsPopoverOpen, setEarningsPopoverOpen] = useState(false);
+  const [bookingsPopoverOpen, setBookingsPopoverOpen] = useState(false);
+  const [staffPopoverOpen, setStaffPopoverOpen] = useState(false);
 
   useEffect(() => {
     const fetchAnalyticsData = async () => {
@@ -239,78 +245,125 @@ const AnalyticsPage: React.FC = () => {
     setDateRange, 
     label,
     calendarMonth,
-    setCalendarMonth
+    setCalendarMonth,
+    popoverOpen,
+    setPopoverOpen
   }: {
     dateRange: DateRange;
     setDateRange: (range: DateRange) => void;
     label: string;
     calendarMonth: Date;
     setCalendarMonth: (date: Date) => void;
-  }) => (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          className={cn(
-            "w-full justify-start text-left font-normal",
-            !dateRange.from && "text-muted-foreground"
-          )}
-        >
-          <CalendarIcon className="mr-2 h-4 w-4" />
-          {dateRange.from ? (
-            dateRange.to ? (
-              <>
-                {format(dateRange.from, "MMM dd, yyyy")} -{" "}
-                {format(dateRange.to, "MMM dd, yyyy")}
-              </>
+    popoverOpen: boolean;
+    setPopoverOpen: (open: boolean) => void;
+  }) => {
+    
+    const handleDateSelect = (range: DateRange | undefined) => {
+      if (range) {
+        setDateRange(range);
+        // Close popover only when both dates are selected
+        if (range.from && range.to) {
+          setPopoverOpen(false);
+        }
+      }
+    };
+
+    const handleClear = () => {
+      setDateRange({ from: undefined, to: undefined });
+      setPopoverOpen(false);
+    };
+
+    return (
+      <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            className={cn(
+              "w-full justify-start text-left font-normal",
+              !dateRange.from && "text-muted-foreground"
+            )}
+          >
+            <CalendarIcon className="mr-2 h-4 w-4" />
+            {dateRange.from ? (
+              dateRange.to ? (
+                <>
+                  {format(dateRange.from, "MMM dd, yyyy")} -{" "}
+                  {format(dateRange.to, "MMM dd, yyyy")}
+                </>
+              ) : (
+                format(dateRange.from, "MMM dd, yyyy")
+              )
             ) : (
-              format(dateRange.from, "MMM dd, yyyy")
-            )
-          ) : (
-            <span>Pick {label} date range</span>
-          )}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
-        <div className="p-3">
-          {/* Month Navigation Header */}
-          <div className="flex items-center justify-between mb-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCalendarMonth(subMonths(calendarMonth, 1))}
-              className="h-8 w-8 p-0"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <div className="font-medium">
-              {format(calendarMonth, "MMMM yyyy")}
+              <span>Pick {label} date range</span>
+            )}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <div className="p-3">
+            {/* Month Navigation Header */}
+            <div className="flex items-center justify-between mb-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCalendarMonth(subMonths(calendarMonth, 1))}
+                className="h-8 w-8 p-0"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="font-medium">
+                {format(calendarMonth, "MMMM yyyy")}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCalendarMonth(addMonths(calendarMonth, 1))}
+                className="h-8 w-8 p-0"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCalendarMonth(addMonths(calendarMonth, 1))}
-              className="h-8 w-8 p-0"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
+            
+            {/* Calendar */}
+            <Calendar
+              mode="range"
+              defaultMonth={calendarMonth}
+              month={calendarMonth}
+              onMonthChange={setCalendarMonth}
+              selected={dateRange}
+              onSelect={handleDateSelect}
+              numberOfMonths={1}
+              className="pointer-events-auto"
+              classNames={{
+                nav_button_previous: "hidden",
+                nav_button_next: "hidden",
+              }}
+            />
+
+            {/* Action Buttons */}
+            <div className="flex justify-between mt-3 pt-3 border-t">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleClear}
+                className="flex items-center gap-2"
+              >
+                <X className="h-3 w-3" />
+                Clear
+              </Button>
+              {dateRange.from && dateRange.to && (
+                <Button
+                  size="sm"
+                  onClick={() => setPopoverOpen(false)}
+                >
+                  Done
+                </Button>
+              )}
+            </div>
           </div>
-          
-          {/* Calendar */}
-          <Calendar
-            mode="range"
-            defaultMonth={calendarMonth}
-            month={calendarMonth}
-            onMonthChange={setCalendarMonth}
-            selected={dateRange}
-            onSelect={(range) => setDateRange(range || { from: undefined, to: undefined })}
-            numberOfMonths={1}
-            className="pointer-events-auto"
-          />
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
+        </PopoverContent>
+      </Popover>
+    );
+  };
 
   if (isLoading) {
     return (
@@ -365,6 +418,8 @@ const AnalyticsPage: React.FC = () => {
             label="earnings"
             calendarMonth={earningsCalendarMonth}
             setCalendarMonth={setEarningsCalendarMonth}
+            popoverOpen={earningsPopoverOpen}
+            setPopoverOpen={setEarningsPopoverOpen}
           />
         </div>
         
@@ -423,6 +478,8 @@ const AnalyticsPage: React.FC = () => {
             label="bookings"
             calendarMonth={bookingsCalendarMonth}
             setCalendarMonth={setBookingsCalendarMonth}
+            popoverOpen={bookingsPopoverOpen}
+            setPopoverOpen={setBookingsPopoverOpen}
           />
         </div>
         
@@ -481,6 +538,8 @@ const AnalyticsPage: React.FC = () => {
             label="staff performance"
             calendarMonth={staffCalendarMonth}
             setCalendarMonth={setStaffCalendarMonth}
+            popoverOpen={staffPopoverOpen}
+            setPopoverOpen={setStaffPopoverOpen}
           />
         </div>
         
