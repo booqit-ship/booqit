@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { addDays, isSameDay } from 'date-fns';
+import { addDays, subDays, isSameDay } from 'date-fns';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import BookingsList from '@/components/merchant/calendar/BookingsList';
 import HolidayManager from '@/components/merchant/calendar/HolidayManager';
@@ -30,19 +30,27 @@ const CalendarManagementPage: React.FC = () => {
     handleDeleteHoliday
   } = useCalendarData(userId, selectedDate);
 
-  // Generate 5 days starting from today (current date + next 4 days)
-  const weekDays = React.useMemo(() => {
+  // Generate visible days based on selected date
+  const getVisibleDays = (baseDate: Date) => {
     const today = new Date();
-    return Array.from({ length: 5 }, (_, i) => addDays(today, i));
-  }, []);
+    const isBaseToday = isSameDay(baseDate, today);
+    
+    if (isBaseToday) {
+      return Array.from({ length: 5 }, (_, i) => addDays(today, i));
+    } else {
+      return Array.from({ length: 5 }, (_, i) => addDays(baseDate, i - 2));
+    }
+  };
 
-  // Fetch appointment counts for the week
+  const visibleDays = React.useMemo(() => getVisibleDays(selectedDate), [selectedDate]);
+
+  // Fetch appointment counts for visible days
   React.useEffect(() => {
     const fetchAppointmentCounts = async () => {
       if (!merchantId) return;
       const counts: { [date: string]: number } = {};
       
-      for (const day of weekDays) {
+      for (const day of visibleDays) {
         const dateStr = formatDateInIST(day, 'yyyy-MM-dd');
         try {
           const { count, error } = await supabase
@@ -63,7 +71,7 @@ const CalendarManagementPage: React.FC = () => {
     };
 
     fetchAppointmentCounts();
-  }, [merchantId, weekDays]);
+  }, [merchantId, visibleDays]);
 
   const handleStatusChange = async (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
     try {
@@ -96,7 +104,7 @@ const CalendarManagementPage: React.FC = () => {
       toast.success(`Booking ${newStatus} successfully`);
       fetchBookings();
 
-      // Refresh appointment counts
+      // Refresh appointment counts for the selected date
       const dateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
       const { count } = await supabase
         .from('bookings')
@@ -116,20 +124,15 @@ const CalendarManagementPage: React.FC = () => {
   };
 
   const navigateDay = (direction: 'prev' | 'next') => {
-    const currentIndex = weekDays.findIndex(day => isSameDay(day, selectedDate));
-    let nextIndex;
-    
     if (direction === 'next') {
-      nextIndex = (currentIndex + 1) % weekDays.length;
+      setSelectedDate(addDays(selectedDate, 1));
     } else {
-      nextIndex = currentIndex === 0 ? weekDays.length - 1 : currentIndex - 1;
+      setSelectedDate(subDays(selectedDate, 1));
     }
-    
-    setSelectedDate(weekDays[nextIndex]);
   };
 
   const goToToday = () => {
-    setSelectedDate(new Date());
+    setSelectedDate(getCurrentDateIST());
   };
 
   if (!merchantId) {
@@ -155,7 +158,8 @@ const CalendarManagementPage: React.FC = () => {
         onDateSelect={setSelectedDate} 
         onNavigateDay={navigateDay} 
         onGoToToday={goToToday} 
-        appointmentCounts={appointmentCounts} 
+        appointmentCounts={appointmentCounts}
+        holidays={holidays}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
