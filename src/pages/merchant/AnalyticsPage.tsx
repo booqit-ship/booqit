@@ -338,7 +338,7 @@ const AnalyticsPage: React.FC = () => {
     const handleDateSelect = (range: DateRange | undefined) => {
       if (range) {
         setDateRange(range);
-        // Don't close popover automatically - let user click Done
+        // Don't close popover - let user complete selection or click Done
       }
     };
 
@@ -352,6 +352,23 @@ const AnalyticsPage: React.FC = () => {
         onDone();
         setPopoverOpen(false);
       }
+    };
+
+    const handleMonthChange = (newMonth: Date) => {
+      setCalendarMonth(newMonth);
+      // Don't close popover when changing months
+    };
+
+    const handlePrevMonth = (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setCalendarMonth(subMonths(calendarMonth, 1));
+    };
+
+    const handleNextMonth = (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setCalendarMonth(addMonths(calendarMonth, 1));
     };
 
     return (
@@ -379,15 +396,16 @@ const AnalyticsPage: React.FC = () => {
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
-          <div className="p-3">
+        <PopoverContent className="w-auto p-0" align="start" onInteractOutside={(e) => e.preventDefault()}>
+          <div className="p-3" onClick={(e) => e.stopPropagation()}>
             {/* Month Navigation Header */}
             <div className="flex items-center justify-between mb-3">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setCalendarMonth(subMonths(calendarMonth, 1))}
+                onClick={handlePrevMonth}
                 className="h-8 w-8 p-0"
+                type="button"
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
@@ -397,8 +415,9 @@ const AnalyticsPage: React.FC = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setCalendarMonth(addMonths(calendarMonth, 1))}
+                onClick={handleNextMonth}
                 className="h-8 w-8 p-0"
+                type="button"
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
@@ -409,7 +428,7 @@ const AnalyticsPage: React.FC = () => {
               mode="range"
               defaultMonth={calendarMonth}
               month={calendarMonth}
-              onMonthChange={setCalendarMonth}
+              onMonthChange={handleMonthChange}
               selected={dateRange}
               onSelect={handleDateSelect}
               numberOfMonths={1}
@@ -417,7 +436,7 @@ const AnalyticsPage: React.FC = () => {
               classNames={{
                 nav_button_previous: "hidden",
                 nav_button_next: "hidden",
-                caption: "hidden", // Hide the default calendar header to prevent duplicate
+                caption: "hidden",
               }}
             />
 
@@ -428,6 +447,7 @@ const AnalyticsPage: React.FC = () => {
                 size="sm"
                 onClick={handleClear}
                 className="flex items-center gap-2"
+                type="button"
               >
                 <X className="h-3 w-3" />
                 Clear
@@ -436,6 +456,7 @@ const AnalyticsPage: React.FC = () => {
                 <Button
                   size="sm"
                   onClick={handleDone}
+                  type="button"
                 >
                   Done
                 </Button>
