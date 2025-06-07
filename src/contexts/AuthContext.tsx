@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Session, User } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
+import { PermanentSession } from '@/utils/permanentSession';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -27,17 +28,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const initialized = useRef(false);
-  const sessionRecoveryAttempted = useRef(false);
   const queryClient = useQueryClient();
-
-  const clearAuthState = () => {
-    console.log('🔄 Clearing auth state');
-    setUser(null);
-    setIsAuthenticated(false);
-    setUserRole(null);
-    setUserId(null);
-    setSession(null);
-  };
 
   const fetchUserRole = async (userId: string): Promise<UserRole | null> => {
     try {
@@ -62,8 +53,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const updateAuthState = async (session: Session | null) => {
-    console.log('🔄 Updating auth state with session:', !!session);
+  const updateAuthStateFromSupabase = async (session: Session | null) => {
+    console.log('🔄 Updating auth state from Supabase session:', !!session);
     
     if (session?.user) {
       try {
@@ -72,51 +63,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsAuthenticated(true);
         setUserId(session.user.id);
         
-        // Save session reference for instant restoration
-        localStorage.setItem("booqit-session", JSON.stringify({
-          user_id: session.user.id,
-          expires_at: session.expires_at,
-          access_token: session.access_token
-        }));
-        localStorage.setItem('loggedIn', 'true');
-        
-        // Fetch user role in background
+        // Fetch user role
         const role = await fetchUserRole(session.user.id);
         setUserRole(role);
-        localStorage.setItem('user-role', role || 'customer');
         
-        console.log('✅ Auth state updated successfully with role:', role);
+        // Save permanently
+        PermanentSession.saveSession(session, role || 'customer', session.user.id);
+        
+        console.log('✅ Auth state updated from Supabase with role:', role);
       } catch (error) {
-        console.error('❌ Error updating auth state:', error);
+        console.error('❌ Error updating auth state from Supabase:', error);
         setUserRole('customer');
-        localStorage.setItem('user-role', 'customer');
+        PermanentSession.saveSession(session, 'customer', session.user.id);
       }
     } else {
-      console.log('🔄 No valid session, clearing auth state');
-      clearAuthState();
-      localStorage.removeItem("booqit-session");
-      localStorage.removeItem('loggedIn');
-      localStorage.removeItem('user-role');
+      console.log('🔄 No Supabase session, checking permanent session');
+      const permanentData = PermanentSession.getSession();
+      
+      if (permanentData.isLoggedIn) {
+        // Use permanent session even if Supabase session is gone
+        setIsAuthenticated(true);
+        setUserId(permanentData.userId);
+        setUserRole(permanentData.userRole as UserRole);
+        setSession(permanentData.session);
+        setUser(permanentData.session?.user || null);
+        console.log('✅ Using permanent session instead of Supabase');
+      } else {
+        // Clear everything
+        setIsAuthenticated(false);
+        setUserRole(null);
+        setUserId(null);
+        setSession(null);
+        setUser(null);
+      }
     }
   };
 
-  // INSTANT session restoration - no network calls
+  // INSTANT session restoration from permanent cache
   const restoreSessionInstantly = () => {
     try {
-      const loggedInFlag = localStorage.getItem('loggedIn');
-      const storedSession = localStorage.getItem('booqit-session');
-      const cachedRole = localStorage.getItem('user-role');
+      const permanentData = PermanentSession.getSession();
       
-      if (loggedInFlag && storedSession) {
-        const sessionData = JSON.parse(storedSession);
-        console.log('⚡ INSTANT session restoration from cache');
+      if (permanentData.isLoggedIn) {
+        console.log('⚡ INSTANT session restoration from permanent cache');
         
-        // Set auth state immediately from cache
         setIsAuthenticated(true);
-        setUserId(sessionData.user_id);
-        setUserRole((cachedRole as UserRole) || 'customer');
+        setUserId(permanentData.userId);
+        setUserRole(permanentData.userRole as UserRole);
+        setSession(permanentData.session);
+        setUser(permanentData.session?.user || null);
         
-        // Return true to indicate successful instant restoration
         return true;
       }
     } catch (error) {
@@ -125,88 +121,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return false;
   };
 
-  // Initialize auth system with instant restoration
+  // Initialize auth system - NEVER validate, only restore from cache
   const initializeAuth = async () => {
     try {
       console.log('🚀 Initializing auth system...');
 
-      // STEP 1: Try instant restoration first
+      // STEP 1: Try instant restoration from permanent cache
       const instantlyRestored = restoreSessionInstantly();
       
-      // STEP 2: Set loading to false immediately - never block UI
+      // STEP 2: Set loading to false IMMEDIATELY - never block UI
       setLoading(false);
 
-      // STEP 3: Verify session with Supabase in background only once
-      if (instantlyRestored && !sessionRecoveryAttempted.current) {
-        sessionRecoveryAttempted.current = true;
-        
-        setTimeout(async () => {
-          try {
-            const { data: { session: existingSession }, error } = await supabase.auth.getSession();
-            
-            if (existingSession) {
-              console.log('📦 Background session verification successful');
-              await updateAuthState(existingSession);
-            } else if (error) {
-              console.error('❌ Background session verification failed:', error);
-              // Only clear state if there's a definitive error, not just missing session
-              if (error.message.includes('refresh_token') || error.message.includes('expired')) {
-                console.log('🔄 Session expired, clearing state');
-                clearAuthState();
-                localStorage.removeItem('loggedIn');
-                localStorage.removeItem('user-role');
-                localStorage.removeItem('booqit-session');
-              }
-            } else {
-              console.log('❌ No Supabase session found, but keeping local state for now');
-            }
-          } catch (err) {
-            console.error('❌ Exception during background session verification:', err);
-          }
-        }, 100); // Small delay to not block initial render
-      } else if (!instantlyRestored) {
-        // If no cached session, try to get session from Supabase once
-        try {
-          const { data: { session }, error } = await supabase.auth.getSession();
-          if (session) {
-            await updateAuthState(session);
-          } else if (error) {
-            console.error('❌ Error getting initial session:', error);
-          }
-        } catch (error) {
-          console.error('❌ Exception getting initial session:', error);
-        }
-      }
-
-      // Set up auth state change listener (only once)
+      // STEP 3: Only set up auth listener for new logins (not validation)
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
         async (event, session) => {
-          console.log('🔔 Auth state change event:', event, 'Session exists:', !!session);
+          console.log('🔔 Auth state change event:', event);
           
           if (event === 'SIGNED_IN' && session) {
-            console.log('👤 User signed in, updating auth state');
-            await updateAuthState(session);
+            console.log('👤 User signed in, updating permanent session');
+            await updateAuthStateFromSupabase(session);
           } else if (event === 'SIGNED_OUT') {
-            console.log('👋 User signed out, clearing auth state');
-            clearAuthState();
-            localStorage.removeItem("booqit-session");
-            localStorage.removeItem('loggedIn');
-            localStorage.removeItem('user-role');
+            console.log('👋 User signed out');
+            setIsAuthenticated(false);
+            setUserRole(null);
+            setUserId(null);
+            setSession(null);
+            setUser(null);
+            PermanentSession.clearSession();
             queryClient.clear();
           } else if (event === 'TOKEN_REFRESHED' && session) {
-            console.log('🔄 Token refreshed, updating session');
+            console.log('🔄 Token refreshed, updating permanent session');
+            const currentRole = userRole || 'customer';
+            PermanentSession.saveSession(session, currentRole, session.user.id);
             setSession(session);
             setUser(session.user);
-            localStorage.setItem("booqit-session", JSON.stringify({
-              user_id: session.user.id,
-              expires_at: session.expires_at,
-              access_token: session.access_token
-            }));
           }
         }
       );
 
-      // Cleanup function
+      // STEP 4: If no cached session, try to get one from Supabase ONCE only
+      if (!instantlyRestored) {
+        try {
+          const { data: { session }, error } = await supabase.auth.getSession();
+          if (session && !error) {
+            console.log('📦 Got fresh session from Supabase');
+            await updateAuthStateFromSupabase(session);
+          }
+        } catch (error) {
+          console.error('❌ Failed to get fresh session:', error);
+        }
+      }
+
       return () => {
         subscription.unsubscribe();
       };
@@ -236,28 +201,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('👋 Logging out user...');
       
-      // Clear auth state immediately for better UX
-      clearAuthState();
+      // Clear permanent session first
+      PermanentSession.clearSession();
       
-      // Clear all caches and session references
-      localStorage.removeItem("booqit-session");
-      localStorage.removeItem('loggedIn');
-      localStorage.removeItem('user-role');
+      // Clear auth state immediately
+      setIsAuthenticated(false);
+      setUserRole(null);
+      setUserId(null);
+      setSession(null);
+      setUser(null);
+      
+      // Clear all caches
       queryClient.clear();
       
-      // Reset session recovery flag
-      sessionRecoveryAttempted.current = false;
+      // Let Supabase handle the logout (but don't wait for it)
+      supabase.auth.signOut().catch(error => {
+        console.error('❌ Supabase logout error (ignoring):', error);
+      });
       
-      // Let Supabase handle the logout
-      const { error } = await supabase.auth.signOut();
-      
-      if (error) {
-        console.error('❌ Error during logout:', error);
-        toast.error('Logout failed. Please try again.');
-      } else {
-        console.log('✅ Logout successful');
-        toast.success('Logged out successfully');
-      }
+      console.log('✅ Logout successful');
+      toast.success('Logged out successfully');
       
       // Redirect to auth page
       setTimeout(() => {

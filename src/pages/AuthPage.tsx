@@ -25,6 +25,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { UserRole } from '@/types';
 import RoleSelection from '@/components/RoleSelection';
 import { supabase } from '@/integrations/supabase/client';
+import { PermanentSession } from '@/utils/permanentSession';
 
 const AuthPage: React.FC = () => {
   const location = useLocation();
@@ -50,10 +51,22 @@ const AuthPage: React.FC = () => {
     }
   }, [location.state]);
 
-  // Redirect authenticated users immediately
+  // Redirect authenticated users immediately using permanent session
   useEffect(() => {
+    const permanentData = PermanentSession.getSession();
+    
+    if (permanentData.isLoggedIn) {
+      console.log('🔄 User has permanent session, redirecting...', { userRole: permanentData.userRole });
+      if (permanentData.userRole === 'merchant') {
+        navigate('/merchant', { replace: true });
+      } else {
+        navigate('/home', { replace: true });
+      }
+      return;
+    }
+
     if (!loading && isAuthenticated && userRole) {
-      console.log('🔄 User already authenticated, redirecting...', { userRole });
+      console.log('🔄 User authenticated via context, redirecting...', { userRole });
       if (userRole === 'merchant') {
         navigate('/merchant', { replace: true });
       } else {
@@ -76,7 +89,7 @@ const AuthPage: React.FC = () => {
     navigate('/', { replace: true });
   };
 
-  // Enhanced login with proper auth state synchronization
+  // Enhanced login with permanent session saving
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -109,18 +122,18 @@ const AuthPage: React.FC = () => {
         const userRole = profileData?.role as UserRole;
         console.log('👤 User role fetched:', userRole);
         
-        // Update auth context with complete session info
+        // Save permanent session
+        PermanentSession.saveSession(data.session, userRole, data.user.id);
+        
+        // Update auth context
         setAuth(true, userRole, data.user.id);
         
-        // Wait for context to update before navigating
-        setTimeout(() => {
-          console.log('🎯 Navigating after login...');
-          if (userRole === 'merchant') {
-            navigate('/merchant', { replace: true });
-          } else {
-            navigate('/home', { replace: true });
-          }
-        }, 100); // Small delay to ensure context updates
+        console.log('🎯 Navigating after login...');
+        if (userRole === 'merchant') {
+          navigate('/merchant', { replace: true });
+        } else {
+          navigate('/home', { replace: true });
+        }
 
         toast({
           title: "Success!",
@@ -141,7 +154,7 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  // Enhanced registration with proper auth state synchronization
+  // Enhanced registration with permanent session saving
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -174,18 +187,18 @@ const AuthPage: React.FC = () => {
       if (data.session && data.user) {
         console.log('✅ Registration successful, session created');
         
-        // Update auth context immediately
+        // Save permanent session immediately
+        PermanentSession.saveSession(data.session, selectedRole as UserRole, data.user.id);
+        
+        // Update auth context
         setAuth(true, selectedRole as UserRole, data.user.id);
         
-        // Wait for context to update before navigating
-        setTimeout(() => {
-          console.log('🎯 Navigating after registration...');
-          if (selectedRole === 'merchant') {
-            navigate('/merchant/onboarding', { replace: true });
-          } else {
-            navigate('/home', { replace: true });
-          }
-        }, 100); // Small delay to ensure context updates
+        console.log('🎯 Navigating after registration...');
+        if (selectedRole === 'merchant') {
+          navigate('/merchant/onboarding', { replace: true });
+        } else {
+          navigate('/home', { replace: true });
+        }
 
         toast({
           title: "Success!",
@@ -373,7 +386,6 @@ const AuthPage: React.FC = () => {
                     />
                   </div>
                   
-                  {/* Privacy Policy and Terms Agreement */}
                   <div className="flex items-start space-x-2 pt-2">
                     <Checkbox
                       id="agree-policies"

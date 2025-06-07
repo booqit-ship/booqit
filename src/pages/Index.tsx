@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import RoleSelection from "@/components/RoleSelection";
 import { UserRole } from "@/types";
+import { PermanentSession } from "@/utils/permanentSession";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -16,7 +17,24 @@ const Index = () => {
       loading 
     });
 
-    // IMMEDIATE redirect for authenticated users - don't wait for loading
+    // Check permanent session first for instant redirect
+    const permanentData = PermanentSession.getSession();
+    
+    if (permanentData.isLoggedIn && permanentData.userRole) {
+      console.log('⚡ Using permanent session for instant redirect:', permanentData.userRole);
+      
+      if (permanentData.userRole === "merchant") {
+        console.log('🏪 Navigating to merchant dashboard (permanent)');
+        navigate("/merchant", { replace: true });
+        return;
+      } else if (permanentData.userRole === "customer") {
+        console.log('👤 Navigating to customer home (permanent)');
+        navigate("/home", { replace: true });
+        return;
+      }
+    }
+
+    // Fallback to context auth state
     if (isAuthenticated && userRole && !loading) {
       console.log('✅ User authenticated, redirecting based on role:', userRole);
       
@@ -43,7 +61,7 @@ const Index = () => {
   }
 
   // Show role selection for unauthenticated users
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !PermanentSession.isLoggedIn()) {
     const handleRoleSelect = (role: UserRole) => {
       console.log('🎯 Role selected:', role);
       navigate("/auth", { state: { selectedRole: role }, replace: true });

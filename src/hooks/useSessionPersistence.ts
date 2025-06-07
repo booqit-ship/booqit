@@ -1,22 +1,20 @@
 
 import { useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { PermanentSession } from '@/utils/permanentSession';
 
-// This hook is now completely passive - no session recovery attempts
-// All session management is handled in AuthContext for performance
+// This hook is now completely passive - ZERO session recovery or validation
 export const useSessionPersistence = () => {
   const { isAuthenticated } = useAuth();
 
   useEffect(() => {
-    // Passive monitoring only - no recovery attempts
-    console.log('📱 Session persistence monitoring active, auth state:', isAuthenticated);
+    console.log('📱 Session persistence monitoring active (passive mode)');
     
-    // Listen for page visibility changes to log tab switching
+    // Listen for page visibility changes for logging only
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        console.log('👁️ Tab became visible - session should be instantly available from cache');
-      } else {
-        console.log('👁️ Tab hidden');
+        const permanentData = PermanentSession.getSession();
+        console.log('👁️ Tab became visible - permanent session status:', permanentData.isLoggedIn);
       }
     };
     
