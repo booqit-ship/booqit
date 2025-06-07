@@ -12,6 +12,20 @@ import WeekCalendar from '@/components/merchant/calendar/WeekCalendar';
 import StylistAvailabilityWidget from '@/components/merchant/StylistAvailabilityWidget';
 import { formatDateInIST, getCurrentDateIST } from '@/utils/dateUtils';
 
+interface BookingWithCustomerDetails {
+  id: string;
+  service?: {
+    name: string;
+    duration?: number;
+  };
+  time_slot: string;
+  status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
+  customer_name?: string;
+  customer_phone?: string;
+  customer_email?: string;
+  stylist_name?: string;
+}
+
 const CalendarManagementPage: React.FC = () => {
   const { userId } = useAuth();
   const [selectedDate, setSelectedDate] = useState<Date>(getCurrentDateIST());
@@ -44,10 +58,10 @@ const CalendarManagementPage: React.FC = () => {
 
   const merchantId = merchant?.id;
 
-  // Get bookings with caching
+  // Get bookings with caching and proper typing
   const { data: bookings = [], isFetching: isBookingsFetching } = useQuery({
     queryKey: ['bookings', merchantId, formatDateInIST(selectedDate, 'yyyy-MM-dd')],
-    queryFn: async () => {
+    queryFn: async (): Promise<BookingWithCustomerDetails[]> => {
       if (!merchantId) return [];
       
       const dateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
@@ -64,7 +78,21 @@ const CalendarManagementPage: React.FC = () => {
         .order('time_slot', { ascending: true });
       
       if (error) throw error;
-      return data || [];
+      
+      // Transform and type the data properly
+      return (data || []).map(booking => ({
+        id: booking.id,
+        service: booking.services ? {
+          name: booking.services.name,
+          duration: booking.services.duration
+        } : undefined,
+        time_slot: booking.time_slot,
+        status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
+        customer_name: booking.customer_name,
+        customer_phone: booking.customer_phone,
+        customer_email: booking.customer_email,
+        stylist_name: booking.stylist_name
+      }));
     },
     enabled: !!merchantId,
     staleTime: 2 * 60 * 1000, // 2 minutes
