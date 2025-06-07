@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Clock, User, Phone, CheckCircle, XCircle, Scissors, Timer } from 'lucide-react';
-import { formatTimeToAmPm } from '@/utils/timeUtils';
+import { formatTimeToAmPm, timeToMinutes, minutesToTime } from '@/utils/timeUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -43,6 +43,18 @@ const BookingCard: React.FC<BookingCardProps> = ({
       default:
         return 'bg-yellow-100 text-yellow-800 border-yellow-200';
     }
+  };
+
+  const getTimeRange = () => {
+    if (!booking.service?.duration) {
+      return formatTimeToAmPm(booking.time_slot);
+    }
+
+    const startMinutes = timeToMinutes(booking.time_slot);
+    const endMinutes = startMinutes + booking.service.duration;
+    const endTime = minutesToTime(endMinutes);
+    
+    return `${formatTimeToAmPm(booking.time_slot)} - ${formatTimeToAmPm(endTime)}`;
   };
 
   const handleStatusUpdate = async (newStatus: 'confirmed' | 'completed' | 'cancelled') => {
@@ -95,12 +107,12 @@ const BookingCard: React.FC<BookingCardProps> = ({
       booking.status === 'completed' ? 'border-l-blue-500 bg-blue-50/30' : 'border-l-booqit-primary'
     }`}>
       <CardContent className="p-4">
-        {/* Header with time and status */}
+        {/* Header with time range and status */}
         <div className="flex justify-between items-start mb-4">
           <div className="flex items-center space-x-2">
             <Clock className="h-4 w-4 text-gray-500" />
             <span className="font-semibold text-lg">
-              {formatTimeToAmPm(booking.time_slot)}
+              {getTimeRange()}
             </span>
           </div>
           <Badge className={`${getStatusColor(booking.status)} font-medium`}>
@@ -136,7 +148,12 @@ const BookingCard: React.FC<BookingCardProps> = ({
           {booking.customer_phone && (
             <div className="flex items-center space-x-2 text-gray-600">
               <Phone className="h-4 w-4 text-gray-500" />
-              <span>{booking.customer_phone}</span>
+              <a 
+                href={`tel:${booking.customer_phone}`} 
+                className="text-booqit-primary hover:underline cursor-pointer"
+              >
+                {booking.customer_phone}
+              </a>
             </div>
           )}
           
