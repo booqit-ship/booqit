@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,9 +7,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { format, startOfWeek, startOfMonth, endOfWeek, endOfMonth } from 'date-fns';
-import { ArrowLeft, TrendingUp, Calendar as CalendarIcon, Users, DateRange } from 'lucide-react';
+import { ArrowLeft, TrendingUp, Calendar as CalendarIcon, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import type { DateRange } from 'react-day-picker';
 
 interface EarningsData {
   total: number;
@@ -57,26 +57,17 @@ const AnalyticsPage: React.FC = () => {
   const [staffData, setStaffData] = useState<StaffEarnings[]>([]);
 
   // Date range states
-  const [earningsDateRange, setEarningsDateRange] = useState<{
-    from: Date | undefined;
-    to: Date | undefined;
-  }>({
+  const [earningsDateRange, setEarningsDateRange] = useState<DateRange>({
     from: undefined,
     to: undefined,
   });
 
-  const [bookingsDateRange, setBookingsDateRange] = useState<{
-    from: Date | undefined;
-    to: Date | undefined;
-  }>({
+  const [bookingsDateRange, setBookingsDateRange] = useState<DateRange>({
     from: undefined,
     to: undefined,
   });
 
-  const [staffDateRange, setStaffDateRange] = useState<{
-    from: Date | undefined;
-    to: Date | undefined;
-  }>({
+  const [staffDateRange, setStaffDateRange] = useState<DateRange>({
     from: undefined,
     to: undefined,
   });
@@ -243,8 +234,8 @@ const AnalyticsPage: React.FC = () => {
     setDateRange, 
     label 
   }: {
-    dateRange: { from: Date | undefined; to: Date | undefined };
-    setDateRange: (range: { from: Date | undefined; to: Date | undefined }) => void;
+    dateRange: DateRange;
+    setDateRange: (range: DateRange) => void;
     label: string;
   }) => (
     <Popover>
