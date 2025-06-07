@@ -19,22 +19,23 @@ export const hasSupabaseTokens = (): boolean => {
 export const clearOwnSessionStorage = (): void => {
   try {
     localStorage.removeItem("booqit-session");
-    console.log('🧹 Cleared BooqIt session reference');
+    localStorage.removeItem('loggedIn');
+    console.log('🧹 Cleared BooqIt session references');
   } catch (error) {
     console.error('❌ Error clearing session storage:', error);
   }
 };
 
-// Attempt to recover session when tokens appear to be missing
+// Gentle session recovery - only try once and don't force logout on failure
 export const attemptSessionRecovery = async (): Promise<{
   success: boolean;
   session: any | null;
   message: string;
 }> => {
   try {
-    console.log('🔄 Attempting session recovery...');
+    console.log('🔄 Attempting gentle session recovery...');
     
-    // First try to get existing session (Supabase may have it internally)
+    // First try to get existing session
     const { data: { session }, error: getError } = await supabase.auth.getSession();
     
     if (session && !getError) {
@@ -46,8 +47,8 @@ export const attemptSessionRecovery = async (): Promise<{
       };
     }
     
-    // If no session found, try to refresh
-    console.log('🔄 No session found, attempting refresh...');
+    // If no session found, try ONE refresh attempt
+    console.log('🔄 No session found, trying single refresh...');
     const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
     
     if (refreshData?.session && !refreshError) {
@@ -59,7 +60,7 @@ export const attemptSessionRecovery = async (): Promise<{
       };
     }
     
-    console.log('❌ Session recovery failed:', refreshError?.message);
+    console.log('❌ Session recovery failed (but not forcing logout):', refreshError?.message);
     return {
       success: false,
       session: null,
@@ -76,9 +77,16 @@ export const attemptSessionRecovery = async (): Promise<{
   }
 };
 
-// Check if session is valid (without causing side effects)
+// Check if session is valid (very gentle check)
 export const validateCurrentSession = async (): Promise<boolean> => {
   try {
+    // First check our own flag
+    const loggedInFlag = localStorage.getItem('loggedIn');
+    if (!loggedInFlag) {
+      return false;
+    }
+
+    // Then check Supabase session
     const { data: { session }, error } = await supabase.auth.getSession();
     
     if (error) {
@@ -104,19 +112,12 @@ export const validateCurrentSession = async (): Promise<boolean> => {
   }
 };
 
-// Show user-friendly message when session is lost
+// Show user-friendly message when session is lost (but don't auto-redirect)
 export const showSessionLostMessage = () => {
-  const message = "Your session has expired or was cleared by the browser. Please log in again.";
+  const message = "Your session has expired. Please refresh the page or log in again if needed.";
   
-  // Use a more user-friendly toast instead of alert
   if (typeof window !== 'undefined') {
     console.log('📢 Session lost message:', message);
-    
-    // Redirect to auth page after a short delay
-    setTimeout(() => {
-      window.location.href = '/auth';
-    }, 2000);
-    
     return message;
   }
 };

@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import RoleSelection from "@/components/RoleSelection";
 import { UserRole } from "@/types";
-import { validateCurrentSession } from "@/utils/sessionRecovery";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -27,28 +26,18 @@ const Index = () => {
     if (isAuthenticated && userRole) {
       console.log('✅ User authenticated, redirecting based on role:', userRole);
       
-      // Use setTimeout to ensure auth context is fully updated
-      setTimeout(() => {
-        if (userRole === "merchant") {
-          console.log('🏪 Navigating to merchant dashboard');
-          navigate("/merchant", { replace: true });
-        } else if (userRole === "customer") {
-          console.log('👤 Navigating to customer home');
-          navigate("/home", { replace: true });
-        }
-      }, 0);
+      // Immediate redirect for authenticated users
+      if (userRole === "merchant") {
+        console.log('🏪 Navigating to merchant dashboard');
+        navigate("/merchant", { replace: true });
+      } else if (userRole === "customer") {
+        console.log('👤 Navigating to customer home');
+        navigate("/home", { replace: true });
+      }
     }
   }, [isAuthenticated, userRole, loading, navigate]);
 
-  // Validate session periodically when user is on the index page
-  useEffect(() => {
-    if (!loading && isAuthenticated) {
-      const intervalId = setInterval(validateCurrentSession, 60000); // Check every minute
-      return () => clearInterval(intervalId);
-    }
-  }, [loading, isAuthenticated]);
-
-  // Show loading while auth is initializing
+  // Show loading while auth is initializing (with timeout safety)
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-booqit-primary/20 to-white">

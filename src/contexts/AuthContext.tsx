@@ -26,7 +26,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const initialized = useRef(false);
-  const authSubscription = useRef<any>(null);
 
   const clearAuthState = () => {
     console.log('🔄 Clearing auth state');
@@ -75,6 +74,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           user_id: session.user.id,
           expires_at: session.expires_at
         }));
+        localStorage.setItem('loggedIn', 'true');
         
         // Fetch user role
         const role = await fetchUserRole(session.user.id);
@@ -90,15 +90,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('🔄 No valid session, clearing auth state');
       clearAuthState();
       localStorage.removeItem("booqit-session");
+      localStorage.removeItem('loggedIn');
     }
   };
 
-  // Initialize auth system
+  // Initialize auth system with simplified logic
   const initializeAuth = async () => {
     try {
       console.log('🚀 Initializing auth system...');
 
-      // Set up auth state change listener FIRST
+      // First, check for existing session (trust localStorage)
+      const { data: { session: existingSession }, error } = await supabase.auth.getSession();
+      
+      if (existingSession) {
+        console.log('📦 Found existing session, updating auth state');
+        await updateAuthState(existingSession);
+      } else if (error) {
+        console.error('❌ Error getting session:', error);
+        clearAuthState();
+      } else {
+        console.log('❌ No existing session found');
+        clearAuthState();
+      }
+
+      // Set up auth state change listener
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
         async (event, session) => {
           console.log('🔔 Auth state change event:', event, 'Session exists:', !!session);
@@ -110,6 +125,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             console.log('👋 User signed out, clearing auth state');
             clearAuthState();
             localStorage.removeItem("booqit-session");
+            localStorage.removeItem('loggedIn');
           } else if (event === 'TOKEN_REFRESHED' && session) {
             console.log('🔄 Token refreshed, updating session');
             setSession(session);
@@ -119,44 +135,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               user_id: session.user.id,
               expires_at: session.expires_at
             }));
-          } else if (event === 'INITIAL_SESSION' && session) {
-            console.log('🎯 Initial session detected');
-            await updateAuthState(session);
           }
         }
       );
 
-      authSubscription.current = subscription;
-
-      // THEN check for existing session (Supabase automatically restores from localStorage)
-      try {
-        console.log('📦 Checking for existing session...');
-        const { data: { session: existingSession }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('❌ Error getting session:', error);
-          // Try to refresh session if get session fails
-          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-          if (refreshData?.session && !refreshError) {
-            console.log('✅ Session recovered via refresh');
-            await updateAuthState(refreshData.session);
-          } else {
-            console.log('❌ Session refresh also failed, clearing auth state');
-            clearAuthState();
-          }
-        } else if (existingSession) {
-          console.log('📦 Found existing session, updating auth state');
-          await updateAuthState(existingSession);
-        } else {
-          console.log('❌ No existing session found');
-          clearAuthState();
-        }
-      } catch (error) {
-        console.error('❌ Exception during session check:', error);
-        clearAuthState();
-      }
-
       setLoading(false);
+
+      // Cleanup function
+      return () => {
+        subscription.unsubscribe();
+      };
 
     } catch (error) {
       console.error('❌ Error during auth initialization:', error);
@@ -168,14 +156,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (!initialized.current) {
       initialized.current = true;
-      initializeAuth();
-    }
+      
+      // Add safety timeout to prevent infinite loading
+      const timeout = setTimeout(() => {
+        console.log('⏰ Auth initialization timeout, stopping loading');
+        setLoading(false);
+      }, 5000);
 
-    return () => {
-      if (authSubscription.current) {
-        authSubscription.current.unsubscribe();
-      }
-    };
+      initializeAuth().then((cleanup) => {
+        clearTimeout(timeout);
+        return cleanup;
+      });
+    }
   }, []);
 
   const setAuth = (isAuthenticated: boolean, role: UserRole | null, id: string | null) => {
@@ -193,8 +185,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Clear auth state immediately for better UX
       clearAuthState();
       
-      // Clear our own session reference
+      // Clear our own session references
       localStorage.removeItem("booqit-session");
+      localStorage.removeItem('loggedIn');
       
       // Let Supabase handle clearing its own localStorage keys
       const { error } = await supabase.auth.signOut();
