@@ -10,6 +10,7 @@ interface BookingWithCustomer {
   service?: {
     name: string;
     price: number;
+    duration?: number;
   };
   time_slot: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
@@ -159,7 +160,7 @@ export const useCalendarData = (userId: string | null, selectedDate: Date) => {
       }
       
       // Ensure proper typing and component is still mounted
-      const typedBookings: BookingWithCustomerDetails[] = data ? data.map(booking => ({
+      const typedBookings: BookingWithCustomer[] = data ? data.map(booking => ({
         id: booking.id,
         service: booking.service as { name: string; price: number; duration?: number },
         time_slot: booking.time_slot,
