@@ -14,11 +14,10 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { useCancelBooking } from '@/hooks/useCancelBooking';
 import CancelBookingButton from '@/components/customer/CancelBookingButton';
+
 const CalendarPage: React.FC = () => {
   const [date, setDate] = useState<Date>(new Date());
-  const [weekStart, setWeekStart] = useState<Date>(startOfWeek(new Date(), {
-    weekStartsOn: 1
-  }));
+  const [weekDays, setWeekDays] = useState<Date[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [appointmentCounts, setAppointmentCounts] = useState<{
@@ -37,10 +36,11 @@ const CalendarPage: React.FC = () => {
     isCancelling
   } = useCancelBooking();
 
-  // Generate week days (5 weekdays only)
-  const weekDays = Array.from({
-    length: 5
-  }, (_, i) => addDays(weekStart, i));
+  // Generate 5 days starting from today (current date + next 4 days)
+  const weekDays = useMemo(() => {
+    const today = new Date();
+    return Array.from({ length: 5 }, (_, i) => addDays(today, i));
+  }, []);
 
   // Navigate to search page
   const handleExploreServices = () => {
@@ -192,20 +192,23 @@ const CalendarPage: React.FC = () => {
         return 'bg-gray-500';
     }
   };
-  const navigateWeek = (direction: 'prev' | 'next') => {
-    const newWeekStart = addDays(weekStart, direction === 'next' ? 5 : -5);
-    setWeekStart(newWeekStart);
-    if (!weekDays.some(day => isSameDay(day, date))) {
-      setDate(newWeekStart);
-    }
+
+  const navigateToNextDay = () => {
+    const currentIndex = weekDays.findIndex(day => isSameDay(day, date));
+    const nextIndex = (currentIndex + 1) % weekDays.length;
+    setDate(weekDays[nextIndex]);
   };
+
+  const navigateToPrevDay = () => {
+    const currentIndex = weekDays.findIndex(day => isSameDay(day, date));
+    const prevIndex = currentIndex === 0 ? weekDays.length - 1 : currentIndex - 1;
+    setDate(weekDays[prevIndex]);
+  };
+
   const goToToday = () => {
-    const today = new Date();
-    setDate(today);
-    setWeekStart(startOfWeek(today, {
-      weekStartsOn: 1
-    }));
+    setDate(new Date());
   };
+
   return <div className="container mx-auto px-4 py-6 pb-20 md:pb-6">
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-2">
@@ -221,11 +224,15 @@ const CalendarPage: React.FC = () => {
           <div className="flex justify-between items-center">
             <CardTitle className="text-booqit-dark font-light text-lg">Calendar</CardTitle>
             <div className="flex items-center space-x-2">
-              
+              <Button variant="outline" size="sm" onClick={navigateToPrevDay} className="h-8 px-3">
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
               <Button variant="outline" size="sm" onClick={goToToday} className="h-8 font-medium text-sm px-[28px]">
                 Today
               </Button>
-              
+              <Button variant="outline" size="sm" onClick={navigateToNextDay} className="h-8 px-3">
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -252,8 +259,6 @@ const CalendarPage: React.FC = () => {
                       {format(day, 'MMM')}
                     </div>
                   </div>
-                  
-                  
                 </div>;
           })}
           </div>
@@ -322,4 +327,5 @@ const CalendarPage: React.FC = () => {
       </Card>
     </div>;
 };
+
 export default CalendarPage;
