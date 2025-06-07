@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,6 +27,7 @@ import RoleSelection from '@/components/RoleSelection';
 import { supabase } from '@/integrations/supabase/client';
 
 const AuthPage: React.FC = () => {
+  const location = useLocation();
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [isRoleSelected, setIsRoleSelected] = useState(false);
   const [email, setEmail] = useState('');
@@ -38,6 +39,16 @@ const AuthPage: React.FC = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { setAuth, isAuthenticated, userRole, loading } = useAuth();
+
+  // Initialize role selection from navigation state
+  useEffect(() => {
+    const roleFromState = location.state?.selectedRole;
+    if (roleFromState) {
+      console.log('Role received from navigation state:', roleFromState);
+      setSelectedRole(roleFromState);
+      setIsRoleSelected(true);
+    }
+  }, [location.state]);
 
   // Redirect authenticated users immediately
   useEffect(() => {
@@ -56,16 +67,13 @@ const AuthPage: React.FC = () => {
     console.log('Role selected:', role);
     setSelectedRole(role);
     setIsRoleSelected(true);
-    
-    // Store selected role for future reference
-    localStorage.setItem('booqit_selected_role', role);
   };
 
   // Handle back to role selection
   const handleBackToRoleSelection = () => {
     setIsRoleSelected(false);
     setSelectedRole(null);
-    localStorage.removeItem('booqit_selected_role');
+    navigate('/', { replace: true });
   };
 
   // Enhanced login with proper auth state synchronization
@@ -219,7 +227,7 @@ const AuthPage: React.FC = () => {
   }
 
   // If role is not selected, show role selection screen
-  if (!isRoleSelected) {
+  if (!isRoleSelected || !selectedRole) {
     return <RoleSelection onRoleSelect={handleRoleSelect} />;
   }
 
