@@ -10,7 +10,8 @@ import {
   Users, 
   CreditCard, 
   Settings,
-  Briefcase
+  Briefcase,
+  BarChart3
 } from 'lucide-react';
 
 interface NavItem {
@@ -48,6 +49,12 @@ const OptimizedNavigation: React.FC = () => {
       path: '/merchant/earnings',
       label: 'Earnings',
       icon: CreditCard,
+      prefetchData: true,
+    },
+    {
+      path: '/merchant/analytics',
+      label: 'Analytics',
+      icon: BarChart3,
       prefetchData: true,
     },
     {
