@@ -7,12 +7,12 @@ import { formatDateInIST } from '@/utils/dateUtils';
 
 export const useHolidaysData = (merchantId: string | null) => {
   return useQuery({
-    queryKey: ['holidays', merchantId],
+    queryKey: ['shop_holidays', merchantId],
     queryFn: async () => {
       if (!merchantId) return [];
       
       const { data, error } = await supabase
-        .from('holidays')
+        .from('shop_holidays')
         .select('*')
         .eq('merchant_id', merchantId)
         .order('holiday_date', { ascending: true });
@@ -48,13 +48,13 @@ export const useOptimizedCalendarData = (userId: string | null, selectedDate: Da
   
   const fetchHolidays = () => {
     if (merchantId) {
-      queryClient.invalidateQueries({ queryKey: ['holidays', merchantId] });
+      queryClient.invalidateQueries({ queryKey: ['shop_holidays', merchantId] });
     }
   };
   
   const handleDeleteHoliday = async (holidayId: string) => {
     const { error } = await supabase
-      .from('holidays')
+      .from('shop_holidays')
       .delete()
       .eq('id', holidayId);
     
