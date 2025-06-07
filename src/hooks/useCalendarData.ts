@@ -136,7 +136,7 @@ export const useCalendarData = (userId: string | null, selectedDate: Date) => {
         .select(`
           id,
           service_id,
-          service:services(name, price),
+          service:services(name, price, duration),
           staff_id,
           stylist_name,
           date,
@@ -150,7 +150,7 @@ export const useCalendarData = (userId: string | null, selectedDate: Date) => {
         `)
         .eq('merchant_id', merchantId)
         .eq('date', dateStr)
-        .eq('status', 'confirmed')
+        .in('status', ['pending', 'confirmed', 'completed']) // Include completed bookings
         .order('time_slot');
         
       if (error || !isMounted.current) {
@@ -159,9 +159,9 @@ export const useCalendarData = (userId: string | null, selectedDate: Date) => {
       }
       
       // Ensure proper typing and component is still mounted
-      const typedBookings: BookingWithCustomer[] = data ? data.map(booking => ({
+      const typedBookings: BookingWithCustomerDetails[] = data ? data.map(booking => ({
         id: booking.id,
-        service: booking.service as { name: string; price: number },
+        service: booking.service as { name: string; price: number; duration?: number },
         time_slot: booking.time_slot,
         status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
         customer_name: booking.customer_name,

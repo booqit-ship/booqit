@@ -3,7 +3,7 @@ import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Clock, User, Phone, CheckCircle, XCircle, Scissors } from 'lucide-react';
+import { Clock, User, Phone, CheckCircle, XCircle, Scissors, Timer } from 'lucide-react';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -12,6 +12,7 @@ interface BookingWithCustomerDetails {
   id: string;
   service?: {
     name: string;
+    duration?: number;
   };
   time_slot: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
@@ -90,7 +91,9 @@ const BookingCard: React.FC<BookingCardProps> = ({
   };
 
   return (
-    <Card className="hover:shadow-lg transition-shadow duration-200 border-l-4 border-l-booqit-primary">
+    <Card className={`hover:shadow-lg transition-shadow duration-200 border-l-4 ${
+      booking.status === 'completed' ? 'border-l-blue-500 bg-blue-50/30' : 'border-l-booqit-primary'
+    }`}>
       <CardContent className="p-4">
         {/* Header with time and status */}
         <div className="flex justify-between items-start mb-4">
@@ -105,11 +108,19 @@ const BookingCard: React.FC<BookingCardProps> = ({
           </Badge>
         </div>
 
-        {/* Service name */}
+        {/* Service name and duration */}
         {booking.service && (
-          <div className="flex items-center space-x-2 mb-3">
-            <div className="w-2 h-2 bg-booqit-primary rounded-full"></div>
-            <span className="font-medium text-gray-900">{booking.service.name}</span>
+          <div className="space-y-2 mb-3">
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-booqit-primary rounded-full"></div>
+              <span className="font-medium text-gray-900">{booking.service.name}</span>
+            </div>
+            {booking.service.duration && (
+              <div className="flex items-center space-x-2 text-gray-600">
+                <Timer className="h-4 w-4 text-gray-500" />
+                <span className="text-sm">{booking.service.duration} min</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -137,7 +148,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
           )}
         </div>
 
-        {/* Action buttons */}
+        {/* Action buttons - only show if not cancelled or completed */}
         {booking.status !== 'cancelled' && booking.status !== 'completed' && (
           <div className="flex flex-wrap gap-2">
             {booking.status === 'pending' && (
