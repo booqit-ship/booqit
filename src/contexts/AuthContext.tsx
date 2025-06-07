@@ -4,6 +4,7 @@ import { UserRole } from '../types';
 import { supabase } from '@/integrations/supabase/client';
 import { Session, User } from '@supabase/supabase-js';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -26,6 +27,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const initialized = useRef(false);
+  const queryClient = useQueryClient();
 
   const clearAuthState = () => {
     console.log('🔄 Clearing auth state');
@@ -76,7 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }));
         localStorage.setItem('loggedIn', 'true');
         
-        // Fetch user role
+        // Fetch user role in background
         const role = await fetchUserRole(session.user.id);
         setUserRole(role);
         
@@ -94,23 +96,61 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Initialize auth system with simplified logic
+  // Initialize auth system with instant restoration
   const initializeAuth = async () => {
     try {
       console.log('🚀 Initializing auth system...');
 
-      // First, check for existing session (trust localStorage)
+      // First check for our own session flag - instant restoration
+      const loggedInFlag = localStorage.getItem('loggedIn');
+      const storedSession = localStorage.getItem('booqit-session');
+      
+      if (loggedInFlag && storedSession) {
+        try {
+          const sessionData = JSON.parse(storedSession);
+          console.log('📦 Found stored session, attempting instant restoration');
+          
+          // Set auth state immediately from cache
+          setIsAuthenticated(true);
+          setUserId(sessionData.user_id);
+          
+          // Try to get role from cache or default
+          const cachedRole = localStorage.getItem('user-role');
+          if (cachedRole) {
+            setUserRole(cachedRole as UserRole);
+          } else {
+            setUserRole('customer'); // Default while we fetch
+          }
+        } catch (error) {
+          console.error('❌ Error parsing stored session:', error);
+        }
+      }
+
+      // Set loading to false immediately - don't block UI
+      setLoading(false);
+
+      // Now verify session with Supabase in background
       const { data: { session: existingSession }, error } = await supabase.auth.getSession();
       
       if (existingSession) {
-        console.log('📦 Found existing session, updating auth state');
+        console.log('📦 Verified session with Supabase');
         await updateAuthState(existingSession);
+        // Cache role for next instant restoration
+        if (existingSession.user) {
+          const role = await fetchUserRole(existingSession.user.id);
+          localStorage.setItem('user-role', role || 'customer');
+        }
       } else if (error) {
         console.error('❌ Error getting session:', error);
         clearAuthState();
-      } else {
-        console.log('❌ No existing session found');
+        localStorage.removeItem('loggedIn');
+        localStorage.removeItem('user-role');
+      } else if (loggedInFlag) {
+        // Had local flag but no Supabase session - clear local state
+        console.log('❌ Local session flag found but no Supabase session');
         clearAuthState();
+        localStorage.removeItem('loggedIn');
+        localStorage.removeItem('user-role');
       }
 
       // Set up auth state change listener
@@ -121,11 +161,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (event === 'SIGNED_IN' && session) {
             console.log('👤 User signed in, updating auth state');
             await updateAuthState(session);
+            // Cache role for instant restoration
+            const role = await fetchUserRole(session.user.id);
+            localStorage.setItem('user-role', role || 'customer');
           } else if (event === 'SIGNED_OUT') {
             console.log('👋 User signed out, clearing auth state');
             clearAuthState();
             localStorage.removeItem("booqit-session");
             localStorage.removeItem('loggedIn');
+            localStorage.removeItem('user-role');
+            // Clear all query cache on logout
+            queryClient.clear();
           } else if (event === 'TOKEN_REFRESHED' && session) {
             console.log('🔄 Token refreshed, updating session');
             setSession(session);
@@ -138,8 +184,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
       );
-
-      setLoading(false);
 
       // Cleanup function
       return () => {
@@ -156,17 +200,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (!initialized.current) {
       initialized.current = true;
-      
-      // Add safety timeout to prevent infinite loading
-      const timeout = setTimeout(() => {
-        console.log('⏰ Auth initialization timeout, stopping loading');
-        setLoading(false);
-      }, 5000);
-
-      initializeAuth().then((cleanup) => {
-        clearTimeout(timeout);
-        return cleanup;
-      });
+      initializeAuth();
     }
   }, []);
 
@@ -188,6 +222,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Clear our own session references
       localStorage.removeItem("booqit-session");
       localStorage.removeItem('loggedIn');
+      localStorage.removeItem('user-role');
+      
+      // Clear all query cache
+      queryClient.clear();
       
       // Let Supabase handle clearing its own localStorage keys
       const { error } = await supabase.auth.signOut();

@@ -10,23 +10,16 @@ const Index = () => {
   const { isAuthenticated, userRole, loading } = useAuth();
 
   useEffect(() => {
-    // Don't do anything while loading
-    if (loading) {
-      console.log('🔄 Index - Auth still loading, waiting...');
-      return;
-    }
-
     console.log(`📍 Index - Auth state:`, { 
       isAuthenticated, 
       userRole, 
       loading 
     });
 
-    // Only redirect authenticated users after loading is complete
+    // Immediate redirect for authenticated users - don't wait for loading
     if (isAuthenticated && userRole) {
       console.log('✅ User authenticated, redirecting based on role:', userRole);
       
-      // Immediate redirect for authenticated users
       if (userRole === "merchant") {
         console.log('🏪 Navigating to merchant dashboard');
         navigate("/merchant", { replace: true });
@@ -35,22 +28,22 @@ const Index = () => {
         navigate("/home", { replace: true });
       }
     }
-  }, [isAuthenticated, userRole, loading, navigate]);
+  }, [isAuthenticated, userRole, navigate]);
 
-  // Show loading while auth is initializing (with timeout safety)
+  // Only show minimal loading for very brief initial auth check
   if (loading) {
+    // Show a very brief, minimal loading - this should be almost instant
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-booqit-primary/20 to-white">
         <div className="text-center">
-          <div className="animate-spin h-10 w-10 border-4 border-booqit-primary border-t-transparent rounded-full mx-auto mb-4"></div>
-          <h1 className="text-2xl font-righteous mb-2">Loading BooqIt</h1>
-          <p className="text-gray-500 font-poppins">Initializing app...</p>
+          <h1 className="text-2xl font-righteous mb-2">BooqIt</h1>
+          <div className="w-6 h-6 border-2 border-booqit-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
         </div>
       </div>
     );
   }
 
-  // Show role selection for unauthenticated users (only after loading is complete)
+  // Show role selection for unauthenticated users
   if (!isAuthenticated) {
     const handleRoleSelect = (role: UserRole) => {
       console.log('🎯 Role selected:', role);
@@ -60,12 +53,12 @@ const Index = () => {
     return <RoleSelection onRoleSelect={handleRoleSelect} />;
   }
 
-  // Fallback for authenticated users while redirect happens
+  // Fallback for authenticated users while redirect happens (should be instant)
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-booqit-primary/20 to-white">
       <div className="text-center">
         <h1 className="text-2xl font-righteous mb-2">Welcome to BooqIt</h1>
-        <p className="text-gray-500 font-poppins">Redirecting to your dashboard...</p>
+        <p className="text-gray-500 font-poppins">Redirecting...</p>
       </div>
     </div>
   );

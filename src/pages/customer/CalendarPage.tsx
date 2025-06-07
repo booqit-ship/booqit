@@ -1,15 +1,16 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Booking } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
-import { format, parseISO, addDays, isSameDay, startOfWeek, isToday } from 'date-fns';
-import { Calendar as CalendarIcon, Clock, Store, Check, X, CalendarX, Scissors, ChevronLeft, ChevronRight } from 'lucide-react';
+import { format, parseISO, addDays, isSameDay, isToday } from 'date-fns';
+import { Calendar as CalendarIcon, Clock, Store, CalendarX, Scissors, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { useCancelBooking } from '@/hooks/useCancelBooking';
@@ -17,23 +18,12 @@ import CancelBookingButton from '@/components/customer/CancelBookingButton';
 
 const CalendarPage: React.FC = () => {
   const [date, setDate] = useState<Date>(new Date());
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [appointmentCounts, setAppointmentCounts] = useState<{
-    [date: string]: number;
-  }>({});
-  const {
-    toast
-  } = useToast();
-  const {
-    userId
-  } = useAuth();
+  const { toast } = useToast();
+  const { userId } = useAuth();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const {
-    cancelBooking,
-    isCancelling
-  } = useCancelBooking();
+  const { cancelBooking, isCancelling } = useCancelBooking();
+  const queryClient = useQueryClient();
 
   // Generate 5 days starting from today (current date + next 4 days)
   const weekDays = useMemo(() => {
@@ -41,26 +31,16 @@ const CalendarPage: React.FC = () => {
     return Array.from({ length: 5 }, (_, i) => addDays(today, i));
   }, []);
 
-  // Navigate to search page
-  const handleExploreServices = () => {
-    navigate('/search');
-  };
-
-  // Navigate to receipt page
-  const handleViewReceipt = (bookingId: string) => {
-    navigate(`/receipt/${bookingId}`);
-  };
-
-  // Fetch bookings for the user with stylist names
-  const fetchBookings = async () => {
-    if (!userId) return;
-    setIsLoading(true);
-    try {
+  // Fetch bookings with optimized caching
+  const { data: bookings = [], isFetching: isBookingsFetching } = useQuery({
+    queryKey: ['customer-bookings', userId],
+    queryFn: async (): Promise<Booking[]> => {
+      if (!userId) return [];
+      
       console.log('Customer: Fetching bookings for user:', userId);
-      const {
-        data,
-        error
-      } = await supabase.from('bookings').select(`
+      const { data, error } = await supabase
+        .from('bookings')
+        .select(`
           *,
           stylist_name,
           service:service_id (
@@ -89,64 +69,75 @@ const CalendarPage: React.FC = () => {
             rating,
             created_at
           )
-        `).eq('user_id', userId).order('date', {
-        ascending: true
-      });
+        `)
+        .eq('user_id', userId)
+        .order('date', { ascending: true });
+      
       if (error) throw error;
       console.log('Customer bookings fetched:', data);
-      setBookings(data as Booking[]);
-    } catch (error: any) {
-      console.error('Error fetching customer bookings:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch your bookings. Please try again.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      return data as Booking[];
+    },
+    enabled: !!userId,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+  });
 
-  // Fetch appointment counts for the week
-  useEffect(() => {
-    const fetchAppointmentCounts = async () => {
-      if (!userId) return;
-      const counts: {
-        [date: string]: number;
-      } = {};
+  // Fetch appointment counts with caching
+  const { data: appointmentCounts = {}, isFetching: isCountsFetching } = useQuery({
+    queryKey: ['appointment-counts', userId, weekDays.map(d => format(d, 'yyyy-MM-dd'))],
+    queryFn: async (): Promise<{ [date: string]: number }> => {
+      if (!userId || !bookings) return {};
+      
+      const counts: { [date: string]: number } = {};
       for (const day of weekDays) {
         const dateStr = format(day, 'yyyy-MM-dd');
-        const dayBookings = bookings.filter(booking => booking.date === dateStr && booking.status !== 'cancelled');
+        const dayBookings = bookings.filter(booking => 
+          booking.date === dateStr && booking.status !== 'cancelled'
+        );
         counts[dateStr] = dayBookings.length;
       }
-      setAppointmentCounts(counts);
-    };
-    fetchAppointmentCounts();
-  }, [userId, weekDays, bookings]);
+      return counts;
+    },
+    enabled: !!userId && !!bookings,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
 
   // Set up real-time subscription for bookings
   useEffect(() => {
-    fetchBookings();
     if (!userId) return;
 
-    // Set up real-time subscription for bookings changes
-    const channel = supabase.channel('customer-bookings-realtime').on('postgres_changes', {
-      event: '*',
-      schema: 'public',
-      table: 'bookings',
-      filter: `user_id=eq.${userId}`
-    }, payload => {
-      console.log('Real-time booking update received by customer:', payload);
-      // Immediately fetch fresh data when any change occurs
-      fetchBookings();
-    }).subscribe(status => {
-      console.log('Customer real-time subscription status:', status);
-    });
+    const channel = supabase
+      .channel('customer-bookings-realtime')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'bookings',
+        filter: `user_id=eq.${userId}`
+      }, (payload) => {
+        console.log('Real-time booking update received by customer:', payload);
+        // Invalidate and refetch bookings data
+        queryClient.invalidateQueries({ queryKey: ['customer-bookings', userId] });
+        queryClient.invalidateQueries({ queryKey: ['appointment-counts', userId] });
+      })
+      .subscribe((status) => {
+        console.log('Customer real-time subscription status:', status);
+      });
+
     return () => {
       console.log('Cleaning up customer real-time subscription');
       supabase.removeChannel(channel);
     };
-  }, [userId]);
+  }, [userId, queryClient]);
+
+  // Navigate to search page
+  const handleExploreServices = () => {
+    navigate('/search');
+  };
+
+  // Navigate to receipt page
+  const handleViewReceipt = (bookingId: string) => {
+    navigate(`/receipt/${bookingId}`);
+  };
 
   // Filter bookings for the selected date
   const todayBookings = useMemo(() => {
@@ -162,8 +153,9 @@ const CalendarPage: React.FC = () => {
     try {
       const success = await cancelBooking(bookingId, userId);
       if (success) {
-        // Refresh bookings immediately after successful cancellation
-        await fetchBookings();
+        // Invalidate queries to refresh data
+        queryClient.invalidateQueries({ queryKey: ['customer-bookings', userId] });
+        queryClient.invalidateQueries({ queryKey: ['appointment-counts', userId] });
         console.log('Booking cancelled and bookings list refreshed');
       }
     } catch (error) {
@@ -208,11 +200,15 @@ const CalendarPage: React.FC = () => {
     setDate(new Date());
   };
 
-  return <div className="container mx-auto px-4 py-6 pb-20 md:pb-6">
+  return (
+    <div className="container mx-auto px-4 py-6 pb-20 md:pb-6">
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-2">
           <CalendarIcon className="h-6 w-6 text-booqit-primary" />
           <h1 className="text-2xl md:text-3xl font-light">Your Calendar</h1>
+          {(isBookingsFetching || isCountsFetching) && (
+            <Loader2 className="h-4 w-4 animate-spin text-booqit-primary ml-2" />
+          )}
         </div>
         <p className="text-muted-foreground">Manage your appointments</p>
       </div>
@@ -239,14 +235,18 @@ const CalendarPage: React.FC = () => {
         <CardContent className="p-4">
           <div className="grid grid-cols-5 gap-2">
             {weekDays.map((day, index) => {
-            const isCurrentDay = isToday(day);
-            const isSelectedDay = isSameDay(day, date);
-            const dateKey = format(day, 'yyyy-MM-dd');
-            const appointmentCount = appointmentCounts[dateKey] || 0;
-            return <div key={index} className="flex flex-col items-center cursor-pointer" onClick={() => setDate(day)}>
+              const isCurrentDay = isToday(day);
+              const isSelectedDay = isSameDay(day, date);
+              const dateKey = format(day, 'yyyy-MM-dd');
+              const appointmentCount = appointmentCounts[dateKey] || 0;
+              
+              return (
+                <div key={index} className="flex flex-col items-center cursor-pointer" onClick={() => setDate(day)}>
                   <div className={`
                     w-full h-16 rounded-xl flex flex-col items-center justify-center transition-all duration-200
-                    ${isSelectedDay ? 'bg-booqit-primary text-white shadow-lg border-2 border-booqit-primary' : isCurrentDay ? 'bg-booqit-primary/20 text-booqit-primary border-2 border-booqit-primary/30' : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border-2 border-transparent'}
+                    ${isSelectedDay ? 'bg-booqit-primary text-white shadow-lg border-2 border-booqit-primary' : 
+                      isCurrentDay ? 'bg-booqit-primary/20 text-booqit-primary border-2 border-booqit-primary/30' : 
+                      'bg-gray-50 text-gray-700 hover:bg-gray-100 border-2 border-transparent'}
                   `}>
                     <div className="text-xs font-medium uppercase tracking-wide">
                       {format(day, 'EEE')}
@@ -258,8 +258,9 @@ const CalendarPage: React.FC = () => {
                       {format(day, 'MMM')}
                     </div>
                   </div>
-                </div>;
-          })}
+                </div>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
@@ -270,19 +271,24 @@ const CalendarPage: React.FC = () => {
           <CardTitle className="flex items-center gap-2 text-xl font-thin">
             <CalendarIcon className="h-5 w-5 text-booqit-primary" />
             {format(date, 'MMMM d, yyyy')} Bookings
+            {isBookingsFetching && (
+              <Loader2 className="h-4 w-4 animate-spin text-booqit-primary ml-2" />
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4">
-          {isLoading ? <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-booqit-primary"></div>
-            </div> : todayBookings.length === 0 ? <div className="text-center py-8 border rounded-lg bg-gray-50">
+          {todayBookings.length === 0 ? (
+            <div className="text-center py-8 border rounded-lg bg-gray-50">
               <CalendarX className="h-10 w-10 mx-auto text-gray-400 mb-3" />
               <p className="text-gray-500 text-sm mb-4">No bookings for this date</p>
               <Button className="bg-booqit-primary hover:bg-booqit-primary/90" onClick={() => navigate('/search')}>
                 Book an Appointment
               </Button>
-            </div> : <div className="space-y-4">
-              {todayBookings.map(booking => <Card key={booking.id} className="border-l-4 border-l-booqit-primary shadow-sm hover:shadow-md transition-shadow">
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {todayBookings.map(booking => (
+                <Card key={booking.id} className="border-l-4 border-l-booqit-primary shadow-sm hover:shadow-md transition-shadow">
                   <CardContent className="p-4">
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-start gap-3">
@@ -307,24 +313,43 @@ const CalendarPage: React.FC = () => {
                         <span>{booking.merchant?.shop_name}</span>
                       </div>
                       
-                      {booking.stylist_name && <div className="flex items-center gap-2 text-sm text-gray-600">
+                      {booking.stylist_name && (
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
                           <Scissors className="h-4 w-4" />
                           <span>Stylist: {booking.stylist_name}</span>
-                        </div>}
+                        </div>
+                      )}
                     </div>
                     
-                    {booking.status !== 'cancelled' && booking.status !== 'completed' && <div className="flex justify-end gap-2">
-                        <Button size="sm" variant="outline" onClick={() => navigate(`/receipt/${booking.id}`)} className="h-8 text-base font-medium px-[23px] mx-[20px]">
+                    {booking.status !== 'cancelled' && booking.status !== 'completed' && (
+                      <div className="flex justify-end gap-2">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => navigate(`/receipt/${booking.id}`)} 
+                          className="h-8 text-base font-medium px-[23px] mx-[20px]"
+                        >
                           Receipt
                         </Button>
-                        <CancelBookingButton bookingId={booking.id} onCancelled={() => fetchBookings()} className="h-8 text-sm px-4" />
-                      </div>}
+                        <CancelBookingButton 
+                          bookingId={booking.id} 
+                          onCancelled={() => {
+                            queryClient.invalidateQueries({ queryKey: ['customer-bookings', userId] });
+                            queryClient.invalidateQueries({ queryKey: ['appointment-counts', userId] });
+                          }} 
+                          className="h-8 text-sm px-4" 
+                        />
+                      </div>
+                    )}
                   </CardContent>
-                </Card>)}
-            </div>}
+                </Card>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
-    </div>;
+    </div>
+  );
 };
 
 export default CalendarPage;
