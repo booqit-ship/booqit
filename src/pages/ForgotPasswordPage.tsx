@@ -41,6 +41,7 @@ const ForgotPasswordPage: React.FC = () => {
       console.log('Sending password reset email to:', email);
       console.log('Site URL:', window.location.origin);
 
+      // Call Supabase to send password reset email
       const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
@@ -180,6 +181,7 @@ const ForgotPasswordPage: React.FC = () => {
                   className="font-poppins"
                   required
                   autoComplete="email"
+                  disabled={isLoading}
                 />
               </div>
             </CardContent>
@@ -187,7 +189,7 @@ const ForgotPasswordPage: React.FC = () => {
               <Button 
                 type="submit" 
                 className="w-full bg-booqit-primary hover:bg-booqit-primary/90 font-poppins"
-                disabled={isLoading}
+                disabled={isLoading || !email}
               >
                 {isLoading ? "Sending..." : "Send Reset Link"}
               </Button>
