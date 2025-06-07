@@ -6,8 +6,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { format, startOfWeek, startOfMonth, endOfWeek, endOfMonth } from 'date-fns';
-import { ArrowLeft, TrendingUp, Calendar as CalendarIcon, Users } from 'lucide-react';
+import { format, startOfWeek, startOfMonth, endOfWeek, endOfMonth, addMonths, subMonths } from 'date-fns';
+import { ArrowLeft, TrendingUp, Calendar as CalendarIcon, Users, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import type { DateRange } from 'react-day-picker';
@@ -71,6 +71,11 @@ const AnalyticsPage: React.FC = () => {
     from: undefined,
     to: undefined,
   });
+
+  // Calendar month states
+  const [earningsCalendarMonth, setEarningsCalendarMonth] = useState(new Date());
+  const [bookingsCalendarMonth, setBookingsCalendarMonth] = useState(new Date());
+  const [staffCalendarMonth, setStaffCalendarMonth] = useState(new Date());
 
   useEffect(() => {
     const fetchAnalyticsData = async () => {
@@ -232,11 +237,15 @@ const AnalyticsPage: React.FC = () => {
   const DateRangePicker = ({ 
     dateRange, 
     setDateRange, 
-    label 
+    label,
+    calendarMonth,
+    setCalendarMonth
   }: {
     dateRange: DateRange;
     setDateRange: (range: DateRange) => void;
     label: string;
+    calendarMonth: Date;
+    setCalendarMonth: (date: Date) => void;
   }) => (
     <Popover>
       <PopoverTrigger asChild>
@@ -263,15 +272,42 @@ const AnalyticsPage: React.FC = () => {
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
-        <Calendar
-          initialFocus
-          mode="range"
-          defaultMonth={dateRange.from}
-          selected={dateRange}
-          onSelect={(range) => setDateRange(range || { from: undefined, to: undefined })}
-          numberOfMonths={2}
-          className="pointer-events-auto"
-        />
+        <div className="p-3">
+          {/* Month Navigation Header */}
+          <div className="flex items-center justify-between mb-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCalendarMonth(subMonths(calendarMonth, 1))}
+              className="h-8 w-8 p-0"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div className="font-medium">
+              {format(calendarMonth, "MMMM yyyy")}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCalendarMonth(addMonths(calendarMonth, 1))}
+              className="h-8 w-8 p-0"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+          
+          {/* Calendar */}
+          <Calendar
+            mode="range"
+            defaultMonth={calendarMonth}
+            month={calendarMonth}
+            onMonthChange={setCalendarMonth}
+            selected={dateRange}
+            onSelect={(range) => setDateRange(range || { from: undefined, to: undefined })}
+            numberOfMonths={1}
+            className="pointer-events-auto"
+          />
+        </div>
       </PopoverContent>
     </Popover>
   );
@@ -327,6 +363,8 @@ const AnalyticsPage: React.FC = () => {
             dateRange={earningsDateRange}
             setDateRange={setEarningsDateRange}
             label="earnings"
+            calendarMonth={earningsCalendarMonth}
+            setCalendarMonth={setEarningsCalendarMonth}
           />
         </div>
         
@@ -383,6 +421,8 @@ const AnalyticsPage: React.FC = () => {
             dateRange={bookingsDateRange}
             setDateRange={setBookingsDateRange}
             label="bookings"
+            calendarMonth={bookingsCalendarMonth}
+            setCalendarMonth={setBookingsCalendarMonth}
           />
         </div>
         
@@ -439,6 +479,8 @@ const AnalyticsPage: React.FC = () => {
             dateRange={staffDateRange}
             setDateRange={setStaffDateRange}
             label="staff performance"
+            calendarMonth={staffCalendarMonth}
+            setCalendarMonth={setStaffCalendarMonth}
           />
         </div>
         
