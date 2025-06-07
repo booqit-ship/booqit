@@ -38,7 +38,7 @@ const AuthPage: React.FC = () => {
   const navigate = useNavigate();
   const { setAuth } = useAuth();
 
-  // Handle login with Supabase
+  // Handle login with Supabase and immediate validation
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -50,6 +50,15 @@ const AuthPage: React.FC = () => {
       });
 
       if (error) throw error;
+
+      // Immediate session validation and global sync after login
+      console.log('✅ Login successful, triggering immediate session validation...');
+      
+      // Give AuthContext a moment to process the auth state change
+      setTimeout(() => {
+        // Trigger session validation to ensure global state sync
+        window.dispatchEvent(new CustomEvent('supabase:session-refresh'));
+      }, 100);
 
       // Check user role from profiles table
       const { data: profileData } = await supabase
@@ -75,6 +84,7 @@ const AuthPage: React.FC = () => {
         description: "You have been logged in successfully.",
       });
     } catch (error: any) {
+      console.error('❌ Login failed:', error);
       toast({
         title: "Error!",
         description: error.message || "Failed to login.",
@@ -85,7 +95,7 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  // Handle registration with Supabase
+  // Handle registration with Supabase and immediate validation
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -113,6 +123,15 @@ const AuthPage: React.FC = () => {
 
       if (error) throw error;
 
+      // Immediate session validation and global sync after registration
+      console.log('✅ Registration successful, triggering immediate session validation...');
+      
+      // Give AuthContext a moment to process the auth state change
+      setTimeout(() => {
+        // Trigger session validation to ensure global state sync
+        window.dispatchEvent(new CustomEvent('supabase:session-refresh'));
+      }, 100);
+
       // Set auth state
       setAuth(true, selectedRole as UserRole, data.user?.id);
       
@@ -128,6 +147,7 @@ const AuthPage: React.FC = () => {
         description: "Your account has been created successfully.",
       });
     } catch (error: any) {
+      console.error('❌ Registration failed:', error);
       toast({
         title: "Error!",
         description: error.message || "Failed to create account.",
