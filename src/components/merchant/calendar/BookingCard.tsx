@@ -34,28 +34,14 @@ const BookingCard: React.FC<BookingCardProps> = ({
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'confirmed':
-        return 'bg-green-50 text-green-700 border-green-200';
+        return 'bg-green-100 text-green-800 border-green-200';
       case 'completed':
-        return 'bg-blue-50 text-blue-700 border-blue-200';
+        return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'cancelled':
-        return 'bg-red-50 text-red-700 border-red-200';
+        return 'bg-red-100 text-red-800 border-red-200';
       case 'pending':
       default:
-        return 'bg-amber-50 text-amber-700 border-amber-200';
-    }
-  };
-
-  const getCardBorderColor = (status: string) => {
-    switch (status) {
-      case 'confirmed':
-        return 'border-l-green-500';
-      case 'completed':
-        return 'border-l-blue-500';
-      case 'cancelled':
-        return 'border-l-red-500';
-      case 'pending':
-      default:
-        return 'border-l-amber-500';
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
     }
   };
 
@@ -74,9 +60,10 @@ const BookingCard: React.FC<BookingCardProps> = ({
   const handleStatusUpdate = async (newStatus: 'confirmed' | 'completed' | 'cancelled') => {
     try {
       if (newStatus === 'cancelled') {
+        // Use the proper cancellation function for merchant cancellation
         const { data, error } = await supabase.rpc('cancel_booking_properly', {
           p_booking_id: booking.id,
-          p_user_id: null
+          p_user_id: null // Merchant cancellation - no user restriction
         });
 
         if (error) {
@@ -94,6 +81,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
         toast.success('Booking cancelled successfully');
         await onStatusChange(booking.id, 'cancelled');
       } else {
+        // For confirm/complete, update directly
         const { error } = await supabase
           .from('bookings')
           .update({ status: newStatus })
@@ -115,118 +103,103 @@ const BookingCard: React.FC<BookingCardProps> = ({
   };
 
   return (
-    <Card className={`relative bg-white border-l-4 ${getCardBorderColor(booking.status)} hover:shadow-md transition-all duration-200 overflow-hidden`}>
-      <CardContent className="p-0">
-        {/* Header Section with Time and Status */}
-        <div className="flex items-center justify-between p-4 pb-3 bg-gradient-to-r from-gray-50 to-white border-b border-gray-100">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 bg-booqit-primary/10 rounded-full">
-              <Clock className="h-5 w-5 text-booqit-primary" />
-            </div>
-            <div>
-              <p className="text-lg font-semibold text-gray-900">
-                {getTimeRange()}
-              </p>
-            </div>
+    <Card className={`hover:shadow-lg transition-shadow duration-200 border-l-4 ${
+      booking.status === 'completed' ? 'border-l-blue-500 bg-blue-50/30' : 'border-l-booqit-primary'
+    }`}>
+      <CardContent className="p-4">
+        {/* Header with time range and status */}
+        <div className="flex justify-between items-start mb-4">
+          <div className="flex items-center space-x-2">
+            <Clock className="h-4 w-4 text-gray-500" />
+            <span className="font-semibold text-lg">
+              {getTimeRange()}
+            </span>
           </div>
-          <Badge className={`${getStatusColor(booking.status)} border px-3 py-1 text-xs font-medium`}>
+          <Badge className={`${getStatusColor(booking.status)} font-medium`}>
             {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
           </Badge>
         </div>
 
-        {/* Content Section */}
-        <div className="p-4 space-y-4">
-          {/* Service Information */}
-          {booking.service && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-booqit-primary rounded-full flex-shrink-0"></div>
-                <h3 className="font-medium text-gray-900 text-base">{booking.service.name}</h3>
-              </div>
-              {booking.service.duration && (
-                <div className="flex items-center gap-2 ml-4 text-gray-600">
-                  <Timer className="h-4 w-4" />
-                  <span className="text-sm">{booking.service.duration} minutes</span>
-                </div>
-              )}
+        {/* Service name and duration */}
+        {booking.service && (
+          <div className="space-y-2 mb-3">
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-booqit-primary rounded-full"></div>
+              <span className="font-medium text-gray-900">{booking.service.name}</span>
             </div>
-          )}
-
-          {/* Customer & Stylist Information */}
-          <div className="grid grid-cols-1 gap-3">
-            {booking.customer_name && (
-              <div className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
-                <div className="flex items-center justify-center w-8 h-8 bg-white rounded-full shadow-sm">
-                  <User className="h-4 w-4 text-gray-600" />
-                </div>
-                <span className="font-medium text-gray-900">{booking.customer_name}</span>
-              </div>
-            )}
-            
-            {booking.customer_phone && (
-              <div className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
-                <div className="flex items-center justify-center w-8 h-8 bg-white rounded-full shadow-sm">
-                  <Phone className="h-4 w-4 text-gray-600" />
-                </div>
-                <a 
-                  href={`tel:${booking.customer_phone}`} 
-                  className="text-booqit-primary hover:text-booqit-primary/80 font-medium transition-colors"
-                >
-                  {booking.customer_phone}
-                </a>
-              </div>
-            )}
-            
-            {booking.stylist_name && (
-              <div className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
-                <div className="flex items-center justify-center w-8 h-8 bg-white rounded-full shadow-sm">
-                  <Scissors className="h-4 w-4 text-gray-600" />
-                </div>
-                <span className="text-gray-700">
-                  <span className="text-gray-500 text-sm">Stylist:</span> 
-                  <span className="font-medium ml-1">{booking.stylist_name}</span>
-                </span>
+            {booking.service.duration && (
+              <div className="flex items-center space-x-2 text-gray-600">
+                <Timer className="h-4 w-4 text-gray-500" />
+                <span className="text-sm">{booking.service.duration} min</span>
               </div>
             )}
           </div>
+        )}
 
-          {/* Action Buttons */}
-          {booking.status !== 'cancelled' && booking.status !== 'completed' && (
-            <div className="flex gap-2 pt-2 border-t border-gray-100">
-              {booking.status === 'pending' && (
-                <Button 
-                  size="sm" 
-                  onClick={() => handleStatusUpdate('confirmed')} 
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white shadow-sm"
-                >
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Confirm
-                </Button>
-              )}
-              
-              {booking.status === 'confirmed' && (
-                <Button 
-                  size="sm" 
-                  onClick={() => handleStatusUpdate('completed')} 
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-                >
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Complete
-                </Button>
-              )}
-              
-              <Button 
-                size="sm" 
-                variant="destructive" 
-                onClick={() => handleStatusUpdate('cancelled')}
-                className="flex-1 shadow-sm"
+        {/* Customer and stylist information */}
+        <div className="space-y-2 mb-4">
+          {booking.customer_name && (
+            <div className="flex items-center space-x-2 text-gray-700">
+              <User className="h-4 w-4 text-gray-500" />
+              <span className="font-medium">{booking.customer_name}</span>
+            </div>
+          )}
+          
+          {booking.customer_phone && (
+            <div className="flex items-center space-x-2 text-gray-600">
+              <Phone className="h-4 w-4 text-gray-500" />
+              <a 
+                href={`tel:${booking.customer_phone}`} 
+                className="text-booqit-primary hover:underline cursor-pointer"
               >
-                <XCircle className="h-4 w-4 mr-2" />
-                Cancel
-              </Button>
+                {booking.customer_phone}
+              </a>
+            </div>
+          )}
+          
+          {booking.stylist_name && (
+            <div className="flex items-center space-x-2 text-gray-700">
+              <Scissors className="h-4 w-4 text-gray-500" />
+              <span>Stylist: <span className="font-medium">{booking.stylist_name}</span></span>
             </div>
           )}
         </div>
+
+        {/* Action buttons - only show if not cancelled or completed */}
+        {booking.status !== 'cancelled' && booking.status !== 'completed' && (
+          <div className="flex flex-wrap gap-2">
+            {booking.status === 'pending' && (
+              <Button 
+                size="sm" 
+                onClick={() => handleStatusUpdate('confirmed')} 
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                <CheckCircle className="h-4 w-4 mr-1" />
+                Confirm
+              </Button>
+            )}
+            
+            {booking.status === 'confirmed' && (
+              <Button 
+                size="sm" 
+                onClick={() => handleStatusUpdate('completed')} 
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <CheckCircle className="h-4 w-4 mr-1" />
+                Complete
+              </Button>
+            )}
+            
+            <Button 
+              size="sm" 
+              variant="destructive" 
+              onClick={() => handleStatusUpdate('cancelled')}
+            >
+              <XCircle className="h-4 w-4 mr-1" />
+              Cancel
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
