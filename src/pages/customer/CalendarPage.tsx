@@ -17,7 +17,6 @@ import CancelBookingButton from '@/components/customer/CancelBookingButton';
 
 const CalendarPage: React.FC = () => {
   const [date, setDate] = useState<Date>(new Date());
-  const [weekDays, setWeekDays] = useState<Date[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [appointmentCounts, setAppointmentCounts] = useState<{
@@ -279,7 +278,7 @@ const CalendarPage: React.FC = () => {
             </div> : todayBookings.length === 0 ? <div className="text-center py-8 border rounded-lg bg-gray-50">
               <CalendarX className="h-10 w-10 mx-auto text-gray-400 mb-3" />
               <p className="text-gray-500 text-sm mb-4">No bookings for this date</p>
-              <Button className="bg-booqit-primary hover:bg-booqit-primary/90" onClick={handleExploreServices}>
+              <Button className="bg-booqit-primary hover:bg-booqit-primary/90" onClick={() => navigate('/search')}>
                 Book an Appointment
               </Button>
             </div> : <div className="space-y-4">
@@ -315,7 +314,7 @@ const CalendarPage: React.FC = () => {
                     </div>
                     
                     {booking.status !== 'cancelled' && booking.status !== 'completed' && <div className="flex justify-end gap-2">
-                        <Button size="sm" variant="outline" onClick={() => handleViewReceipt(booking.id)} className="h-8 text-base font-medium px-[23px] mx-[20px]">
+                        <Button size="sm" variant="outline" onClick={() => navigate(`/receipt/${booking.id}`)} className="h-8 text-base font-medium px-[23px] mx-[20px]">
                           Receipt
                         </Button>
                         <CancelBookingButton bookingId={booking.id} onCancelled={() => fetchBookings()} className="h-8 text-sm px-4" />
