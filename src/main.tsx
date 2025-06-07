@@ -5,16 +5,17 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App.tsx';
 import './index.css';
 
-// Create a client with optimized settings for instant data display
+// Create a client with aggressive caching to prevent refetching on tab switches
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 10 * 60 * 1000, // 10 minutes - data stays fresh longer
-      gcTime: 60 * 60 * 1000, // 1 hour - keep in cache longer
+      staleTime: 15 * 60 * 1000, // 15 minutes - data stays fresh longer
+      gcTime: 60 * 60 * 1000, // 1 hour - keep in cache much longer
       retry: 1, // Only retry once on failure
-      refetchOnWindowFocus: false, // Don't refetch when window regains focus
+      refetchOnWindowFocus: false, // CRITICAL: Don't refetch when tab regains focus
       refetchOnMount: false, // Don't refetch when component mounts if data exists
       refetchOnReconnect: false, // Don't refetch on reconnect
+      refetchInterval: false, // No automatic refetching
     },
   },
 });
@@ -31,18 +32,6 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/pwabuilder-sw.js')
       .then((registration) => {
         console.log('✅ SW registered: ', registration);
-        
-        // Handle updates
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing;
-          if (newWorker) {
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                console.log('🔄 New content available, please refresh');
-              }
-            });
-          }
-        });
       })
       .catch((registrationError) => {
         console.log('❌ SW registration failed: ', registrationError);
@@ -50,12 +39,10 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// Handle page visibility changes for better session management
+// Handle page visibility changes - clear any pending session recovery attempts
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
-    console.log('📱 Page became visible');
-  } else {
-    console.log('📱 Page hidden');
+    console.log('📱 Page became visible - session should be instantly available');
   }
 });
 

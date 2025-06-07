@@ -16,8 +16,8 @@ const Index = () => {
       loading 
     });
 
-    // Immediate redirect for authenticated users - don't wait for loading
-    if (isAuthenticated && userRole) {
+    // IMMEDIATE redirect for authenticated users - don't wait for loading
+    if (isAuthenticated && userRole && !loading) {
       console.log('✅ User authenticated, redirecting based on role:', userRole);
       
       if (userRole === "merchant") {
@@ -28,11 +28,10 @@ const Index = () => {
         navigate("/home", { replace: true });
       }
     }
-  }, [isAuthenticated, userRole, navigate]);
+  }, [isAuthenticated, userRole, loading, navigate]);
 
-  // Only show minimal loading for very brief initial auth check
+  // Show minimal loading ONLY if we're still checking auth (should be almost instant)
   if (loading) {
-    // Show a very brief, minimal loading - this should be almost instant
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-booqit-primary/20 to-white">
         <div className="text-center">
@@ -53,7 +52,14 @@ const Index = () => {
     return <RoleSelection onRoleSelect={handleRoleSelect} />;
   }
 
-  // Fallback for authenticated users while redirect happens (should be instant)
+  // If authenticated but no clear role, default redirect
+  if (isAuthenticated && !userRole) {
+    console.log('⚠️ Authenticated but no role, defaulting to customer');
+    navigate("/home", { replace: true });
+    return null;
+  }
+
+  // Fallback - should not reach here
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-booqit-primary/20 to-white">
       <div className="text-center">

@@ -20,26 +20,27 @@ export const clearOwnSessionStorage = (): void => {
   try {
     localStorage.removeItem("booqit-session");
     localStorage.removeItem('loggedIn');
+    localStorage.removeItem('user-role');
     console.log('🧹 Cleared BooqIt session references');
   } catch (error) {
     console.error('❌ Error clearing session storage:', error);
   }
 };
 
-// Gentle session recovery - only try once and don't force logout on failure
+// VERY gentle session recovery - only try once and never force anything
 export const attemptSessionRecovery = async (): Promise<{
   success: boolean;
   session: any | null;
   message: string;
 }> => {
   try {
-    console.log('🔄 Attempting gentle session recovery...');
+    console.log('🔄 Attempting very gentle session recovery...');
     
-    // First try to get existing session
+    // Only try to get existing session - no refresh attempts
     const { data: { session }, error: getError } = await supabase.auth.getSession();
     
     if (session && !getError) {
-      console.log('✅ Session found during recovery');
+      console.log('✅ Session found during gentle recovery');
       return {
         success: true,
         session,
@@ -47,24 +48,11 @@ export const attemptSessionRecovery = async (): Promise<{
       };
     }
     
-    // If no session found, try ONE refresh attempt
-    console.log('🔄 No session found, trying single refresh...');
-    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-    
-    if (refreshData?.session && !refreshError) {
-      console.log('✅ Session recovered via refresh');
-      return {
-        success: true,
-        session: refreshData.session,
-        message: 'Session refreshed successfully'
-      };
-    }
-    
-    console.log('❌ Session recovery failed (but not forcing logout):', refreshError?.message);
+    console.log('❌ No active session found (this is normal after tab switches)');
     return {
       success: false,
       session: null,
-      message: refreshError?.message || 'Session recovery failed'
+      message: 'No active session found'
     };
     
   } catch (error) {
@@ -77,7 +65,7 @@ export const attemptSessionRecovery = async (): Promise<{
   }
 };
 
-// Check if session is valid (very gentle check)
+// Very gentle session validation
 export const validateCurrentSession = async (): Promise<boolean> => {
   try {
     // First check our own flag
@@ -86,11 +74,11 @@ export const validateCurrentSession = async (): Promise<boolean> => {
       return false;
     }
 
-    // Then check Supabase session
+    // Then gently check Supabase session without any recovery attempts
     const { data: { session }, error } = await supabase.auth.getSession();
     
     if (error) {
-      console.warn('⚠️ Error validating session:', error);
+      console.warn('⚠️ Error validating session (this might be normal):', error.message);
       return false;
     }
     
