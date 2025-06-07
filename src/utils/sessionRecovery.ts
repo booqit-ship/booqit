@@ -25,7 +25,12 @@ const createTimeoutPromise = (ms: number) => {
  * Executes a promise with a timeout
  */
 const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
-  return Promise.race([promise, createTimeoutPromise(timeoutMs)]);
+  return Promise.race([
+    promise, 
+    createTimeoutPromise(timeoutMs).then(() => {
+      throw new Error('Operation timed out');
+    })
+  ]) as Promise<T>;
 };
 
 /**
@@ -259,8 +264,10 @@ export const clearSupabaseLocalStorage = (): void => {
  * Checks if Supabase localStorage keys are missing (cache cleared)
  */
 export const detectCacheClearing = (): boolean => {
+  // Use the hardcoded project reference from the client config
+  const projectRef = 'ggclvurfcykbwmhfftkn'; // From the Supabase URL
   const requiredKeys = [
-    `sb-${supabase.supabaseUrl.split('//')[1].split('.')[0]}-auth-token`
+    `sb-${projectRef}-auth-token`
   ];
   
   const hasRequiredKeys = requiredKeys.some(key => {
