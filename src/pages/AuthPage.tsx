@@ -38,7 +38,7 @@ const AuthPage: React.FC = () => {
   const navigate = useNavigate();
   const { setAuth } = useAuth();
 
-  // Handle login with Supabase
+  // Handle login with immediate session sync
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -51,29 +51,34 @@ const AuthPage: React.FC = () => {
 
       if (error) throw error;
 
-      // Check user role from profiles table
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', data.user.id)
-        .single();
+      // Immediately sync session with AuthContext
+      if (data.session) {
+        console.log('✅ Login successful, syncing session globally');
+        
+        // Check user role from profiles table
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', data.user.id)
+          .single();
 
-      const userRole = profileData?.role as UserRole;
-      
-      // Set auth state
-      setAuth(true, userRole, data.user.id);
-      
-      // Navigate to appropriate dashboard
-      if (userRole === 'merchant') {
-        navigate('/merchant/onboarding');
-      } else {
-        navigate('/');
+        const userRole = profileData?.role as UserRole;
+        
+        // Update auth context immediately
+        setAuth(true, userRole, data.user.id);
+        
+        // Navigate to appropriate dashboard
+        if (userRole === 'merchant') {
+          navigate('/merchant/onboarding');
+        } else {
+          navigate('/');
+        }
+
+        toast({
+          title: "Success!",
+          description: "You have been logged in successfully.",
+        });
       }
-
-      toast({
-        title: "Success!",
-        description: "You have been logged in successfully.",
-      });
     } catch (error: any) {
       toast({
         title: "Error!",
@@ -85,7 +90,7 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  // Handle registration with Supabase
+  // Handle registration with immediate session sync
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -113,20 +118,31 @@ const AuthPage: React.FC = () => {
 
       if (error) throw error;
 
-      // Set auth state
-      setAuth(true, selectedRole as UserRole, data.user?.id);
-      
-      // Navigate to appropriate dashboard
-      if (selectedRole === 'merchant') {
-        navigate('/merchant/onboarding');
-      } else {
-        navigate('/');
-      }
+      // Immediately sync session with AuthContext
+      if (data.session) {
+        console.log('✅ Registration successful, syncing session globally');
+        
+        // Update auth context immediately
+        setAuth(true, selectedRole as UserRole, data.user?.id);
+        
+        // Navigate to appropriate dashboard
+        if (selectedRole === 'merchant') {
+          navigate('/merchant/onboarding');
+        } else {
+          navigate('/');
+        }
 
-      toast({
-        title: "Success!",
-        description: "Your account has been created successfully.",
-      });
+        toast({
+          title: "Success!",
+          description: "Your account has been created successfully.",
+        });
+      } else if (data.user && !data.session) {
+        // Email confirmation required
+        toast({
+          title: "Check your email",
+          description: "Please check your email to confirm your account.",
+        });
+      }
     } catch (error: any) {
       toast({
         title: "Error!",

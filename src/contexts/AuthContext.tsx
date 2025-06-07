@@ -4,6 +4,7 @@ import { UserRole } from '../types';
 import { supabase } from '@/integrations/supabase/client';
 import { Session, User } from '@supabase/supabase-js';
 import { toast } from 'sonner';
+import { hasSupabaseTokens, clearSupabaseStorage } from '@/utils/sessionRecovery';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -27,6 +28,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState<boolean>(true);
   const initialized = useRef(false);
   const authSubscription = useRef<any>(null);
+  const initializationTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const clearAuthState = () => {
     console.log('🔄 Clearing auth state');
@@ -89,94 +91,145 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  useEffect(() => {
-    let mounted = true;
+  // Enhanced initialization with timeout and cache detection
+  const initializeAuth = async () => {
+    try {
+      console.log('🚀 Initializing auth system...');
 
-    const initializeAuth = async () => {
-      try {
-        console.log('🚀 Initializing auth system...');
-        
-        // Set up auth state change listener FIRST
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (event, session) => {
-            if (!mounted) return;
-            
-            console.log('🔔 Auth state change event:', event, 'Session exists:', !!session);
-            
-            try {
-              if (event === 'SIGNED_IN' && session) {
-                console.log('👤 User signed in, updating auth state');
-                await updateAuthState(session);
-              } else if (event === 'SIGNED_OUT') {
-                console.log('👋 User signed out, clearing auth state');
-                clearAuthState();
-              } else if (event === 'TOKEN_REFRESHED' && session) {
-                console.log('🔄 Token refreshed, updating session');
-                setSession(session);
-                setUser(session.user);
-              } else if (event === 'INITIAL_SESSION' && session) {
-                console.log('🎯 Initial session detected');
-                await updateAuthState(session);
-              }
-            } catch (error) {
-              console.error('❌ Error handling auth state change:', error);
-              toast.error('Authentication error occurred', {
-                style: {
-                  background: '#f3e8ff',
-                  border: '1px solid #d8b4fe',
-                  color: '#7c3aed'
-                }
-              });
+      // Check if cache was cleared (no Supabase tokens)
+      if (!hasSupabaseTokens()) {
+        console.log('🚨 No Supabase tokens found, cache likely cleared');
+        clearAuthState();
+        setLoading(false);
+        return;
+      }
+
+      // Set up auth state change listener FIRST
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        async (event, session) => {
+          console.log('🔔 Auth state change event:', event, 'Session exists:', !!session);
+          
+          try {
+            if (event === 'SIGNED_IN' && session) {
+              console.log('👤 User signed in, updating auth state');
+              await updateAuthState(session);
+            } else if (event === 'SIGNED_OUT') {
+              console.log('👋 User signed out, clearing auth state');
+              clearAuthState();
+            } else if (event === 'TOKEN_REFRESHED' && session) {
+              console.log('🔄 Token refreshed, updating session');
+              setSession(session);
+              setUser(session.user);
+            } else if (event === 'INITIAL_SESSION' && session) {
+              console.log('🎯 Initial session detected');
+              await updateAuthState(session);
             }
+          } catch (error) {
+            console.error('❌ Error handling auth state change:', error);
+            toast.error('Authentication error occurred', {
+              style: {
+                background: '#f3e8ff',
+                border: '1px solid #d8b4fe',
+                color: '#7c3aed'
+              }
+            });
           }
+        }
+      );
+
+      authSubscription.current = subscription;
+
+      // Set timeout for initialization (5 seconds max)
+      initializationTimeout.current = setTimeout(() => {
+        console.warn('⏰ Auth initialization timeout, setting loading to false');
+        if (!hasSupabaseTokens()) {
+          clearAuthState();
+        }
+        setLoading(false);
+      }, 5000);
+
+      // Get existing session with timeout
+      try {
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Session fetch timeout')), 5000)
         );
 
-        authSubscription.current = subscription;
-        
-        // THEN get existing session
-        const { data: { session: existingSession }, error } = await supabase.auth.getSession();
-        
+        const { data: { session: existingSession }, error } = await Promise.race([
+          sessionPromise,
+          timeoutPromise
+        ]) as any;
+
+        // Clear the timeout since we got a response
+        if (initializationTimeout.current) {
+          clearTimeout(initializationTimeout.current);
+          initializationTimeout.current = null;
+        }
+
         if (error) {
           console.error('❌ Error getting session:', error);
-          if (mounted) {
+          if (!hasSupabaseTokens()) {
             clearAuthState();
-            setLoading(false);
           }
+          setLoading(false);
           return;
         }
 
-        if (existingSession && mounted) {
+        if (existingSession) {
           console.log('📦 Found existing session, updating auth state');
           await updateAuthState(existingSession);
         } else {
           console.log('❌ No existing session found');
-          if (mounted) {
+          if (!hasSupabaseTokens()) {
             clearAuthState();
           }
         }
 
-        if (mounted) {
-          setLoading(false);
-          initialized.current = true;
-        }
+        setLoading(false);
 
       } catch (error) {
-        console.error('❌ Error during auth initialization:', error);
-        if (mounted) {
-          clearAuthState();
-          setLoading(false);
+        console.error('❌ Session fetch failed or timed out:', error);
+        
+        // Clear timeout if it exists
+        if (initializationTimeout.current) {
+          clearTimeout(initializationTimeout.current);
+          initializationTimeout.current = null;
         }
-      }
-    };
 
+        // Only clear auth state if no tokens exist
+        if (!hasSupabaseTokens()) {
+          clearAuthState();
+        }
+        setLoading(false);
+      }
+
+    } catch (error) {
+      console.error('❌ Error during auth initialization:', error);
+      
+      if (initializationTimeout.current) {
+        clearTimeout(initializationTimeout.current);
+        initializationTimeout.current = null;
+      }
+      
+      if (!hasSupabaseTokens()) {
+        clearAuthState();
+      }
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     if (!initialized.current) {
+      initialized.current = true;
       initializeAuth();
     }
 
     return () => {
-      mounted = false;
       if (authSubscription.current) {
         authSubscription.current.unsubscribe();
+      }
+      if (initializationTimeout.current) {
+        clearTimeout(initializationTimeout.current);
       }
     };
   }, []);
@@ -195,6 +248,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // Clear auth state immediately for better UX
       clearAuthState();
+      
+      // Clear all Supabase localStorage keys
+      clearSupabaseStorage();
       
       const { error } = await supabase.auth.signOut();
       
@@ -217,15 +273,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         });
       }
+      
+      // Force redirect to ensure clean state
+      setTimeout(() => {
+        window.location.href = '/auth';
+      }, 100);
+      
     } catch (error) {
       console.error('❌ Exception during logout:', error);
-      toast.error('Logout failed. Please try again.', {
+      clearSupabaseStorage();
+      clearAuthState();
+      
+      toast.error('Logout completed with errors', {
         style: {
           background: '#f3e8ff',
           border: '1px solid #d8b4fe',
           color: '#7c3aed'
         }
       });
+      
+      // Force redirect even on error
+      setTimeout(() => {
+        window.location.href = '/auth';
+      }, 100);
     }
   };
 
