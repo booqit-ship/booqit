@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -274,23 +275,12 @@ const DashboardPage: React.FC = () => {
           <h1 className="text-2xl font-light">Dashboard</h1>
           <p className="text-gray-500">Welcome back, {shopName}!</p>
         </div>
-        <div className="flex items-center space-x-3">
-          <Button
-            onClick={() => navigate('/merchant/analytics')}
-            variant="outline"
-            size="sm"
-            className="flex items-center gap-2"
-          >
-            <BarChart3 className="h-4 w-4" />
-            Analytics
-          </Button>
-          <Avatar className="h-12 w-12">
-            <AvatarImage src={shopImage || undefined} alt={shopName} />
-            <AvatarFallback className="bg-booqit-primary/10 text-booqit-primary">
-              {shopName.charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-        </div>
+        <Avatar className="h-12 w-12">
+          <AvatarImage src={shopImage || undefined} alt={shopName} />
+          <AvatarFallback className="bg-booqit-primary/10 text-booqit-primary">
+            {shopName.charAt(0).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
       </motion.div>
 
       <motion.div variants={containerVariants} initial="hidden" animate="visible">
@@ -310,6 +300,18 @@ const DashboardPage: React.FC = () => {
               </Card>
             ))}
           </div>
+        </motion.div>
+
+        {/* Analytics Button - Moved to prominent position */}
+        <motion.div variants={itemVariants} className="mb-6">
+          <Button
+            onClick={() => navigate('/merchant/analytics')}
+            className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-white py-6 text-lg"
+            size="lg"
+          >
+            <BarChart3 className="h-6 w-6 mr-3" />
+            View Analytics
+          </Button>
         </motion.div>
 
         <motion.div variants={itemVariants}>
