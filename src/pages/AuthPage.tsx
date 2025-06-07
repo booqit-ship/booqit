@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -26,6 +25,7 @@ import { UserRole } from '@/types';
 import RoleSelection from '@/components/RoleSelection';
 import { supabase } from '@/integrations/supabase/client';
 import { PermanentSession } from '@/utils/permanentSession';
+import { validateCurrentSession } from '@/utils/sessionRecovery';
 
 const AuthPage: React.FC = () => {
   const location = useLocation();
@@ -89,7 +89,7 @@ const AuthPage: React.FC = () => {
     navigate('/', { replace: true });
   };
 
-  // Enhanced login with permanent session saving
+  // Enhanced login with immediate session validation
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -128,6 +128,10 @@ const AuthPage: React.FC = () => {
         // Update auth context
         setAuth(true, userRole, data.user.id);
         
+        // Immediately validate the new session
+        console.log('🔍 Validating new session immediately');
+        await validateCurrentSession();
+        
         console.log('🎯 Navigating after login...');
         if (userRole === 'merchant') {
           navigate('/merchant', { replace: true });
@@ -154,7 +158,7 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  // Enhanced registration with permanent session saving
+  // Enhanced registration with immediate session validation
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -192,6 +196,10 @@ const AuthPage: React.FC = () => {
         
         // Update auth context
         setAuth(true, selectedRole as UserRole, data.user.id);
+        
+        // Immediately validate the new session
+        console.log('🔍 Validating new registration session immediately');
+        await validateCurrentSession();
         
         console.log('🎯 Navigating after registration...');
         if (selectedRole === 'merchant') {

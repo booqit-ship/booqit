@@ -3,7 +3,7 @@ import React, { useEffect } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types';
-import { validateCurrentSession } from '@/utils/sessionRecovery';
+import { PermanentSession } from '@/utils/permanentSession';
 
 interface ProtectedRouteProps {
   children?: React.ReactNode;
@@ -16,35 +16,36 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 }) => {
   const { isAuthenticated, userRole, loading } = useAuth();
 
-  // Validate session when component mounts
-  useEffect(() => {
-    if (!loading && isAuthenticated) {
-      validateCurrentSession();
-    }
-  }, [loading, isAuthenticated]);
+  // Check permanent session for instant auth check
+  const permanentData = PermanentSession.getSession();
+  const hasPermanentSession = permanentData.isLoggedIn;
+  const permanentRole = permanentData.userRole as UserRole;
 
-  // Show loading spinner while checking authentication
-  if (loading) {
+  // Show minimal loading only if we're truly checking (should be very brief)
+  if (loading && !hasPermanentSession) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-booqit-primary/10 to-white flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin h-12 w-12 border-4 border-booqit-primary border-t-transparent rounded-full mx-auto mb-4"></div>
-          <h2 className="text-xl font-righteous text-booqit-dark mb-2">Loading BooqIt</h2>
-          <p className="text-gray-600 font-poppins">Validating your session...</p>
+          <div className="animate-spin h-8 w-8 border-2 border-booqit-primary border-t-transparent rounded-full mx-auto mb-2"></div>
+          <p className="text-sm text-gray-600 font-poppins">Loading...</p>
         </div>
       </div>
     );
   }
 
-  if (!isAuthenticated) {
+  // Use permanent session for instant redirect if available
+  const effectiveAuth = isAuthenticated || hasPermanentSession;
+  const effectiveRole = userRole || permanentRole;
+
+  if (!effectiveAuth) {
     console.log('🚫 User not authenticated, redirecting to /');
     return <Navigate to="/" replace />;
   }
 
-  if (requiredRole && userRole !== requiredRole) {
-    console.log('🚫 User role mismatch, redirecting based on role:', userRole);
+  if (requiredRole && effectiveRole !== requiredRole) {
+    console.log('🚫 User role mismatch, redirecting based on role:', effectiveRole);
     // Redirect to the appropriate dashboard based on role
-    return <Navigate to={userRole === 'merchant' ? '/merchant' : '/'} replace />;
+    return <Navigate to={effectiveRole === 'merchant' ? '/merchant' : '/'} replace />;
   }
 
   // If children are provided, render them (for wrapper usage)
