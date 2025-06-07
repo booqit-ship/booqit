@@ -1,27 +1,31 @@
+
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Store, User } from 'lucide-react';
 import { UserRole } from '@/types';
+
 interface RoleSelectionProps {
   onRoleSelect: (role: UserRole) => void;
 }
-const RoleSelection: React.FC<RoleSelectionProps> = ({
-  onRoleSelect
-}) => {
-  return <div className="min-h-screen bg-gradient-to-br from-booqit-primary/10 to-white flex flex-col items-center justify-center p-4">
-      <motion.div initial={{
-      scale: 0.9,
-      opacity: 0
-    }} animate={{
-      scale: 1,
-      opacity: 1
-    }} transition={{
-      duration: 0.5
-    }} className="w-full max-w-md space-y-6">
-        
-        {/* Logo - moved up */}
+
+const RoleSelection: React.FC<RoleSelectionProps> = ({ onRoleSelect }) => {
+  // Prevent event bubbling and default behavior
+  const handleRoleClick = (role: UserRole, event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onRoleSelect(role);
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-booqit-primary/10 to-white flex flex-col items-center justify-center p-4">
+      <motion.div 
+        initial={{ scale: 0.9, opacity: 0 }} 
+        animate={{ scale: 1, opacity: 1 }} 
+        transition={{ duration: 0.5 }} 
+        className="w-full max-w-md space-y-6"
+      >
+        {/* Logo */}
         <div className="text-center">
           <h1 className="text-5xl font-righteous mb-2 text-black font-medium">
             booqit
@@ -29,38 +33,42 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
           <p className="text-gray-600 font-poppins">Choose how you want to continue</p>
         </div>
 
-        {/* New Image - positioned above role buttons with no gap */}
+        {/* Image */}
         <div className="text-center">
-          <motion.img src="/lovable-uploads/d7dc2456-35dc-4a91-bbac-3783a243d686.png" alt="BooqIt Service Illustration" initial={{
-          scale: 0.8,
-          opacity: 0
-        }} animate={{
-          scale: 1,
-          opacity: 1
-        }} transition={{
-          duration: 0.6,
-          delay: 0.2
-        }} className="w-full h-full mx-auto object-cover" />
+          <motion.img 
+            src="/lovable-uploads/d7dc2456-35dc-4a91-bbac-3783a243d686.png" 
+            alt="BooqIt Service Illustration" 
+            initial={{ scale: 0.8, opacity: 0 }} 
+            animate={{ scale: 1, opacity: 1 }} 
+            transition={{ duration: 0.6, delay: 0.2 }} 
+            className="w-full h-full mx-auto object-cover" 
+          />
         </div>
 
-        {/* Role Selection Cards - no gap with image above */}
+        {/* Role Selection Cards */}
         <div className="space-y-4">
           <Card className="cursor-pointer hover:shadow-lg transition-all duration-200 border-2 hover:border-booqit-primary/50">
-            <CardContent className="p-6" onClick={() => onRoleSelect('customer')}>
+            <CardContent 
+              className="p-6" 
+              onClick={(e) => handleRoleClick('customer', e)}
+            >
               <div className="flex items-center space-x-4">
                 <div className="p-3 bg-booqit-primary/10 rounded-full">
                   <User className="h-6 w-6 text-booqit-primary" />
                 </div>
                 <div className="flex-1">
                   <h3 className="text-lg font-righteous font-light">I'm a Customer</h3>
-                  <p className="text-gray-600 text-sm font-poppins">Book appointments at Salons & Beauty Salon </p>
+                  <p className="text-gray-600 text-sm font-poppins">Book appointments at Salons & Beauty Salon</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card className="cursor-pointer hover:shadow-lg transition-all duration-200 border-2 hover:border-booqit-primary/50">
-            <CardContent className="p-6" onClick={() => onRoleSelect('merchant')}>
+            <CardContent 
+              className="p-6" 
+              onClick={(e) => handleRoleClick('merchant', e)}
+            >
               <div className="flex items-center space-x-4">
                 <div className="p-3 bg-booqit-secondary/10 rounded-full">
                   <Store className="h-6 w-6 text-booqit-secondary" />
@@ -81,6 +89,8 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({
           </p>
         </div>
       </motion.div>
-    </div>;
+    </div>
+  );
 };
+
 export default RoleSelection;

@@ -38,6 +38,23 @@ const AuthPage: React.FC = () => {
   const navigate = useNavigate();
   const { setAuth } = useAuth();
 
+  // Handle role selection with proper state management
+  const handleRoleSelect = (role: UserRole) => {
+    console.log('Role selected:', role);
+    setSelectedRole(role);
+    setIsRoleSelected(true);
+    
+    // Store selected role for future reference
+    localStorage.setItem('booqit_selected_role', role);
+  };
+
+  // Handle back to role selection
+  const handleBackToRoleSelection = () => {
+    setIsRoleSelected(false);
+    setSelectedRole(null);
+    localStorage.removeItem('booqit_selected_role');
+  };
+
   // Handle login with immediate session sync
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -154,14 +171,6 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  const handleRoleSelect = (role: UserRole) => {
-    setSelectedRole(role);
-    setIsRoleSelected(true);
-    
-    // Store selected role for future reference
-    localStorage.setItem('booqit_selected_role', role);
-  };
-  
   // If role is not selected, show role selection screen
   if (!isRoleSelected) {
     return <RoleSelection onRoleSelect={handleRoleSelect} />;
@@ -197,7 +206,7 @@ const AuthPage: React.FC = () => {
                 variant="ghost" 
                 size="sm" 
                 className="p-0 font-poppins" 
-                onClick={() => setIsRoleSelected(false)}
+                onClick={handleBackToRoleSelection}
               >
                 ← Change Role
               </Button>
