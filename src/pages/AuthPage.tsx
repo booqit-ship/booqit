@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -36,7 +37,19 @@ const AuthPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { setAuth } = useAuth();
+  const { setAuth, isAuthenticated, userRole, loading } = useAuth();
+
+  // Redirect authenticated users immediately
+  useEffect(() => {
+    if (!loading && isAuthenticated && userRole) {
+      console.log('🔄 User already authenticated, redirecting...', { userRole });
+      if (userRole === 'merchant') {
+        navigate('/merchant', { replace: true });
+      } else {
+        navigate('/home', { replace: true });
+      }
+    }
+  }, [isAuthenticated, userRole, loading, navigate]);
 
   // Handle role selection with proper state management
   const handleRoleSelect = (role: UserRole) => {
@@ -55,12 +68,14 @@ const AuthPage: React.FC = () => {
     localStorage.removeItem('booqit_selected_role');
   };
 
-  // Handle login with immediate session sync
+  // Enhanced login with proper auth state synchronization
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
+      console.log('🔐 Attempting login...');
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -68,35 +83,46 @@ const AuthPage: React.FC = () => {
 
       if (error) throw error;
 
-      // Immediately sync session with AuthContext
-      if (data.session) {
-        console.log('✅ Login successful, syncing session globally');
+      if (data.session && data.user) {
+        console.log('✅ Login successful, session created');
         
-        // Check user role from profiles table
-        const { data: profileData } = await supabase
+        // Fetch user role from profiles table
+        const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('role')
           .eq('id', data.user.id)
           .single();
 
+        if (profileError) {
+          console.error('❌ Error fetching user profile:', profileError);
+          throw new Error('Failed to fetch user profile');
+        }
+
         const userRole = profileData?.role as UserRole;
+        console.log('👤 User role fetched:', userRole);
         
-        // Update auth context immediately
+        // Update auth context with complete session info
         setAuth(true, userRole, data.user.id);
         
-        // Navigate to appropriate dashboard
-        if (userRole === 'merchant') {
-          navigate('/merchant/onboarding');
-        } else {
-          navigate('/');
-        }
+        // Wait for context to update before navigating
+        setTimeout(() => {
+          console.log('🎯 Navigating after login...');
+          if (userRole === 'merchant') {
+            navigate('/merchant', { replace: true });
+          } else {
+            navigate('/home', { replace: true });
+          }
+        }, 100); // Small delay to ensure context updates
 
         toast({
           title: "Success!",
           description: "You have been logged in successfully.",
         });
+      } else {
+        throw new Error('No session created during login');
       }
     } catch (error: any) {
+      console.error('❌ Login error:', error);
       toast({
         title: "Error!",
         description: error.message || "Failed to login.",
@@ -107,12 +133,14 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  // Handle registration with immediate session sync
+  // Enhanced registration with proper auth state synchronization
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
+      console.log('📝 Attempting registration...');
+      
       if (!email || !password || !name) {
         throw new Error("Please fill in all required fields");
       }
@@ -135,19 +163,21 @@ const AuthPage: React.FC = () => {
 
       if (error) throw error;
 
-      // Immediately sync session with AuthContext
-      if (data.session) {
-        console.log('✅ Registration successful, syncing session globally');
+      if (data.session && data.user) {
+        console.log('✅ Registration successful, session created');
         
         // Update auth context immediately
-        setAuth(true, selectedRole as UserRole, data.user?.id);
+        setAuth(true, selectedRole as UserRole, data.user.id);
         
-        // Navigate to appropriate dashboard
-        if (selectedRole === 'merchant') {
-          navigate('/merchant/onboarding');
-        } else {
-          navigate('/');
-        }
+        // Wait for context to update before navigating
+        setTimeout(() => {
+          console.log('🎯 Navigating after registration...');
+          if (selectedRole === 'merchant') {
+            navigate('/merchant/onboarding', { replace: true });
+          } else {
+            navigate('/home', { replace: true });
+          }
+        }, 100); // Small delay to ensure context updates
 
         toast({
           title: "Success!",
@@ -155,12 +185,16 @@ const AuthPage: React.FC = () => {
         });
       } else if (data.user && !data.session) {
         // Email confirmation required
+        console.log('📧 Email confirmation required');
         toast({
           title: "Check your email",
           description: "Please check your email to confirm your account.",
         });
+      } else {
+        throw new Error('Registration failed - no user created');
       }
     } catch (error: any) {
+      console.error('❌ Registration error:', error);
       toast({
         title: "Error!",
         description: error.message || "Failed to create account.",
@@ -170,6 +204,19 @@ const AuthPage: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  // Show loading while auth is being checked
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-booqit-primary/10 to-white">
+        <div className="text-center">
+          <div className="animate-spin h-10 w-10 border-4 border-booqit-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+          <h1 className="text-2xl font-righteous mb-2">Loading...</h1>
+          <p className="text-gray-500 font-poppins">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
 
   // If role is not selected, show role selection screen
   if (!isRoleSelected) {
