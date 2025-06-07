@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
@@ -80,10 +79,6 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({ onRoleSelect }) => {
               className={`w-full h-full object-cover transition-opacity duration-300 ${
                 imageLoaded ? 'opacity-100' : 'opacity-0'
               }`}
-              style={{
-                imageRendering: 'auto',
-                WebkitImageSmoothing: true,
-              }}
               loading="eager"
               fetchPriority="high"
               onLoad={() => setImageLoaded(true)}
