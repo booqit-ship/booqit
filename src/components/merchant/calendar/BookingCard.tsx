@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -102,87 +103,76 @@ const BookingCard: React.FC<BookingCardProps> = ({
   };
 
   return (
-    <Card className={`overflow-hidden transition-all duration-200 hover:shadow-md border-l-4 ${
-      booking.status === 'completed' ? 'border-l-blue-500 bg-blue-50/30' : 
-      booking.status === 'confirmed' ? 'border-l-green-500' :
-      booking.status === 'pending' ? 'border-l-yellow-500' :
-      'border-l-gray-400'
+    <Card className={`hover:shadow-lg transition-shadow duration-200 border-l-4 ${
+      booking.status === 'completed' ? 'border-l-blue-500 bg-blue-50/30' : 'border-l-booqit-primary'
     }`}>
-      <CardContent className="p-5">
-        {/* Header: Time Range and Status */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
+      <CardContent className="p-4">
+        {/* Header with time range and status */}
+        <div className="flex justify-between items-start mb-4">
+          <div className="flex items-center space-x-2">
             <Clock className="h-4 w-4 text-gray-500" />
-            <span className="text-lg font-semibold text-gray-900">
+            <span className="font-semibold text-lg">
               {getTimeRange()}
             </span>
           </div>
-          <Badge className={`${getStatusColor(booking.status)} text-xs px-3 py-1 font-medium`}>
+          <Badge className={`${getStatusColor(booking.status)} font-medium`}>
             {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
           </Badge>
         </div>
 
-        {/* Service Information */}
+        {/* Service name and duration */}
         {booking.service && (
-          <div className="mb-4 space-y-2">
-            <div className="flex items-center gap-2">
+          <div className="space-y-2 mb-3">
+            <div className="flex items-center space-x-2">
               <div className="w-2 h-2 bg-booqit-primary rounded-full"></div>
-              <span className="font-medium text-gray-900 text-base">
-                {booking.service.name}
-              </span>
+              <span className="font-medium text-gray-900">{booking.service.name}</span>
             </div>
             {booking.service.duration && (
-              <div className="flex items-center gap-2 ml-4">
+              <div className="flex items-center space-x-2 text-gray-600">
                 <Timer className="h-4 w-4 text-gray-500" />
-                <span className="text-sm text-gray-600">
-                  {booking.service.duration} min
-                </span>
+                <span className="text-sm">{booking.service.duration} min</span>
               </div>
             )}
           </div>
         )}
 
-        {/* Customer Details */}
-        <div className="space-y-3 mb-4">
+        {/* Customer and stylist information */}
+        <div className="space-y-2 mb-4">
           {booking.customer_name && (
-            <div className="flex items-center gap-3">
-              <User className="h-4 w-4 text-gray-500 flex-shrink-0" />
-              <span className="text-gray-800 font-medium">
-                {booking.customer_name}
-              </span>
+            <div className="flex items-center space-x-2 text-gray-700">
+              <User className="h-4 w-4 text-gray-500" />
+              <span className="font-medium">{booking.customer_name}</span>
             </div>
           )}
-
+          
           {booking.customer_phone && (
-            <div className="flex items-center gap-3">
-              <Phone className="h-4 w-4 text-gray-500 flex-shrink-0" />
+            <div className="flex items-center space-x-2 text-gray-600">
+              <Phone className="h-4 w-4 text-gray-500" />
               <a 
                 href={`tel:${booking.customer_phone}`} 
-                className="text-booqit-primary hover:text-booqit-primary/80 hover:underline transition-colors font-medium"
+                className="text-booqit-primary hover:underline cursor-pointer"
               >
                 {booking.customer_phone}
               </a>
             </div>
           )}
-
+          
           {booking.stylist_name && (
-            <div className="flex items-center gap-3">
-              <Scissors className="h-4 w-4 text-gray-500 flex-shrink-0" />
-              <span className="text-gray-700">
-                Stylist: <span className="font-medium">{booking.stylist_name}</span>
-              </span>
+            <div className="flex items-center space-x-2 text-gray-700">
+              <Scissors className="h-4 w-4 text-gray-500" />
+              <span>Stylist: <span className="font-medium">{booking.stylist_name}</span></span>
             </div>
           )}
         </div>
 
-        {/* Action Buttons */}
+        {/* Action buttons - only show if not cancelled or completed */}
         {booking.status !== 'cancelled' && booking.status !== 'completed' && (
-          <div className="flex gap-2 pt-2 border-t border-gray-100">
+          <div className="flex flex-wrap gap-2">
             {booking.status === 'pending' && (
               <Button 
                 size="sm" 
                 onClick={() => handleStatusUpdate('confirmed')} 
-                className="bg-green-600 hover:bg-green-700 text-white flex-1"
+                className="bg-green-600 hover:bg-green-700 text-white"
               >
                 <CheckCircle className="h-4 w-4 mr-1" />
                 Confirm
@@ -193,7 +183,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
               <Button 
                 size="sm" 
                 onClick={() => handleStatusUpdate('completed')} 
-                className="bg-blue-600 hover:bg-blue-700 text-white flex-1"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
               >
                 <CheckCircle className="h-4 w-4 mr-1" />
                 Complete
@@ -204,7 +194,6 @@ const BookingCard: React.FC<BookingCardProps> = ({
               size="sm" 
               variant="destructive" 
               onClick={() => handleStatusUpdate('cancelled')}
-              className="flex-1"
             >
               <XCircle className="h-4 w-4 mr-1" />
               Cancel
