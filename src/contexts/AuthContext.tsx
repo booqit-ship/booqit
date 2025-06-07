@@ -29,6 +29,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const initialized = useRef(false);
   const authSubscription = useRef<any>(null);
   const initializationTimeout = useRef<NodeJS.Timeout | null>(null);
+  const sessionRecoveryAttempted = useRef(false);
 
   const clearAuthState = () => {
     console.log('🔄 Clearing auth state');
@@ -78,12 +79,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUserRole(role);
           console.log('✅ Auth state updated successfully with role:', role);
         } else {
-          console.warn('⚠️ Could not fetch user role, clearing auth state');
-          clearAuthState();
+          console.warn('⚠️ Could not fetch user role, but keeping session active');
+          // Don't clear auth state just because role fetch failed
+          setUserRole('customer'); // Default fallback
         }
       } catch (error) {
         console.error('❌ Error updating auth state:', error);
-        clearAuthState();
+        // Only clear auth state if it's a critical error
+        if (error.message?.includes('JWT') || error.message?.includes('unauthorized')) {
+          clearAuthState();
+        }
       }
     } else {
       console.log('🔄 No valid session, clearing auth state');
@@ -91,18 +96,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Enhanced initialization with timeout and cache detection
+  // Enhanced session recovery function
+  const attemptSessionRecovery = async (): Promise<boolean> => {
+    if (sessionRecoveryAttempted.current) {
+      return false;
+    }
+
+    sessionRecoveryAttempted.current = true;
+    console.log('🔄 Attempting session recovery...');
+
+    try {
+      const { data, error } = await supabase.auth.refreshSession();
+      
+      if (data?.session && !error) {
+        console.log('✅ Session recovered successfully');
+        await updateAuthState(data.session);
+        return true;
+      } else {
+        console.log('❌ Session recovery failed:', error?.message);
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ Exception during session recovery:', error);
+      return false;
+    }
+  };
+
+  // Enhanced initialization with better error handling
   const initializeAuth = async () => {
     try {
       console.log('🚀 Initializing auth system...');
-
-      // Check if cache was cleared (no Supabase tokens)
-      if (!hasSupabaseTokens()) {
-        console.log('🚨 No Supabase tokens found, cache likely cleared');
-        clearAuthState();
-        setLoading(false);
-        return;
-      }
 
       // Set up auth state change listener FIRST
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -112,6 +135,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           try {
             if (event === 'SIGNED_IN' && session) {
               console.log('👤 User signed in, updating auth state');
+              sessionRecoveryAttempted.current = false; // Reset recovery flag
               await updateAuthState(session);
             } else if (event === 'SIGNED_OUT') {
               console.log('👋 User signed out, clearing auth state');
@@ -139,16 +163,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       authSubscription.current = subscription;
 
-      // Set timeout for initialization (5 seconds max)
+      // Set timeout for initialization (7 seconds max for slower connections)
       initializationTimeout.current = setTimeout(() => {
-        console.warn('⏰ Auth initialization timeout, setting loading to false');
-        if (!hasSupabaseTokens()) {
-          clearAuthState();
+        console.warn('⏰ Auth initialization timeout');
+        if (!hasSupabaseTokens() && !sessionRecoveryAttempted.current) {
+          console.log('🔄 Timeout reached, attempting session recovery...');
+          attemptSessionRecovery().then((recovered) => {
+            if (!recovered) {
+              clearAuthState();
+            }
+            setLoading(false);
+          });
+        } else {
+          setLoading(false);
         }
-        setLoading(false);
-      }, 5000);
+      }, 7000);
 
-      // Get existing session with timeout
+      // Get existing session with timeout and recovery
       try {
         const sessionPromise = supabase.auth.getSession();
         const timeoutPromise = new Promise((_, reject) => 
@@ -168,7 +199,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (error) {
           console.error('❌ Error getting session:', error);
-          if (!hasSupabaseTokens()) {
+          
+          // Try session recovery before giving up
+          const recovered = await attemptSessionRecovery();
+          if (!recovered && !hasSupabaseTokens()) {
             clearAuthState();
           }
           setLoading(false);
@@ -180,7 +214,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await updateAuthState(existingSession);
         } else {
           console.log('❌ No existing session found');
-          if (!hasSupabaseTokens()) {
+          
+          // If no session but tokens might exist, try recovery
+          if (hasSupabaseTokens()) {
+            const recovered = await attemptSessionRecovery();
+            if (!recovered) {
+              clearAuthState();
+            }
+          } else {
             clearAuthState();
           }
         }
@@ -196,8 +237,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           initializationTimeout.current = null;
         }
 
-        // Only clear auth state if no tokens exist
-        if (!hasSupabaseTokens()) {
+        // Try recovery before clearing auth state
+        const recovered = await attemptSessionRecovery();
+        if (!recovered && !hasSupabaseTokens()) {
           clearAuthState();
         }
         setLoading(false);
@@ -211,7 +253,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         initializationTimeout.current = null;
       }
       
-      if (!hasSupabaseTokens()) {
+      // Try recovery as last resort
+      const recovered = await attemptSessionRecovery();
+      if (!recovered) {
         clearAuthState();
       }
       setLoading(false);
@@ -240,6 +284,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAuthenticated(isAuthenticated);
     setUserRole(role);
     setUserId(id);
+    
+    // Reset recovery flag when auth is set manually
+    sessionRecoveryAttempted.current = false;
   };
 
   const logout = async () => {
@@ -251,6 +298,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // Clear all Supabase localStorage keys
       clearSupabaseStorage();
+      
+      // Reset recovery flag
+      sessionRecoveryAttempted.current = false;
       
       const { error } = await supabase.auth.signOut();
       

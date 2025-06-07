@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 const MAX_RETRY_ATTEMPTS = 3;
-const SESSION_TIMEOUT_MS = 5000;
+const SESSION_TIMEOUT_MS = 8000; // Increased timeout for slower connections
 
 // Helper function to add timeout to promises
 const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
@@ -43,42 +43,44 @@ export const clearSupabaseStorage = (): void => {
   }
 };
 
-// Validate current session with timeout and retry logic
+// Enhanced session validation with better error handling
 export const validateCurrentSession = async (retryCount = 0): Promise<boolean> => {
   try {
     console.log(`🔍 Validating session (attempt ${retryCount + 1}/${MAX_RETRY_ATTEMPTS})`);
     
-    // First, try to refresh the session to ensure it's current
-    const refreshResult = await withTimeout(
-      supabase.auth.refreshSession(),
-      SESSION_TIMEOUT_MS
-    );
-    
-    if (refreshResult.error && retryCount < MAX_RETRY_ATTEMPTS - 1) {
-      console.log(`⚠️ Session refresh failed, retrying... (${retryCount + 1}/${MAX_RETRY_ATTEMPTS})`);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return validateCurrentSession(retryCount + 1);
-    }
-    
-    // Then validate the session
-    const { data: { session }, error } = await withTimeout(
+    // First, check if we have a session without refreshing
+    const { data: { session }, error: getSessionError } = await withTimeout(
       supabase.auth.getSession(),
       SESSION_TIMEOUT_MS
     );
     
-    if (error) {
-      console.error('❌ Session validation failed:', error);
-      if (retryCount < MAX_RETRY_ATTEMPTS - 1) {
-        console.log(`🔄 Retrying session validation... (${retryCount + 1}/${MAX_RETRY_ATTEMPTS})`);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        return validateCurrentSession(retryCount + 1);
-      }
-      return false;
+    if (getSessionError && retryCount < MAX_RETRY_ATTEMPTS - 1) {
+      console.log(`⚠️ Session get failed, retrying... (${retryCount + 1}/${MAX_RETRY_ATTEMPTS})`);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return validateCurrentSession(retryCount + 1);
     }
     
     if (session) {
-      console.log('✅ Session validated successfully');
-      return true;
+      // If we have a session, try to refresh it to ensure it's valid
+      try {
+        const refreshResult = await withTimeout(
+          supabase.auth.refreshSession(),
+          SESSION_TIMEOUT_MS
+        );
+        
+        if (refreshResult.error) {
+          console.warn('⚠️ Session refresh failed, but session exists:', refreshResult.error.message);
+          // If refresh fails but session exists, consider it valid (might be network issue)
+          return true;
+        }
+        
+        console.log('✅ Session validated and refreshed successfully');
+        return true;
+      } catch (refreshError) {
+        console.warn('⚠️ Session refresh threw error, but session exists:', refreshError);
+        // If refresh throws but session exists, consider it valid
+        return true;
+      }
     }
     
     console.log('❌ No active session found');
@@ -96,7 +98,7 @@ export const validateCurrentSession = async (retryCount = 0): Promise<boolean> =
   }
 };
 
-// Recover session with proactive refresh
+// Enhanced session recovery with better error handling
 export const recoverSession = async () => {
   try {
     console.log('🔄 Attempting session recovery with refresh...');
@@ -108,6 +110,13 @@ export const recoverSession = async () => {
     
     if (error) {
       console.error('❌ Session recovery failed:', error);
+      
+      // Check if it's a network error vs auth error
+      if (error.message?.includes('network') || error.message?.includes('timeout')) {
+        console.log('🌐 Network-related error, might recover later');
+        return null;
+      }
+      
       return null;
     }
     
@@ -119,11 +128,17 @@ export const recoverSession = async () => {
     return null;
   } catch (error) {
     console.error('❌ Exception during session recovery:', error);
+    
+    // Check if it's a network error
+    if (error.message?.includes('timeout') || error.message?.includes('network')) {
+      console.log('🌐 Network-related exception, might recover later');
+    }
+    
     return null;
   }
 };
 
-// Handle session expiry with proper cleanup
+// Enhanced session expiry handling with user feedback
 export const handleSessionExpiry = async () => {
   console.log('⏰ Handling session expiry...');
   
@@ -132,14 +147,22 @@ export const handleSessionExpiry = async () => {
     
     if (!recoveredSession) {
       console.log('🚪 No session recovery possible, clearing auth state');
-      clearSupabaseStorage();
+      
+      // Don't clear storage immediately - give user a chance to refresh manually
+      // clearSupabaseStorage();
+      
       return null;
     }
     
     return recoveredSession;
   } catch (error) {
     console.error('❌ Error handling session expiry:', error);
-    clearSupabaseStorage();
+    
+    // Only clear storage if it's definitely an auth error, not network
+    if (!error.message?.includes('network') && !error.message?.includes('timeout')) {
+      clearSupabaseStorage();
+    }
+    
     return null;
   }
 };
