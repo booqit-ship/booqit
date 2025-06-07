@@ -1,193 +1,151 @@
 
 import { useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { validateCurrentSession, handleSessionExpiry, hasSupabaseTokens, clearSupabaseStorage } from '@/utils/sessionRecovery';
-import { debounce } from '@/utils/debounce';
-import { supabase } from '@/integrations/supabase/client';
+import { 
+  hasSupabaseTokens, 
+  attemptSessionRecovery, 
+  validateCurrentSession,
+  showSessionLostMessage 
+} from '@/utils/sessionRecovery';
 import { toast } from 'sonner';
 
 export const useSessionPersistence = () => {
-  const { isAuthenticated, loading, logout, setAuth, user } = useAuth();
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const { isAuthenticated, loading, setAuth, user } = useAuth();
+  const recoveryAttempted = useRef(false);
   const validationInProgress = useRef(false);
-  const sessionRecoveryAttempted = useRef(false);
 
-  // Enhanced session recovery function
-  const recoverSessionIfNeeded = async (): Promise<boolean> => {
-    if (!hasSupabaseTokens()) {
-      console.log('🔄 Tokens missing, attempting session recovery...');
-      
-      try {
-        // Try to refresh the session
-        const { data, error } = await supabase.auth.refreshSession();
-        
-        if (data?.session && !error) {
-          console.log('✅ Session recovered successfully from missing tokens');
-          // Update auth context with recovered session
-          setAuth(true, user?.user_metadata?.role || null, data.session.user.id);
-          return true;
-        } else {
-          console.log('❌ Session recovery failed:', error?.message);
-          return false;
-        }
-      } catch (error) {
-        console.error('❌ Exception during session recovery:', error);
-        return false;
-      }
+  // Handle cases where tokens might be missing
+  const handleMissingTokens = async () => {
+    if (recoveryAttempted.current) {
+      return; // Don't attempt recovery multiple times
     }
-    return true; // Tokens exist, no recovery needed
+    
+    recoveryAttempted.current = true;
+    console.log('🔍 Tokens appear to be missing, attempting recovery...');
+    
+    const recovery = await attemptSessionRecovery();
+    
+    if (recovery.success && recovery.session) {
+      console.log('✅ Session recovered successfully');
+      
+      // Update auth state with recovered session
+      const role = recovery.session.user?.user_metadata?.role || 'customer';
+      setAuth(true, role, recovery.session.user.id);
+      
+      toast.success('Session restored successfully', {
+        duration: 3000,
+      });
+    } else {
+      console.log('❌ Session recovery failed:', recovery.message);
+      
+      // Show user-friendly message and redirect
+      toast.error('Your session has expired. Please log in again.', {
+        duration: 4000,
+        style: {
+          background: '#f3e8ff',
+          border: '1px solid #d8b4fe',
+          color: '#7c3aed'
+        }
+      });
+      
+      showSessionLostMessage();
+    }
   };
 
-  // Debounced session validation with enhanced recovery
-  const debouncedValidation = useRef(
-    debounce(async () => {
-      if (validationInProgress.current || loading || !isAuthenticated) {
+  // Periodic session validation (less aggressive)
+  const performPeriodicValidation = async () => {
+    if (validationInProgress.current || loading || !isAuthenticated) {
+      return;
+    }
+
+    try {
+      validationInProgress.current = true;
+      console.log('🔍 Performing periodic session validation...');
+      
+      // Check if tokens are missing first
+      if (!hasSupabaseTokens()) {
+        console.log('⚠️ Tokens missing during validation');
+        await handleMissingTokens();
         return;
       }
-
-      try {
-        validationInProgress.current = true;
-        console.log('🔍 Performing background session validation...');
-        
-        // First, try to recover session if tokens are missing
-        const recoverySuccessful = await recoverSessionIfNeeded();
-        
-        if (!recoverySuccessful) {
-          console.log('🚪 Session recovery failed, showing user-friendly message...');
-          toast.error('Your session has expired. Please log in again.', {
-            style: {
-              background: '#f3e8ff',
-              border: '1px solid #d8b4fe',
-              color: '#7c3aed'
-            }
-          });
-          logout();
-          return;
-        }
-        
-        // Then validate the current session
-        const isValid = await validateCurrentSession();
-        
-        if (!isValid && isAuthenticated) {
-          console.log('⚠️ Session invalid, attempting recovery...');
-          const recoveredSession = await handleSessionExpiry();
-          
-          if (!recoveredSession) {
-            console.log('🚪 Session recovery failed, logging out...');
-            toast.error('Your session has expired. Please log in again.', {
-              style: {
-                background: '#f3e8ff',
-                border: '1px solid #d8b4fe',
-                color: '#7c3aed'
-              }
-            });
-            logout();
-          } else {
-            // Update auth context with recovered session
-            console.log('✅ Session recovered, updating auth state');
-            setAuth(true, user?.user_metadata?.role || null, recoveredSession.user.id);
-          }
-        }
-      } catch (error) {
-        console.error('❌ Error during background session validation:', error);
-        // Don't immediately logout on errors, give user benefit of doubt
-        console.log('⚠️ Validation error, but not logging out automatically');
-      } finally {
-        validationInProgress.current = false;
+      
+      // Validate current session
+      const isValid = await validateCurrentSession();
+      
+      if (!isValid) {
+        console.log('⚠️ Session validation failed, attempting recovery...');
+        await handleMissingTokens();
+      } else {
+        console.log('✅ Session validation passed');
       }
-    }, 1000) // 1 second debounce
-  );
+      
+    } catch (error) {
+      console.error('❌ Error during periodic validation:', error);
+      // Don't immediately logout on validation errors
+    } finally {
+      validationInProgress.current = false;
+    }
+  };
 
-  // Enhanced visibility change handler
+  // Handle visibility changes (tab focus/unfocus)
   const handleVisibilityChange = async () => {
     if (!document.hidden && !loading && isAuthenticated) {
-      console.log('👁️ Tab became visible, validating session...');
+      console.log('👁️ Tab became visible, checking session...');
       
       // Reset recovery attempt flag when tab becomes visible
-      sessionRecoveryAttempted.current = false;
+      recoveryAttempted.current = false;
       
-      // Try to recover session immediately if tokens are missing
-      const recoverySuccessful = await recoverSessionIfNeeded();
-      
-      if (recoverySuccessful) {
-        debouncedValidation.current();
-      } else if (!sessionRecoveryAttempted.current) {
-        sessionRecoveryAttempted.current = true;
-        toast.error('Your session was cleared by the browser. Please log in again.', {
-          style: {
-            background: '#f3e8ff',
-            border: '1px solid #d8b4fe',
-            color: '#7c3aed'
-          }
-        });
-        logout();
-      }
+      // Perform validation after a short delay
+      setTimeout(performPeriodicValidation, 1000);
     }
   };
 
-  // Enhanced focus handler
+  // Handle window focus
   const handleFocus = async () => {
     if (!loading && isAuthenticated) {
-      console.log('🎯 Window focused, validating session...');
+      console.log('🎯 Window focused, checking session...');
       
-      // Try recovery first, then validate
-      const recoverySuccessful = await recoverSessionIfNeeded();
-      if (recoverySuccessful) {
-        debouncedValidation.current();
-      }
+      // Reset recovery attempt flag
+      recoveryAttempted.current = false;
+      
+      setTimeout(performPeriodicValidation, 1000);
     }
   };
 
-  // Enhanced online handler
+  // Handle online/offline events
   const handleOnline = async () => {
     if (!loading && isAuthenticated) {
-      console.log('🌐 Connection restored, validating session...');
+      console.log('🌐 Connection restored, checking session...');
       
-      // Try recovery first, then validate
-      const recoverySuccessful = await recoverSessionIfNeeded();
-      if (recoverySuccessful) {
-        debouncedValidation.current();
-      }
-    }
-  };
-
-  const handleBeforeUnload = () => {
-    console.log('🔄 Page unloading, cleaning up...');
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
+      // Reset recovery attempt flag
+      recoveryAttempted.current = false;
+      
+      setTimeout(performPeriodicValidation, 2000);
     }
   };
 
   useEffect(() => {
-    const performSessionValidation = () => {
-      debouncedValidation.current();
-    };
-
     if (isAuthenticated && !loading) {
-      // Set up periodic validation every 2 minutes (less frequent to reduce overhead)
-      intervalRef.current = setInterval(performSessionValidation, 120000);
+      // Set up periodic validation (every 5 minutes, less aggressive)
+      const intervalId = setInterval(performPeriodicValidation, 5 * 60 * 1000);
       
-      // Perform initial validation after a short delay
-      setTimeout(performSessionValidation, 2000);
+      // Perform initial validation after a delay
+      setTimeout(performPeriodicValidation, 3000);
+      
+      return () => clearInterval(intervalId);
     }
+  }, [isAuthenticated, loading]);
 
-    // Add event listeners
+  useEffect(() => {
+    // Add event listeners for app lifecycle events
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', handleFocus);
     window.addEventListener('online', handleOnline);
-    window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
-      // Cleanup
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-      
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('online', handleOnline);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [isAuthenticated, loading, logout, setAuth, user]);
+  }, [isAuthenticated, loading]);
 };
