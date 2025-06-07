@@ -35,6 +35,7 @@ import MerchantLayout from '@/layouts/MerchantLayout';
 import DashboardPage from '@/pages/merchant/DashboardPage';
 import ServicesPage from '@/pages/merchant/ServicesPage';
 import CalendarManagementPage from '@/pages/merchant/CalendarManagementPage';
+import AnalyticsPage from '@/pages/merchant/AnalyticsPage';
 import SettingsPage from '@/pages/merchant/SettingsPage';
 import OnboardingPage from '@/pages/merchant/OnboardingPage';
 

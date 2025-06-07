@@ -1,18 +1,20 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Booking } from '@/types';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
-import { User, Scissors } from 'lucide-react';
+import { User, Scissors, BarChart3 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const DashboardPage: React.FC = () => {
   const { userId } = useAuth();
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [bookingsToday, setBookingsToday] = useState(0);
   const [totalEarnings, setTotalEarnings] = useState(0);
@@ -272,12 +274,23 @@ const DashboardPage: React.FC = () => {
           <h1 className="text-2xl font-light">Dashboard</h1>
           <p className="text-gray-500">Welcome back, {shopName}!</p>
         </div>
-        <Avatar className="h-12 w-12">
-          <AvatarImage src={shopImage || undefined} alt={shopName} />
-          <AvatarFallback className="bg-booqit-primary/10 text-booqit-primary">
-            {shopName.charAt(0).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
+        <div className="flex items-center space-x-3">
+          <Button
+            onClick={() => navigate('/merchant/analytics')}
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            <BarChart3 className="h-4 w-4" />
+            Analytics
+          </Button>
+          <Avatar className="h-12 w-12">
+            <AvatarImage src={shopImage || undefined} alt={shopName} />
+            <AvatarFallback className="bg-booqit-primary/10 text-booqit-primary">
+              {shopName.charAt(0).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+        </div>
       </motion.div>
 
       <motion.div variants={containerVariants} initial="hidden" animate="visible">
