@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useOneSignal } from '@/hooks/useOneSignal';
 import { Button } from '@/components/ui/button';
@@ -203,6 +202,7 @@ const OneSignalDiagnostic: React.FC = () => {
           date: new Date().toISOString().split('T')[0],
           time_slot: '10:00',
           status: 'confirmed',
+          payment_status: 'pending', // Add the missing required field
           customer_name: 'Database Test Customer',
           customer_email: 'test@example.com',
           customer_phone: '1234567890'
