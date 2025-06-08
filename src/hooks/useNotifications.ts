@@ -11,64 +11,67 @@ export const useNotifications = () => {
   const [hasPermission, setHasPermission] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
 
+  // Check current permission status on mount
+  useEffect(() => {
+    if (!('Notification' in window)) {
+      setIsSupported(false);
+      return;
+    }
+
+    const currentPermission = Notification.permission;
+    console.log('🔔 Current permission status:', currentPermission);
+    setHasPermission(currentPermission === 'granted');
+  }, []);
+
   useEffect(() => {
     const initializeNotifications = async () => {
-      if (!isAuthenticated || !userId || !userRole || isInitialized) {
+      if (!isAuthenticated || !userId || !userRole) {
+        console.log('🔔 Missing auth data:', { isAuthenticated, userId, userRole });
         return;
       }
 
-      console.log('🔔 Setting up notifications for user:', userId, userRole);
+      if (!hasPermission) {
+        console.log('🔔 No notification permission granted');
+        return;
+      }
+
+      if (isInitialized) {
+        console.log('🔔 Already initialized');
+        return;
+      }
+
+      console.log('🔔 Initializing notifications for user:', userId, userRole);
 
       try {
-        // Check if notifications are supported
-        if (!('Notification' in window)) {
-          console.log('❌ Notifications not supported in this browser');
-          setIsSupported(false);
-          return;
-        }
-
-        // Check current permission status
-        const currentPermission = Notification.permission;
-        console.log('📱 Current permission status:', currentPermission);
-
-        if (currentPermission === 'granted') {
-          setHasPermission(true);
+        const result = await initializeUserNotifications(userId, userRole);
+        
+        if (result.success) {
+          setIsInitialized(true);
+          console.log('✅ Notifications initialized successfully');
           
-          // Initialize notifications since we already have permission
-          const result = await initializeUserNotifications(userId, userRole);
-          
-          if (result.success) {
-            setIsInitialized(true);
-            console.log('✅ Notifications initialized successfully');
-            
-            // Setup foreground message handling
-            setupForegroundMessaging((payload) => {
-              toast(payload.notification?.title || 'Notification', {
-                description: payload.notification?.body,
-                duration: 5000,
-              });
+          // Setup foreground message handling
+          setupForegroundMessaging((payload) => {
+            console.log('📱 Foreground notification received:', payload);
+            toast(payload.notification?.title || 'Notification', {
+              description: payload.notification?.body,
+              duration: 5000,
             });
-          } else {
-            console.log('❌ Failed to initialize notifications:', result.reason);
-          }
-        } else if (currentPermission === 'denied') {
-          console.log('❌ Notification permission denied by user');
-          setHasPermission(false);
+          });
         } else {
-          // Permission is 'default' - hasn't been asked yet
-          console.log('📱 Notification permission not requested yet');
-          setHasPermission(false);
+          console.error('❌ Failed to initialize notifications:', result.reason);
+          setIsInitialized(false);
         }
       } catch (error) {
-        console.error('❌ Error setting up notifications:', error);
+        console.error('❌ Error initializing notifications:', error);
+        setIsInitialized(false);
       }
     };
 
-    // Delay initialization to ensure auth is fully loaded
-    const timer = setTimeout(initializeNotifications, 2000);
-    
-    return () => clearTimeout(timer);
-  }, [isAuthenticated, userId, userRole, isInitialized]);
+    // Only run if we have permission
+    if (hasPermission && isAuthenticated && userId && userRole) {
+      initializeNotifications();
+    }
+  }, [isAuthenticated, userId, userRole, hasPermission, isInitialized]);
 
   const requestPermissionManually = async () => {
     try {
@@ -77,10 +80,12 @@ export const useNotifications = () => {
         return false;
       }
 
+      console.log('🔔 Requesting notification permission manually...');
       const permission = await requestNotificationPermission();
       setHasPermission(permission);
       
       if (permission && userId && userRole) {
+        console.log('🔔 Permission granted, initializing notifications...');
         const result = await initializeUserNotifications(userId, userRole);
         
         if (result.success) {
@@ -89,13 +94,15 @@ export const useNotifications = () => {
           
           // Setup foreground message handling
           setupForegroundMessaging((payload) => {
+            console.log('📱 Foreground notification received:', payload);
             toast(payload.notification?.title || 'Notification', {
               description: payload.notification?.body,
               duration: 5000,
             });
           });
         } else {
-          toast.error('Failed to initialize notifications');
+          console.error('❌ Failed to initialize after permission grant:', result.reason);
+          toast.error('Failed to initialize notifications: ' + result.reason);
         }
       } else {
         toast('To get booking updates, please enable notifications in your browser settings', {
@@ -103,7 +110,6 @@ export const useNotifications = () => {
           action: {
             label: 'Learn How',
             onClick: () => {
-              // You could open a help modal or link here
               window.open('https://support.google.com/chrome/answer/3220216', '_blank');
             }
           }
@@ -112,8 +118,8 @@ export const useNotifications = () => {
       
       return permission;
     } catch (error) {
-      console.error('Error requesting permission:', error);
-      toast.error('Failed to enable notifications');
+      console.error('❌ Error requesting permission:', error);
+      toast.error('Failed to enable notifications: ' + error.message);
       return false;
     }
   };

@@ -3,7 +3,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Bell, Send, TestTube, CheckCircle, AlertCircle } from 'lucide-react';
+import { Bell, Send, TestTube, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useAuth } from '@/contexts/AuthContext';
 import { sendNotificationToUser } from '@/services/notificationService';
@@ -77,6 +77,16 @@ const NotificationTestPanel = () => {
     }
   };
 
+  const retryInitialization = async () => {
+    if (hasPermission) {
+      toast.info('Retrying notification initialization...');
+      // Force a re-initialization by requesting permission again
+      await requestPermissionManually();
+    } else {
+      toast.error('Permission not granted. Please enable notifications first.');
+    }
+  };
+
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
@@ -106,14 +116,33 @@ const NotificationTestPanel = () => {
           
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">Initialization:</span>
-            <Badge variant={isInitialized ? "default" : "secondary"}>
-              {isInitialized ? "✅ Ready" : "⏳ Pending"}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant={isInitialized ? "default" : "destructive"}>
+                {isInitialized ? "✅ Ready" : "❌ Pending"}
+              </Badge>
+              {hasPermission && !isInitialized && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={retryInitialization}
+                  className="p-1 h-6 w-6"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
           </div>
           
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">User Role:</span>
-            <Badge variant="outline">{userRole}</Badge>
+            <Badge variant="outline">{userRole || 'Unknown'}</Badge>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">User ID:</span>
+            <Badge variant="outline" className="text-xs max-w-24 truncate">
+              {userId ? userId.substring(0, 8) + '...' : 'None'}
+            </Badge>
           </div>
         </div>
 
@@ -152,6 +181,18 @@ const NotificationTestPanel = () => {
             </>
           )}
         </div>
+
+        {hasPermission && !isInitialized && (
+          <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+            <div className="flex items-center gap-2 text-orange-800 text-sm">
+              <AlertCircle className="h-4 w-4" />
+              <span className="font-medium">Initialization Failed</span>
+            </div>
+            <p className="text-orange-700 text-xs mt-1">
+              Notifications are enabled but initialization failed. Check console logs and try the refresh button above.
+            </p>
+          </div>
+        )}
 
         {!hasPermission && (
           <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
