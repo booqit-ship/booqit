@@ -22,6 +22,12 @@ const OneSignalTestButton: React.FC = () => {
         
         if (granted) {
           toast.success('✅ Permission granted! You should receive notifications now.');
+          
+          // Wait a moment then check status again
+          setTimeout(async () => {
+            const newDetails = await getSubscriptionDetails();
+            console.log('Updated details after permission:', newDetails);
+          }, 2000);
         } else {
           toast.error('❌ Permission denied. Please allow notifications in your browser.');
         }
@@ -35,11 +41,33 @@ const OneSignalTestButton: React.FC = () => {
     }
   };
 
+  const handleForceSubscription = async () => {
+    try {
+      toast.info('Attempting to force subscription...');
+      const granted = await requestPermission();
+      
+      if (granted) {
+        toast.success('✅ Successfully subscribed to notifications!');
+      } else {
+        toast.error('❌ Could not establish subscription. Check browser settings.');
+      }
+    } catch (error) {
+      console.error('Force subscription error:', error);
+      toast.error('Failed to force subscription');
+    }
+  };
+
   return (
-    <Button onClick={handleTest} variant="outline" size="sm">
-      <Bell className="h-4 w-4 mr-2" />
-      Test OneSignal
-    </Button>
+    <div className="flex gap-2">
+      <Button onClick={handleTest} variant="outline" size="sm">
+        <Bell className="h-4 w-4 mr-2" />
+        Test OneSignal
+      </Button>
+      <Button onClick={handleForceSubscription} variant="default" size="sm">
+        <Bell className="h-4 w-4 mr-2" />
+        Force Subscribe
+      </Button>
+    </div>
   );
 };
 
