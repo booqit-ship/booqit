@@ -42,6 +42,7 @@ serve(async (req) => {
     
     try {
       requestBody = await req.json()
+      console.log('📋 Request body received:', JSON.stringify(requestBody, null, 2));
     } catch (error) {
       console.error('❌ Invalid JSON in request body:', error)
       return new Response(
@@ -97,6 +98,13 @@ serve(async (req) => {
       )
     }
 
+    console.log('👤 Profile found:', {
+      hasToken: !!profile.fcm_token,
+      tokenLength: profile.fcm_token?.length || 0,
+      tokenPreview: profile.fcm_token?.substring(0, 20) + '...' || 'none',
+      notificationEnabled: profile.notification_enabled
+    });
+
     if (!profile.fcm_token) {
       console.log('⚠️ No FCM token for user:', userId)
       return new Response(
@@ -125,6 +133,7 @@ serve(async (req) => {
     let notificationResult;
     try {
       notificationResult = await sendNotificationToToken(profile.fcm_token, title, body, data || {});
+      console.log('✅ FCM notification sent successfully:', notificationResult);
     } catch (fcmError) {
       console.error('❌ FCM send error:', fcmError)
       
@@ -136,7 +145,8 @@ serve(async (req) => {
           title,
           body,
           type: data?.type || 'general',
-          status: 'failed'
+          status: 'failed',
+          error_message: fcmError.message
         })
 
       return new Response(
@@ -152,15 +162,22 @@ serve(async (req) => {
     }
 
     // Log the successful notification
-    await supabaseClient
+    const { error: logError } = await supabaseClient
       .from('notification_logs')
       .insert({
         user_id: userId,
         title,
         body,
         type: data?.type || 'general',
-        status: 'sent'
+        status: 'sent',
+        fcm_response: notificationResult
       })
+
+    if (logError) {
+      console.error('⚠️ Failed to log notification:', logError);
+    } else {
+      console.log('📝 Notification logged successfully');
+    }
 
     console.log('✅ Notification sent successfully:', notificationResult)
 

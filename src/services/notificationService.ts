@@ -11,6 +11,7 @@ export interface NotificationPayload {
 export const saveUserFCMToken = async (userId: string, token: string, userRole: 'customer' | 'merchant') => {
   try {
     console.log('💾 Saving FCM token for user:', userId, 'Role:', userRole);
+    console.log('🔑 Token length:', token.length, 'Token preview:', token.substring(0, 30) + '...');
     
     const { error } = await supabase
       .from('profiles')
@@ -36,7 +37,8 @@ export const saveUserFCMToken = async (userId: string, token: string, userRole: 
 
 export const sendNotificationToUser = async (userId: string, payload: NotificationPayload) => {
   try {
-    console.log('📤 Sending notification to user:', userId, payload);
+    console.log('📤 Sending notification to user:', userId);
+    console.log('📋 Payload:', JSON.stringify(payload, null, 2));
 
     const { data, error } = await supabase.functions.invoke('send-notification', {
       body: {
@@ -46,6 +48,8 @@ export const sendNotificationToUser = async (userId: string, payload: Notificati
         data: payload.data
       }
     });
+
+    console.log('📨 Edge Function Response:', { data, error });
 
     if (error) {
       console.error('❌ Error calling Edge Function:', error);
