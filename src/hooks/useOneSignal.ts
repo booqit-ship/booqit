@@ -21,7 +21,6 @@ export const useOneSignal = () => {
         console.log('✅ OneSignal initialization complete');
       } catch (error) {
         console.error('❌ Failed to initialize OneSignal:', error);
-        // Don't show error toast during initialization as it might be normal
       }
     };
 
