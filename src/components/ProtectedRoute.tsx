@@ -21,7 +21,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const hasPermanentSession = permanentData.isLoggedIn;
   const permanentRole = permanentData.userRole as UserRole;
 
-  // Show minimal loading only if we're truly checking (should be very brief)
+  // Show loading only briefly - if we have permanent session, show content immediately
   if (loading && !hasPermanentSession) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-booqit-primary/10 to-white flex items-center justify-center">

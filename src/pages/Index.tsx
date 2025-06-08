@@ -34,9 +34,9 @@ const Index = () => {
       }
     }
 
-    // Fallback to context auth state
+    // Fallback to context auth state (only if loading is false)
     if (isAuthenticated && userRole && !loading) {
-      console.log('✅ User authenticated, redirecting based on role:', userRole);
+      console.log('✅ User authenticated via context, redirecting based on role:', userRole);
       
       if (userRole === "merchant") {
         console.log('🏪 Navigating to merchant dashboard');
@@ -48,8 +48,9 @@ const Index = () => {
     }
   }, [isAuthenticated, userRole, loading, navigate]);
 
-  // Show minimal loading ONLY if we're still checking auth (should be almost instant)
-  if (loading) {
+  // Show loading only if we don't have permanent session AND auth is loading
+  const permanentData = PermanentSession.getSession();
+  if (loading && !permanentData.isLoggedIn) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-booqit-primary/20 to-white">
         <div className="text-center">

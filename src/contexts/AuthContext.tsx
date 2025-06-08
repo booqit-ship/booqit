@@ -30,6 +30,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const initialized = useRef(false);
   const queryClient = useQueryClient();
   const timeoutRef = useRef<NodeJS.Timeout>();
+  const authValidationRef = useRef(false);
 
   const fetchUserRole = async (userId: string): Promise<UserRole | null> => {
     try {
@@ -141,28 +142,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (permanentData.isLoggedIn) {
         console.log('⚡ INSTANT session restoration from permanent cache');
         
+        // Set auth state immediately for instant UI update
         setIsAuthenticated(true);
         setUserId(permanentData.userId);
         setUserRole(permanentData.userRole as UserRole);
         setSession(permanentData.session);
         setUser(permanentData.session?.user || null);
         
-        // Validate tokens with Supabase
+        // Validate tokens with Supabase in background (non-blocking)
         if (permanentData.session?.access_token && permanentData.session?.refresh_token) {
-          try {
-            const { error } = await supabase.auth.setSession({
-              access_token: permanentData.session.access_token,
-              refresh_token: permanentData.session.refresh_token
-            });
-            
-            if (error) {
-              console.log('⚠️ Token validation failed, will attempt recovery later');
-            } else {
-              console.log('✅ Tokens validated successfully');
+          setTimeout(async () => {
+            try {
+              console.log('🔍 Background token validation');
+              const { error } = await supabase.auth.setSession({
+                access_token: permanentData.session.access_token,
+                refresh_token: permanentData.session.refresh_token
+              });
+              
+              if (error) {
+                console.log('⚠️ Background token validation failed:', error);
+                // Don't clear state immediately, let session persistence handle it
+              } else {
+                console.log('✅ Background tokens validated successfully');
+              }
+            } catch (error) {
+              console.log('⚠️ Background token validation error:', error);
             }
-          } catch (error) {
-            console.log('⚠️ Token validation error, will attempt recovery later');
-          }
+          }, 100); // Small delay to not block UI
         }
         
         return true;
@@ -173,53 +179,70 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return false;
   };
 
-  // Enhanced auth initialization with proper timing
+  // Enhanced auth initialization with better timing
   const initializeAuth = async () => {
+    if (authValidationRef.current) {
+      console.log('🔄 Auth validation already in progress, skipping');
+      return;
+    }
+
     try {
       console.log('🚀 Initializing auth system...');
+      authValidationRef.current = true;
 
       // Clear any existing timeout
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
 
-      // Set timeout to prevent infinite loading
+      // Set timeout to prevent infinite loading - but longer for tab switches
       timeoutRef.current = setTimeout(() => {
         console.log('⏰ Auth initialization timeout - setting loading false');
         setLoading(false);
+        authValidationRef.current = false;
         
-        // Check if cache was cleared
+        // Check if cache was cleared during timeout
         if (detectCacheClearing()) {
           console.log('🔄 Redirecting to auth due to cache clearing');
         }
-      }, 5000);
+      }, 8000); // Increased timeout for better tab switch handling
 
       // STEP 1: Try instant restoration from permanent cache
       const instantlyRestored = await restoreSessionInstantly();
       
-      // STEP 2: Set up auth listener for new logins
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(
-        async (event, session) => {
-          console.log('🔔 Auth state change event:', event);
-          
-          if (event === 'SIGNED_IN' && session) {
-            console.log('👤 User signed in, updating permanent session');
-            await updateAuthStateFromSupabase(session);
-          } else if (event === 'SIGNED_OUT') {
-            console.log('👋 User signed out');
-            clearAuthState();
-            queryClient.clear();
-          } else if (event === 'TOKEN_REFRESHED' && session) {
-            console.log('🔄 Token refreshed, updating permanent session');
-            const currentRole = userRole || 'customer';
-            PermanentSession.saveSession(session, currentRole, session.user.id);
-            setSession(session);
-            setUser(session.user);
+      // STEP 2: Set up auth listener for new logins (only once)
+      if (!initialized.current) {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          async (event, session) => {
+            console.log('🔔 Auth state change event:', event);
+            
+            if (event === 'SIGNED_IN' && session) {
+              console.log('👤 User signed in, updating permanent session');
+              await updateAuthStateFromSupabase(session);
+            } else if (event === 'SIGNED_OUT') {
+              console.log('👋 User signed out');
+              clearAuthState();
+              queryClient.clear();
+            } else if (event === 'TOKEN_REFRESHED' && session) {
+              console.log('🔄 Token refreshed, updating permanent session');
+              const currentRole = userRole || 'customer';
+              PermanentSession.saveSession(session, currentRole, session.user.id);
+              setSession(session);
+              setUser(session.user);
+            }
           }
-        }
-      );
+        );
 
-      // STEP 3: If no cached session, try to get one from Supabase
+        // Store subscription for cleanup
+        return () => {
+          subscription.unsubscribe();
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+          }
+        };
+      }
+
+      // STEP 3: Only check Supabase if no cached session was found
       let supabaseSessionChecked = false;
       if (!instantlyRestored) {
         try {
@@ -239,25 +262,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
-      // STEP 4: Set loading to false only after all checks are complete
-      if (instantlyRestored || supabaseSessionChecked) {
-        setLoading(false);
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-          timeoutRef.current = undefined;
-        }
+      // STEP 4: Set loading to false - CRITICAL: Wait for both instant restore AND Supabase check
+      console.log('⏹️ Auth initialization complete, setting loading false');
+      setLoading(false);
+      authValidationRef.current = false;
+      
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = undefined;
       }
-
-      return () => {
-        subscription.unsubscribe();
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-        }
-      };
 
     } catch (error) {
       console.error('❌ Error during auth initialization:', error);
       setLoading(false);
+      authValidationRef.current = false;
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
