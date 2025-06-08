@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
@@ -5,6 +6,7 @@ import { CalendarIcon, Clock } from 'lucide-react';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { formatDateInIST } from '@/utils/dateUtils';
 import { useNavigate } from 'react-router-dom';
+
 interface BookingWithDetails {
   id: string;
   user_id: string;
@@ -30,33 +32,36 @@ interface BookingWithDetails {
     duration: number;
   };
 }
+
 const UpcomingBookings: React.FC = () => {
   const [nextBooking, setNextBooking] = useState<BookingWithDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+
   const fetchNextUpcomingBooking = async () => {
     try {
-      const {
-        data: {
-          user
-        }
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+
       const now = new Date();
       const currentDate = now.toISOString().split('T')[0];
       const currentTime = now.toTimeString().split(' ')[0].substring(0, 5);
-      const {
-        data,
-        error
-      } = await supabase.from('bookings').select(`
+
+      const { data, error } = await supabase
+        .from('bookings')
+        .select(`
           *,
           merchant:merchants!inner(shop_name, address, image_url),
           service:services!inner(name, duration)
-        `).eq('user_id', user.id).in('status', ['pending', 'confirmed']).or(`date.gt.${currentDate},and(date.eq.${currentDate},time_slot.gt.${currentTime})`).order('date', {
-        ascending: true
-      }).order('time_slot', {
-        ascending: true
-      }).limit(1).single();
+        `)
+        .eq('user_id', user.id)
+        .in('status', ['pending', 'confirmed'])
+        .or(`date.gt.${currentDate},and(date.eq.${currentDate},time_slot.gt.${currentTime})`)
+        .order('date', { ascending: true })
+        .order('time_slot', { ascending: true })
+        .limit(1)
+        .single();
+
       if (error && error.code !== 'PGRST116') {
         console.error('Error fetching next booking:', error);
         return;
@@ -78,13 +83,16 @@ const UpcomingBookings: React.FC = () => {
       setLoading(false);
     }
   };
+
   useEffect(() => {
     fetchNextUpcomingBooking();
-
+    
     // Refresh every minute to check if the current booking has passed
     const interval = setInterval(fetchNextUpcomingBooking, 60000);
+    
     return () => clearInterval(interval);
   }, []);
+
   const getShopImage = (merchant: BookingWithDetails['merchant']) => {
     if (merchant.image_url && merchant.image_url.trim() !== '') {
       if (merchant.image_url.startsWith('http')) {
@@ -94,13 +102,16 @@ const UpcomingBookings: React.FC = () => {
     }
     return 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
   };
+
   const handleBookingClick = () => {
     if (nextBooking) {
       navigate(`/receipt/${nextBooking.id}`);
     }
   };
+
   if (loading) {
-    return <div className="mb-6">
+    return (
+      <div className="mb-6">
         <h2 className="text-xl font-normal mb-4">Next Appointment</h2>
         <Card className="animate-pulse">
           <CardContent className="p-4">
@@ -113,10 +124,13 @@ const UpcomingBookings: React.FC = () => {
             </div>
           </CardContent>
         </Card>
-      </div>;
+      </div>
+    );
   }
+
   if (!nextBooking) {
-    return <div className="mb-6">
+    return (
+      <div className="mb-6">
         <h2 className="text-xl font-normal mb-4">Next Appointment</h2>
         <Card className="bg-gray-50 border-dashed border-2 border-gray-200">
           <CardContent className="p-6 text-center">
@@ -125,25 +139,36 @@ const UpcomingBookings: React.FC = () => {
             <p className="text-gray-500">When you book appointments, your next one will appear here.</p>
           </CardContent>
         </Card>
-      </div>;
+      </div>
+    );
   }
-  return <div className="mb-6">
+
+  return (
+    <div className="mb-6">
       <h2 className="text-xl font-normal mb-4">Next Appointment</h2>
-      <Card className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-200 cursor-pointer border-l-4 border-l-booqit-primary bg-gradient-to-r from-white to-gray-50/30" onClick={handleBookingClick}>
+      <Card 
+        className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-200 cursor-pointer border-l-4 border-l-booqit-primary bg-gradient-to-r from-white to-gray-50/30"
+        onClick={handleBookingClick}
+      >
         <CardContent className="p-4">
           <div className="flex items-center space-x-4">
             {/* Shop Image */}
             <div className="w-16 h-16 flex-shrink-0">
-              <img src={getShopImage(nextBooking.merchant)} alt={nextBooking.merchant.shop_name} className="w-full h-full object-cover rounded-lg shadow-sm" onError={e => {
-              const target = e.target as HTMLImageElement;
-              target.src = 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
-            }} />
+              <img 
+                src={getShopImage(nextBooking.merchant)} 
+                alt={nextBooking.merchant.shop_name}
+                className="w-full h-full object-cover rounded-lg shadow-sm"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
+                }}
+              />
             </div>
             
             {/* Booking Details */}
             <div className="flex-1 min-w-0">
               <div className="flex justify-between items-start mb-2">
-                <h3 className="text-gray-900 truncate font-light text-base">
+                <h3 className="font-semibold text-lg text-gray-900 truncate">
                   {nextBooking.merchant.shop_name}
                 </h3>
                 <div className="flex items-center text-xs text-gray-500 bg-booqit-primary/10 px-2 py-1 rounded-full ml-2">
@@ -172,13 +197,17 @@ const UpcomingBookings: React.FC = () => {
                 </div>
               </div>
               
-              {nextBooking.stylist_name && <div className="mt-2 text-xs text-gray-500">
+              {nextBooking.stylist_name && (
+                <div className="mt-2 text-xs text-gray-500">
                   Stylist: {nextBooking.stylist_name}
-                </div>}
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
       </Card>
-    </div>;
+    </div>
+  );
 };
+
 export default UpcomingBookings;

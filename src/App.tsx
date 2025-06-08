@@ -1,10 +1,10 @@
+
 import { StrictMode } from 'react';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AuthProvider } from '@/contexts/AuthContext';
-import { OneSignalInitializer } from '@/components/OneSignalInitializer';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import AuthPage from '@/pages/AuthPage';
 import ForgotPasswordPage from '@/pages/ForgotPasswordPage';
@@ -53,7 +53,7 @@ const queryClient = new QueryClient({
 // Component to handle session persistence - must be inside AuthProvider
 const AppWithSessionPersistence = () => {
   useSessionPersistence();
-  return <OneSignalInitializer />;
+  return null;
 };
 
 const router = createBrowserRouter([

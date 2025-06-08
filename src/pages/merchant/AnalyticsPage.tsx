@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -87,16 +88,15 @@ const AnalyticsPage: React.FC = () => {
   const [shouldFetchBookingsData, setShouldFetchBookingsData] = useState(false);
   const [shouldFetchStaffData, setShouldFetchStaffData] = useState(false);
 
-  // Function to fetch all analytics data
-  const fetchAllAnalyticsData = async (mId?: string) => {
-    if (!userId) return;
-    
-    try {
-      setIsLoading(true);
+  // Initial data fetch (without custom ranges)
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      if (!userId) return;
+      
+      try {
+        setIsLoading(true);
 
-      // Get merchant ID
-      let merchantIdToUse = mId;
-      if (!merchantIdToUse) {
+        // Get merchant ID
         const { data: merchantData, error: merchantError } = await supabase
           .from('merchants')
           .select('id')
@@ -108,151 +108,116 @@ const AnalyticsPage: React.FC = () => {
           return;
         }
 
-        merchantIdToUse = merchantData.id;
-        setMerchantId(merchantIdToUse);
-      }
+        const mId = merchantData.id;
+        setMerchantId(mId);
 
-      // Date calculations
-      const today = new Date().toISOString().split('T')[0];
-      const weekStart = format(startOfWeek(new Date()), 'yyyy-MM-dd');
-      const weekEnd = format(endOfWeek(new Date()), 'yyyy-MM-dd');
-      const monthStart = format(startOfMonth(new Date()), 'yyyy-MM-dd');
-      const monthEnd = format(endOfMonth(new Date()), 'yyyy-MM-dd');
+        // Date calculations
+        const today = new Date().toISOString().split('T')[0];
+        const weekStart = format(startOfWeek(new Date()), 'yyyy-MM-dd');
+        const weekEnd = format(endOfWeek(new Date()), 'yyyy-MM-dd');
+        const monthStart = format(startOfMonth(new Date()), 'yyyy-MM-dd');
+        const monthEnd = format(endOfMonth(new Date()), 'yyyy-MM-dd');
 
-      // Fetch all completed bookings with service data - ONLY payment_status = 'completed'
-      const { data: completedBookings, error: bookingsError } = await supabase
-        .from('bookings')
-        .select(`
-          id,
-          date,
-          service_id,
-          staff_id,
-          services!inner(price)
-        `)
-        .eq('merchant_id', merchantIdToUse)
-        .eq('payment_status', 'completed'); // Only fetch completed payments
+        // Fetch all completed bookings with service data
+        const { data: completedBookings, error: bookingsError } = await supabase
+          .from('bookings')
+          .select(`
+            id,
+            date,
+            service_id,
+            staff_id,
+            services!inner(price)
+          `)
+          .eq('merchant_id', mId)
+          .eq('payment_status', 'completed');
 
-      if (bookingsError) {
-        console.error('Error fetching bookings:', bookingsError);
-        return;
-      }
+        if (bookingsError) {
+          console.error('Error fetching bookings:', bookingsError);
+          return;
+        }
 
-      if (completedBookings) {
-        // Calculate earnings (without custom range)
-        const totalEarnings = completedBookings.reduce((sum, booking) => 
-          sum + (booking.services?.price || 0), 0
-        );
-        
-        const todayEarnings = completedBookings
-          .filter(booking => booking.date === today)
-          .reduce((sum, booking) => sum + (booking.services?.price || 0), 0);
-        
-        const weekEarnings = completedBookings
-          .filter(booking => booking.date >= weekStart && booking.date <= weekEnd)
-          .reduce((sum, booking) => sum + (booking.services?.price || 0), 0);
-        
-        const monthEarnings = completedBookings
-          .filter(booking => booking.date >= monthStart && booking.date <= monthEnd)
-          .reduce((sum, booking) => sum + (booking.services?.price || 0), 0);
-
-        setEarnings({
-          total: totalEarnings,
-          today: todayEarnings,
-          thisWeek: weekEarnings,
-          thisMonth: monthEarnings,
-          customRange: 0,
-        });
-
-        // Calculate bookings counts (without custom range)
-        const totalBookingsCount = completedBookings.length;
-        const todayBookingsCount = completedBookings.filter(b => b.date === today).length;
-        const weekBookingsCount = completedBookings.filter(b => b.date >= weekStart && b.date <= weekEnd).length;
-        const monthBookingsCount = completedBookings.filter(b => b.date >= monthStart && b.date <= monthEnd).length;
-
-        setBookings({
-          total: totalBookingsCount,
-          today: todayBookingsCount,
-          thisWeek: weekBookingsCount,
-          thisMonth: monthBookingsCount,
-          customRange: 0,
-        });
-      }
-
-      // Fetch staff data (without custom range initially)
-      const { data: staffList, error: staffError } = await supabase
-        .from('staff')
-        .select('id, name')
-        .eq('merchant_id', merchantIdToUse);
-
-      if (staffError) {
-        console.error('Error fetching staff:', staffError);
-        return;
-      }
-
-      if (staffList && completedBookings) {
-        const staffEarningsData = staffList.map(staff => {
-          const staffBookings = completedBookings.filter(b => b.staff_id === staff.id);
-          const staffEarnings = staffBookings.reduce((sum, booking) => 
+        if (completedBookings) {
+          // Calculate earnings (without custom range)
+          const totalEarnings = completedBookings.reduce((sum, booking) => 
             sum + (booking.services?.price || 0), 0
           );
           
-          return {
-            id: staff.id,
-            name: staff.name,
-            earnings: staffEarnings,
-            bookings: staffBookings.length,
-          };
-        });
+          const todayEarnings = completedBookings
+            .filter(booking => booking.date === today)
+            .reduce((sum, booking) => sum + (booking.services?.price || 0), 0);
+          
+          const weekEarnings = completedBookings
+            .filter(booking => booking.date >= weekStart && booking.date <= weekEnd)
+            .reduce((sum, booking) => sum + (booking.services?.price || 0), 0);
+          
+          const monthEarnings = completedBookings
+            .filter(booking => booking.date >= monthStart && booking.date <= monthEnd)
+            .reduce((sum, booking) => sum + (booking.services?.price || 0), 0);
 
-        setStaffData(staffEarningsData);
-      }
+          setEarnings({
+            total: totalEarnings,
+            today: todayEarnings,
+            thisWeek: weekEarnings,
+            thisMonth: monthEarnings,
+            customRange: 0,
+          });
 
-    } catch (error) {
-      console.error('Error fetching analytics data:', error);
-      toast('Error loading analytics', {
-        description: 'Could not fetch analytics data',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+          // Calculate bookings counts (without custom range)
+          const totalBookingsCount = completedBookings.length;
+          const todayBookingsCount = completedBookings.filter(b => b.date === today).length;
+          const weekBookingsCount = completedBookings.filter(b => b.date >= weekStart && b.date <= weekEnd).length;
+          const monthBookingsCount = completedBookings.filter(b => b.date >= monthStart && b.date <= monthEnd).length;
 
-  // Initial data fetch (without custom ranges)
-  useEffect(() => {
-    fetchAllAnalyticsData();
-  }, [userId]);
-
-  // Set up realtime subscription for payment completions
-  useEffect(() => {
-    if (!merchantId) return;
-
-    console.log('📊 Analytics: Setting up realtime subscription for merchant:', merchantId);
-
-    const paymentsChannel = supabase
-      .channel('analytics-payments-changes')
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'bookings',
-        filter: `merchant_id=eq.${merchantId}`
-      }, (payload) => {
-        console.log('📊 Analytics: Booking change detected:', payload);
-        
-        // Refresh analytics when payment status becomes completed
-        if (payload.new?.payment_status === 'completed') {
-          console.log('💰 Analytics: Payment completed, refreshing analytics data');
-          toast.success('Payment completed! Analytics updated.');
-          fetchAllAnalyticsData(merchantId);
+          setBookings({
+            total: totalBookingsCount,
+            today: todayBookingsCount,
+            thisWeek: weekBookingsCount,
+            thisMonth: monthBookingsCount,
+            customRange: 0,
+          });
         }
-      })
-      .subscribe();
 
-    // Cleanup subscription
-    return () => {
-      console.log('🧹 Analytics: Cleaning up realtime subscription');
-      supabase.removeChannel(paymentsChannel);
+        // Fetch staff data (without custom range initially)
+        const { data: staffList, error: staffError } = await supabase
+          .from('staff')
+          .select('id, name')
+          .eq('merchant_id', mId);
+
+        if (staffError) {
+          console.error('Error fetching staff:', staffError);
+          return;
+        }
+
+        if (staffList && completedBookings) {
+          const staffEarningsData = staffList.map(staff => {
+            const staffBookings = completedBookings.filter(b => b.staff_id === staff.id);
+            const staffEarnings = staffBookings.reduce((sum, booking) => 
+              sum + (booking.services?.price || 0), 0
+            );
+            
+            return {
+              id: staff.id,
+              name: staff.name,
+              earnings: staffEarnings,
+              bookings: staffBookings.length,
+            };
+          });
+
+          setStaffData(staffEarningsData);
+        }
+
+      } catch (error) {
+        console.error('Error fetching analytics data:', error);
+        toast('Error loading analytics', {
+          description: 'Could not fetch analytics data',
+        });
+      } finally {
+        setIsLoading(false);
+      }
     };
-  }, [merchantId]);
+
+    fetchInitialData();
+  }, [userId]);
 
   // Separate effect for custom range data fetching
   useEffect(() => {
@@ -269,7 +234,7 @@ const AnalyticsPage: React.FC = () => {
             .from('bookings')
             .select(`services!inner(price)`)
             .eq('merchant_id', merchantId)
-            .eq('payment_status', 'completed') // Only completed payments
+            .eq('payment_status', 'completed')
             .gte('date', fromDate)
             .lte('date', toDate);
 
@@ -291,7 +256,7 @@ const AnalyticsPage: React.FC = () => {
             .from('bookings')
             .select('id')
             .eq('merchant_id', merchantId)
-            .eq('payment_status', 'completed') // Only completed payments
+            .eq('payment_status', 'completed')
             .gte('date', fromDate)
             .lte('date', toDate);
 
@@ -318,7 +283,7 @@ const AnalyticsPage: React.FC = () => {
               services!inner(price)
             `)
             .eq('merchant_id', merchantId)
-            .eq('payment_status', 'completed') // Only completed payments
+            .eq('payment_status', 'completed')
             .gte('date', fromDate)
             .lte('date', toDate);
 

@@ -363,7 +363,7 @@ const ProfilePage: React.FC = () => {
               <TabsContent value="history">
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center font-thin">
+                    <CardTitle className="flex items-center">
                       <Calendar className="h-5 w-5 mr-2 text-booqit-primary" />
                       Your Booking History
                     </CardTitle>
@@ -409,7 +409,7 @@ const ProfilePage: React.FC = () => {
               <TabsContent value="reviews">
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center font-thin">
+                    <CardTitle className="flex items-center">
                       <Star className="h-5 w-5 mr-2 text-booqit-primary" />
                       Your Reviews
                     </CardTitle>

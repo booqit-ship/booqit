@@ -6,28 +6,12 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { Booking } from '@/types';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { User, Scissors, BarChart3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-
-interface BookingData {
-  id: string;
-  date: string;
-  time_slot: string;
-  status: string;
-  payment_status: string;
-  customer_name?: string;
-  customer_phone?: string;
-  customer_email?: string;
-  stylist_name?: string;
-  user_id: string;
-  services?: {
-    name: string;
-    price?: number;
-  };
-}
 
 const DashboardPage: React.FC = () => {
   const { userId } = useAuth();
@@ -35,7 +19,7 @@ const DashboardPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [bookingsToday, setBookingsToday] = useState(0);
   const [totalEarnings, setTotalEarnings] = useState(0);
-  const [recentBookings, setRecentBookings] = useState<BookingData[]>([]);
+  const [recentBookings, setRecentBookings] = useState<Booking[]>([]);
   const [merchantId, setMerchantId] = useState<string | null>(null);
   const [shopImage, setShopImage] = useState<string | null>(null);
   const [shopName, setShopName] = useState<string>('');
@@ -54,144 +38,112 @@ const DashboardPage: React.FC = () => {
     visible: { y: 0, opacity: 1 }
   };
 
-  const fetchMerchantId = async () => {
-    if (!userId) {
-      console.log('No userId available');
+  useEffect(() => {
+    const fetchMerchantId = async () => {
+      if (!userId) return;
+      
+      try {
+        const { data: merchantData, error: merchantError } = await supabase
+          .from('merchants')
+          .select('id, image_url, shop_name')
+          .eq('user_id', userId)
+          .single();
+
+        if (merchantError) {
+          console.error('Error fetching merchant ID:', merchantError);
+          return;
+        }
+
+        if (merchantData) {
+          setMerchantId(merchantData.id);
+          setShopImage(merchantData.image_url);
+          setShopName(merchantData.shop_name || 'Merchant');
+          return merchantData.id;
+        }
+      } catch (error) {
+        console.error('Error fetching merchant ID:', error);
+      }
       return null;
-    }
-    
-    try {
-      console.log('Fetching merchant for userId:', userId);
-      const { data: merchantData, error: merchantError } = await supabase
-        .from('merchants')
-        .select('id, image_url, shop_name')
-        .eq('user_id', userId)
-        .single();
+    };
 
-      if (merchantError) {
-        console.error('Error fetching merchant ID:', merchantError);
-        toast.error('Failed to fetch merchant data');
-        return null;
-      }
+    const fetchDashboardData = async () => {
+      if (!userId) return;
+      
+      try {
+        setIsLoading(true);
 
-      if (merchantData) {
-        console.log('Found merchant:', merchantData);
-        setMerchantId(merchantData.id);
-        setShopImage(merchantData.image_url);
-        setShopName(merchantData.shop_name || 'Merchant');
-        return merchantData.id;
-      } else {
-        console.log('No merchant found for user');
-        toast.error('No merchant profile found');
-        return null;
-      }
-    } catch (error) {
-      console.error('Error fetching merchant ID:', error);
-      toast.error('Failed to fetch merchant data');
-    }
-    return null;
-  };
+        // Get merchant ID first
+        const mId = await fetchMerchantId();
+        if (!mId) return;
 
-  const fetchDashboardData = async (mId?: string) => {
-    if (!userId) {
-      console.log('No userId available for dashboard data');
-      return;
-    }
-    
-    try {
-      setIsLoading(true);
+        // Get today's date in ISO format (YYYY-MM-DD)
+        const today = new Date().toISOString().split('T')[0];
 
-      // Use provided merchant ID or fetch it
-      const merchantIdToUse = mId || await fetchMerchantId();
-      if (!merchantIdToUse) {
-        console.log('No merchant ID available');
-        setIsLoading(false);
-        return;
-      }
+        // Get bookings count for today
+        const { count: todayBookingsCount, error: bookingsCountError } = await supabase
+          .from('bookings')
+          .select('*', { count: 'exact', head: true })
+          .eq('merchant_id', mId)
+          .eq('date', today);
 
-      console.log('Fetching dashboard data for merchant:', merchantIdToUse);
-
-      // Get today's date in ISO format (YYYY-MM-DD)
-      const today = new Date().toISOString().split('T')[0];
-      console.log('Today date:', today);
-
-      // Get bookings count for today (all statuses except cancelled)
-      const { data: todayBookingsData, error: bookingsCountError } = await supabase
-        .from('bookings')
-        .select('*')
-        .eq('merchant_id', merchantIdToUse)
-        .eq('date', today)
-        .neq('status', 'cancelled');
-
-      if (bookingsCountError) {
-        console.error('Error fetching bookings count:', bookingsCountError);
-        toast.error('Failed to fetch bookings count');
-      } else {
-        console.log('Today bookings:', todayBookingsData?.length || 0);
-        setBookingsToday(todayBookingsData?.length || 0);
-      }
-
-      // Get all completed bookings to calculate total earnings
-      const { data: completedBookings, error: earningsError } = await supabase
-        .from('bookings')
-        .select(`
-          id,
-          payment_status,
-          services!inner(price)
-        `)
-        .eq('merchant_id', merchantIdToUse)
-        .eq('status', 'completed')
-        .eq('payment_status', 'completed');
-
-      if (earningsError) {
-        console.error('Error fetching earnings data:', earningsError);
-        toast.error('Failed to fetch earnings data');
-        setTotalEarnings(0);
-      } else {
-        console.log('Completed bookings:', completedBookings?.length || 0);
-        if (completedBookings && completedBookings.length > 0) {
-          // Sum up all service prices from completed bookings
-          const totalEarnings = completedBookings.reduce((sum, booking) => {
-            const servicePrice = booking.services?.price || 0;
-            console.log('Adding service price:', servicePrice);
-            return sum + servicePrice;
-          }, 0);
-          console.log('Total earnings calculated:', totalEarnings);
-          setTotalEarnings(totalEarnings);
+        if (bookingsCountError) {
+          console.error('Error fetching bookings count:', bookingsCountError);
         } else {
-          console.log('No completed bookings found');
+          setBookingsToday(todayBookingsCount || 0);
+        }
+
+        // Get all bookings with payment status 'completed' to calculate earnings
+        const { data: completedBookings, error: earningsError } = await supabase
+          .from('bookings')
+          .select('service_id')
+          .eq('merchant_id', mId)
+          .eq('payment_status', 'completed');
+
+        if (earningsError) {
+          console.error('Error fetching earnings data:', earningsError);
+        } else if (completedBookings && completedBookings.length > 0) {
+          // Get service prices for all completed bookings
+          const serviceIds = completedBookings.map(booking => booking.service_id);
+          const { data: services, error: servicesError } = await supabase
+            .from('services')
+            .select('price')
+            .in('id', serviceIds);
+
+          if (servicesError) {
+            console.error('Error fetching service prices:', servicesError);
+          } else if (services) {
+            // Sum up all service prices
+            const totalEarnings = services.reduce((sum, service) => sum + (service.price || 0), 0);
+            setTotalEarnings(totalEarnings);
+          }
+        } else {
           setTotalEarnings(0);
         }
-      }
 
-      // Fetch recent bookings for today with complete data
-      const { data: recentBookingsData, error: recentBookingsError } = await supabase
-        .from('bookings')
-        .select(`
-          id,
-          date,
-          time_slot,
-          status,
-          payment_status,
-          customer_name,
-          customer_phone,
-          customer_email,
-          stylist_name,
-          services!inner(name),
-          user_id
-        `)
-        .eq('merchant_id', merchantIdToUse)
-        .eq('date', today)
-        .neq('status', 'cancelled')
-        .order('time_slot', { ascending: true })
-        .limit(5);
+        // Fetch recent bookings for today with better customer and stylist name fetching
+        const { data: recentBookingsData, error: recentBookingsError } = await supabase
+          .from('bookings')
+          .select(`
+            id,
+            date,
+            time_slot,
+            status,
+            payment_status,
+            customer_name,
+            customer_phone,
+            customer_email,
+            stylist_name,
+            service:service_id (name),
+            user_id
+          `)
+          .eq('merchant_id', mId)
+          .eq('date', today)
+          .order('time_slot', { ascending: true })
+          .limit(5);
 
-      if (recentBookingsError) {
-        console.error('Error fetching recent bookings:', recentBookingsError);
-        toast.error('Failed to fetch recent bookings');
-      } else {
-        console.log('Recent bookings:', recentBookingsData?.length || 0);
-        if (recentBookingsData) {
+        if (recentBookingsError) {
+          console.error('Error fetching recent bookings:', recentBookingsError);
+        } else if (recentBookingsData) {
           // Process bookings and ensure we have customer names
           const bookingsWithDetails = await Promise.all(
             recentBookingsData.map(async (booking) => {
@@ -199,89 +151,65 @@ const DashboardPage: React.FC = () => {
 
               // If no customer name in booking, try to fetch from profiles
               if (!booking.customer_name && booking.user_id) {
-                try {
-                  const { data: userData, error: userError } = await supabase
-                    .from('profiles')
-                    .select('name')
-                    .eq('id', booking.user_id)
-                    .single();
+                const { data: userData, error: userError } = await supabase
+                  .from('profiles')
+                  .select('name')
+                  .eq('id', booking.user_id)
+                  .single();
 
-                  if (!userError && userData?.name) {
-                    customerName = userData.name;
-                  }
-                } catch (error) {
-                  console.log('Could not fetch user profile for:', booking.user_id);
+                if (!userError && userData?.name) {
+                  customerName = userData.name;
                 }
               }
 
               return {
-                id: booking.id,
-                date: booking.date,
-                time_slot: booking.time_slot,
-                status: booking.status,
-                payment_status: booking.payment_status,
+                ...booking,
                 customer_name: customerName,
-                customer_phone: booking.customer_phone,
-                customer_email: booking.customer_email,
-                stylist_name: booking.stylist_name || 'Unassigned',
-                user_id: booking.user_id,
-                services: booking.services
+                stylist_name: booking.stylist_name || 'Unassigned'
               };
             })
           );
 
-          setRecentBookings(bookingsWithDetails);
+          setRecentBookings(bookingsWithDetails as Booking[]);
         }
+
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        toast('Error loading dashboard', {
+          description: 'Could not fetch dashboard data',
+          style: {
+            backgroundColor: 'red',
+            color: 'white'
+          }
+        });
+      } finally {
+        setIsLoading(false);
       }
-
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      toast.error('Error loading dashboard data');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    console.log('Dashboard useEffect triggered, userId:', userId);
-    if (userId) {
-      fetchDashboardData();
-    }
-  }, [userId]);
-
-  // Set up realtime subscription for bookings changes
-  useEffect(() => {
-    if (!merchantId) return;
-
-    console.log('🔔 Setting up realtime subscription for merchant:', merchantId);
-
-    const bookingsChannel = supabase
-      .channel('dashboard-bookings-changes')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'bookings',
-        filter: `merchant_id=eq.${merchantId}`
-      }, (payload) => {
-        console.log('📊 Dashboard: Booking change detected:', payload);
-        
-        // Refresh data when bookings change, especially when completed
-        if (payload.eventType === 'UPDATE' && payload.new?.status === 'completed') {
-          console.log('💰 Booking completed, refreshing earnings');
-          toast.success('Booking completed! Dashboard updated.');
-        }
-        
-        // Refresh dashboard data
-        fetchDashboardData(merchantId);
-      })
-      .subscribe();
-
-    // Cleanup subscription
-    return () => {
-      console.log('🧹 Cleaning up dashboard realtime subscription');
-      supabase.removeChannel(bookingsChannel);
     };
-  }, [merchantId]);
+
+    fetchDashboardData();
+
+    // Set up realtime subscription
+    if (merchantId) {
+      const bookingsChannel = supabase
+        .channel('dashboard-bookings-changes')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'bookings',
+          filter: `merchant_id=eq.${merchantId}`
+        }, () => {
+          // Refresh data when bookings change
+          fetchDashboardData();
+        })
+        .subscribe();
+
+      // Cleanup subscription
+      return () => {
+        supabase.removeChannel(bookingsChannel);
+      };
+    }
+  }, [userId, merchantId]);
 
   // Dashboard stats - only bookings today and total earnings
   const dashboardStats = [
@@ -425,7 +353,7 @@ const DashboardPage: React.FC = () => {
                       {/* Service and time information */}
                       <div className="grid grid-cols-1 gap-2 text-sm text-gray-600">
                         <div className="flex items-center justify-between">
-                          <span className="font-medium text-gray-800">{booking.services?.name || 'Service'}</span>
+                          <span className="font-medium text-gray-800">{booking.service?.name}</span>
                           <span className="font-semibold text-booqit-primary">
                             {formatTimeToAmPm(booking.time_slot)}
                           </span>
