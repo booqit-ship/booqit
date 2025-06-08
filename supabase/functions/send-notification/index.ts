@@ -1,6 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { GoogleAuth } from "https://esm.sh/google-auth-library@9.2.3"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -218,65 +219,40 @@ async function getAccessToken() {
   let serviceAccount;
   try {
     serviceAccount = JSON.parse(FIREBASE_SERVICE_ACCOUNT);
+    console.log('🔑 Service account loaded:', {
+      projectId: serviceAccount.project_id,
+      clientEmail: serviceAccount.client_email,
+      hasPrivateKey: !!serviceAccount.private_key
+    });
   } catch (error) {
+    console.error('❌ Invalid Firebase service account JSON:', error);
     throw new Error('Invalid Firebase service account JSON');
   }
 
-  const { private_key, client_email } = serviceAccount;
-  
-  // Create JWT for Google OAuth
-  const now = Math.floor(Date.now() / 1000);
-  const payload = {
-    iss: client_email,
-    scope: 'https://www.googleapis.com/auth/firebase.messaging',
-    aud: 'https://oauth2.googleapis.com/token',
-    iat: now,
-    exp: now + 3600,
-  };
+  try {
+    console.log('🔐 Initializing Google Auth with service account...');
+    
+    const auth = new GoogleAuth({
+      credentials: serviceAccount,
+      scopes: ['https://www.googleapis.com/auth/firebase.messaging'],
+    });
 
-  // Simple JWT creation (for production, consider using a proper JWT library)
-  const header = { alg: 'RS256', typ: 'JWT' };
-  const encodedHeader = btoa(JSON.stringify(header));
-  const encodedPayload = btoa(JSON.stringify(payload));
-  
-  // Create signature using Web Crypto API
-  const textEncoder = new TextEncoder();
-  const data = textEncoder.encode(`${encodedHeader}.${encodedPayload}`);
-  
-  // Import the private key
-  const privateKeyPem = private_key.replace(/\\n/g, '\n');
-  const keyData = new TextEncoder().encode(privateKeyPem);
-  
-  // For simplicity, we'll make a request to Google's token endpoint with client assertion
-  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-      assertion: await createJWT(header, payload, privateKeyPem),
-    }),
-  });
+    console.log('👤 Getting authenticated client...');
+    const client = await auth.getClient();
+    
+    console.log('🎫 Requesting access token...');
+    const accessTokenResponse = await client.getAccessToken();
+    
+    if (!accessTokenResponse || !accessTokenResponse.token) {
+      throw new Error('Failed to get access token from Google Auth');
+    }
 
-  if (!tokenResponse.ok) {
-    const errorText = await tokenResponse.text();
-    throw new Error(`Failed to get access token: ${tokenResponse.status} - ${errorText}`);
+    console.log('✅ Access token obtained successfully');
+    return accessTokenResponse.token;
+  } catch (error) {
+    console.error('❌ Google Auth error:', error);
+    throw new Error(`Failed to get access token: ${error.message}`);
   }
-
-  const tokenData = await tokenResponse.json();
-  return tokenData.access_token;
-}
-
-async function createJWT(header: any, payload: any, privateKey: string): Promise<string> {
-  // Simple JWT implementation for Google OAuth
-  // In production, consider using a proper JWT library
-  const encodedHeader = btoa(JSON.stringify(header)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-  const encodedPayload = btoa(JSON.stringify(payload)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-  
-  // For now, we'll use a simplified approach and make the OAuth request directly
-  // This is a fallback - in production you'd want proper JWT signing
-  return `${encodedHeader}.${encodedPayload}.signature`;
 }
 
 async function sendNotificationToToken(token: string, title: string, body: string, data: Record<string, string> = {}) {
