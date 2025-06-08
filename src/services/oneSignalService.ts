@@ -1,4 +1,3 @@
-
 import { Capacitor } from '@capacitor/core';
 
 declare global {
@@ -113,6 +112,46 @@ export class OneSignalService {
       }
     } catch (error) {
       console.error('❌ Error setting OneSignal user ID:', error);
+    }
+  }
+
+  async setUserSegmentation(userId: string, userRole: string, merchantId?: string): Promise<void> {
+    try {
+      if (window.OneSignal && this.isInitialized) {
+        // Set external user ID for targeted notifications
+        await window.OneSignal.login(userId);
+        
+        // Add user role tag
+        await window.OneSignal.User.addTag('user_type', userRole);
+        
+        // Add merchant-specific tags for merchants
+        if (userRole === 'merchant' && merchantId) {
+          await window.OneSignal.User.addTag('merchant_id', merchantId);
+        }
+        
+        // Add customer-specific tags for customers
+        if (userRole === 'customer') {
+          await window.OneSignal.User.addTag('customer_id', userId);
+        }
+        
+        console.log('✅ OneSignal user segmentation set:', { userId, userRole, merchantId });
+      }
+    } catch (error) {
+      console.error('❌ Error setting OneSignal user segmentation:', error);
+    }
+  }
+
+  async sendNewBookingNotification(merchantUserId: string, customerName: string, serviceName: string, dateTime: string): Promise<void> {
+    try {
+      // This would typically be called from a server-side function
+      console.log('📧 New booking notification should be sent to merchant:', {
+        merchantUserId,
+        customerName,
+        serviceName,
+        dateTime
+      });
+    } catch (error) {
+      console.error('❌ Error sending new booking notification:', error);
     }
   }
 

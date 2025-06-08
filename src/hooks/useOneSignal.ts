@@ -1,4 +1,3 @@
-
 import { useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { oneSignalService } from '@/services/oneSignalService';
@@ -47,20 +46,28 @@ export const useOneSignal = () => {
     initializeOneSignal();
   }, []);
 
-  // Handle user authentication state changes
+  // Handle user authentication state changes with segmentation
   useEffect(() => {
     if (!initializedRef.current) return;
 
     const handleAuthChange = async () => {
       if (isAuthenticated && userId) {
-        console.log('🔔 Setting up OneSignal for authenticated user:', userId);
+        console.log('🔔 Setting up OneSignal for authenticated user:', userId, 'Role:', userRole);
         
-        // Set user ID in OneSignal
+        // Set user ID and segmentation in OneSignal
         await oneSignalService.setUserId(userId);
         
-        // Add user role tag
+        // Add user role and segmentation tags
         if (userRole) {
           await oneSignalService.addTag('userRole', userRole);
+          
+          // For merchants, we might want to add merchant-specific data
+          if (userRole === 'merchant') {
+            // You can add merchant ID here if available in auth context
+            await oneSignalService.addTag('user_type', 'merchant');
+          } else if (userRole === 'customer') {
+            await oneSignalService.addTag('user_type', 'customer');
+          }
         }
         
         // Request notification permission
@@ -91,9 +98,16 @@ export const useOneSignal = () => {
     await oneSignalService.removeTag(key);
   };
 
+  const setUserSegmentation = async (merchantId?: string): Promise<void> => {
+    if (userId && userRole) {
+      await oneSignalService.setUserSegmentation(userId, userRole, merchantId);
+    }
+  };
+
   return {
     requestPermission,
     addTag,
     removeTag,
+    setUserSegmentation,
   };
 };
