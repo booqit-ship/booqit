@@ -64,12 +64,12 @@ export class OneSignalService {
             serviceWorkerUpdaterPath: '/OneSignalSDKUpdaterWorker.js',
             allowLocalhostAsSecureOrigin: true,
             notifyButton: {
-              enable: false, // We'll handle permission prompts ourselves
+              enable: false,
             },
             welcomeNotification: {
-              disable: true, // Disable welcome notification
+              disable: true,
             },
-            autoRegister: false, // We'll handle registration manually
+            autoRegister: false,
             autoResubscribe: true,
             persistNotification: false,
           });
@@ -112,7 +112,6 @@ export class OneSignalService {
       } else if (window.OneSignal && this.isInitialized) {
         console.log('🔔 Requesting web push notification permission...');
         
-        // Check current permission status first
         const currentPermission = await window.OneSignal.Notifications.permission;
         console.log('Current permission status:', currentPermission);
         
@@ -121,14 +120,12 @@ export class OneSignalService {
           return true;
         }
         
-        // For denied permissions, we can still try showing prompts
         if (currentPermission === 'denied') {
           console.log('🔔 Permission was denied, showing slidedown prompt');
           await this.showSlidedownPrompt();
           return false;
         }
         
-        // Request permission using the new API
         const permission = await window.OneSignal.Notifications.requestPermission();
         console.log('🔔 Permission request result:', permission);
         
@@ -137,7 +134,6 @@ export class OneSignalService {
           return true;
         } else {
           console.log('❌ Push notification permission denied, showing fallback prompts');
-          // Try alternative prompts
           setTimeout(async () => {
             await this.showSlidedownPrompt();
           }, 1000);
@@ -149,7 +145,6 @@ export class OneSignalService {
       }
     } catch (error) {
       console.error('❌ Error requesting notification permission:', error);
-      // Show slidedown as fallback
       try {
         await this.showSlidedownPrompt();
       } catch (fallbackError) {
@@ -167,7 +162,6 @@ export class OneSignalService {
       }
     } catch (error) {
       console.error('❌ Error showing slidedown prompt:', error);
-      // Try native prompt as backup
       try {
         await this.showNativePrompt();
       } catch (nativeError) {
@@ -193,6 +187,10 @@ export class OneSignalService {
         console.log('🔔 Setting OneSignal user ID:', userId);
         await window.OneSignal.login(userId);
         console.log('✅ OneSignal user ID set successfully');
+        
+        // Verify the user ID was set
+        const currentUserId = await window.OneSignal.User.onesignalId;
+        console.log('🔔 Current OneSignal user ID after setting:', currentUserId);
       } else {
         console.warn('⚠️ OneSignal not available for setting user ID');
       }
@@ -234,13 +232,11 @@ export class OneSignalService {
     }
   }
 
-  // Enhanced permission prompt for testing and onboarding
   async forcePermissionPrompt(): Promise<void> {
     try {
       if (!Capacitor.isNativePlatform() && window.OneSignal && this.isInitialized) {
         console.log('🔔 Forcing permission prompt sequence...');
         
-        // Try multiple approaches in sequence
         try {
           await window.OneSignal.showNativePrompt();
           console.log('✅ Native prompt shown');
@@ -260,7 +256,6 @@ export class OneSignalService {
     }
   }
 
-  // Check if user is subscribed
   async isSubscribed(): Promise<boolean> {
     try {
       if (window.OneSignal && this.isInitialized) {
@@ -274,7 +269,6 @@ export class OneSignalService {
     }
   }
 
-  // Get current user's OneSignal ID
   async getCurrentUserId(): Promise<string | null> {
     try {
       if (window.OneSignal && this.isInitialized) {

@@ -23,13 +23,11 @@ export const useOneSignal = () => {
         
         // For web, show permission prompts after initialization
         if (!Capacitor.isNativePlatform() && !permissionRequestedRef.current) {
-          // Wait a bit for page to fully load
           setTimeout(async () => {
             console.log('🔔 Starting automatic permission flow for web...');
             permissionRequestedRef.current = true;
             
             try {
-              // Check if already granted
               const isSubscribed = await oneSignalService.isSubscribed();
               if (!isSubscribed) {
                 console.log('🔔 User not subscribed, showing permission prompts...');
@@ -47,7 +45,6 @@ export const useOneSignal = () => {
       }
     };
 
-    // Start initialization immediately
     initializeOneSignal();
   }, []);
 

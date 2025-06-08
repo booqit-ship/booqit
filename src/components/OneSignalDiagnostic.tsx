@@ -140,6 +140,102 @@ const OneSignalDiagnostic: React.FC = () => {
     }
   };
 
+  const testDatabaseTrigger = async () => {
+    try {
+      if (!userId || userRole !== 'merchant') {
+        toast.error('You must be logged in as a merchant to test database triggers');
+        return;
+      }
+
+      setIsLoading(true);
+      
+      console.log('Testing database trigger by creating a test booking...');
+
+      // Get merchant record for the logged-in user
+      const { data: merchantData, error: merchantError } = await supabase
+        .from('merchants')
+        .select('id')
+        .eq('user_id', userId)
+        .single();
+
+      if (merchantError) {
+        console.error('Merchant lookup error:', merchantError);
+        toast.error('Could not find merchant record for user');
+        return;
+      }
+
+      // Get a service for the merchant
+      const { data: serviceData, error: serviceError } = await supabase
+        .from('services')
+        .select('id')
+        .eq('merchant_id', merchantData.id)
+        .limit(1)
+        .single();
+
+      if (serviceError) {
+        console.error('Service lookup error:', serviceError);
+        toast.error('No services found for merchant - create a service first');
+        return;
+      }
+
+      // Get a staff member for the merchant
+      const { data: staffData, error: staffError } = await supabase
+        .from('staff')
+        .select('id')
+        .eq('merchant_id', merchantData.id)
+        .limit(1)
+        .single();
+
+      if (staffError) {
+        console.error('Staff lookup error:', staffError);
+        toast.error('No staff found for merchant - create a staff member first');
+        return;
+      }
+
+      // Create a test booking to trigger the notification
+      const { data: bookingData, error: bookingError } = await supabase
+        .from('bookings')
+        .insert({
+          user_id: userId,
+          merchant_id: merchantData.id,
+          service_id: serviceData.id,
+          staff_id: staffData.id,
+          date: new Date().toISOString().split('T')[0],
+          time_slot: '10:00',
+          status: 'confirmed',
+          customer_name: 'Database Test Customer',
+          customer_email: 'test@example.com',
+          customer_phone: '1234567890'
+        })
+        .select()
+        .single();
+
+      if (bookingError) {
+        console.error('Booking creation error:', bookingError);
+        toast.error('Failed to create test booking: ' + bookingError.message);
+        return;
+      }
+
+      console.log('Test booking created:', bookingData);
+      toast.success('✅ Test booking created! Database trigger should send notification. Check your device.');
+
+      // Clean up the test booking after a few seconds
+      setTimeout(async () => {
+        await supabase
+          .from('bookings')
+          .delete()
+          .eq('id', bookingData.id);
+        console.log('Test booking cleaned up');
+      }, 5000);
+
+    } catch (error) {
+      console.error('Error testing database trigger:', error);
+      toast.error('Failed to test database trigger');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     refreshStatus();
   }, []);
@@ -251,6 +347,17 @@ const OneSignalDiagnostic: React.FC = () => {
             <TestTube className="h-4 w-4 mr-2" />
             {isLoading ? 'Sending...' : 'Test Direct Notification'}
           </Button>
+
+          <Button 
+            onClick={testDatabaseTrigger}
+            className="w-full"
+            variant="secondary"
+            size="sm"
+            disabled={isLoading || !userId || userRole !== 'merchant'}
+          >
+            <Database className="h-4 w-4 mr-2" />
+            {isLoading ? 'Testing...' : 'Test Database Trigger'}
+          </Button>
           
           <Button 
             onClick={checkSystemHealth}
@@ -283,7 +390,9 @@ const OneSignalDiagnostic: React.FC = () => {
           <p>• Must be logged in as merchant for booking notifications</p>
           <p>• Web users need to accept browser permission prompts</p>
           <p>• Test notifications help verify the complete pipeline</p>
+          <p>• Database trigger test creates a real booking to test the flow</p>
           {!userId && <p className="text-red-500">⚠️ Please log in to test notifications</p>}
+          {userRole !== 'merchant' && userId && <p className="text-red-500">⚠️ Must be merchant to test database triggers</p>}
         </div>
       </CardContent>
     </Card>
