@@ -1,7 +1,7 @@
 
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { GoogleAuth } from "https://esm.sh/google-auth-library@9.2.3"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -230,29 +230,103 @@ async function getAccessToken() {
   }
 
   try {
-    console.log('🔐 Initializing Google Auth with service account...');
+    console.log('🔐 Creating JWT for Google OAuth...');
     
-    const auth = new GoogleAuth({
-      credentials: serviceAccount,
-      scopes: ['https://www.googleapis.com/auth/firebase.messaging'],
+    const { private_key, client_email } = serviceAccount;
+    
+    // Create JWT for Google OAuth
+    const now = Math.floor(Date.now() / 1000);
+    const payload = {
+      iss: client_email,
+      scope: 'https://www.googleapis.com/auth/firebase.messaging',
+      aud: 'https://oauth2.googleapis.com/token',
+      iat: now,
+      exp: now + 3600,
+    };
+
+    const jwt = await createJWT(payload, private_key);
+    
+    console.log('🎫 Requesting access token from Google...');
+    
+    // Exchange JWT for access token
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        assertion: jwt,
+      }),
     });
 
-    console.log('👤 Getting authenticated client...');
-    const client = await auth.getClient();
-    
-    console.log('🎫 Requesting access token...');
-    const accessTokenResponse = await client.getAccessToken();
-    
-    if (!accessTokenResponse || !accessTokenResponse.token) {
-      throw new Error('Failed to get access token from Google Auth');
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text();
+      console.error('❌ Token request failed:', tokenResponse.status, errorText);
+      throw new Error(`Failed to get access token: ${tokenResponse.status} - ${errorText}`);
     }
 
+    const tokenData = await tokenResponse.json();
     console.log('✅ Access token obtained successfully');
-    return accessTokenResponse.token;
+    return tokenData.access_token;
   } catch (error) {
-    console.error('❌ Google Auth error:', error);
+    console.error('❌ Access token error:', error);
     throw new Error(`Failed to get access token: ${error.message}`);
   }
+}
+
+async function createJWT(payload: any, privateKey: string): Promise<string> {
+  const header = { alg: 'RS256', typ: 'JWT' };
+  
+  // Encode header and payload
+  const encodedHeader = btoa(JSON.stringify(header))
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+    
+  const encodedPayload = btoa(JSON.stringify(payload))
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+  
+  const signingInput = `${encodedHeader}.${encodedPayload}`;
+  
+  // Clean up the private key
+  const cleanPrivateKey = privateKey
+    .replace(/\\n/g, '\n')
+    .replace(/-----BEGIN PRIVATE KEY-----/, '')
+    .replace(/-----END PRIVATE KEY-----/, '')
+    .replace(/\s/g, '');
+  
+  // Decode the base64 private key
+  const binaryKey = Uint8Array.from(atob(cleanPrivateKey), c => c.charCodeAt(0));
+  
+  // Import the private key
+  const cryptoKey = await crypto.subtle.importKey(
+    'pkcs8',
+    binaryKey,
+    {
+      name: 'RSASSA-PKCS1-v1_5',
+      hash: 'SHA-256',
+    },
+    false,
+    ['sign']
+  );
+  
+  // Sign the data
+  const signature = await crypto.subtle.sign(
+    'RSASSA-PKCS1-v1_5',
+    cryptoKey,
+    new TextEncoder().encode(signingInput)
+  );
+  
+  // Encode the signature
+  const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature)))
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+  
+  return `${signingInput}.${encodedSignature}`;
 }
 
 async function sendNotificationToToken(token: string, title: string, body: string, data: Record<string, string> = {}) {
@@ -320,3 +394,4 @@ async function sendNotificationToToken(token: string, title: string, body: strin
     throw error;
   }
 }
+
