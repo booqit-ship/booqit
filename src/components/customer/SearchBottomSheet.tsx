@@ -183,7 +183,7 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
                 </div>
               </div>
               
-              <h3 className="text-lg font-semibold text-gray-900 mb-2 font-righteous font-medium">No salons found</h3>
+              <h3 className="text-gray-900 mb-2 font-righteous text-lg font-thin">No salons found</h3>
               <p className="text-gray-500 text-center text-sm leading-relaxed font-poppins">
                 We couldn't find any salons matching your criteria {userCity && `in ${userCity}`}.
                 <br />
