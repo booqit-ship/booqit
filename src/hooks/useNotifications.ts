@@ -9,6 +9,7 @@ export const useNotifications = () => {
   const { isAuthenticated, userId, userRole } = useAuth();
   const [isInitialized, setIsInitialized] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
+  const [isSupported, setIsSupported] = useState(true);
 
   useEffect(() => {
     const initializeNotifications = async () => {
@@ -19,15 +20,24 @@ export const useNotifications = () => {
       console.log('🔔 Setting up notifications for user:', userId, userRole);
 
       try {
-        // Request permission
-        const permission = await requestNotificationPermission();
-        setHasPermission(permission);
+        // Check if notifications are supported
+        if (!('Notification' in window)) {
+          console.log('❌ Notifications not supported in this browser');
+          setIsSupported(false);
+          return;
+        }
 
-        if (permission) {
-          // Initialize user notifications (save token and send welcome)
-          const initialized = await initializeUserNotifications(userId, userRole);
+        // Check current permission status
+        const currentPermission = Notification.permission;
+        console.log('📱 Current permission status:', currentPermission);
+
+        if (currentPermission === 'granted') {
+          setHasPermission(true);
           
-          if (initialized) {
+          // Initialize notifications since we already have permission
+          const result = await initializeUserNotifications(userId, userRole);
+          
+          if (result.success) {
             setIsInitialized(true);
             console.log('✅ Notifications initialized successfully');
             
@@ -39,11 +49,15 @@ export const useNotifications = () => {
               });
             });
           } else {
-            console.log('❌ Failed to initialize notifications');
+            console.log('❌ Failed to initialize notifications:', result.reason);
           }
+        } else if (currentPermission === 'denied') {
+          console.log('❌ Notification permission denied by user');
+          setHasPermission(false);
         } else {
-          console.log('❌ Notification permission not granted');
-          toast.error('Notification permission required for booking updates');
+          // Permission is 'default' - hasn't been asked yet
+          console.log('📱 Notification permission not requested yet');
+          setHasPermission(false);
         }
       } catch (error) {
         console.error('❌ Error setting up notifications:', error);
@@ -58,16 +72,42 @@ export const useNotifications = () => {
 
   const requestPermissionManually = async () => {
     try {
+      if (!isSupported) {
+        toast.error('Notifications are not supported in this browser');
+        return false;
+      }
+
       const permission = await requestNotificationPermission();
       setHasPermission(permission);
       
       if (permission && userId && userRole) {
-        const initialized = await initializeUserNotifications(userId, userRole);
-        setIsInitialized(initialized);
+        const result = await initializeUserNotifications(userId, userRole);
         
-        if (initialized) {
+        if (result.success) {
+          setIsInitialized(true);
           toast.success('Notifications enabled successfully! 🔔');
+          
+          // Setup foreground message handling
+          setupForegroundMessaging((payload) => {
+            toast(payload.notification?.title || 'Notification', {
+              description: payload.notification?.body,
+              duration: 5000,
+            });
+          });
+        } else {
+          toast.error('Failed to initialize notifications');
         }
+      } else {
+        toast('To get booking updates, please enable notifications in your browser settings', {
+          duration: 7000,
+          action: {
+            label: 'Learn How',
+            onClick: () => {
+              // You could open a help modal or link here
+              window.open('https://support.google.com/chrome/answer/3220216', '_blank');
+            }
+          }
+        });
       }
       
       return permission;
@@ -81,6 +121,7 @@ export const useNotifications = () => {
   return {
     isInitialized,
     hasPermission,
+    isSupported,
     requestPermissionManually
   };
 };

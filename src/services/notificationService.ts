@@ -67,11 +67,23 @@ export const initializeUserNotifications = async (userId: string, userRole: 'cus
   try {
     console.log('🚀 Initializing notifications for user:', userId, userRole);
 
+    // Check if notifications are supported
+    if (!('Notification' in window)) {
+      console.log('❌ This browser does not support notifications');
+      return { success: false, reason: 'not_supported' };
+    }
+
+    // Check current permission status
+    if (Notification.permission === 'denied') {
+      console.log('❌ Notification permission is denied');
+      return { success: false, reason: 'permission_denied' };
+    }
+
     // Get FCM token
     const token = await getFCMToken();
     if (!token) {
       console.log('❌ Could not get FCM token');
-      return false;
+      return { success: false, reason: 'token_failed' };
     }
 
     console.log('🔑 FCM Token obtained:', token.substring(0, 20) + '...');
@@ -80,7 +92,7 @@ export const initializeUserNotifications = async (userId: string, userRole: 'cus
     const saved = await saveUserFCMToken(userId, token, userRole);
     if (!saved) {
       console.log('❌ Could not save FCM token');
-      return false;
+      return { success: false, reason: 'save_failed' };
     }
 
     // Send welcome notification
@@ -98,10 +110,10 @@ export const initializeUserNotifications = async (userId: string, userRole: 'cus
     });
 
     console.log('✅ User notifications initialized successfully');
-    return true;
+    return { success: true };
   } catch (error) {
     console.error('❌ Error initializing notifications:', error);
-    return false;
+    return { success: false, reason: 'initialization_error' };
   }
 };
 

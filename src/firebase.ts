@@ -29,8 +29,26 @@ export const requestNotificationPermission = async () => {
   try {
     console.log('🔔 Requesting notification permission...');
     
+    // Check if notifications are supported
+    if (!('Notification' in window)) {
+      console.log('❌ Notifications not supported');
+      return false;
+    }
+
+    // Check current permission
+    if (Notification.permission === 'granted') {
+      console.log('✅ Notification permission already granted');
+      return true;
+    }
+
+    if (Notification.permission === 'denied') {
+      console.log('❌ Notification permission denied');
+      return false;
+    }
+
+    // Request permission
     const permission = await Notification.requestPermission();
-    console.log('📱 Permission status:', permission);
+    console.log('📱 Permission response:', permission);
     
     if (permission === 'granted') {
       console.log('✅ Notification permission granted');
@@ -52,12 +70,23 @@ export const getFCMToken = async () => {
       return null;
     }
 
+    // Check permission first
+    if (Notification.permission !== 'granted') {
+      console.error('❌ Notification permission not granted');
+      return null;
+    }
+
     const token = await getToken(messaging, {
       vapidKey: VAPID_KEY
     });
     
-    console.log('🔑 FCM Token generated:', token);
-    return token;
+    if (token) {
+      console.log('🔑 FCM Token generated:', token.substring(0, 20) + '...');
+      return token;
+    } else {
+      console.error('❌ No FCM token available');
+      return null;
+    }
   } catch (error) {
     console.error('❌ Error getting FCM token:', error);
     return null;
