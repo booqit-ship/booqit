@@ -1,16 +1,16 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Bell, Send, TestTube, CheckCircle, AlertCircle, RefreshCw, Copy } from 'lucide-react';
+import { Bell, Send, TestTube, CheckCircle, AlertCircle, RefreshCw, Copy, Settings } from 'lucide-react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useAuth } from '@/contexts/AuthContext';
 import { sendNotificationToUser } from '@/services/notificationService';
-import { getFCMToken } from '@/firebase';
+import { getFCMToken, requestNotificationPermission } from '@/firebase';
 import { toast } from 'sonner';
 
 const NotificationTestPanel = () => {
@@ -20,11 +20,52 @@ const NotificationTestPanel = () => {
   const [customTitle, setCustomTitle] = useState('Custom Test Notification 🧪');
   const [customMessage, setCustomMessage] = useState('This is a custom test message from BooqIt!');
   const [isLoading, setIsLoading] = useState(false);
+  const [permissionStatus, setPermissionStatus] = useState<string>('');
+
+  // Check permission status on mount and set up interval to monitor
+  useEffect(() => {
+    const checkPermission = () => {
+      const status = Notification.permission;
+      setPermissionStatus(status);
+      console.log('🔔 Permission check:', status);
+    };
+
+    checkPermission();
+    const interval = setInterval(checkPermission, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Load FCM token when permission is granted
+  useEffect(() => {
+    const loadToken = async () => {
+      if (hasPermission && !fcmToken) {
+        try {
+          const token = await getFCMToken();
+          if (token) {
+            setFcmToken(token);
+          }
+        } catch (error) {
+          console.error('Error loading FCM token:', error);
+        }
+      }
+    };
+    
+    loadToken();
+  }, [hasPermission, fcmToken]);
 
   const handleEnableNotifications = async () => {
     setIsLoading(true);
     try {
       console.log('🔔 Starting notification enablement process...');
+      
+      // First request browser permission
+      const browserPermission = await requestNotificationPermission();
+      if (!browserPermission) {
+        toast.error('Browser notification permission denied. Please check your browser settings.');
+        return;
+      }
+
+      // Then initialize with our system
       const success = await requestPermissionManually();
       
       if (success) {
@@ -33,6 +74,7 @@ const NotificationTestPanel = () => {
         if (token) {
           setFcmToken(token);
           console.log('🔑 FCM Token obtained:', token);
+          toast.success('🔔 Notifications enabled successfully! You should see a test notification.');
         }
       }
     } catch (error) {
@@ -65,10 +107,19 @@ const NotificationTestPanel = () => {
       });
 
       if (success) {
-        toast.success('✅ Test notification sent successfully! Check your notifications.', {
-          duration: 5000
+        toast.success('✅ Test notification sent! Check for browser notification.', {
+          duration: 8000
         });
         console.log('✅ Test notification sent successfully');
+        
+        // Also create a local test notification for immediate feedback
+        if (Notification.permission === 'granted') {
+          new Notification('Local Test: ' + customTitle, {
+            body: customMessage + ' (This is a local test notification)',
+            icon: '/icons/icon-192.png',
+            tag: 'local-test'
+          });
+        }
       } else {
         toast.error('❌ Failed to send test notification. Check console for details.');
       }
@@ -104,9 +155,18 @@ const NotificationTestPanel = () => {
       });
 
       if (success) {
-        toast.success('🎉 Welcome notification sent! Check your notifications.', {
-          duration: 5000
+        toast.success('🎉 Welcome notification sent! Check for browser notification.', {
+          duration: 8000
         });
+        
+        // Also create a local test notification
+        if (Notification.permission === 'granted') {
+          new Notification('Welcome to BooqIt! 🎉', {
+            body: welcomeMessage + ' (Local test)',
+            icon: '/icons/icon-192.png',
+            tag: 'welcome-test'
+          });
+        }
       } else {
         toast.error('❌ Failed to send welcome notification.');
       }
@@ -115,6 +175,20 @@ const NotificationTestPanel = () => {
       toast.error('❌ Error sending welcome notification: ' + error.message);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const openBrowserSettings = () => {
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+      toast('On mobile: Go to Settings → Site Settings → Notifications → Allow', {
+        duration: 10000
+      });
+    } else {
+      toast('Desktop: Click the lock/info icon in the address bar → Notifications → Allow', {
+        duration: 10000
+      });
     }
   };
 
@@ -142,60 +216,43 @@ const NotificationTestPanel = () => {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <TestTube className="h-5 w-5" />
-          Notification Test Panel
+          Browser Notification Test Panel
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Status Section */}
-        <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-          <div className="flex items-center gap-2 text-green-800 text-sm mb-2">
-            <CheckCircle className="h-4 w-4" />
-            <span className="font-medium">FCM v1 API Enabled ✅</span>
-          </div>
-          <p className="text-green-700 text-xs">
-            FIREBASE_SERVICE_ACCOUNT configured and ready to send notifications via FCM v1 API
-          </p>
-        </div>
-
-        {/* Permission and Initialization Status */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Permission Status:</span>
-            <Badge variant={hasPermission ? "default" : "destructive"}>
-              {hasPermission ? "✅ Granted" : "❌ Not Granted"}
-            </Badge>
-          </div>
-          
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Initialization:</span>
+        {/* Browser Permission Status */}
+        <div className="p-4 border rounded-lg">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-medium">Browser Permission:</span>
             <div className="flex items-center gap-2">
-              <Badge variant={isInitialized ? "default" : "destructive"}>
-                {isInitialized ? "✅ Ready" : "❌ Pending"}
+              <Badge variant={permissionStatus === 'granted' ? "default" : "destructive"}>
+                {permissionStatus === 'granted' ? "✅ Granted" : 
+                 permissionStatus === 'denied' ? "❌ Denied" : 
+                 "⏳ Not Asked"}
               </Badge>
-              {hasPermission && !isInitialized && (
+              {permissionStatus === 'denied' && (
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={handleEnableNotifications}
-                  className="p-1 h-6 w-6"
-                  disabled={isLoading}
+                  onClick={openBrowserSettings}
+                  className="p-1 h-6"
                 >
-                  <RefreshCw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
+                  <Settings className="h-3 w-3" />
                 </Button>
               )}
             </div>
           </div>
           
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-medium">System Status:</span>
+            <Badge variant={isInitialized ? "default" : "destructive"}>
+              {isInitialized ? "✅ Ready" : "❌ Pending"}
+            </Badge>
+          </div>
+          
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">User Role:</span>
             <Badge variant="outline">{userRole || 'Unknown'}</Badge>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">User ID:</span>
-            <Badge variant="outline" className="text-xs max-w-32 truncate">
-              {userId ? userId.substring(0, 8) + '...' : 'None'}
-            </Badge>
           </div>
         </div>
 
@@ -231,7 +288,7 @@ const NotificationTestPanel = () => {
 
         {/* Action Buttons */}
         <div className="space-y-3">
-          {!hasPermission && (
+          {permissionStatus !== 'granted' && (
             <Button 
               onClick={handleEnableNotifications}
               className="w-full"
@@ -239,11 +296,11 @@ const NotificationTestPanel = () => {
               disabled={isLoading}
             >
               <Bell className="h-4 w-4 mr-2" />
-              {isLoading ? 'Enabling...' : 'Enable Notifications'}
+              {isLoading ? 'Enabling...' : 'Enable Browser Notifications'}
             </Button>
           )}
           
-          {hasPermission && (
+          {permissionStatus === 'granted' && (
             <>
               {/* Custom Notification Form */}
               <div className="space-y-3 p-4 border rounded-lg">
@@ -276,7 +333,7 @@ const NotificationTestPanel = () => {
                   disabled={!isInitialized || isLoading}
                 >
                   <Send className="h-4 w-4 mr-2" />
-                  {isLoading ? 'Sending...' : 'Send Custom Test'}
+                  {isLoading ? 'Sending...' : 'Send Test Notification'}
                 </Button>
               </div>
               
@@ -293,38 +350,40 @@ const NotificationTestPanel = () => {
           )}
         </div>
 
-        {/* Error/Warning Messages */}
-        {hasPermission && !isInitialized && (
-          <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
-            <div className="flex items-center gap-2 text-orange-800 text-sm">
+        {/* Status Messages */}
+        {permissionStatus === 'denied' && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-center gap-2 text-red-800 text-sm">
               <AlertCircle className="h-4 w-4" />
-              <span className="font-medium">Initialization Failed</span>
+              <span className="font-medium">Notifications Blocked</span>
             </div>
-            <p className="text-orange-700 text-xs mt-1">
-              Notifications are enabled but initialization failed. Check console logs and try the refresh button above.
+            <p className="text-red-700 text-xs mt-1">
+              Please enable notifications in your browser settings and refresh the page.
             </p>
           </div>
         )}
 
-        {!hasPermission && (
+        {permissionStatus === 'granted' && !isInitialized && (
           <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
             <div className="flex items-center gap-2 text-orange-800 text-sm">
               <AlertCircle className="h-4 w-4" />
-              <span className="font-medium">Enable Notifications</span>
+              <span className="font-medium">System Initialization Pending</span>
             </div>
             <p className="text-orange-700 text-xs mt-1">
-              Click "Enable Notifications" above to allow push notifications in your browser
+              Browser permission granted but system initialization failed. Try refreshing the page.
             </p>
           </div>
         )}
 
         {/* Debug Information */}
         <div className="text-xs text-gray-500 space-y-1 pt-4 border-t">
-          <p>• Custom notifications allow you to test with your own content</p>
-          <p>• Welcome messages simulate login notifications</p>
-          <p>• All notifications are logged in the notification_logs table</p>
-          <p>• Check browser notifications and console logs for debugging</p>
-          <p>• FCM token is used to identify this device for notifications</p>
+          <p>🔔 <strong>Testing Steps:</strong></p>
+          <p>1. Click "Enable Browser Notifications" and allow permission</p>
+          <p>2. Use "Send Test Notification" - you should see it in browser</p>
+          <p>3. Check browser console for detailed logs</p>
+          <p>4. Try with app in background vs foreground</p>
+          <p>• Foreground: Shows as browser notification immediately</p>
+          <p>• Background: Handled by service worker</p>
         </div>
       </CardContent>
     </Card>

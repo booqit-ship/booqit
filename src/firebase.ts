@@ -17,10 +17,21 @@ const VAPID_KEY = "BKvU-PqQVLX4l5_UF0Ps1g4wFLH38gUO5ahkyYP7MipfUauIasKBLTZrc_bJh
 let app;
 let messaging;
 
-// Initialize Firebase only once
+// Initialize Firebase only once and register service worker
 if (typeof window !== 'undefined') {
   app = initializeApp(firebaseConfig);
   messaging = getMessaging(app);
+  
+  // Register service worker for background messages
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/firebase-messaging-sw.js')
+      .then((registration) => {
+        console.log('✅ Service Worker registered successfully:', registration);
+      })
+      .catch((error) => {
+        console.error('❌ Service Worker registration failed:', error);
+      });
+  }
 }
 
 export { messaging };
@@ -36,22 +47,34 @@ export const requestNotificationPermission = async () => {
     }
 
     // Check current permission
-    if (Notification.permission === 'granted') {
+    let permission = Notification.permission;
+    console.log('📱 Current permission status:', permission);
+    
+    if (permission === 'granted') {
       console.log('✅ Notification permission already granted');
       return true;
     }
 
-    if (Notification.permission === 'denied') {
-      console.log('❌ Notification permission denied');
+    if (permission === 'denied') {
+      console.log('❌ Notification permission denied by user');
+      alert('Notifications are blocked. Please enable them in your browser settings:\n\n1. Click the lock icon in the address bar\n2. Set Notifications to "Allow"\n3. Refresh the page');
       return false;
     }
 
     // Request permission
-    const permission = await Notification.requestPermission();
+    permission = await Notification.requestPermission();
     console.log('📱 Permission response:', permission);
     
     if (permission === 'granted') {
       console.log('✅ Notification permission granted');
+      
+      // Test browser notification capability
+      new Notification('BooqIt Notifications Enabled! 🔔', {
+        body: 'You will now receive booking updates and reminders.',
+        icon: '/icons/icon-192.png',
+        tag: 'permission-granted'
+      });
+      
       return true;
     } else {
       console.log('❌ Notification permission denied');
@@ -76,15 +99,17 @@ export const getFCMToken = async () => {
       return null;
     }
 
+    console.log('🔑 Getting FCM token with VAPID key...');
     const token = await getToken(messaging, {
       vapidKey: VAPID_KEY
     });
     
     if (token) {
-      console.log('🔑 FCM Token generated:', token.substring(0, 20) + '...');
+      console.log('🔑 FCM Token generated successfully:', token.substring(0, 20) + '...');
+      console.log('📱 Full token for debugging:', token);
       return token;
     } else {
-      console.error('❌ No FCM token available');
+      console.error('❌ No FCM token available - check VAPID key and permissions');
       return null;
     }
   } catch (error) {
@@ -94,27 +119,49 @@ export const getFCMToken = async () => {
 };
 
 export const setupForegroundMessaging = (callback?: (payload: any) => void) => {
-  if (!messaging) return;
+  if (!messaging) {
+    console.log('❌ Messaging not available for foreground setup');
+    return;
+  }
+
+  console.log('🔔 Setting up foreground message handling...');
 
   onMessage(messaging, (payload) => {
     console.log('📲 Foreground message received:', payload);
     
-    // Show custom notification for foreground messages
-    if (payload.notification) {
+    // Always show browser notification for foreground messages
+    if (payload.notification && Notification.permission === 'granted') {
       const { title, body } = payload.notification;
       
-      // Create custom notification element or toast
-      if (callback) {
-        callback(payload);
-      } else {
-        // Default behavior - show browser notification if permission granted
-        if (Notification.permission === 'granted') {
-          new Notification(title || 'BooqIt Notification', {
-            body: body || 'You have a new notification',
-            icon: '/icons/icon-192.png'
-          });
-        }
-      }
+      console.log('🔔 Creating browser notification:', { title, body });
+      
+      const notification = new Notification(title || 'BooqIt Notification', {
+        body: body || 'You have a new notification',
+        icon: '/icons/icon-192.png',
+        badge: '/icons/icon-192.png',
+        tag: 'foreground-notification',
+        requireInteraction: true,
+        silent: false,
+        vibrate: [200, 100, 200],
+        data: payload.data
+      });
+
+      // Handle notification click
+      notification.onclick = () => {
+        console.log('🔔 Foreground notification clicked');
+        window.focus();
+        notification.close();
+      };
+
+      // Auto-close after 10 seconds
+      setTimeout(() => {
+        notification.close();
+      }, 10000);
+    }
+    
+    // Also call the callback if provided
+    if (callback) {
+      callback(payload);
     }
   });
 };

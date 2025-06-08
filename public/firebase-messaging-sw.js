@@ -1,4 +1,3 @@
-
 importScripts('https://www.gstatic.com/firebasejs/10.12.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.12.1/firebase-messaging-compat.js');
 
@@ -14,6 +13,7 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+// Handle background messages (when app is not in focus)
 messaging.onBackgroundMessage((payload) => {
   console.log('📱 Background message received:', payload);
   
@@ -24,22 +24,48 @@ messaging.onBackgroundMessage((payload) => {
     badge: '/icons/icon-192.png',
     tag: 'booqit-notification',
     requireInteraction: true,
+    silent: false,
+    vibrate: [200, 100, 200],
     actions: [
       {
         action: 'open',
-        title: 'Open App'
+        title: 'Open App',
+        icon: '/icons/icon-192.png'
       }
     ],
     data: payload.data
   };
 
-  self.registration.showNotification(notificationTitle, notificationOptions);
+  console.log('🔔 Showing notification:', notificationTitle, notificationOptions);
+  
+  return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
+// Handle notification clicks
 self.addEventListener('notificationclick', (event) => {
+  console.log('🔔 Notification clicked:', event);
+  
   event.notification.close();
   
+  // Open the app when notification is clicked
   event.waitUntil(
-    clients.openWindow('/')
+    clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clientList) => {
+        // If app is already open, focus it
+        for (const client of clientList) {
+          if (client.url.includes('booqit') && 'focus' in client) {
+            return client.focus();
+          }
+        }
+        // Otherwise open new window
+        if (clients.openWindow) {
+          return clients.openWindow('/');
+        }
+      })
   );
+});
+
+// Handle notification close
+self.addEventListener('notificationclose', (event) => {
+  console.log('🔕 Notification closed:', event);
 });
