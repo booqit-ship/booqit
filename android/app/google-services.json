@@ -1,0 +1,35 @@
+
+{
+  "project_info": {
+    "project_number": "486416254991",
+    "project_id": "booqit09-f4cfc",
+    "storage_bucket": "booqit09-f4cfc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:486416254991:android:ca9785d706cf6ce0d2fb7a",
+        "android_client_info": {
+          "package_name": "com.x16studios.booqit"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCDB3Lm4ni3jz0oQjgQPye4Pedau_H3S-4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "486416254991-abc123def456.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

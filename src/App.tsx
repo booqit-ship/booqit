@@ -1,4 +1,3 @@
-
 import { StrictMode } from 'react';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -13,7 +12,9 @@ import Index from '@/pages/Index';
 import NotFound from '@/pages/NotFound';
 import PrivacyPolicy from '@/pages/PrivacyPolicy';
 import TermsAndConditions from '@/pages/TermsAndConditions';
+import NotificationTestPage from '@/pages/NotificationTestPage';
 import { useSessionPersistence } from '@/hooks/useSessionPersistence';
+import { useNotifications } from '@/hooks/useNotifications';
 
 // Customer Pages
 import CustomerLayout from '@/layouts/CustomerLayout';
@@ -50,9 +51,10 @@ const queryClient = new QueryClient({
   },
 });
 
-// Component to handle session persistence - must be inside AuthProvider
-const AppWithSessionPersistence = () => {
+// Component to handle session persistence and notifications - must be inside AuthProvider
+const AppWithProviders = () => {
   useSessionPersistence();
+  useNotifications(); // Initialize Firebase notifications
   return null;
 };
 
@@ -80,6 +82,10 @@ const router = createBrowserRouter([
   {
     path: "/terms-and-conditions",
     element: <TermsAndConditions />,
+  },
+  {
+    path: "/test-notifications",
+    element: <NotificationTestPage />,
   },
   // Customer routes - direct paths
   {
@@ -268,7 +274,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <AppWithSessionPersistence />
+          <AppWithProviders />
           <RouterProvider router={router} />
           <Toaster />
         </AuthProvider>
