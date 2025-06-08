@@ -1,286 +1,263 @@
 
-import { Capacitor } from '@capacitor/core';
-
 declare global {
   interface Window {
-    OneSignal?: any;
-    OneSignalDeferred?: any[];
+    OneSignal: any;
   }
 }
 
-export class OneSignalService {
-  private static instance: OneSignalService;
-  private isInitialized = false;
+class OneSignalService {
+  private initialized = false;
   private appId = 'd5a0614a-d4fc-45a0-81d4-cff762b376dd';
 
-  private constructor() {}
-
-  static getInstance(): OneSignalService {
-    if (!OneSignalService.instance) {
-      OneSignalService.instance = new OneSignalService();
-    }
-    return OneSignalService.instance;
-  }
-
   async initialize(): Promise<void> {
-    if (this.isInitialized) {
+    if (this.initialized) {
       console.log('🔔 OneSignal already initialized');
       return;
     }
 
     try {
-      if (Capacitor.isNativePlatform()) {
-        await this.initializeNative();
-      } else {
-        await this.initializeWeb();
-      }
+      console.log('🔔 Initializing OneSignal...');
       
-      this.isInitialized = true;
+      if (!window.OneSignal) {
+        console.error('❌ OneSignal SDK not loaded');
+        throw new Error('OneSignal SDK not available');
+      }
+
+      await window.OneSignal.init({
+        appId: this.appId,
+        safari_web_id: "web.onesignal.auto.18b6e89e-2e55-4554-bb27-d99aecae96b9",
+        notifyButton: {
+          enable: false,
+        },
+        allowLocalhostAsSecureOrigin: true,
+        autoRegister: false, // We'll handle registration manually
+        autoResubscribe: true,
+        showCredit: false,
+        persistNotification: true,
+        welcomeNotification: {
+          disable: true
+        },
+        promptOptions: {
+          slidedown: {
+            prompts: [
+              {
+                type: "push",
+                autoPrompt: false,
+                text: {
+                  actionMessage: "Get instant notifications when customers book appointments!",
+                  acceptButton: "Allow",
+                  cancelButton: "No Thanks"
+                },
+                delay: {
+                  pageViews: 1,
+                  timeDelay: 2
+                }
+              }
+            ]
+          }
+        }
+      });
+
+      this.initialized = true;
       console.log('✅ OneSignal initialized successfully');
+
+      // Set up debug listeners
+      this.setupDebugListeners();
+
     } catch (error) {
       console.error('❌ OneSignal initialization failed:', error);
       throw error;
     }
   }
 
-  private async initializeNative(): Promise<void> {
-    console.log('🔔 OneSignal native initialization (handled by plugin)');
-  }
+  private setupDebugListeners(): void {
+    if (!window.OneSignal) return;
 
-  private async initializeWeb(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (typeof window === 'undefined') {
-        reject(new Error('Window is undefined'));
-        return;
-      }
+    window.OneSignal.User.PushSubscription.addEventListener('change', (event: any) => {
+      console.log('🔔 Push subscription changed:', event);
+    });
 
-      const initOneSignal = async (OneSignal: any) => {
-        try {
-          console.log('🔔 Initializing OneSignal Web SDK...');
-          
-          await OneSignal.init({
-            appId: this.appId,
-            serviceWorkerPath: '/OneSignalSDKWorker.js',
-            serviceWorkerUpdaterPath: '/OneSignalSDKUpdaterWorker.js',
-            allowLocalhostAsSecureOrigin: true,
-            notifyButton: {
-              enable: false,
-            },
-            welcomeNotification: {
-              disable: true,
-            },
-            autoRegister: false,
-            autoResubscribe: true,
-            persistNotification: false,
-          });
-          
-          console.log('✅ OneSignal web initialization complete');
-          resolve();
-        } catch (error) {
-          console.error('❌ OneSignal initialization error:', error);
-          reject(error);
-        }
-      };
-
-      if (window.OneSignal) {
-        initOneSignal(window.OneSignal);
-      } else if (window.OneSignalDeferred) {
-        window.OneSignalDeferred.push(initOneSignal);
-      } else {
-        window.OneSignalDeferred = [];
-        window.OneSignalDeferred.push(initOneSignal);
-        
-        if (!document.querySelector('script[src*="OneSignalSDK"]')) {
-          const script = document.createElement('script');
-          script.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
-          script.defer = true;
-          script.onload = () => console.log('🔔 OneSignal SDK loaded');
-          script.onerror = () => reject(new Error('Failed to load OneSignal SDK'));
-          document.head.appendChild(script);
-        }
-        
-        setTimeout(() => reject(new Error('OneSignal SDK failed to load within 15 seconds')), 15000);
-      }
+    window.OneSignal.Notifications.addEventListener('permissionChange', (event: any) => {
+      console.log('🔔 Permission changed:', event);
     });
   }
 
-  async requestPermission(): Promise<boolean> {
-    try {
-      if (Capacitor.isNativePlatform()) {
-        console.log('🔔 Native push notification permissions handled by plugin');
-        return true;
-      } else if (window.OneSignal && this.isInitialized) {
-        console.log('🔔 Requesting web push notification permission...');
-        
-        const currentPermission = await window.OneSignal.Notifications.permission;
-        console.log('Current permission status:', currentPermission);
-        
-        if (currentPermission === 'granted') {
-          console.log('✅ Push notifications already granted');
-          return true;
-        }
-        
-        if (currentPermission === 'denied') {
-          console.log('🔔 Permission was denied, showing slidedown prompt');
-          await this.showSlidedownPrompt();
-          return false;
-        }
-        
-        const permission = await window.OneSignal.Notifications.requestPermission();
-        console.log('🔔 Permission request result:', permission);
-        
-        if (permission) {
-          console.log('✅ Push notification permission granted');
-          return true;
-        } else {
-          console.log('❌ Push notification permission denied, showing fallback prompts');
-          setTimeout(async () => {
-            await this.showSlidedownPrompt();
-          }, 1000);
-          return false;
-        }
-      } else {
-        console.warn('⚠️ OneSignal not initialized or not available');
-        return false;
-      }
-    } catch (error) {
-      console.error('❌ Error requesting notification permission:', error);
-      try {
-        await this.showSlidedownPrompt();
-      } catch (fallbackError) {
-        console.error('❌ Even fallback prompt failed:', fallbackError);
-      }
-      return false;
-    }
-  }
-
-  async showSlidedownPrompt(): Promise<void> {
-    try {
-      if (window.OneSignal && !Capacitor.isNativePlatform() && this.isInitialized) {
-        console.log('🔔 Showing OneSignal slidedown prompt');
-        await window.OneSignal.Slidedown.promptPush();
-      }
-    } catch (error) {
-      console.error('❌ Error showing slidedown prompt:', error);
-      try {
-        await this.showNativePrompt();
-      } catch (nativeError) {
-        console.error('❌ Native prompt also failed:', nativeError);
-      }
-    }
-  }
-
-  async showNativePrompt(): Promise<void> {
-    try {
-      if (window.OneSignal && !Capacitor.isNativePlatform() && this.isInitialized) {
-        console.log('🔔 Showing OneSignal native prompt');
-        await window.OneSignal.showNativePrompt();
-      }
-    } catch (error) {
-      console.error('❌ Error showing native prompt:', error);
-    }
-  }
-
   async setUserId(userId: string): Promise<void> {
+    if (!this.initialized) {
+      console.warn('⚠️ OneSignal not initialized, cannot set user ID');
+      return;
+    }
+
     try {
-      if (window.OneSignal && this.isInitialized) {
-        console.log('🔔 Setting OneSignal user ID:', userId);
-        await window.OneSignal.login(userId);
-        console.log('✅ OneSignal user ID set successfully');
-        
-        // Verify the user ID was set
-        const currentUserId = await window.OneSignal.User.onesignalId;
-        console.log('🔔 Current OneSignal user ID after setting:', currentUserId);
-      } else {
-        console.warn('⚠️ OneSignal not available for setting user ID');
-      }
+      console.log('🔔 Setting OneSignal user ID:', userId);
+      
+      // For OneSignal v5, use the new User API
+      await window.OneSignal.login(userId);
+      
+      console.log('✅ OneSignal user ID set successfully:', userId);
+      
+      // Verify the user ID was set
+      const currentUserId = await this.getCurrentUserId();
+      console.log('🔔 Current OneSignal user ID after setting:', currentUserId);
+      
     } catch (error) {
-      console.error('❌ Error setting OneSignal user ID:', error);
+      console.error('❌ Failed to set OneSignal user ID:', error);
+      throw error;
     }
   }
 
-  async addTag(key: string, value: string): Promise<void> {
-    try {
-      if (window.OneSignal && this.isInitialized) {
-        await window.OneSignal.User.addTag(key, value);
-        console.log('✅ OneSignal tag added:', { key, value });
-      }
-    } catch (error) {
-      console.error('❌ Error adding OneSignal tag:', error);
-    }
-  }
+  async getCurrentUserId(): Promise<string | null> {
+    if (!this.initialized || !window.OneSignal) return null;
 
-  async removeTag(key: string): Promise<void> {
     try {
-      if (window.OneSignal && this.isInitialized) {
-        await window.OneSignal.User.removeTag(key);
-        console.log('✅ OneSignal tag removed:', key);
-      }
+      const onesignalId = await window.OneSignal.User.onesignalId;
+      const externalId = await window.OneSignal.User.externalId;
+      
+      console.log('🔔 OneSignal IDs - OneSignal ID:', onesignalId, 'External ID:', externalId);
+      return externalId || onesignalId;
     } catch (error) {
-      console.error('❌ Error removing OneSignal tag:', error);
-    }
-  }
-
-  async logout(): Promise<void> {
-    try {
-      if (window.OneSignal && this.isInitialized) {
-        await window.OneSignal.logout();
-        console.log('✅ OneSignal user logged out');
-      }
-    } catch (error) {
-      console.error('❌ Error logging out OneSignal user:', error);
-    }
-  }
-
-  async forcePermissionPrompt(): Promise<void> {
-    try {
-      if (!Capacitor.isNativePlatform() && window.OneSignal && this.isInitialized) {
-        console.log('🔔 Forcing permission prompt sequence...');
-        
-        try {
-          await window.OneSignal.showNativePrompt();
-          console.log('✅ Native prompt shown');
-        } catch (nativeError) {
-          console.log('❌ Native prompt failed, trying slidedown...');
-          try {
-            await window.OneSignal.Slidedown.promptPush();
-            console.log('✅ Slidedown prompt shown');
-          } catch (slidedownError) {
-            console.log('❌ Slidedown also failed, trying direct permission request...');
-            await this.requestPermission();
-          }
-        }
-      }
-    } catch (error) {
-      console.error('❌ Error forcing permission prompt:', error);
+      console.error('❌ Error getting current user ID:', error);
+      return null;
     }
   }
 
   async isSubscribed(): Promise<boolean> {
+    if (!this.initialized || !window.OneSignal) return false;
+
     try {
-      if (window.OneSignal && this.isInitialized) {
-        const permission = await window.OneSignal.Notifications.permission;
-        return permission === 'granted';
-      }
-      return false;
+      const permission = await window.OneSignal.Notifications.permission;
+      const pushSubscription = await window.OneSignal.User.PushSubscription.optedIn;
+      
+      console.log('🔔 Subscription status - Permission:', permission, 'Opted In:', pushSubscription);
+      return permission === 'granted' && pushSubscription;
     } catch (error) {
       console.error('❌ Error checking subscription status:', error);
       return false;
     }
   }
 
-  async getCurrentUserId(): Promise<string | null> {
+  async requestPermission(): Promise<boolean> {
+    if (!this.initialized || !window.OneSignal) {
+      console.error('❌ OneSignal not initialized');
+      return false;
+    }
+
     try {
-      if (window.OneSignal && this.isInitialized) {
-        const userId = await window.OneSignal.User.onesignalId;
-        return userId;
-      }
-      return null;
+      console.log('🔔 Requesting notification permission...');
+      const permission = await window.OneSignal.Notifications.requestPermission();
+      console.log('🔔 Permission result:', permission);
+      return permission;
     } catch (error) {
-      console.error('❌ Error getting current user ID:', error);
+      console.error('❌ Error requesting permission:', error);
+      return false;
+    }
+  }
+
+  async showSlidedownPrompt(): Promise<void> {
+    if (!this.initialized || !window.OneSignal) return;
+
+    try {
+      console.log('🔔 Showing slidedown prompt...');
+      await window.OneSignal.slidedown.promptPush();
+    } catch (error) {
+      console.error('❌ Error showing slidedown prompt:', error);
+    }
+  }
+
+  async showNativePrompt(): Promise<void> {
+    if (!this.initialized || !window.OneSignal) return;
+
+    try {
+      console.log('🔔 Showing native prompt...');
+      await window.OneSignal.showNativePrompt();
+    } catch (error) {
+      console.error('❌ Error showing native prompt:', error);
+    }
+  }
+
+  async forcePermissionPrompt(): Promise<void> {
+    if (!this.initialized || !window.OneSignal) return;
+
+    try {
+      console.log('🔔 Starting aggressive permission flow...');
+      
+      // Check current status
+      const isCurrentlySubscribed = await this.isSubscribed();
+      if (isCurrentlySubscribed) {
+        console.log('✅ User already subscribed');
+        return;
+      }
+
+      // Try slidedown first
+      await this.showSlidedownPrompt();
+      
+      // Wait a bit and check
+      setTimeout(async () => {
+        const stillNotSubscribed = !(await this.isSubscribed());
+        if (stillNotSubscribed) {
+          console.log('🔔 Slidedown failed, trying native prompt...');
+          await this.showNativePrompt();
+        }
+      }, 2000);
+
+      // Final fallback - direct permission request
+      setTimeout(async () => {
+        const stillNotSubscribed = !(await this.isSubscribed());
+        if (stillNotSubscribed) {
+          console.log('🔔 All prompts failed, trying direct permission...');
+          await this.requestPermission();
+        }
+      }, 4000);
+
+    } catch (error) {
+      console.error('❌ Error in force permission flow:', error);
+    }
+  }
+
+  async addTag(key: string, value: string): Promise<void> {
+    if (!this.initialized || !window.OneSignal) return;
+
+    try {
+      console.log('🔔 Adding tag:', key, '=', value);
+      await window.OneSignal.User.addTag(key, value);
+      console.log('✅ Tag added successfully');
+    } catch (error) {
+      console.error('❌ Error adding tag:', error);
+    }
+  }
+
+  async removeTag(key: string): Promise<void> {
+    if (!this.initialized || !window.OneSignal) return;
+
+    try {
+      console.log('🔔 Removing tag:', key);
+      await window.OneSignal.User.removeTag(key);
+      console.log('✅ Tag removed successfully');
+    } catch (error) {
+      console.error('❌ Error removing tag:', error);
+    }
+  }
+
+  async getSubscriptionDetails(): Promise<any> {
+    if (!this.initialized || !window.OneSignal) return null;
+
+    try {
+      const details = {
+        permission: await window.OneSignal.Notifications.permission,
+        optedIn: await window.OneSignal.User.PushSubscription.optedIn,
+        id: await window.OneSignal.User.PushSubscription.id,
+        token: await window.OneSignal.User.PushSubscription.token,
+        onesignalId: await window.OneSignal.User.onesignalId,
+        externalId: await window.OneSignal.User.externalId,
+      };
+      
+      console.log('🔔 Full subscription details:', details);
+      return details;
+    } catch (error) {
+      console.error('❌ Error getting subscription details:', error);
       return null;
     }
   }
 }
 
-export const oneSignalService = OneSignalService.getInstance();
+export const oneSignalService = new OneSignalService();

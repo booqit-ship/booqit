@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { useOneSignal } from '@/hooks/useOneSignal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Bell, Check, X, TestTube, MapPin, AlertCircle, RefreshCw, Database } from 'lucide-react';
+import { Bell, Check, X, TestTube, MapPin, AlertCircle, RefreshCw, Database, User, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,7 +17,9 @@ const OneSignalDiagnostic: React.FC = () => {
     showNativePrompt, 
     forcePermissionPrompt,
     checkSubscriptionStatus,
-    getCurrentUserId 
+    getCurrentUserId,
+    getSubscriptionDetails,
+    resetAndSetupUser
   } = useOneSignal();
   const { userId, userRole } = useAuth();
   const [permissionStatus, setPermissionStatus] = useState<string>('unknown');
@@ -24,6 +27,7 @@ const OneSignalDiagnostic: React.FC = () => {
   const [oneSignalUserId, setOneSignalUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [systemHealth, setSystemHealth] = useState<any>(null);
+  const [subscriptionDetails, setSubscriptionDetails] = useState<any>(null);
 
   const refreshStatus = async () => {
     try {
@@ -44,6 +48,12 @@ const OneSignalDiagnostic: React.FC = () => {
       // Get OneSignal user ID
       const osUserId = await getCurrentUserId();
       setOneSignalUserId(osUserId);
+      
+      // Get detailed subscription information
+      const details = await getSubscriptionDetails();
+      setSubscriptionDetails(details);
+      
+      console.log('🔔 Diagnostic refresh - Permission:', permissionStatus, 'Subscribed:', isSubscribed, 'UserId:', osUserId, 'Details:', details);
       
       toast.success('Status refreshed');
     } catch (error) {
@@ -106,7 +116,7 @@ const OneSignalDiagnostic: React.FC = () => {
 
       setIsLoading(true);
       
-      console.log('Testing direct Edge Function notification for user:', userId);
+      console.log('🔔 Testing direct Edge Function notification for user:', userId);
 
       const { data, error } = await supabase.functions.invoke('send-booking-notification', {
         body: {
@@ -148,7 +158,7 @@ const OneSignalDiagnostic: React.FC = () => {
 
       setIsLoading(true);
       
-      console.log('Testing database trigger by creating a test booking...');
+      console.log('🔔 Testing database trigger by creating a test booking...');
 
       // Get merchant record for the logged-in user
       const { data: merchantData, error: merchantError } = await supabase
@@ -202,7 +212,7 @@ const OneSignalDiagnostic: React.FC = () => {
           date: new Date().toISOString().split('T')[0],
           time_slot: '10:00',
           status: 'confirmed',
-          payment_status: 'pending', // Add the missing required field
+          payment_status: 'pending',
           customer_name: 'Database Test Customer',
           customer_email: 'test@example.com',
           customer_phone: '1234567890'
@@ -216,7 +226,7 @@ const OneSignalDiagnostic: React.FC = () => {
         return;
       }
 
-      console.log('Test booking created:', bookingData);
+      console.log('🔔 Test booking created:', bookingData);
       toast.success('✅ Test booking created! Database trigger should send notification. Check your device.');
 
       // Clean up the test booking after a few seconds
@@ -225,12 +235,25 @@ const OneSignalDiagnostic: React.FC = () => {
           .from('bookings')
           .delete()
           .eq('id', bookingData.id);
-        console.log('Test booking cleaned up');
+        console.log('🔔 Test booking cleaned up');
       }, 5000);
 
     } catch (error) {
       console.error('Error testing database trigger:', error);
       toast.error('Failed to test database trigger');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResetUser = async () => {
+    try {
+      setIsLoading(true);
+      await resetAndSetupUser();
+      await refreshStatus(); // Refresh after reset
+    } catch (error) {
+      console.error('Error resetting user:', error);
+      toast.error('Failed to reset user setup');
     } finally {
       setIsLoading(false);
     }
@@ -295,6 +318,18 @@ const OneSignalDiagnostic: React.FC = () => {
               OneSignal ID: {oneSignalUserId}
             </div>
           )}
+
+          {subscriptionDetails && (
+            <div className="mt-3 p-3 bg-gray-50 rounded-md text-xs">
+              <h4 className="font-medium mb-2">Subscription Details</h4>
+              <div className="space-y-1">
+                <div>OneSignal ID: {subscriptionDetails.onesignalId || 'None'}</div>
+                <div>External ID: {subscriptionDetails.externalId || 'None'}</div>
+                <div>Push Token: {subscriptionDetails.token ? 'Present' : 'Missing'}</div>
+                <div>Opted In: {subscriptionDetails.optedIn ? 'Yes' : 'No'}</div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Action Buttons */}
@@ -330,6 +365,17 @@ const OneSignalDiagnostic: React.FC = () => {
           >
             <AlertCircle className="h-4 w-4 mr-2" />
             Force All Prompts
+          </Button>
+
+          <Button 
+            onClick={handleResetUser}
+            className="w-full"
+            variant="outline"
+            size="sm"
+            disabled={isLoading || !userId}
+          >
+            <User className="h-4 w-4 mr-2" />
+            Reset User Setup
           </Button>
         </div>
 
@@ -385,14 +431,29 @@ const OneSignalDiagnostic: React.FC = () => {
           </div>
         )}
 
+        {/* Critical Issues Warning */}
+        {(!subscriptionStatus || !oneSignalUserId || permissionStatus !== 'granted') && (
+          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+            <h4 className="font-medium text-red-800 mb-2">⚠️ Critical Issues Detected</h4>
+            <div className="space-y-1 text-sm text-red-700">
+              {permissionStatus !== 'granted' && <div>• Browser permission not granted</div>}
+              {!subscriptionStatus && <div>• Not subscribed to push notifications</div>}
+              {!oneSignalUserId && <div>• OneSignal user ID not set</div>}
+              {userRole === 'merchant' && <div>• Merchant will NOT receive booking notifications</div>}
+            </div>
+          </div>
+        )}
+
         {/* Instructions */}
         <div className="text-xs text-gray-500 space-y-1">
           <p>• Must be logged in as merchant for booking notifications</p>
           <p>• Web users need to accept browser permission prompts</p>
+          <p>• External User ID must match your logged-in user ID</p>
           <p>• Test notifications help verify the complete pipeline</p>
           <p>• Database trigger test creates a real booking to test the flow</p>
           {!userId && <p className="text-red-500">⚠️ Please log in to test notifications</p>}
           {userRole !== 'merchant' && userId && <p className="text-red-500">⚠️ Must be merchant to test database triggers</p>}
+          {userRole === 'merchant' && !subscriptionStatus && <p className="text-red-500">⚠️ CRITICAL: Merchant not subscribed - will miss booking alerts!</p>}
         </div>
       </CardContent>
     </Card>
