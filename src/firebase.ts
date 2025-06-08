@@ -142,7 +142,6 @@ export const setupForegroundMessaging = (callback?: (payload: any) => void) => {
         tag: 'foreground-notification',
         requireInteraction: true,
         silent: false,
-        vibrate: [200, 100, 200],
         data: payload.data
       });
 
