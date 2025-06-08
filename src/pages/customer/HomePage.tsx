@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Search } from 'lucide-react';
+import { Search, MapPin } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -12,6 +12,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import UpcomingBookings from '@/components/customer/UpcomingBookings';
+import { useLocationService } from '@/hooks/useLocationService';
+import LocationPermissionDialog from '@/components/common/LocationPermissionDialog';
 
 // Updated featured categories - only Salon and Beauty Parlour as requested
 const featuredCategories = [{
@@ -30,13 +32,12 @@ const HomePage: React.FC = () => {
   const [nearbyShops, setNearbyShops] = useState<Merchant[]>([]);
   const [filteredShops, setFilteredShops] = useState<Merchant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [userLocation, setUserLocation] = useState<{
-    lat: number;
-    lng: number;
-  } | null>(null);
   const [userName, setUserName] = useState('there');
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [locationName, setLocationName] = useState("Getting your location...");
+  const [showPermissionDialog, setShowPermissionDialog] = useState(false);
+  
   const navigate = useNavigate();
   const {
     toast
@@ -44,6 +45,20 @@ const HomePage: React.FC = () => {
   const {
     userId
   } = useAuth();
+
+  // Use our new location service
+  const {
+    location: userLocation,
+    isLoading: locationLoading,
+    error: locationError,
+    permissionDenied,
+    hasHighAccuracy,
+    startLocationFetching,
+    retryLocationFetch
+  } = useLocationService({
+    autoStart: true,
+    onPermissionDenied: () => setShowPermissionDialog(true)
+  });
 
   // Get user's current location name (this would come from geolocation + reverse geocoding)
   const [locationName, setLocationName] = useState("Loading location...");
@@ -69,42 +84,38 @@ const HomePage: React.FC = () => {
     };
     fetchUserProfile();
   }, [userId]);
+
+  // Update location name when location changes
   useEffect(() => {
-    // Get user location
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(position => {
-        const userLoc = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude
-        };
-        setUserLocation(userLoc);
-
-        // Fetch location name using reverse geocoding
-        fetchLocationName(userLoc.lat, userLoc.lng);
-
-        // Fetch nearby shops based on location
-        fetchNearbyShops(userLoc);
-      }, error => {
-        console.error("Error getting location:", error);
-        setLocationName("Location unavailable");
-        // Use a default location (Bengaluru)
-        const defaultLocation = {
-          lat: 12.9716,
-          lng: 77.5946
-        };
-        setUserLocation(defaultLocation);
-        fetchNearbyShops(defaultLocation);
-      });
-    } else {
-      setLocationName("Bengaluru"); // Default fallback
-      const defaultLocation = {
-        lat: 12.9716,
-        lng: 77.5946
-      };
-      setUserLocation(defaultLocation);
-      fetchNearbyShops(defaultLocation);
+    if (userLocation) {
+      fetchLocationName(userLocation.lat, userLocation.lng);
+      fetchNearbyShops(userLocation);
     }
-  }, []);
+  }, [userLocation]);
+
+  // Handle permission dialog
+  const handleAllowLocation = () => {
+    setShowPermissionDialog(false);
+    retryLocationFetch();
+  };
+
+  const handleDenyLocation = () => {
+    setShowPermissionDialog(false);
+    setLocationName("Location unavailable");
+    // Use default location (Bengaluru)
+    const defaultLocation = {
+      lat: 12.9716,
+      lng: 77.5946
+    };
+    fetchNearbyShops(defaultLocation);
+  };
+
+  // Show loading state until we have either location or user denied permission
+  useEffect(() => {
+    if (userLocation || permissionDenied || locationError) {
+      setIsLoading(false);
+    }
+  }, [userLocation, permissionDenied, locationError]);
 
   // Filter shops whenever active category changes or nearby shops update
   useEffect(() => {
@@ -259,35 +270,80 @@ const HomePage: React.FC = () => {
   const handleBookNow = (merchantId: string) => {
     navigate(`/merchant/${merchantId}`);
   };
-  return <div className="pb-20"> {/* Add padding to account for bottom navigation */}
+
+  // Show loading screen while getting location
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-r from-booqit-primary to-purple-700 text-white">
+        <div className="text-center">
+          <div className="animate-spin h-12 w-12 border-4 border-white border-t-transparent rounded-full mx-auto mb-4"></div>
+          <h2 className="text-xl font-medium mb-2">Welcome to Booqit</h2>
+          <p className="text-white/80">
+            {locationLoading ? "Getting your location..." : "Setting up your experience..."}
+          </p>
+          {!hasHighAccuracy && userLocation && (
+            <p className="text-xs text-white/60 mt-2">
+              📍 Using approximate location, getting precise location...
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pb-20">
+      {/* Location Permission Dialog */}
+      <LocationPermissionDialog
+        open={showPermissionDialog}
+        onOpenChange={setShowPermissionDialog}
+        onAllow={handleAllowLocation}
+        onDeny={handleDenyLocation}
+      />
+
       {/* Header Section */}
-      <motion.div className="bg-gradient-to-r from-booqit-primary to-purple-700 text-white p-6 rounded-b-3xl shadow-lg" initial={{
-      y: -20,
-      opacity: 0
-    }} animate={{
-      y: 0,
-      opacity: 1
-    }}>
+      <motion.div 
+        className="bg-gradient-to-r from-booqit-primary to-purple-700 text-white p-6 rounded-b-3xl shadow-lg" 
+        initial={{ y: -20, opacity: 0 }} 
+        animate={{ y: 0, opacity: 1 }}
+      >
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-2xl font-light">Hi {userName}! 👋</h1>
             <p className="opacity-90 flex items-center">
-              <svg className="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 13.5C13.933 13.5 15.5 11.933 15.5 10C15.5 8.067 13.933 6.5 12 6.5C10.067 6.5 8.5 8.067 8.5 10C8.5 11.933 10.067 13.5 12 13.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M12 21.5C17 17.5 22 14.0718 22 10C22 5.92819 17.5228 2.5 12 2.5C6.47715 2.5 2 5.92819 2 10C2 14.0718 7 17.5 12 21.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <MapPin className="w-4 h-4 mr-1" />
               {locationName}
+              {locationLoading && !hasHighAccuracy && (
+                <span className="ml-2 text-xs bg-white/20 px-2 py-1 rounded-full">
+                  Getting precise location...
+                </span>
+              )}
             </p>
+            {locationError && (
+              <p className="text-xs text-red-200 mt-1">
+                {locationError} - Using default location
+              </p>
+            )}
           </div>
           <Avatar className="h-10 w-10 bg-white">
-            {userAvatar ? <AvatarImage src={userAvatar} alt={userName} className="object-cover" /> : <AvatarFallback className="text-booqit-primary font-medium">
+            {userAvatar ? (
+              <AvatarImage src={userAvatar} alt={userName} className="object-cover" />
+            ) : (
+              <AvatarFallback className="text-booqit-primary font-medium">
                 {userName.charAt(0).toUpperCase()}
-              </AvatarFallback>}
+              </AvatarFallback>
+            )}
           </Avatar>
         </div>
         <div className="relative">
           <Search className="absolute left-3 top-3 h-5 w-5 text-booqit-primary" />
-          <Input placeholder="Search services, shops..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleSearch()} className="pl-10 bg-white text-gray-800 border-0 shadow-md focus:ring-2 focus:ring-white" />
+          <Input
+            placeholder="Search services, shops..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+            className="pl-10 bg-white text-gray-800 border-0 shadow-md focus:ring-2 focus:ring-white"
+          />
         </div>
       </motion.div>
 
@@ -397,6 +453,8 @@ const HomePage: React.FC = () => {
           </motion.div>
         </motion.div>
       </div>
-    </div>;
+    </div>
+  );
 };
+
 export default HomePage;

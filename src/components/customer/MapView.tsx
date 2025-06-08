@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import GoogleMapComponent from '@/components/common/GoogleMap';
@@ -9,16 +8,33 @@ import { Merchant } from '@/types';
 import { MapPin, Star, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useLocationService } from '@/hooks/useLocationService';
+import LocationPermissionDialog from '@/components/common/LocationPermissionDialog';
 
 const MapView: React.FC = () => {
   const [merchants, setMerchants] = useState<Merchant[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [selectedMerchant, setSelectedMerchant] = useState<Merchant | null>(null);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [filteredMerchants, setFilteredMerchants] = useState<Merchant[]>([]);
+  const [showPermissionDialog, setShowPermissionDialog] = useState(false);
+  
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+
+  // Use our new location service
+  const {
+    location: userLocation,
+    isLoading: locationLoading,
+    error: locationError,
+    permissionDenied,
+    hasHighAccuracy,
+    startLocationFetching,
+    retryLocationFetch
+  } = useLocationService({
+    autoStart: true,
+    onPermissionDenied: () => setShowPermissionDialog(true)
+  });
 
   // Get category from URL params if present
   useEffect(() => {
@@ -29,41 +45,21 @@ const MapView: React.FC = () => {
     }
   }, []);
 
-  // Get user location and fetch merchants
-  const initializeMap = useCallback(async () => {
-    // Get user's current location
-    try {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            setUserLocation({
-              lat: position.coords.latitude,
-              lng: position.coords.longitude
-            });
-          },
-          (error) => {
-            console.error('Error getting location:', error);
-            toast.error('Could not access your location. Using default location.');
-            // Default to Bangalore if location access is denied
-            setUserLocation({ lat: 12.9716, lng: 77.5946 });
-          },
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 10000 }
-        );
-      } else {
-        setUserLocation({ lat: 12.9716, lng: 77.5946 });
-      }
-
-      // Fetch merchants
-      await fetchMerchants();
-    } catch (error) {
-      console.error('Initialization error:', error);
-      toast.error('There was a problem loading the map. Please try again.');
-    }
+  // Fetch merchants when component mounts
+  useEffect(() => {
+    fetchMerchants();
   }, []);
 
-  useEffect(() => {
-    initializeMap();
-  }, [initializeMap]);
+  // Handle permission dialog
+  const handleAllowLocation = () => {
+    setShowPermissionDialog(false);
+    retryLocationFetch();
+  };
+
+  const handleDenyLocation = () => {
+    setShowPermissionDialog(false);
+    toast.error('Location access denied. Using default location.');
+  };
 
   // Fetch merchants from database
   const fetchMerchants = async () => {
@@ -174,10 +170,21 @@ const MapView: React.FC = () => {
     setSelectedMerchant(null);
   };
 
+  // Get center location (use user location if available, otherwise default)
+  const centerLocation = userLocation || { lat: 12.9716, lng: 77.5946 };
+
   return (
     <div className="h-full w-full absolute inset-0">
+      {/* Location Permission Dialog */}
+      <LocationPermissionDialog
+        open={showPermissionDialog}
+        onOpenChange={setShowPermissionDialog}
+        onAllow={handleAllowLocation}
+        onDeny={handleDenyLocation}
+      />
+
       <GoogleMapComponent 
-        center={userLocation || { lat: 12.9716, lng: 77.5946 }}
+        center={centerLocation}
         zoom={13}
         markers={mapMarkers}
         className="h-full w-full"
@@ -186,10 +193,25 @@ const MapView: React.FC = () => {
         showUserLocation={true}
       />
       
-      {loading && (
+      {/* Loading indicator */}
+      {(loading || locationLoading) && (
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white p-4 rounded-lg shadow-lg z-10">
           <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full mx-auto"></div>
-          <p className="mt-2 text-center font-medium">Loading merchants...</p>
+          <p className="mt-2 text-center font-medium">
+            {loading ? 'Loading merchants...' : 'Getting your location...'}
+          </p>
+          {!hasHighAccuracy && userLocation && (
+            <p className="text-xs text-gray-500 mt-1 text-center">
+              📍 Using approximate location...
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Location error indicator */}
+      {locationError && (
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-orange-100 border border-orange-300 text-orange-800 px-4 py-2 rounded-lg z-10">
+          <p className="text-sm">{locationError}</p>
         </div>
       )}
       
