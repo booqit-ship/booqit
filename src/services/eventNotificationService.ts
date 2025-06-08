@@ -77,7 +77,7 @@ const getMerchantReminderMessages = (merchantName: string) => {
   ];
 };
 
-// Check if user should receive notifications (respects preferences and quiet hours)
+// Check if user should receive notifications (respects preferences but NOT quiet hours for testing)
 const canSendNotification = async (userId: string, notificationType: string) => {
   try {
     // Get user's notification preferences
@@ -91,15 +91,8 @@ const canSendNotification = async (userId: string, notificationType: string) => 
       return false;
     }
 
-    // Respect quiet hours (10 PM - 8 AM IST)
-    const now = new Date();
-    const istTime = new Date(now.getTime() + (5.5 * 60 * 60 * 1000)); // Convert to IST
-    const hour = istTime.getHours();
-    
-    if (hour >= 22 || hour < 8) {
-      console.log('⏰ Skipping notification due to quiet hours:', hour);
-      return false;
-    }
+    // QUIET HOURS DISABLED FOR TESTING - notifications work 24/7 now
+    console.log('🔔 Quiet hours disabled - notifications enabled 24/7 for testing');
 
     // For daily reminders, check if we already sent one today
     if (notificationType === 'daily_reminder') {
