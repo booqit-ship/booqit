@@ -121,7 +121,7 @@ serve(async (req) => {
 
     console.log('🚀 Sending notification to FCM token:', profile.fcm_token.substring(0, 20) + '...');
 
-    // Try to send the notification using the modern FCM v1 API
+    // Try to send the notification using the legacy FCM API
     let notificationResult;
     try {
       notificationResult = await sendNotificationToToken(profile.fcm_token, title, body, data || {});
@@ -213,11 +213,11 @@ async function sendNotificationToToken(token: string, title: string, body: strin
         title,
         body,
         icon: '/icons/icon-192.png',
-        click_action: window.location.origin
+        click_action: 'https://booqit09-f4cfc.web.app'
       },
       data: {
         ...data,
-        click_action: window.location.origin
+        click_action: 'https://booqit09-f4cfc.web.app'
       }
     }),
   })
