@@ -24,7 +24,7 @@ const OneSignalDiagnostic: React.FC = () => {
   const [subscriptionStatus, setSubscriptionStatus] = useState<boolean>(false);
   const [oneSignalUserId, setOneSignalUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [notificationSetup, setNotificationSetup] = useState<any>(null);
+  const [systemHealth, setSystemHealth] = useState<any>(null);
 
   const refreshStatus = async () => {
     try {
@@ -55,69 +55,58 @@ const OneSignalDiagnostic: React.FC = () => {
     }
   };
 
-  const checkNotificationSetup = async () => {
+  const checkSystemHealth = async () => {
     try {
       setIsLoading(true);
       
-      const { data, error } = await supabase.rpc('check_notification_setup');
+      // Check merchants with user IDs
+      const { data: merchants, error: merchantError } = await supabase
+        .from('merchants')
+        .select('id, user_id')
+        .not('user_id', 'is', null);
       
-      if (error) {
-        console.error('Error checking setup:', error);
-        toast.error('Failed to check notification setup');
+      if (merchantError) {
+        console.error('Error checking merchants:', merchantError);
+        toast.error('Failed to check merchant data');
         return;
       }
       
-      setNotificationSetup(data);
-      toast.success('Setup check completed');
-    } catch (error) {
-      console.error('Error in setup check:', error);
-      toast.error('Setup check failed');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const testDatabaseNotification = async () => {
-    try {
-      if (!userId) {
-        toast.error('You must be logged in to test notifications');
+      // Check recent bookings
+      const { data: bookings, error: bookingError } = await supabase
+        .from('bookings')
+        .select('id, created_at')
+        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+      
+      if (bookingError) {
+        console.error('Error checking bookings:', bookingError);
+        toast.error('Failed to check booking data');
         return;
       }
-
-      setIsLoading(true);
       
-      const { data, error } = await supabase.rpc('test_booking_notification', {
-        test_merchant_user_id: userId
+      setSystemHealth({
+        merchants_with_user_id: merchants?.length || 0,
+        recent_bookings_24h: bookings?.length || 0,
+        setup_health: merchants && merchants.length > 0 ? 'GOOD' : 'NO_MERCHANT_USER_IDS'
       });
       
-      if (error) {
-        console.error('Database test error:', error);
-        toast.error('Database test failed: ' + error.message);
-      } else {
-        console.log('Database test result:', data);
-        if (data.success) {
-          toast.success('Database test notification sent successfully!');
-        } else {
-          toast.error('Database test failed: ' + data.error);
-        }
-      }
+      toast.success('System health check completed');
     } catch (error) {
-      console.error('Error in database test:', error);
-      toast.error('Failed to test database notification');
+      console.error('Error in system health check:', error);
+      toast.error('System health check failed');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleTestBookingNotification = async () => {
+  const testDirectNotification = async () => {
     try {
-      setIsLoading(true);
-      
       if (!userId) {
         toast.error('You must be logged in to test notifications');
         return;
       }
 
+      setIsLoading(true);
+      
       console.log('Testing direct Edge Function notification for user:', userId);
 
       const { data, error } = await supabase.functions.invoke('send-booking-notification', {
@@ -137,10 +126,10 @@ const OneSignalDiagnostic: React.FC = () => {
         toast.error('Direct test failed: ' + error.message);
       } else {
         console.log('Direct test response:', data);
-        if (data.success) {
+        if (data?.success) {
           toast.success('✅ Direct test notification sent! Check your device.');
         } else {
-          toast.error('Direct test failed: ' + (data.error || 'Unknown error'));
+          toast.error('Direct test failed: ' + (data?.error || 'Unknown error'));
         }
       }
     } catch (error) {
@@ -253,7 +242,7 @@ const OneSignalDiagnostic: React.FC = () => {
           <h3 className="font-medium">Notification Tests</h3>
           
           <Button 
-            onClick={handleTestBookingNotification}
+            onClick={testDirectNotification}
             className="w-full"
             variant="default"
             size="sm"
@@ -264,41 +253,26 @@ const OneSignalDiagnostic: React.FC = () => {
           </Button>
           
           <Button 
-            onClick={testDatabaseNotification}
-            className="w-full"
-            variant="secondary"
-            size="sm"
-            disabled={isLoading || !userId}
-          >
-            <Database className="h-4 w-4 mr-2" />
-            {isLoading ? 'Testing...' : 'Test Database Trigger'}
-          </Button>
-          
-          <Button 
-            onClick={checkNotificationSetup}
+            onClick={checkSystemHealth}
             className="w-full"
             variant="outline"
             size="sm"
             disabled={isLoading}
           >
             <Check className="h-4 w-4 mr-2" />
-            Check System Setup
+            Check System Health
           </Button>
         </div>
 
-        {/* Setup Status */}
-        {notificationSetup && (
+        {/* System Health Status */}
+        {systemHealth && (
           <div className="mt-4 p-3 bg-gray-50 rounded-md">
-            <h4 className="font-medium mb-2">System Setup Status</h4>
+            <h4 className="font-medium mb-2">System Health Status</h4>
             <div className="space-y-1 text-sm">
-              <div>Trigger Exists: <Badge className={notificationSetup.trigger_exists ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                {notificationSetup.trigger_exists ? 'Yes' : 'No'}
-              </Badge></div>
-              <div>Total Merchants: {notificationSetup.total_merchants}</div>
-              <div>Merchants with User ID: {notificationSetup.merchants_with_user_id}</div>
-              <div>Recent Bookings (24h): {notificationSetup.recent_bookings_24h}</div>
-              <div>Health: <Badge className={notificationSetup.setup_health === 'GOOD' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}>
-                {notificationSetup.setup_health}
+              <div>Merchants with User ID: {systemHealth.merchants_with_user_id}</div>
+              <div>Recent Bookings (24h): {systemHealth.recent_bookings_24h}</div>
+              <div>Health: <Badge className={systemHealth.setup_health === 'GOOD' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}>
+                {systemHealth.setup_health}
               </Badge></div>
             </div>
           </div>
