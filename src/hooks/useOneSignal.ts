@@ -15,16 +15,18 @@ export const useOneSignal = () => {
     
     const initializeOneSignal = async () => {
       try {
-        console.log('🔔 Starting OneSignal initialization...');
+        console.log('🔔 Starting OneSignal initialization from hook...');
         await oneSignalService.initialize();
         initializedRef.current = true;
         console.log('✅ OneSignal initialization complete');
       } catch (error) {
         console.error('❌ Failed to initialize OneSignal:', error);
+        // Don't show error toast during initialization as it might be normal
       }
     };
 
-    initializeOneSignal();
+    // Wait a bit for the DOM to be ready
+    setTimeout(initializeOneSignal, 1000);
   }, []);
 
   // Handle user authentication state changes
@@ -35,6 +37,9 @@ export const useOneSignal = () => {
       console.log('🔔 Setting up OneSignal for authenticated user:', userId, 'Role:', userRole);
       
       try {
+        // Wait for OneSignal to be fully initialized
+        await oneSignalService.initialize();
+        
         // Set external user ID
         await oneSignalService.setUserId(userId);
         
@@ -45,7 +50,7 @@ export const useOneSignal = () => {
           await oneSignalService.addTag('last_login', new Date().toISOString());
         }
         
-        // For merchants, be aggressive about notifications
+        // For merchants, be more aggressive about notifications
         if (userRole === 'merchant') {
           console.log('🏪 Setting up merchant-specific notifications...');
           
@@ -58,22 +63,11 @@ export const useOneSignal = () => {
           console.log('🔔 Merchant subscription status:', isSubscribed);
           
           if (!isSubscribed) {
-            console.log('🔔 Merchant not subscribed - requesting permission...');
+            console.log('🔔 Merchant not subscribed - showing setup message...');
             
-            toast.info('📱 Enable notifications to receive booking alerts!', {
-              duration: 8000,
+            toast.info('📱 Click "Force Subscribe" to enable booking notifications!', {
+              duration: 12000,
             });
-            
-            // Try to get permission
-            setTimeout(async () => {
-              const hasPermission = await oneSignalService.requestPermission();
-              
-              if (hasPermission) {
-                toast.success('✅ Booking notifications enabled!');
-              } else {
-                toast.error('❌ Notifications disabled. You may miss booking alerts.');
-              }
-            }, 2000);
           } else {
             console.log('✅ Merchant already subscribed to notifications');
             toast.success('✅ Booking notifications are active!');
@@ -85,15 +79,21 @@ export const useOneSignal = () => {
         
       } catch (error) {
         console.error('❌ Error setting up OneSignal for user:', error);
-        toast.error('Failed to setup notifications. Try refreshing the page.');
+        toast.error('Failed to setup notifications. Try the "Force Subscribe" button.');
       }
     };
 
-    handleAuthChange();
+    // Delay user setup to allow OneSignal to fully initialize
+    setTimeout(handleAuthChange, 2000);
   }, [isAuthenticated, userId, userRole]);
 
   const requestPermission = async (): Promise<boolean> => {
-    return await oneSignalService.requestPermission();
+    try {
+      return await oneSignalService.requestPermission();
+    } catch (error) {
+      console.error('Error requesting permission:', error);
+      return false;
+    }
   };
 
   const addTag = async (key: string, value: string): Promise<void> => {

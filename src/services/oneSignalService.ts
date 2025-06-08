@@ -2,75 +2,120 @@
 declare global {
   interface Window {
     OneSignal: any;
+    OneSignalDeferred: any[];
   }
 }
 
 class OneSignalService {
   private initialized = false;
   private appId = 'd5a0614a-d4fc-45a0-81d4-cff762b376dd';
+  private initPromise: Promise<void> | null = null;
 
   async initialize(): Promise<void> {
+    if (this.initPromise) {
+      console.log('🔔 OneSignal initialization already in progress, waiting...');
+      return this.initPromise;
+    }
+
     if (this.initialized) {
       console.log('🔔 OneSignal already initialized');
       return;
     }
 
+    this.initPromise = this._doInitialize();
+    return this.initPromise;
+  }
+
+  private async _doInitialize(): Promise<void> {
     try {
-      console.log('🔔 Initializing OneSignal...');
+      console.log('🔔 Starting OneSignal initialization...');
       
       // Wait for OneSignal to be available
-      while (!window.OneSignal) {
+      let attempts = 0;
+      while (!window.OneSignal && attempts < 50) {
         await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
       }
 
+      if (!window.OneSignal) {
+        throw new Error('OneSignal SDK not loaded after 5 seconds');
+      }
+
+      console.log('🔔 OneSignal SDK detected, initializing...');
+
+      // Check if already initialized
+      if (window.OneSignal._isInitialized) {
+        console.log('🔔 OneSignal already initialized by external script');
+        this.initialized = true;
+        this.setupDebugListeners();
+        return;
+      }
+
+      // Initialize OneSignal
       await window.OneSignal.init({
         appId: this.appId,
         safari_web_id: "web.onesignal.auto.0a199198-d5df-41c5-963c-72a0258657aa",
+        allowLocalhostAsSecureOrigin: true,
+        autoRegister: false,
+        autoResubscribe: true,
+        showCredit: false,
+        persistNotification: false,
         notifyButton: {
           enable: false,
         },
-        allowLocalhostAsSecureOrigin: true,
-        autoRegister: false, // We'll handle registration manually
-        autoResubscribe: true,
-        showCredit: false,
-        persistNotification: true,
         welcomeNotification: {
-          disable: true // Disable to avoid confusion
+          disable: true
+        },
+        promptOptions: {
+          slidedown: {
+            enabled: true,
+            actionMessage: "We'd like to show you notifications for new bookings!",
+            acceptButtonText: "Allow",
+            cancelButtonText: "No Thanks"
+          }
         }
       });
 
       this.initialized = true;
       console.log('✅ OneSignal initialized successfully');
-
+      
       // Set up debug listeners
       this.setupDebugListeners();
 
+      // Wait a moment for OneSignal to fully initialize
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
     } catch (error) {
       console.error('❌ OneSignal initialization failed:', error);
+      this.initialized = false;
+      this.initPromise = null;
       throw error;
     }
   }
 
   private setupDebugListeners(): void {
-    if (!window.OneSignal) return;
+    if (!window.OneSignal || !this.initialized) return;
 
-    window.OneSignal.User.PushSubscription.addEventListener('change', (event: any) => {
-      console.log('🔔 Push subscription changed:', event);
-    });
+    try {
+      window.OneSignal.User.PushSubscription.addEventListener('change', (event: any) => {
+        console.log('🔔 Push subscription changed:', event);
+      });
 
-    window.OneSignal.Notifications.addEventListener('permissionChange', (event: any) => {
-      console.log('🔔 Permission changed:', event);
-    });
+      window.OneSignal.Notifications.addEventListener('permissionChange', (event: any) => {
+        console.log('🔔 Permission changed:', event);
+      });
 
-    window.OneSignal.Notifications.addEventListener('click', (event: any) => {
-      console.log('🔔 Notification clicked:', event);
-    });
+      window.OneSignal.Notifications.addEventListener('click', (event: any) => {
+        console.log('🔔 Notification clicked:', event);
+      });
+    } catch (error) {
+      console.warn('⚠️ Could not set up OneSignal listeners:', error);
+    }
   }
 
   async setUserId(userId: string): Promise<void> {
     if (!this.initialized) {
-      console.warn('⚠️ OneSignal not initialized, cannot set user ID');
-      return;
+      await this.initialize();
     }
 
     try {
@@ -113,7 +158,7 @@ class OneSignalService {
       const pushSubscription = await window.OneSignal.User.PushSubscription.optedIn;
       
       console.log('🔔 Subscription status - Permission:', permission, 'Opted In:', pushSubscription);
-      return permission === 'granted' && pushSubscription;
+      return permission === 'granted' && pushSubscription === true;
     } catch (error) {
       console.error('❌ Error checking subscription status:', error);
       return false;
@@ -121,8 +166,12 @@ class OneSignalService {
   }
 
   async requestPermission(): Promise<boolean> {
-    if (!this.initialized || !window.OneSignal) {
-      console.error('❌ OneSignal not initialized');
+    if (!this.initialized) {
+      await this.initialize();
+    }
+
+    if (!window.OneSignal) {
+      console.error('❌ OneSignal not available');
       return false;
     }
 
@@ -134,38 +183,104 @@ class OneSignalService {
       console.log('🔔 Current permission before request:', currentPermission);
       
       if (currentPermission === 'granted') {
-        console.log('🔔 Permission already granted, checking subscription...');
+        console.log('🔔 Permission already granted, ensuring subscription...');
+        
+        // Check if we're opted in
         const isOptedIn = await window.OneSignal.User.PushSubscription.optedIn;
+        console.log('🔔 Current opt-in status:', isOptedIn);
         
         if (!isOptedIn) {
           console.log('🔔 Permission granted but not opted in, opting in...');
           await window.OneSignal.User.PushSubscription.optIn();
+          
+          // Wait for subscription to be established
+          await new Promise(resolve => setTimeout(resolve, 2000));
         }
         
-        return true;
+        return await this.isSubscribed();
       }
       
-      // Request permission
+      // Request permission if not granted
+      console.log('🔔 Requesting browser permission...');
       const permission = await window.OneSignal.Notifications.requestPermission();
-      console.log('🔔 Permission result:', permission);
+      console.log('🔔 Permission request result:', permission);
       
       if (permission) {
+        console.log('🔔 Permission granted, opting in to push notifications...');
+        
         // Ensure we're opted in
         await window.OneSignal.User.PushSubscription.optIn();
-        console.log('🔔 Opted in to push notifications');
         
-        // Wait a moment for the subscription to be established
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Wait for subscription to be fully established
+        await new Promise(resolve => setTimeout(resolve, 2000));
         
+        // Verify final status
         const finalStatus = await this.isSubscribed();
         console.log('🔔 Final subscription status:', finalStatus);
         
         return finalStatus;
       }
       
+      console.log('❌ Permission denied by user');
       return false;
     } catch (error) {
       console.error('❌ Error requesting permission:', error);
+      return false;
+    }
+  }
+
+  async forceSubscription(): Promise<boolean> {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+
+    if (!window.OneSignal) {
+      console.error('❌ OneSignal not available');
+      return false;
+    }
+
+    try {
+      console.log('🔔 Starting force subscription process...');
+      
+      // Step 1: Check current status
+      let isCurrentlySubscribed = await this.isSubscribed();
+      if (isCurrentlySubscribed) {
+        console.log('✅ Already subscribed');
+        return true;
+      }
+      
+      // Step 2: Request permission aggressively
+      const hasPermission = await this.requestPermission();
+      if (!hasPermission) {
+        console.log('❌ Could not get permission');
+        return false;
+      }
+      
+      // Step 3: Multiple verification attempts
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        console.log(`🔔 Verification attempt ${attempt}/5`);
+        
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        isCurrentlySubscribed = await this.isSubscribed();
+        if (isCurrentlySubscribed) {
+          console.log('✅ Successfully force subscribed');
+          return true;
+        }
+        
+        // Try to opt in again if not subscribed
+        try {
+          await window.OneSignal.User.PushSubscription.optIn();
+        } catch (error) {
+          console.warn(`⚠️ Attempt ${attempt} opt-in failed:`, error);
+        }
+      }
+      
+      console.log('❌ Failed to establish subscription after multiple attempts');
+      return false;
+      
+    } catch (error) {
+      console.error('❌ Error in force subscription:', error);
       return false;
     }
   }
@@ -193,10 +308,14 @@ class OneSignalService {
   }
 
   async forcePermissionPrompt(): Promise<void> {
-    if (!this.initialized || !window.OneSignal) return;
+    if (!this.initialized) {
+      await this.initialize();
+    }
+
+    if (!window.OneSignal) return;
 
     try {
-      console.log('🔔 Starting aggressive permission flow...');
+      console.log('🔔 Starting comprehensive permission flow...');
       
       // Check current status
       const isCurrentlySubscribed = await this.isSubscribed();
@@ -205,36 +324,33 @@ class OneSignalService {
         return;
       }
 
-      // Step 1: Try to opt in if permission exists
-      const currentPermission = await window.OneSignal.Notifications.permission;
-      console.log('🔔 Current permission:', currentPermission);
-      
-      if (currentPermission === 'granted') {
-        console.log('🔔 Permission exists, attempting to opt in...');
-        await window.OneSignal.User.PushSubscription.optIn();
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        const subscribed = await this.isSubscribed();
-        if (subscribed) {
-          console.log('✅ Successfully subscribed with existing permission');
-          return;
-        }
-      }
-      
-      // Step 2: Request permission directly
-      console.log('🔔 Requesting permission...');
+      // Step 1: Try direct permission request
+      console.log('🔔 Step 1: Direct permission request...');
       const hasPermission = await this.requestPermission();
-      console.log('🔔 Permission granted:', hasPermission);
-
-      if (!hasPermission) {
-        // Step 3: Try slidedown prompt
-        console.log('🔔 Trying slidedown prompt...');
-        await this.showSlidedownPrompt();
-        await new Promise(resolve => setTimeout(resolve, 2000));
+      if (hasPermission) {
+        console.log('✅ Direct permission successful');
+        return;
       }
+      
+      // Step 2: Try slidedown prompt
+      console.log('🔔 Step 2: Slidedown prompt...');
+      await this.showSlidedownPrompt();
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Check if slidedown worked
+      const afterSlidedown = await this.isSubscribed();
+      if (afterSlidedown) {
+        console.log('✅ Slidedown prompt successful');
+        return;
+      }
+      
+      // Step 3: Try native prompt
+      console.log('🔔 Step 3: Native prompt...');
+      await this.showNativePrompt();
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
     } catch (error) {
-      console.error('❌ Error in permission flow:', error);
+      console.error('❌ Error in comprehensive permission flow:', error);
     }
   }
 
@@ -280,46 +396,6 @@ class OneSignalService {
     } catch (error) {
       console.error('❌ Error getting subscription details:', error);
       return null;
-    }
-  }
-
-  async forceSubscription(): Promise<boolean> {
-    if (!this.initialized || !window.OneSignal) {
-      console.error('❌ OneSignal not initialized');
-      return false;
-    }
-
-    try {
-      console.log('🔔 Force subscribing user...');
-      
-      // Step 1: Request permission
-      const hasPermission = await this.requestPermission();
-      if (!hasPermission) {
-        console.log('❌ Permission denied, cannot subscribe');
-        return false;
-      }
-      
-      // Step 2: Ensure we're opted in
-      await window.OneSignal.User.PushSubscription.optIn();
-      
-      // Step 3: Wait for subscription to be established
-      let attempts = 0;
-      while (attempts < 10) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        const subscribed = await this.isSubscribed();
-        if (subscribed) {
-          console.log('✅ Successfully force subscribed');
-          return true;
-        }
-        attempts++;
-      }
-      
-      console.log('❌ Failed to establish subscription after multiple attempts');
-      return false;
-      
-    } catch (error) {
-      console.error('❌ Error force subscribing:', error);
-      return false;
     }
   }
 }
