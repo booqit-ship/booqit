@@ -1,116 +1,456 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calendar, Users, DollarSign, TrendingUp } from 'lucide-react';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import OneSignalTestButton from '@/components/OneSignalTestButton';
-import OneSignalDiagnostic from '@/components/OneSignalDiagnostic';
+import { format } from 'date-fns';
+import { toast } from 'sonner';
+import { formatTimeToAmPm } from '@/utils/timeUtils';
+import { User, Scissors, BarChart3 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+
+interface BookingData {
+  id: string;
+  date: string;
+  time_slot: string;
+  status: string;
+  payment_status: string;
+  customer_name?: string;
+  customer_phone?: string;
+  customer_email?: string;
+  stylist_name?: string;
+  user_id: string;
+  services?: {
+    name: string;
+    price?: number;
+  };
+}
 
 const DashboardPage: React.FC = () => {
-  const { user } = useAuth();
+  const { userId } = useAuth();
+  const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(true);
+  const [bookingsToday, setBookingsToday] = useState(0);
+  const [totalEarnings, setTotalEarnings] = useState(0);
+  const [recentBookings, setRecentBookings] = useState<BookingData[]>([]);
+  const [merchantId, setMerchantId] = useState<string | null>(null);
+  const [shopImage, setShopImage] = useState<string | null>(null);
+  const [shopName, setShopName] = useState<string>('');
 
-  const stats = [
+  // Animation variants for staggered animations
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: { staggerChildren: 0.1 }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: { y: 0, opacity: 1 }
+  };
+
+  const fetchMerchantId = async () => {
+    if (!userId) {
+      console.log('No userId available');
+      return null;
+    }
+    
+    try {
+      console.log('Fetching merchant for userId:', userId);
+      const { data: merchantData, error: merchantError } = await supabase
+        .from('merchants')
+        .select('id, image_url, shop_name')
+        .eq('user_id', userId)
+        .single();
+
+      if (merchantError) {
+        console.error('Error fetching merchant ID:', merchantError);
+        toast.error('Failed to fetch merchant data');
+        return null;
+      }
+
+      if (merchantData) {
+        console.log('Found merchant:', merchantData);
+        setMerchantId(merchantData.id);
+        setShopImage(merchantData.image_url);
+        setShopName(merchantData.shop_name || 'Merchant');
+        return merchantData.id;
+      } else {
+        console.log('No merchant found for user');
+        toast.error('No merchant profile found');
+        return null;
+      }
+    } catch (error) {
+      console.error('Error fetching merchant ID:', error);
+      toast.error('Failed to fetch merchant data');
+    }
+    return null;
+  };
+
+  const fetchDashboardData = async (mId?: string) => {
+    if (!userId) {
+      console.log('No userId available for dashboard data');
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+
+      // Use provided merchant ID or fetch it
+      const merchantIdToUse = mId || await fetchMerchantId();
+      if (!merchantIdToUse) {
+        console.log('No merchant ID available');
+        setIsLoading(false);
+        return;
+      }
+
+      console.log('Fetching dashboard data for merchant:', merchantIdToUse);
+
+      // Get today's date in ISO format (YYYY-MM-DD)
+      const today = new Date().toISOString().split('T')[0];
+      console.log('Today date:', today);
+
+      // Get bookings count for today (all statuses except cancelled)
+      const { data: todayBookingsData, error: bookingsCountError } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('merchant_id', merchantIdToUse)
+        .eq('date', today)
+        .neq('status', 'cancelled');
+
+      if (bookingsCountError) {
+        console.error('Error fetching bookings count:', bookingsCountError);
+        toast.error('Failed to fetch bookings count');
+      } else {
+        console.log('Today bookings:', todayBookingsData?.length || 0);
+        setBookingsToday(todayBookingsData?.length || 0);
+      }
+
+      // Get all completed bookings to calculate total earnings
+      const { data: completedBookings, error: earningsError } = await supabase
+        .from('bookings')
+        .select(`
+          id,
+          payment_status,
+          services!inner(price)
+        `)
+        .eq('merchant_id', merchantIdToUse)
+        .eq('status', 'completed')
+        .eq('payment_status', 'completed');
+
+      if (earningsError) {
+        console.error('Error fetching earnings data:', earningsError);
+        toast.error('Failed to fetch earnings data');
+        setTotalEarnings(0);
+      } else {
+        console.log('Completed bookings:', completedBookings?.length || 0);
+        if (completedBookings && completedBookings.length > 0) {
+          // Sum up all service prices from completed bookings
+          const totalEarnings = completedBookings.reduce((sum, booking) => {
+            const servicePrice = booking.services?.price || 0;
+            console.log('Adding service price:', servicePrice);
+            return sum + servicePrice;
+          }, 0);
+          console.log('Total earnings calculated:', totalEarnings);
+          setTotalEarnings(totalEarnings);
+        } else {
+          console.log('No completed bookings found');
+          setTotalEarnings(0);
+        }
+      }
+
+      // Fetch recent bookings for today with complete data
+      const { data: recentBookingsData, error: recentBookingsError } = await supabase
+        .from('bookings')
+        .select(`
+          id,
+          date,
+          time_slot,
+          status,
+          payment_status,
+          customer_name,
+          customer_phone,
+          customer_email,
+          stylist_name,
+          services!inner(name),
+          user_id
+        `)
+        .eq('merchant_id', merchantIdToUse)
+        .eq('date', today)
+        .neq('status', 'cancelled')
+        .order('time_slot', { ascending: true })
+        .limit(5);
+
+      if (recentBookingsError) {
+        console.error('Error fetching recent bookings:', recentBookingsError);
+        toast.error('Failed to fetch recent bookings');
+      } else {
+        console.log('Recent bookings:', recentBookingsData?.length || 0);
+        if (recentBookingsData) {
+          // Process bookings and ensure we have customer names
+          const bookingsWithDetails = await Promise.all(
+            recentBookingsData.map(async (booking) => {
+              let customerName = booking.customer_name || 'Unknown Customer';
+
+              // If no customer name in booking, try to fetch from profiles
+              if (!booking.customer_name && booking.user_id) {
+                try {
+                  const { data: userData, error: userError } = await supabase
+                    .from('profiles')
+                    .select('name')
+                    .eq('id', booking.user_id)
+                    .single();
+
+                  if (!userError && userData?.name) {
+                    customerName = userData.name;
+                  }
+                } catch (error) {
+                  console.log('Could not fetch user profile for:', booking.user_id);
+                }
+              }
+
+              return {
+                id: booking.id,
+                date: booking.date,
+                time_slot: booking.time_slot,
+                status: booking.status,
+                payment_status: booking.payment_status,
+                customer_name: customerName,
+                customer_phone: booking.customer_phone,
+                customer_email: booking.customer_email,
+                stylist_name: booking.stylist_name || 'Unassigned',
+                user_id: booking.user_id,
+                services: booking.services
+              };
+            })
+          );
+
+          setRecentBookings(bookingsWithDetails);
+        }
+      }
+
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      toast.error('Error loading dashboard data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    console.log('Dashboard useEffect triggered, userId:', userId);
+    if (userId) {
+      fetchDashboardData();
+    }
+  }, [userId]);
+
+  // Set up realtime subscription for bookings changes
+  useEffect(() => {
+    if (!merchantId) return;
+
+    console.log('🔔 Setting up realtime subscription for merchant:', merchantId);
+
+    const bookingsChannel = supabase
+      .channel('dashboard-bookings-changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'bookings',
+        filter: `merchant_id=eq.${merchantId}`
+      }, (payload) => {
+        console.log('📊 Dashboard: Booking change detected:', payload);
+        
+        // Refresh data when bookings change, especially when completed
+        if (payload.eventType === 'UPDATE' && payload.new?.status === 'completed') {
+          console.log('💰 Booking completed, refreshing earnings');
+          toast.success('Booking completed! Dashboard updated.');
+        }
+        
+        // Refresh dashboard data
+        fetchDashboardData(merchantId);
+      })
+      .subscribe();
+
+    // Cleanup subscription
+    return () => {
+      console.log('🧹 Cleaning up dashboard realtime subscription');
+      supabase.removeChannel(bookingsChannel);
+    };
+  }, [merchantId]);
+
+  // Dashboard stats - only bookings today and total earnings
+  const dashboardStats = [
     {
-      title: "Today's Bookings",
-      value: "12",
-      icon: Calendar,
-      change: "+20%",
+      id: 1,
+      title: 'Bookings Today',
+      value: isLoading ? '...' : bookingsToday,
+      color: 'bg-booqit-primary/10 text-booqit-primary'
     },
     {
-      title: "Total Customers",
-      value: "543",
-      icon: Users,
-      change: "+12%",
-    },
-    {
-      title: "Revenue",
-      value: "₹15,240",
-      icon: DollarSign,
-      change: "+8%",
-    },
-    {
-      title: "Growth",
-      value: "23%",
-      icon: TrendingUp,
-      change: "+5%",
-    },
+      id: 2,
+      title: 'Total Earnings',
+      value: isLoading ? '...' : `₹${totalEarnings.toFixed(0)}`,
+      color: 'bg-green-100 text-green-700'
+    }
   ];
 
-  return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600">Welcome back, {user?.email}!</p>
+  if (isLoading) {
+    return (
+      <div className="p-4 md:p-6 pb-20">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-2xl font-bold">Dashboard</h1>
+            <p className="text-gray-500">Loading data...</p>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <OneSignalTestButton />
-        </div>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, index) => {
-          const Icon = stat.icon;
-          return (
-            <Card key={index}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">
-                  {stat.title}
-                </CardTitle>
-                <Icon className="h-4 w-4 text-booqit-primary" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stat.value}</div>
-                <p className="text-xs text-green-600 mt-1">
-                  {stat.change} from last month
-                </p>
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          {[1, 2].map(i => (
+            <Card key={i} className="border-none shadow-sm">
+              <CardContent className="p-4">
+                <div className="animate-pulse flex flex-col space-y-2">
+                  <div className="h-6 w-20 bg-gray-200 rounded-lg"></div>
+                  <div className="h-8 w-12 bg-gray-300 rounded-lg"></div>
+                </div>
               </CardContent>
             </Card>
-          );
-        })}
+          ))}
+        </div>
+        <Card className="border-none shadow-md mb-6">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Today's Bookings</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3 animate-pulse">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="h-16 bg-gray-100 rounded-md"></div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
+    );
+  }
 
-      {/* OneSignal Diagnostic Panel */}
-      <div className="mt-8">
-        <h2 className="text-xl font-semibold mb-4">Notification Testing</h2>
-        <OneSignalDiagnostic />
-      </div>
+  return (
+    <div className="p-4 md:p-6 pb-20">
+      <motion.div
+        initial={{ y: -10, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="flex justify-between items-center mb-6"
+      >
+        <div>
+          <h1 className="text-2xl font-light">Dashboard</h1>
+          <p className="text-gray-500">Welcome back, {shopName}!</p>
+        </div>
+        <Avatar className="h-12 w-12">
+          <AvatarImage src={shopImage || undefined} alt={shopName} />
+          <AvatarFallback className="bg-booqit-primary/10 text-booqit-primary">
+            {shopName.charAt(0).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+      </motion.div>
 
-      {/* Recent Activity */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-center space-x-4">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <div className="flex-1">
-                <p className="text-sm font-medium">New booking from John Doe</p>
-                <p className="text-xs text-gray-500">Hair Cut - 2:00 PM</p>
-              </div>
-              <span className="text-xs text-gray-400">5 min ago</span>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-              <div className="flex-1">
-                <p className="text-sm font-medium">Payment received</p>
-                <p className="text-xs text-gray-500">₹500 from Sarah Wilson</p>
-              </div>
-              <span className="text-xs text-gray-400">15 min ago</span>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-              <div className="flex-1">
-                <p className="text-sm font-medium">Appointment rescheduled</p>
-                <p className="text-xs text-gray-500">Mike Johnson - Tomorrow 3 PM</p>
-              </div>
-              <span className="text-xs text-gray-400">1 hour ago</span>
-            </div>
+      <motion.div variants={containerVariants} initial="hidden" animate="visible">
+        <motion.div variants={itemVariants}>
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            {dashboardStats.map(stat => (
+              <Card key={stat.id} className="border-none shadow-sm">
+                <CardContent className="p-4">
+                  <div className={`inline-flex rounded-lg p-2 mb-2 ${stat.color}`}>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                  </div>
+                  <p className="text-sm text-gray-500">{stat.title}</p>
+                  <h3 className="font-normal text-2xl">{stat.value}</h3>
+                </CardContent>
+              </Card>
+            ))}
           </div>
-        </CardContent>
-      </Card>
+        </motion.div>
+
+        {/* Analytics Button - Moved to prominent position */}
+        <motion.div variants={itemVariants} className="mb-6">
+          <Button
+            onClick={() => navigate('/merchant/analytics')}
+            className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-white py-6 text-lg"
+            size="lg"
+          >
+            <BarChart3 className="h-6 w-6 mr-3" />
+            View Analytics
+          </Button>
+        </motion.div>
+
+        <motion.div variants={itemVariants}>
+          <Card className="border-none shadow-md mb-6">
+            <CardHeader className="pb-2 px-4 md:px-6">
+              <CardTitle className="font-light text-xl">Today's Bookings</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 md:px-6">
+              <div className="space-y-3">
+                {recentBookings.length > 0 ? (
+                  recentBookings.map(booking => (
+                    <div
+                      key={booking.id}
+                      className="flex flex-col p-4 bg-gray-50 rounded-lg border border-gray-100 space-y-3"
+                    >
+                      {/* Header with customer name and status */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <User className="h-4 w-4 text-gray-600" />
+                          <h4 className="font-semibold text-gray-900">
+                            {booking.customer_name || 'Walk-in Customer'}
+                          </h4>
+                        </div>
+                        <span
+                          className={`text-xs px-2 py-1 rounded-full font-medium ${
+                            booking.status === 'confirmed'
+                              ? 'bg-green-100 text-green-700'
+                              : booking.status === 'completed'
+                              ? 'bg-blue-100 text-blue-700'
+                              : booking.status === 'cancelled'
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-amber-100 text-amber-700'
+                          }`}
+                        >
+                          {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                        </span>
+                      </div>
+
+                      {/* Service and time information */}
+                      <div className="grid grid-cols-1 gap-2 text-sm text-gray-600">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-gray-800">{booking.services?.name || 'Service'}</span>
+                          <span className="font-semibold text-booqit-primary">
+                            {formatTimeToAmPm(booking.time_slot)}
+                          </span>
+                        </div>
+                        
+                        {/* Stylist information */}
+                        {booking.stylist_name && (
+                          <div className="flex items-center space-x-2">
+                            <Scissors className="h-4 w-4 text-gray-500" />
+                            <span>Stylist: {booking.stylist_name}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-6">
+                    <p className="text-gray-500">No bookings for today</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </motion.div>
     </div>
   );
 };

@@ -2,7 +2,6 @@
 declare global {
   interface Window {
     OneSignal: any;
-    OneSignalDeferred: any[];
   }
 }
 
@@ -10,71 +9,83 @@ class OneSignalService {
   private initialized = false;
   private appId = 'd5a0614a-d4fc-45a0-81d4-cff762b376dd';
 
-  async waitForOneSignal(): Promise<void> {
-    // Wait for OneSignal to be available (it's initialized in HTML)
-    let attempts = 0;
-    while (!window.OneSignal && attempts < 100) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-      attempts++;
-    }
-
-    if (!window.OneSignal) {
-      throw new Error('OneSignal SDK not loaded after 10 seconds');
-    }
-  }
-
   async initialize(): Promise<void> {
     if (this.initialized) {
-      console.log('🔔 OneSignal service already initialized');
+      console.log('🔔 OneSignal already initialized');
       return;
     }
 
     try {
-      console.log('🔔 Waiting for OneSignal to be available...');
-      await this.waitForOneSignal();
+      console.log('🔔 Initializing OneSignal...');
       
-      console.log('✅ OneSignal SDK is available');
+      // Wait for OneSignal to be available
+      while (!window.OneSignal) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      await window.OneSignal.init({
+        appId: this.appId,
+        safari_web_id: "web.onesignal.auto.0a199198-d5df-41c5-963c-72a0258657aa",
+        notifyButton: {
+          enable: false,
+        },
+        allowLocalhostAsSecureOrigin: true,
+        autoRegister: true,
+        autoResubscribe: true,
+        showCredit: false,
+        persistNotification: true,
+        welcomeNotification: {
+          disable: false,
+          title: "BooqIt",
+          message: "Welcome! You'll receive booking notifications here."
+        }
+      });
+
       this.initialized = true;
-      
-      // Set up event listeners
-      this.setupEventListeners();
+      console.log('✅ OneSignal initialized successfully');
+
+      // Set up debug listeners
+      this.setupDebugListeners();
 
     } catch (error) {
-      console.error('❌ OneSignal service initialization failed:', error);
+      console.error('❌ OneSignal initialization failed:', error);
       throw error;
     }
   }
 
-  private setupEventListeners(): void {
-    try {
-      if (!window.OneSignal) return;
+  private setupDebugListeners(): void {
+    if (!window.OneSignal) return;
 
-      window.OneSignal.User.PushSubscription.addEventListener('change', (event: any) => {
-        console.log('🔔 Push subscription changed:', event);
-      });
+    window.OneSignal.User.PushSubscription.addEventListener('change', (event: any) => {
+      console.log('🔔 Push subscription changed:', event);
+    });
 
-      window.OneSignal.Notifications.addEventListener('permissionChange', (event: any) => {
-        console.log('🔔 Permission changed:', event);
-      });
+    window.OneSignal.Notifications.addEventListener('permissionChange', (event: any) => {
+      console.log('🔔 Permission changed:', event);
+    });
 
-    } catch (error) {
-      console.warn('⚠️ Could not set up OneSignal listeners:', error);
-    }
+    window.OneSignal.Notifications.addEventListener('click', (event: any) => {
+      console.log('🔔 Notification clicked:', event);
+    });
   }
 
   async setUserId(userId: string): Promise<void> {
-    await this.initialize();
+    if (!this.initialized) {
+      console.warn('⚠️ OneSignal not initialized, cannot set user ID');
+      return;
+    }
 
     try {
-      console.log('🔔 Setting OneSignal external user ID:', userId);
+      console.log('🔔 Setting OneSignal user ID:', userId);
       
-      // Use the login method to set external user ID
       await window.OneSignal.login(userId);
       
-      // Wait a bit for the login to process
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log('✅ OneSignal user ID set successfully:', userId);
       
-      console.log('✅ OneSignal external user ID set successfully:', userId);
+      // Verify the user ID was set
+      const currentUserId = await this.getCurrentUserId();
+      console.log('🔔 Current OneSignal user ID after setting:', currentUserId);
+      
     } catch (error) {
       console.error('❌ Failed to set OneSignal user ID:', error);
       throw error;
@@ -82,7 +93,7 @@ class OneSignalService {
   }
 
   async getCurrentUserId(): Promise<string | null> {
-    await this.initialize();
+    if (!this.initialized || !window.OneSignal) return null;
 
     try {
       const onesignalId = await window.OneSignal.User.onesignalId;
@@ -97,18 +108,14 @@ class OneSignalService {
   }
 
   async isSubscribed(): Promise<boolean> {
-    await this.initialize();
+    if (!this.initialized || !window.OneSignal) return false;
 
     try {
       const permission = await window.OneSignal.Notifications.permission;
       const pushSubscription = await window.OneSignal.User.PushSubscription.optedIn;
       
-      console.log('🔔 Subscription check - Permission:', permission, 'Opted In:', pushSubscription);
-      
-      const isSubscribed = permission === 'granted' && pushSubscription === true;
-      console.log('🔔 Final subscription status:', isSubscribed);
-      
-      return isSubscribed;
+      console.log('🔔 Subscription status - Permission:', permission, 'Opted In:', pushSubscription);
+      return permission === 'granted' && pushSubscription;
     } catch (error) {
       console.error('❌ Error checking subscription status:', error);
       return false;
@@ -116,94 +123,68 @@ class OneSignalService {
   }
 
   async requestPermission(): Promise<boolean> {
-    await this.initialize();
+    if (!this.initialized || !window.OneSignal) {
+      console.error('❌ OneSignal not initialized');
+      return false;
+    }
 
     try {
       console.log('🔔 Requesting notification permission...');
-      
-      // Check current permission status
-      const currentPermission = await window.OneSignal.Notifications.permission;
-      console.log('🔔 Current permission:', currentPermission);
-      
-      if (currentPermission === 'granted') {
-        console.log('🔔 Permission already granted, ensuring opt-in...');
-        await window.OneSignal.User.PushSubscription.optIn();
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        return await this.isSubscribed();
-      }
-      
-      // Request permission if not granted
-      console.log('🔔 Requesting browser permission...');
       const permission = await window.OneSignal.Notifications.requestPermission();
-      console.log('🔔 Permission request result:', permission);
-      
-      if (permission) {
-        console.log('🔔 Permission granted, opting in...');
-        await window.OneSignal.User.PushSubscription.optIn();
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        return await this.isSubscribed();
-      }
-      
-      return false;
+      console.log('🔔 Permission result:', permission);
+      return permission;
     } catch (error) {
       console.error('❌ Error requesting permission:', error);
       return false;
     }
   }
 
-  async forceSubscription(): Promise<boolean> {
-    await this.initialize();
+  async showSlidedownPrompt(): Promise<void> {
+    if (!this.initialized || !window.OneSignal) return;
 
     try {
-      console.log('🔔 Starting force subscription process...');
-      
-      // Step 1: Check if already subscribed
-      let isCurrentlySubscribed = await this.isSubscribed();
-      if (isCurrentlySubscribed) {
-        console.log('✅ Already subscribed');
-        return true;
-      }
-      
-      // Step 2: Request permission and opt in
-      const hasPermission = await this.requestPermission();
-      if (!hasPermission) {
-        console.log('❌ Could not get permission');
-        return false;
-      }
-      
-      // Step 3: Multiple verification attempts
-      for (let attempt = 1; attempt <= 5; attempt++) {
-        console.log(`🔔 Verification attempt ${attempt}/5`);
-        
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        isCurrentlySubscribed = await this.isSubscribed();
-        if (isCurrentlySubscribed) {
-          console.log('✅ Successfully force subscribed');
-          return true;
-        }
-        
-        // Try to opt in again if not subscribed
-        try {
-          console.log(`🔔 Attempt ${attempt}: Trying opt-in again...`);
-          await window.OneSignal.User.PushSubscription.optIn();
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        } catch (error) {
-          console.warn(`⚠️ Attempt ${attempt} opt-in failed:`, error);
-        }
-      }
-      
-      console.log('❌ Failed to establish subscription after multiple attempts');
-      return false;
-      
+      console.log('🔔 Showing slidedown prompt...');
+      await window.OneSignal.slidedown.promptPush();
     } catch (error) {
-      console.error('❌ Error in force subscription:', error);
-      return false;
+      console.error('❌ Error showing slidedown prompt:', error);
+    }
+  }
+
+  async showNativePrompt(): Promise<void> {
+    if (!this.initialized || !window.OneSignal) return;
+
+    try {
+      console.log('🔔 Showing native prompt...');
+      await window.OneSignal.showNativePrompt();
+    } catch (error) {
+      console.error('❌ Error showing native prompt:', error);
+    }
+  }
+
+  async forcePermissionPrompt(): Promise<void> {
+    if (!this.initialized || !window.OneSignal) return;
+
+    try {
+      console.log('🔔 Starting permission flow...');
+      
+      // Check current status
+      const isCurrentlySubscribed = await this.isSubscribed();
+      if (isCurrentlySubscribed) {
+        console.log('✅ User already subscribed');
+        return;
+      }
+
+      // Request permission directly
+      const hasPermission = await this.requestPermission();
+      console.log('🔔 Permission granted:', hasPermission);
+
+    } catch (error) {
+      console.error('❌ Error in permission flow:', error);
     }
   }
 
   async addTag(key: string, value: string): Promise<void> {
-    await this.initialize();
+    if (!this.initialized || !window.OneSignal) return;
 
     try {
       console.log('🔔 Adding tag:', key, '=', value);
@@ -215,7 +196,7 @@ class OneSignalService {
   }
 
   async removeTag(key: string): Promise<void> {
-    await this.initialize();
+    if (!this.initialized || !window.OneSignal) return;
 
     try {
       console.log('🔔 Removing tag:', key);
@@ -227,7 +208,7 @@ class OneSignalService {
   }
 
   async getSubscriptionDetails(): Promise<any> {
-    await this.initialize();
+    if (!this.initialized || !window.OneSignal) return null;
 
     try {
       const details = {
@@ -244,59 +225,6 @@ class OneSignalService {
     } catch (error) {
       console.error('❌ Error getting subscription details:', error);
       return null;
-    }
-  }
-
-  async showSlidedownPrompt(): Promise<void> {
-    await this.initialize();
-
-    try {
-      console.log('🔔 Showing slidedown prompt...');
-      await window.OneSignal.slidedown.promptPush();
-    } catch (error) {
-      console.error('❌ Error showing slidedown prompt:', error);
-    }
-  }
-
-  async showNativePrompt(): Promise<void> {
-    await this.initialize();
-
-    try {
-      console.log('🔔 Showing native prompt...');
-      await window.OneSignal.showNativePrompt();
-    } catch (error) {
-      console.error('❌ Error showing native prompt:', error);
-    }
-  }
-
-  async forcePermissionPrompt(): Promise<void> {
-    await this.initialize();
-
-    try {
-      console.log('🔔 Starting comprehensive permission flow...');
-      
-      // Check current status
-      const isCurrentlySubscribed = await this.isSubscribed();
-      if (isCurrentlySubscribed) {
-        console.log('✅ User already subscribed');
-        return;
-      }
-
-      // Try direct permission request first
-      console.log('🔔 Direct permission request...');
-      const hasPermission = await this.requestPermission();
-      if (hasPermission) {
-        console.log('✅ Direct permission successful');
-        return;
-      }
-      
-      // Try slidedown prompt as fallback
-      console.log('🔔 Trying slidedown prompt...');
-      await this.showSlidedownPrompt();
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-    } catch (error) {
-      console.error('❌ Error in comprehensive permission flow:', error);
     }
   }
 }
