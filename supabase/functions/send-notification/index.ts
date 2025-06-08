@@ -121,7 +121,7 @@ serve(async (req) => {
 
     console.log('🚀 Sending notification to FCM token:', profile.fcm_token.substring(0, 20) + '...');
 
-    // Send the notification using Firebase v1 API
+    // Send the notification using Firebase Cloud Messaging
     let notificationResult;
     try {
       notificationResult = await sendNotificationToToken(profile.fcm_token, title, body, data || {});
@@ -198,45 +198,80 @@ async function sendNotificationToToken(token: string, title: string, body: strin
     throw new Error('Firebase server key not configured')
   }
 
-  console.log('📤 Sending FCM request to legacy API...');
+  console.log('📤 Sending FCM request...');
   
-  // Use the correct legacy FCM endpoint
-  const response = await fetch('https://fcm.googleapis.com/fcm/send', {
+  // Use the legacy FCM endpoint (which should still work with server key)
+  const fcmUrl = 'https://fcm.googleapis.com/fcm/send';
+  
+  const payload = {
+    to: token,
+    notification: {
+      title,
+      body,
+      icon: '/icons/icon-192.png',
+    },
+    data: {
+      ...data,
+      click_action: 'https://booqit09-f4cfc.web.app'
+    },
+    // Add webpush config for better web support
+    webpush: {
+      headers: {
+        "TTL": "86400"
+      },
+      notification: {
+        title,
+        body,
+        icon: '/icons/icon-192.png',
+        click_action: 'https://booqit09-f4cfc.web.app',
+        tag: 'booqit-notification'
+      }
+    }
+  };
+
+  console.log('📤 FCM payload:', JSON.stringify(payload, null, 2));
+
+  const response = await fetch(fcmUrl, {
     method: 'POST',
     headers: {
       'Authorization': `key=${FIREBASE_SERVER_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      to: token,
-      notification: {
-        title,
-        body,
-        icon: '/icons/icon-192.png',
-        click_action: 'https://booqit09-f4cfc.web.app'
-      },
-      data: {
-        ...data,
-        click_action: 'https://booqit09-f4cfc.web.app'
-      }
-    }),
+    body: JSON.stringify(payload),
   })
 
   console.log('📨 FCM response status:', response.status);
+  console.log('📨 FCM response headers:', Object.fromEntries(response.headers.entries()));
 
   if (!response.ok) {
     const errorText = await response.text();
     console.error('❌ FCM API error response:', response.status, errorText);
+    
+    // Check if it's an authentication error
+    if (response.status === 401) {
+      throw new Error('FCM authentication failed - check FIREBASE_SERVER_KEY');
+    }
+    
+    // Check if it's a 404 (endpoint not found)
+    if (response.status === 404) {
+      throw new Error('FCM endpoint not found - legacy API may be deprecated');
+    }
+    
     throw new Error(`FCM API error: ${response.status} - ${errorText}`);
   }
 
   const result = await response.json();
   console.log('📨 FCM response data:', result);
   
-  if (result.failure === 1) {
-    const errors = result.results?.map(r => r.error).join(', ') || 'Unknown error';
+  // Check for FCM-specific errors in successful response
+  if (result.failure && result.failure > 0) {
+    const errors = result.results?.map(r => r.error).filter(Boolean).join(', ') || 'Unknown FCM error';
     console.error('❌ FCM delivery failed:', result);
     throw new Error(`FCM delivery failed: ${errors}`);
+  }
+  
+  if (result.canonical_ids && result.canonical_ids > 0) {
+    console.log('⚠️ FCM token should be updated:', result);
   }
   
   return result;
