@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { UserRole } from '../types';
 import { supabase } from '@/integrations/supabase/client';
@@ -222,13 +223,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               // Send welcome notification after successful login
               try {
                 const { sendWelcomeNotification } = await import('@/services/eventNotificationService');
-                const firstName = profileData?.name?.split(' ')[0] || 'there';
                 
-                await sendWelcomeNotification(
-                  session.user.id,
-                  profileData?.role as 'customer' | 'merchant',
-                  firstName
-                );
+                // Get user profile to extract name and role
+                const { data: profile } = await supabase
+                  .from('profiles')
+                  .select('name, role')
+                  .eq('id', session.user.id)
+                  .single();
+                
+                if (profile) {
+                  const firstName = profile.name?.split(' ')[0] || 'there';
+                  await sendWelcomeNotification(
+                    session.user.id,
+                    profile.role as 'customer' | 'merchant',
+                    firstName
+                  );
+                }
               } catch (error) {
                 console.error('❌ Error sending welcome notification:', error);
               }
