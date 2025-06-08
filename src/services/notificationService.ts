@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { getFCMToken } from '@/firebase';
 
@@ -48,6 +49,13 @@ export const sendNotificationToUser = async (userId: string, payload: Notificati
 
     if (error) {
       console.error('❌ Error calling Edge Function:', error);
+      
+      // Check if it's a network/parsing error (HTML response)
+      if (error.message?.includes('Unexpected token') || error.message?.includes('HTML')) {
+        console.error('❌ Received HTML instead of JSON - check Edge Function configuration');
+        return false;
+      }
+      
       return false;
     }
 
@@ -96,7 +104,7 @@ export const initializeUserNotifications = async (userId: string, userRole: 'cus
       ? 'Welcome back to BooqIt! Ready to manage your bookings?' 
       : 'Welcome back to BooqIt! Your beauty appointments await!';
 
-    await sendNotificationToUser(userId, {
+    const notificationSent = await sendNotificationToUser(userId, {
       title: 'Welcome to BooqIt! 🎉',
       body: welcomeMessage,
       data: {
@@ -104,6 +112,10 @@ export const initializeUserNotifications = async (userId: string, userRole: 'cus
         userId: userId
       }
     });
+
+    if (!notificationSent) {
+      console.log('⚠️ Welcome notification failed to send, but initialization was successful');
+    }
 
     console.log('✅ User notifications initialized successfully');
     return { success: true };
