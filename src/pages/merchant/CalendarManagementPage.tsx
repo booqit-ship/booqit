@@ -37,6 +37,8 @@ const CalendarManagementPage: React.FC = () => {
     queryFn: async () => {
       if (!userId) return null;
       
+      console.log('Fetching merchant for calendar management:', userId);
+      
       const { data, error } = await supabase
         .from('merchants')
         .select('*')
@@ -44,12 +46,14 @@ const CalendarManagementPage: React.FC = () => {
         .single();
       
       if (error) {
+        console.error('Error fetching merchant:', error);
         if (error.code === 'PGRST116') {
           return null;
         }
         throw error;
       }
       
+      console.log('Merchant found for calendar:', data);
       return data;
     },
     enabled: !!userId,
@@ -59,44 +63,69 @@ const CalendarManagementPage: React.FC = () => {
   const merchantId = merchant?.id;
 
   // Get bookings with caching and proper typing
-  const { data: bookings = [], isFetching: isBookingsFetching } = useQuery({
-    queryKey: ['bookings', merchantId, formatDateInIST(selectedDate, 'yyyy-MM-dd')],
+  const { data: bookings = [], isFetching: isBookingsFetching, error: bookingsError } = useQuery({
+    queryKey: ['calendar-bookings', merchantId, formatDateInIST(selectedDate, 'yyyy-MM-dd')],
     queryFn: async (): Promise<BookingWithCustomerDetails[]> => {
-      if (!merchantId) return [];
+      if (!merchantId) {
+        console.log('No merchant ID for bookings fetch');
+        return [];
+      }
       
       const dateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
+      console.log('Fetching bookings for date:', dateStr, 'merchant:', merchantId);
+      
       const { data, error } = await supabase
         .from('bookings')
         .select(`
           *,
           services (name, price, duration),
-          staff (name),
-          users (email, full_name)
+          staff (name)
         `)
         .eq('merchant_id', merchantId)
         .eq('date', dateStr)
         .order('time_slot', { ascending: true });
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching bookings:', error);
+        throw error;
+      }
+      
+      console.log('Fetched bookings:', data?.length || 0, 'for date:', dateStr);
       
       // Transform and type the data properly
-      return (data || []).map(booking => ({
-        id: booking.id,
-        service: booking.services ? {
-          name: booking.services.name,
-          duration: booking.services.duration
-        } : undefined,
-        time_slot: booking.time_slot,
-        status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
-        customer_name: booking.customer_name,
-        customer_phone: booking.customer_phone,
-        customer_email: booking.customer_email,
-        stylist_name: booking.stylist_name
-      }));
+      const transformedBookings = (data || []).map(booking => {
+        console.log('Processing booking:', booking);
+        
+        return {
+          id: booking.id,
+          service: booking.services ? {
+            name: booking.services.name,
+            duration: booking.services.duration
+          } : undefined,
+          time_slot: booking.time_slot,
+          status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
+          customer_name: booking.customer_name,
+          customer_phone: booking.customer_phone,
+          customer_email: booking.customer_email,
+          stylist_name: booking.stylist_name
+        };
+      });
+      
+      console.log('Transformed bookings:', transformedBookings);
+      return transformedBookings;
     },
     enabled: !!merchantId,
     staleTime: 2 * 60 * 1000, // 2 minutes
+    retry: 3,
   });
+
+  // Log any booking fetch errors
+  React.useEffect(() => {
+    if (bookingsError) {
+      console.error('Bookings fetch error:', bookingsError);
+      toast.error('Failed to fetch bookings');
+    }
+  }, [bookingsError]);
 
   // Get holidays with caching
   const { data: holidays = [], isFetching: isHolidaysFetching } = useQuery({
@@ -151,6 +180,7 @@ const CalendarManagementPage: React.FC = () => {
           
           if (!error) {
             counts[dateStr] = count || 0;
+            console.log('Appointment count for', dateStr, ':', count);
           }
         } catch (error) {
           console.error('Error fetching appointment count for', dateStr, error);
@@ -161,6 +191,35 @@ const CalendarManagementPage: React.FC = () => {
     enabled: !!merchantId,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
+
+  // Set up realtime subscription for bookings changes
+  React.useEffect(() => {
+    if (!merchantId) return;
+
+    console.log('🔔 Setting up calendar realtime subscription for merchant:', merchantId);
+
+    const bookingsChannel = supabase
+      .channel('calendar-bookings-changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'bookings',
+        filter: `merchant_id=eq.${merchantId}`
+      }, (payload) => {
+        console.log('📅 Calendar: Booking change detected:', payload);
+        
+        // Invalidate relevant queries to refresh data
+        queryClient.invalidateQueries({ queryKey: ['calendar-bookings', merchantId] });
+        queryClient.invalidateQueries({ queryKey: ['appointment-counts', merchantId] });
+      })
+      .subscribe();
+
+    // Cleanup subscription
+    return () => {
+      console.log('🧹 Cleaning up calendar realtime subscription');
+      supabase.removeChannel(bookingsChannel);
+    };
+  }, [merchantId, queryClient]);
 
   const handleStatusChange = async (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
     try {
@@ -193,7 +252,7 @@ const CalendarManagementPage: React.FC = () => {
       toast.success(`Booking ${newStatus} successfully`);
       
       // Invalidate relevant queries to refresh data
-      queryClient.invalidateQueries({ queryKey: ['bookings', merchantId] });
+      queryClient.invalidateQueries({ queryKey: ['calendar-bookings', merchantId] });
       queryClient.invalidateQueries({ queryKey: ['appointment-counts', merchantId] });
     } catch (error) {
       console.error('Error updating booking status:', error);
@@ -227,17 +286,20 @@ const CalendarManagementPage: React.FC = () => {
   };
 
   const refetchBookings = () => {
-    queryClient.invalidateQueries({ queryKey: ['bookings', merchantId] });
+    queryClient.invalidateQueries({ queryKey: ['calendar-bookings', merchantId] });
   };
 
   const refetchHolidays = () => {
     queryClient.invalidateQueries({ queryKey: ['shop_holidays', merchantId] });
   };
 
-  if (!merchantId) {
+  if (!merchantId && !isMerchantFetching) {
     return (
       <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-booqit-primary"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-booqit-primary mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading merchant data...</p>
+        </div>
       </div>
     );
   }
@@ -271,28 +333,30 @@ const CalendarManagementPage: React.FC = () => {
           <BookingsList 
             date={selectedDate} 
             bookings={bookings} 
-            isLoading={false} // Always show cached data, use isFetching for spinner
+            isLoading={isBookingsFetching} 
             onStatusChange={handleStatusChange} 
           />
         </div>
 
         <div className="space-y-4 md:space-y-6">
           <HolidayManager 
-            merchantId={merchantId} 
+            merchantId={merchantId || ''} 
             holidays={holidays} 
-            isLoading={false} // Always show cached data
+            isLoading={isHolidaysFetching} 
             onDeleteHoliday={handleDeleteHoliday} 
             onHolidayAdded={refetchHolidays} 
           />
 
-          <StylistAvailabilityWidget 
-            merchantId={merchantId} 
-            selectedDate={selectedDate} 
-            onAvailabilityChange={() => {
-              refetchBookings();
-              refetchHolidays();
-            }} 
-          />
+          {merchantId && (
+            <StylistAvailabilityWidget 
+              merchantId={merchantId} 
+              selectedDate={selectedDate} 
+              onAvailabilityChange={() => {
+                refetchBookings();
+                refetchHolidays();
+              }} 
+            />
+          )}
         </div>
       </div>
     </div>

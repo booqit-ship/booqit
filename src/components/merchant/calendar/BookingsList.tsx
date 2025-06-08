@@ -32,8 +32,15 @@ const BookingsList: React.FC<BookingsListProps> = ({
   isLoading,
   onStatusChange,
 }) => {
-  // Show all bookings except cancelled ones
-  const visibleBookings = bookings.filter(booking => booking.status !== 'cancelled');
+  // Show all bookings (don't filter out cancelled ones - let users see them)
+  const visibleBookings = bookings || [];
+
+  console.log('BookingsList render:', {
+    date: format(date, 'yyyy-MM-dd'),
+    bookingsCount: visibleBookings.length,
+    isLoading,
+    bookings: visibleBookings
+  });
 
   return (
     <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-gray-50/30">
@@ -41,6 +48,11 @@ const BookingsList: React.FC<BookingsListProps> = ({
         <div className="text-xl flex items-center font-semibold">
           <CalendarCheck className="mr-3 h-6 w-6" />
           {format(date, 'MMMM d, yyyy')} Bookings
+          {!isLoading && visibleBookings.length > 0 && (
+            <span className="ml-2 bg-white/20 px-2 py-1 rounded-full text-sm">
+              {visibleBookings.length}
+            </span>
+          )}
         </div>
       </CardHeader>
       <CardContent className="p-6">

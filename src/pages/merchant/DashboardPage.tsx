@@ -6,12 +6,28 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Booking } from '@/types';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { User, Scissors, BarChart3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+
+interface BookingData {
+  id: string;
+  date: string;
+  time_slot: string;
+  status: string;
+  payment_status: string;
+  customer_name?: string;
+  customer_phone?: string;
+  customer_email?: string;
+  stylist_name?: string;
+  user_id: string;
+  services?: {
+    name: string;
+    price?: number;
+  };
+}
 
 const DashboardPage: React.FC = () => {
   const { userId } = useAuth();
@@ -19,7 +35,7 @@ const DashboardPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [bookingsToday, setBookingsToday] = useState(0);
   const [totalEarnings, setTotalEarnings] = useState(0);
-  const [recentBookings, setRecentBookings] = useState<Booking[]>([]);
+  const [recentBookings, setRecentBookings] = useState<BookingData[]>([]);
   const [merchantId, setMerchantId] = useState<string | null>(null);
   const [shopImage, setShopImage] = useState<string | null>(null);
   const [shopName, setShopName] = useState<string>('');
@@ -99,12 +115,13 @@ const DashboardPage: React.FC = () => {
       const today = new Date().toISOString().split('T')[0];
       console.log('Today date:', today);
 
-      // Get bookings count for today (all statuses)
+      // Get bookings count for today (all statuses except cancelled)
       const { data: todayBookingsData, error: bookingsCountError } = await supabase
         .from('bookings')
         .select('*')
         .eq('merchant_id', merchantIdToUse)
-        .eq('date', today);
+        .eq('date', today)
+        .neq('status', 'cancelled');
 
       if (bookingsCountError) {
         console.error('Error fetching bookings count:', bookingsCountError);
@@ -123,6 +140,7 @@ const DashboardPage: React.FC = () => {
           services!inner(price)
         `)
         .eq('merchant_id', merchantIdToUse)
+        .eq('status', 'completed')
         .eq('payment_status', 'completed');
 
       if (earningsError) {
@@ -164,6 +182,7 @@ const DashboardPage: React.FC = () => {
         `)
         .eq('merchant_id', merchantIdToUse)
         .eq('date', today)
+        .neq('status', 'cancelled')
         .order('time_slot', { ascending: true })
         .limit(5);
 
@@ -196,15 +215,22 @@ const DashboardPage: React.FC = () => {
               }
 
               return {
-                ...booking,
+                id: booking.id,
+                date: booking.date,
+                time_slot: booking.time_slot,
+                status: booking.status,
+                payment_status: booking.payment_status,
                 customer_name: customerName,
+                customer_phone: booking.customer_phone,
+                customer_email: booking.customer_email,
                 stylist_name: booking.stylist_name || 'Unassigned',
-                service: booking.services // Ensure service data is available
+                user_id: booking.user_id,
+                services: booking.services
               };
             })
           );
 
-          setRecentBookings(bookingsWithDetails as Booking[]);
+          setRecentBookings(bookingsWithDetails);
         }
       }
 
@@ -240,9 +266,9 @@ const DashboardPage: React.FC = () => {
         console.log('📊 Dashboard: Booking change detected:', payload);
         
         // Refresh data when bookings change, especially when completed
-        if (payload.eventType === 'UPDATE' && payload.new?.payment_status === 'completed') {
-          console.log('💰 Payment completed, refreshing earnings');
-          toast.success('Payment completed! Earnings updated.');
+        if (payload.eventType === 'UPDATE' && payload.new?.status === 'completed') {
+          console.log('💰 Booking completed, refreshing earnings');
+          toast.success('Booking completed! Dashboard updated.');
         }
         
         // Refresh dashboard data
@@ -399,7 +425,7 @@ const DashboardPage: React.FC = () => {
                       {/* Service and time information */}
                       <div className="grid grid-cols-1 gap-2 text-sm text-gray-600">
                         <div className="flex items-center justify-between">
-                          <span className="font-medium text-gray-800">{booking.service?.name || 'Service'}</span>
+                          <span className="font-medium text-gray-800">{booking.services?.name || 'Service'}</span>
                           <span className="font-semibold text-booqit-primary">
                             {formatTimeToAmPm(booking.time_slot)}
                           </span>
