@@ -74,24 +74,32 @@ const BookingsList: React.FC<BookingsListProps> = ({
   return (
     <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-gray-50/30">
       <CardHeader className="bg-gradient-to-r from-booqit-primary to-booqit-primary/80 text-white rounded-t-lg py-5">
-        <div className="text-xl flex items-center justify-between font-semibold">
+        <div className="space-y-4">
+          {/* Main header with date and count */}
           <div className="flex items-center">
             <CalendarCheck className="mr-3 h-6 w-6" />
-            {format(date, 'MMMM d, yyyy')} Bookings
-            {!isLoading && filteredAndSortedBookings.length > 0 && (
-              <span className="ml-2 text-sm bg-white/20 px-2 py-1 rounded">
-                {filteredAndSortedBookings.length}
+            <div className="flex items-center gap-2">
+              <span className="text-xl font-semibold">
+                {format(date, 'MMMM d, yyyy')} Bookings
               </span>
-            )}
+              {!isLoading && filteredAndSortedBookings.length > 0 && (
+                <span className="text-sm bg-white/20 px-2 py-1 rounded">
+                  {filteredAndSortedBookings.length}
+                </span>
+              )}
+            </div>
           </div>
           
-          {/* Stylist Filter */}
+          {/* Stylist Filter - moved below with better alignment */}
           {stylists.length > 0 && (
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4" />
+            <div className="flex items-center justify-start gap-3">
+              <div className="flex items-center gap-2 text-white/90">
+                <Filter className="h-4 w-4" />
+                <span className="text-sm font-medium">Filter by stylist:</span>
+              </div>
               <Select value={selectedStylist} onValueChange={setSelectedStylist}>
-                <SelectTrigger className="w-40 bg-white/10 border-white/20 text-white">
-                  <SelectValue placeholder="Filter by stylist" />
+                <SelectTrigger className="w-44 bg-white/10 border-white/20 text-white hover:bg-white/15 transition-colors">
+                  <SelectValue placeholder="All Stylists" />
                 </SelectTrigger>
                 <SelectContent className="bg-white">
                   <SelectItem value="all">All Stylists</SelectItem>
