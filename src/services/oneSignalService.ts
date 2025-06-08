@@ -10,6 +10,19 @@ class OneSignalService {
   private initialized = false;
   private appId = 'd5a0614a-d4fc-45a0-81d4-cff762b376dd';
 
+  async waitForOneSignal(): Promise<void> {
+    // Wait for OneSignal to be available (it's initialized in HTML)
+    let attempts = 0;
+    while (!window.OneSignal && attempts < 100) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      attempts++;
+    }
+
+    if (!window.OneSignal) {
+      throw new Error('OneSignal SDK not loaded after 10 seconds');
+    }
+  }
+
   async initialize(): Promise<void> {
     if (this.initialized) {
       console.log('🔔 OneSignal service already initialized');
@@ -18,19 +31,9 @@ class OneSignalService {
 
     try {
       console.log('🔔 Waiting for OneSignal to be available...');
+      await this.waitForOneSignal();
       
-      // Wait for OneSignal to be available (it's already initialized in HTML)
-      let attempts = 0;
-      while (!window.OneSignal && attempts < 100) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        attempts++;
-      }
-
-      if (!window.OneSignal) {
-        throw new Error('OneSignal SDK not loaded after 10 seconds');
-      }
-
-      console.log('✅ OneSignal SDK is available and already initialized');
+      console.log('✅ OneSignal SDK is available');
       this.initialized = true;
       
       // Set up event listeners
@@ -63,9 +66,15 @@ class OneSignalService {
     await this.initialize();
 
     try {
-      console.log('🔔 Setting OneSignal user ID:', userId);
+      console.log('🔔 Setting OneSignal external user ID:', userId);
+      
+      // Use the login method to set external user ID
       await window.OneSignal.login(userId);
-      console.log('✅ OneSignal user ID set successfully:', userId);
+      
+      // Wait a bit for the login to process
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      console.log('✅ OneSignal external user ID set successfully:', userId);
     } catch (error) {
       console.error('❌ Failed to set OneSignal user ID:', error);
       throw error;
@@ -94,8 +103,12 @@ class OneSignalService {
       const permission = await window.OneSignal.Notifications.permission;
       const pushSubscription = await window.OneSignal.User.PushSubscription.optedIn;
       
-      console.log('🔔 Subscription status - Permission:', permission, 'Opted In:', pushSubscription);
-      return permission === 'granted' && pushSubscription === true;
+      console.log('🔔 Subscription check - Permission:', permission, 'Opted In:', pushSubscription);
+      
+      const isSubscribed = permission === 'granted' && pushSubscription === true;
+      console.log('🔔 Final subscription status:', isSubscribed);
+      
+      return isSubscribed;
     } catch (error) {
       console.error('❌ Error checking subscription status:', error);
       return false;
@@ -113,16 +126,9 @@ class OneSignalService {
       console.log('🔔 Current permission:', currentPermission);
       
       if (currentPermission === 'granted') {
-        // Permission already granted, ensure we're opted in
-        const isOptedIn = await window.OneSignal.User.PushSubscription.optedIn;
-        console.log('🔔 Current opt-in status:', isOptedIn);
-        
-        if (!isOptedIn) {
-          console.log('🔔 Permission granted but not opted in, opting in...');
-          await window.OneSignal.User.PushSubscription.optIn();
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-        
+        console.log('🔔 Permission already granted, ensuring opt-in...');
+        await window.OneSignal.User.PushSubscription.optIn();
+        await new Promise(resolve => setTimeout(resolve, 1500));
         return await this.isSubscribed();
       }
       
@@ -132,9 +138,9 @@ class OneSignalService {
       console.log('🔔 Permission request result:', permission);
       
       if (permission) {
-        console.log('🔔 Permission granted, ensuring opt-in...');
+        console.log('🔔 Permission granted, opting in...');
         await window.OneSignal.User.PushSubscription.optIn();
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 2000));
         return await this.isSubscribed();
       }
       
@@ -158,16 +164,16 @@ class OneSignalService {
         return true;
       }
       
-      // Step 2: Request permission
+      // Step 2: Request permission and opt in
       const hasPermission = await this.requestPermission();
       if (!hasPermission) {
         console.log('❌ Could not get permission');
         return false;
       }
       
-      // Step 3: Verify subscription multiple times
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        console.log(`🔔 Verification attempt ${attempt}/3`);
+      // Step 3: Multiple verification attempts
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        console.log(`🔔 Verification attempt ${attempt}/5`);
         
         await new Promise(resolve => setTimeout(resolve, 1000));
         
@@ -177,9 +183,11 @@ class OneSignalService {
           return true;
         }
         
-        // Try to opt in again
+        // Try to opt in again if not subscribed
         try {
+          console.log(`🔔 Attempt ${attempt}: Trying opt-in again...`);
           await window.OneSignal.User.PushSubscription.optIn();
+          await new Promise(resolve => setTimeout(resolve, 1000));
         } catch (error) {
           console.warn(`⚠️ Attempt ${attempt} opt-in failed:`, error);
         }
@@ -274,7 +282,7 @@ class OneSignalService {
         return;
       }
 
-      // Try direct permission request
+      // Try direct permission request first
       console.log('🔔 Direct permission request...');
       const hasPermission = await this.requestPermission();
       if (hasPermission) {
@@ -282,7 +290,7 @@ class OneSignalService {
         return;
       }
       
-      // Try slidedown prompt
+      // Try slidedown prompt as fallback
       console.log('🔔 Trying slidedown prompt...');
       await this.showSlidedownPrompt();
       await new Promise(resolve => setTimeout(resolve, 2000));

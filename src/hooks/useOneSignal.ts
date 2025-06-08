@@ -39,8 +39,13 @@ export const useOneSignal = () => {
         // Wait for OneSignal to be fully initialized
         await oneSignalService.initialize();
         
-        // Set external user ID
+        // Set external user ID - this is critical for notifications
+        console.log('🔔 Setting external user ID to:', userId);
         await oneSignalService.setUserId(userId);
+        
+        // Verify the user ID was set
+        const currentUserId = await oneSignalService.getCurrentUserId();
+        console.log('🔔 Verified current user ID:', currentUserId);
         
         // Add role-based tags
         if (userRole) {
@@ -49,7 +54,7 @@ export const useOneSignal = () => {
           await oneSignalService.addTag('last_login', new Date().toISOString());
         }
         
-        // For merchants, be more aggressive about notifications
+        // For merchants, check subscription status and prompt if needed
         if (userRole === 'merchant') {
           console.log('🏪 Setting up merchant-specific notifications...');
           
@@ -57,15 +62,15 @@ export const useOneSignal = () => {
           await oneSignalService.addTag('notification_priority', 'high');
           await oneSignalService.addTag('business_notifications', 'enabled');
           
-          // Get current subscription status
+          // Check subscription status
           const isSubscribed = await oneSignalService.isSubscribed();
           console.log('🔔 Merchant subscription status:', isSubscribed);
           
           if (!isSubscribed) {
             console.log('🔔 Merchant not subscribed - showing setup message...');
             
-            toast.info('📱 Click "Force Subscribe" to enable booking notifications!', {
-              duration: 12000,
+            toast.info('📱 Enable notifications to receive booking alerts! Click "Force Subscribe" below.', {
+              duration: 15000,
             });
           } else {
             console.log('✅ Merchant already subscribed to notifications');
@@ -137,7 +142,12 @@ export const useOneSignal = () => {
       console.log('🔔 Resetting and setting up OneSignal user...');
       userSetupCompleteRef.current = false;
       
+      // Set external user ID
       await oneSignalService.setUserId(userId);
+      
+      // Verify it was set
+      const currentUserId = await oneSignalService.getCurrentUserId();
+      console.log('🔔 Reset - verified user ID:', currentUserId);
       
       if (userRole) {
         await oneSignalService.addTag('userRole', userRole);
