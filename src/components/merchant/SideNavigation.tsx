@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -20,7 +19,7 @@ interface NavItem {
 
 const SideNavigation: React.FC = () => {
   const location = useLocation();
-  const { signOut } = useAuth();
+  const { logout } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(true);
   
   const navItems: NavItem[] = [
@@ -143,7 +142,7 @@ const SideNavigation: React.FC = () => {
         <div className="p-4 border-t">
           <Button
             variant="ghost"
-            onClick={signOut}
+            onClick={logout}
             className={cn(
               "w-full justify-center",
               isCollapsed ? "p-2" : ""

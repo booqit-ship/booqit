@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -5,19 +6,11 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Bell, Send, TestTube, CheckCircle, AlertCircle, RefreshCw, Copy, Settings, Heart, Calendar, Star, Clock } from 'lucide-react';
+import { Bell, Send, TestTube, CheckCircle, AlertCircle, RefreshCw, Copy, Settings } from 'lucide-react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useAuth } from '@/contexts/AuthContext';
 import { sendNotificationToUser } from '@/services/notificationService';
 import { getFCMToken, requestNotificationPermission } from '@/firebase';
-import { 
-  sendWelcomeNotification, 
-  sendNewBookingNotification, 
-  sendBookingCompletionNotification,
-  sendDailyCustomerReminder,
-  sendDailyMerchantMotivation
-} from '@/services/eventNotificationService';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 const NotificationTestPanel = () => {
@@ -101,6 +94,7 @@ const NotificationTestPanel = () => {
     setIsLoading(true);
     try {
       console.log('🧪 Sending test notification to user:', userId);
+      console.log('📋 Notification payload:', { title: customTitle, body: customMessage });
       
       const success = await sendNotificationToUser(userId, {
         title: customTitle,
@@ -116,7 +110,9 @@ const NotificationTestPanel = () => {
         toast.success('✅ Test notification sent! Check for browser notification.', {
           duration: 8000
         });
+        console.log('✅ Test notification sent successfully');
         
+        // Also create a local test notification for immediate feedback
         if (Notification.permission === 'granted') {
           new Notification('Local Test: ' + customTitle, {
             body: customMessage + ' (This is a local test notification)',
@@ -135,7 +131,7 @@ const NotificationTestPanel = () => {
     }
   };
 
-  const sendWelcomeTest = async () => {
+  const sendWelcomeNotification = async () => {
     if (!userId) {
       toast.error('User not authenticated');
       return;
@@ -143,111 +139,40 @@ const NotificationTestPanel = () => {
 
     setIsLoading(true);
     try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('name')
-        .eq('id', userId)
-        .single();
+      console.log('🎉 Sending welcome notification to user:', userId);
+      const welcomeMessage = userRole === 'merchant' 
+        ? 'Welcome back to BooqIt! Ready to manage your bookings?' 
+        : 'Welcome back to BooqIt! Your beauty appointments await!';
 
-      if (profile) {
-        await sendWelcomeNotification(userId, profile.name, userRole || 'customer');
-        toast.success('🎉 Welcome notification sent!');
+      const success = await sendNotificationToUser(userId, {
+        title: 'Welcome to BooqIt! 🎉',
+        body: welcomeMessage,
+        data: {
+          type: 'welcome',
+          userId: userId,
+          timestamp: new Date().toISOString()
+        }
+      });
+
+      if (success) {
+        toast.success('🎉 Welcome notification sent! Check for browser notification.', {
+          duration: 8000
+        });
+        
+        // Also create a local test notification
+        if (Notification.permission === 'granted') {
+          new Notification('Welcome to BooqIt! 🎉', {
+            body: welcomeMessage + ' (Local test)',
+            icon: '/icons/icon-192.png',
+            tag: 'welcome-test'
+          });
+        }
+      } else {
+        toast.error('❌ Failed to send welcome notification.');
       }
     } catch (error) {
       console.error('❌ Error sending welcome notification:', error);
-      toast.error('❌ Error: ' + error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const sendBookingTest = async () => {
-    if (!userId) {
-      toast.error('User not authenticated');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      await sendNewBookingNotification(userId, {
-        customerName: 'John Doe',
-        serviceName: 'Hair Cut & Style',
-        timeSlot: '15:00:00',
-        date: new Date().toISOString().split('T')[0]
-      });
-      toast.success('📅 New booking notification sent!');
-    } catch (error) {
-      console.error('❌ Error sending booking notification:', error);
-      toast.error('❌ Error: ' + error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const sendCompletionTest = async () => {
-    if (!userId) {
-      toast.error('User not authenticated');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      await sendBookingCompletionNotification(userId, 'Glam Studio', 'test-booking-id');
-      toast.success('✨ Booking completion notification sent!');
-    } catch (error) {
-      console.error('❌ Error sending completion notification:', error);
-      toast.error('❌ Error: ' + error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const sendDailyReminderTest = async () => {
-    if (!userId) {
-      toast.error('User not authenticated');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('name')
-        .eq('id', userId)
-        .single();
-
-      if (profile) {
-        if (userRole === 'customer') {
-          await sendDailyCustomerReminder(userId, profile.name);
-          toast.success('💅 Daily customer reminder sent!');
-        } else {
-          await sendDailyMerchantMotivation(userId, profile.name);
-          toast.success('🌟 Daily merchant motivation sent!');
-        }
-      }
-    } catch (error) {
-      console.error('❌ Error sending daily reminder:', error);
-      toast.error('❌ Error: ' + error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const triggerDailyReminders = async () => {
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('daily-reminders');
-      
-      if (error) {
-        console.error('❌ Error triggering daily reminders:', error);
-        toast.error('❌ Failed to trigger daily reminders: ' + error.message);
-      } else {
-        console.log('✅ Daily reminders response:', data);
-        toast.success(`✅ Daily reminders triggered! ${data.sent || 0} sent, ${data.skipped || 0} skipped.`);
-      }
-    } catch (error) {
-      console.error('❌ Error in triggerDailyReminders:', error);
-      toast.error('❌ Error: ' + error.message);
+      toast.error('❌ Error sending welcome notification: ' + error.message);
     } finally {
       setIsLoading(false);
     }
@@ -291,7 +216,7 @@ const NotificationTestPanel = () => {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <TestTube className="h-5 w-5" />
-          Event-Driven Notification Test Panel
+          Browser Notification Test Panel
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -377,65 +302,9 @@ const NotificationTestPanel = () => {
           
           {permissionStatus === 'granted' && (
             <>
-              {/* Event-Based Notification Tests */}
-              <div className="space-y-3 p-4 border rounded-lg">
-                <h3 className="text-sm font-medium">🎯 Event-Based Notifications</h3>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button 
-                    onClick={sendWelcomeTest}
-                    variant="outline"
-                    size="sm"
-                    disabled={!isInitialized || isLoading}
-                  >
-                    <Heart className="h-4 w-4 mr-1" />
-                    Welcome
-                  </Button>
-                  
-                  <Button 
-                    onClick={sendBookingTest}
-                    variant="outline"
-                    size="sm"
-                    disabled={!isInitialized || isLoading}
-                  >
-                    <Calendar className="h-4 w-4 mr-1" />
-                    New Booking
-                  </Button>
-                  
-                  <Button 
-                    onClick={sendCompletionTest}
-                    variant="outline"
-                    size="sm"
-                    disabled={!isInitialized || isLoading}
-                  >
-                    <Star className="h-4 w-4 mr-1" />
-                    Completion
-                  </Button>
-                  
-                  <Button 
-                    onClick={sendDailyReminderTest}
-                    variant="outline"
-                    size="sm"
-                    disabled={!isInitialized || isLoading}
-                  >
-                    <Clock className="h-4 w-4 mr-1" />
-                    Daily Reminder
-                  </Button>
-                </div>
-                
-                <Button 
-                  onClick={triggerDailyReminders}
-                  variant="outline"
-                  className="w-full"
-                  disabled={!isInitialized || isLoading}
-                >
-                  <Clock className="h-4 w-4 mr-2" />
-                  {isLoading ? 'Triggering...' : 'Trigger Daily Reminders (All Users)'}
-                </Button>
-              </div>
-
               {/* Custom Notification Form */}
               <div className="space-y-3 p-4 border rounded-lg">
-                <h3 className="text-sm font-medium">🧪 Custom Test Notification</h3>
+                <h3 className="text-sm font-medium">Custom Test Notification</h3>
                 <div className="space-y-2">
                   <div>
                     <Label htmlFor="title" className="text-xs">Title</Label>
@@ -464,9 +333,19 @@ const NotificationTestPanel = () => {
                   disabled={!isInitialized || isLoading}
                 >
                   <Send className="h-4 w-4 mr-2" />
-                  {isLoading ? 'Sending...' : 'Send Custom Test'}
+                  {isLoading ? 'Sending...' : 'Send Test Notification'}
                 </Button>
               </div>
+              
+              <Button 
+                onClick={sendWelcomeNotification}
+                className="w-full"
+                variant="outline"
+                disabled={!isInitialized || isLoading}
+              >
+                <Bell className="h-4 w-4 mr-2" />
+                {isLoading ? 'Sending...' : 'Send Welcome Message'}
+              </Button>
             </>
           )}
         </div>
@@ -498,12 +377,13 @@ const NotificationTestPanel = () => {
 
         {/* Debug Information */}
         <div className="text-xs text-gray-500 space-y-1 pt-4 border-t">
-          <p>🔔 <strong>Event-Driven Notification System:</strong></p>
-          <p>• Welcome: Triggers on login (once per day)</p>
-          <p>• New Booking: Sent to merchant when customer books</p>
-          <p>• Completion: Sent to customer when booking marked complete</p>
-          <p>• Daily Reminders: Motivational messages (respects DND hours)</p>
-          <p>• All notifications are personalized with user names</p>
+          <p>🔔 <strong>Testing Steps:</strong></p>
+          <p>1. Click "Enable Browser Notifications" and allow permission</p>
+          <p>2. Use "Send Test Notification" - you should see it in browser</p>
+          <p>3. Check browser console for detailed logs</p>
+          <p>4. Try with app in background vs foreground</p>
+          <p>• Foreground: Shows as browser notification immediately</p>
+          <p>• Background: Handled by service worker</p>
         </div>
       </CardContent>
     </Card>

@@ -14,7 +14,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children, 
   requiredRole 
 }) => {
-  const { isAuthenticated, userRole, isLoading } = useAuth();
+  const { isAuthenticated, userRole, loading } = useAuth();
 
   // Check permanent session for instant auth check
   const permanentData = PermanentSession.getSession();
@@ -22,7 +22,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const permanentRole = permanentData.userRole as UserRole;
 
   // Show loading only briefly - if we have permanent session, show content immediately
-  if (isLoading && !hasPermanentSession) {
+  if (loading && !hasPermanentSession) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-booqit-primary/10 to-white flex items-center justify-center">
         <div className="text-center">

@@ -8,13 +8,13 @@ import { PermanentSession } from "@/utils/permanentSession";
 
 const Index = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, userRole, isLoading } = useAuth();
+  const { isAuthenticated, userRole, loading } = useAuth();
 
   useEffect(() => {
     console.log(`📍 Index - Auth state:`, { 
       isAuthenticated, 
       userRole, 
-      isLoading 
+      loading 
     });
 
     // Check permanent session first for instant redirect
@@ -35,7 +35,7 @@ const Index = () => {
     }
 
     // Fallback to context auth state (only if loading is false)
-    if (isAuthenticated && userRole && !isLoading) {
+    if (isAuthenticated && userRole && !loading) {
       console.log('✅ User authenticated via context, redirecting based on role:', userRole);
       
       if (userRole === "merchant") {
@@ -46,11 +46,11 @@ const Index = () => {
         navigate("/home", { replace: true });
       }
     }
-  }, [isAuthenticated, userRole, isLoading, navigate]);
+  }, [isAuthenticated, userRole, loading, navigate]);
 
   // Show loading only if we don't have permanent session AND auth is loading
   const permanentData = PermanentSession.getSession();
-  if (isLoading && !permanentData.isLoggedIn) {
+  if (loading && !permanentData.isLoggedIn) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-booqit-primary/20 to-white">
         <div className="text-center">
