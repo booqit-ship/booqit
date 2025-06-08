@@ -5,7 +5,6 @@ import { Session, User } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { PermanentSession } from '@/utils/permanentSession';
-import { useOneSignal } from '@/hooks/useOneSignal';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -31,7 +30,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const queryClient = useQueryClient();
   const timeoutRef = useRef<NodeJS.Timeout>();
   const authValidationRef = useRef(false);
-  const oneSignal = useOneSignal();
 
   const fetchUserRole = async (userId: string): Promise<UserRole | null> => {
     try {
