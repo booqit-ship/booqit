@@ -107,6 +107,14 @@ const AuthPage: React.FC = () => {
       if (data.session && data.user) {
         console.log('✅ Login successful, session created');
         
+        // Immediate validation of the new session
+        console.log('🔍 Validating new session immediately');
+        const isValid = await validateCurrentSession();
+        
+        if (!isValid) {
+          throw new Error('Session validation failed after login');
+        }
+        
         // Fetch user role from profiles table
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
@@ -122,15 +130,11 @@ const AuthPage: React.FC = () => {
         const userRole = profileData?.role as UserRole;
         console.log('👤 User role fetched:', userRole);
         
-        // Save permanent session
+        // Save permanent session with validated data
         PermanentSession.saveSession(data.session, userRole, data.user.id);
         
         // Update auth context
         setAuth(true, userRole, data.user.id);
-        
-        // Immediately validate the new session
-        console.log('🔍 Validating new session immediately');
-        await validateCurrentSession();
         
         console.log('🎯 Navigating after login...');
         if (userRole === 'merchant') {
@@ -191,15 +195,19 @@ const AuthPage: React.FC = () => {
       if (data.session && data.user) {
         console.log('✅ Registration successful, session created');
         
+        // Immediate validation of the new session
+        console.log('🔍 Validating new registration session immediately');
+        const isValid = await validateCurrentSession();
+        
+        if (!isValid) {
+          console.log('⚠️ Session validation failed after registration, but continuing');
+        }
+        
         // Save permanent session immediately
         PermanentSession.saveSession(data.session, selectedRole as UserRole, data.user.id);
         
         // Update auth context
         setAuth(true, selectedRole as UserRole, data.user.id);
-        
-        // Immediately validate the new session
-        console.log('🔍 Validating new registration session immediately');
-        await validateCurrentSession();
         
         console.log('🎯 Navigating after registration...');
         if (selectedRole === 'merchant') {
