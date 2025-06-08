@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { UserRole } from '../types';
 import { supabase } from '@/integrations/supabase/client';
@@ -214,11 +213,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!initialized.current) {
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
           async (event, session) => {
-            console.log('🔔 Auth state change event:', event);
+            console.log('🔐 Auth state changed:', event, session?.user?.id);
             
-            if (event === 'SIGNED_IN' && session) {
+            if (event === 'SIGNED_IN' && session?.user) {
               console.log('👤 User signed in, updating permanent session');
               await updateAuthStateFromSupabase(session);
+              
+              // Send welcome notification after successful login
+              try {
+                const { sendWelcomeNotification } = await import('@/services/eventNotificationService');
+                const firstName = profileData?.name?.split(' ')[0] || 'there';
+                
+                await sendWelcomeNotification(
+                  session.user.id,
+                  profileData?.role as 'customer' | 'merchant',
+                  firstName
+                );
+              } catch (error) {
+                console.error('❌ Error sending welcome notification:', error);
+              }
             } else if (event === 'SIGNED_OUT') {
               console.log('👋 User signed out');
               clearAuthState();

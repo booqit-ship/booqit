@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { formatDateInIST } from '@/utils/dateUtils';
 import { useAuth } from '@/contexts/AuthContext';
+import { sendNewBookingNotification } from '@/services/eventNotificationService';
 
 interface BookingResponse {
   success: boolean;
@@ -89,6 +90,40 @@ const PaymentPage: React.FC = () => {
       if (paymentError) {
         console.error('Error creating payment record:', paymentError);
         toast.warning('Booking confirmed but payment record creation failed');
+      }
+
+      // Send new booking notification to merchant
+      try {
+        // Get merchant user ID
+        const { data: merchantData } = await supabase
+          .from('merchants')
+          .select('user_id')
+          .eq('id', merchantId)
+          .single();
+
+        if (merchantData?.user_id) {
+          // Get customer name from auth context or profile
+          const { data: customerProfile } = await supabase
+            .from('profiles')
+            .select('name')
+            .eq('id', userId)
+            .single();
+
+          const customerName = customerProfile?.name || 'Customer';
+          const serviceName = selectedServices[0]?.name || 'Service';
+          const formattedTime = formatTimeToAmPm(bookingTime);
+
+          await sendNewBookingNotification(
+            merchantData.user_id,
+            customerName,
+            serviceName,
+            formattedTime,
+            response.booking_id
+          );
+        }
+      } catch (notificationError) {
+        console.error('❌ Error sending booking notification:', notificationError);
+        // Don't fail the booking if notification fails
       }
       
       toast.success('Payment successful! Your booking is confirmed.');
