@@ -39,6 +39,7 @@ export class OneSignalService {
       console.log('✅ OneSignal initialized successfully');
     } catch (error) {
       console.error('❌ OneSignal initialization failed:', error);
+      throw error;
     }
   }
 
@@ -55,16 +56,28 @@ export class OneSignalService {
 
       const initOneSignal = async (OneSignal: any) => {
         try {
+          console.log('🔔 Initializing OneSignal Web SDK...');
+          
           await OneSignal.init({
             appId: this.appId,
             serviceWorkerPath: '/OneSignalSDKWorker.js',
             serviceWorkerUpdaterPath: '/OneSignalSDKUpdaterWorker.js',
             allowLocalhostAsSecureOrigin: true,
+            notifyButton: {
+              enable: false, // We'll handle permission prompts ourselves
+            },
+            welcomeNotification: {
+              disable: true, // Disable welcome notification
+            },
+            autoRegister: false, // We'll handle registration manually
+            autoResubscribe: true,
+            persistNotification: false,
           });
           
           console.log('✅ OneSignal web initialization complete');
           resolve();
         } catch (error) {
+          console.error('❌ OneSignal initialization error:', error);
           reject(error);
         }
       };
@@ -81,10 +94,12 @@ export class OneSignalService {
           const script = document.createElement('script');
           script.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
           script.defer = true;
+          script.onload = () => console.log('🔔 OneSignal SDK loaded');
+          script.onerror = () => reject(new Error('Failed to load OneSignal SDK'));
           document.head.appendChild(script);
         }
         
-        setTimeout(() => reject(new Error('OneSignal SDK failed to load')), 10000);
+        setTimeout(() => reject(new Error('OneSignal SDK failed to load within 15 seconds')), 15000);
       }
     });
   }
@@ -106,14 +121,14 @@ export class OneSignalService {
           return true;
         }
         
-        // For denied permissions, show custom prompt first
+        // For denied permissions, we can still try showing prompts
         if (currentPermission === 'denied') {
-          console.log('🔔 Permission was denied, showing custom prompt');
+          console.log('🔔 Permission was denied, showing slidedown prompt');
           await this.showSlidedownPrompt();
           return false;
         }
         
-        // Request permission directly
+        // Request permission using the new API
         const permission = await window.OneSignal.Notifications.requestPermission();
         console.log('🔔 Permission request result:', permission);
         
@@ -121,16 +136,25 @@ export class OneSignalService {
           console.log('✅ Push notification permission granted');
           return true;
         } else {
-          console.log('❌ Push notification permission denied, showing fallback prompt');
-          setTimeout(() => this.showSlidedownPrompt(), 1000);
+          console.log('❌ Push notification permission denied, showing fallback prompts');
+          // Try alternative prompts
+          setTimeout(async () => {
+            await this.showSlidedownPrompt();
+          }, 1000);
           return false;
         }
+      } else {
+        console.warn('⚠️ OneSignal not initialized or not available');
+        return false;
       }
-      return false;
     } catch (error) {
       console.error('❌ Error requesting notification permission:', error);
       // Show slidedown as fallback
-      await this.showSlidedownPrompt();
+      try {
+        await this.showSlidedownPrompt();
+      } catch (fallbackError) {
+        console.error('❌ Even fallback prompt failed:', fallbackError);
+      }
       return false;
     }
   }
@@ -143,6 +167,12 @@ export class OneSignalService {
       }
     } catch (error) {
       console.error('❌ Error showing slidedown prompt:', error);
+      // Try native prompt as backup
+      try {
+        await this.showNativePrompt();
+      } catch (nativeError) {
+        console.error('❌ Native prompt also failed:', nativeError);
+      }
     }
   }
 
@@ -160,8 +190,11 @@ export class OneSignalService {
   async setUserId(userId: string): Promise<void> {
     try {
       if (window.OneSignal && this.isInitialized) {
+        console.log('🔔 Setting OneSignal user ID:', userId);
         await window.OneSignal.login(userId);
-        console.log('✅ OneSignal user ID set:', userId);
+        console.log('✅ OneSignal user ID set successfully');
+      } else {
+        console.warn('⚠️ OneSignal not available for setting user ID');
       }
     } catch (error) {
       console.error('❌ Error setting OneSignal user ID:', error);
@@ -201,22 +234,57 @@ export class OneSignalService {
     }
   }
 
-  // Force permission prompt for testing
+  // Enhanced permission prompt for testing and onboarding
   async forcePermissionPrompt(): Promise<void> {
     try {
       if (!Capacitor.isNativePlatform() && window.OneSignal && this.isInitialized) {
-        console.log('🔔 Forcing permission prompt...');
+        console.log('🔔 Forcing permission prompt sequence...');
         
-        // Try native prompt first
+        // Try multiple approaches in sequence
         try {
           await window.OneSignal.showNativePrompt();
-        } catch {
-          // Fallback to slidedown
-          await window.OneSignal.Slidedown.promptPush();
+          console.log('✅ Native prompt shown');
+        } catch (nativeError) {
+          console.log('❌ Native prompt failed, trying slidedown...');
+          try {
+            await window.OneSignal.Slidedown.promptPush();
+            console.log('✅ Slidedown prompt shown');
+          } catch (slidedownError) {
+            console.log('❌ Slidedown also failed, trying direct permission request...');
+            await this.requestPermission();
+          }
         }
       }
     } catch (error) {
       console.error('❌ Error forcing permission prompt:', error);
+    }
+  }
+
+  // Check if user is subscribed
+  async isSubscribed(): Promise<boolean> {
+    try {
+      if (window.OneSignal && this.isInitialized) {
+        const permission = await window.OneSignal.Notifications.permission;
+        return permission === 'granted';
+      }
+      return false;
+    } catch (error) {
+      console.error('❌ Error checking subscription status:', error);
+      return false;
+    }
+  }
+
+  // Get current user's OneSignal ID
+  async getCurrentUserId(): Promise<string | null> {
+    try {
+      if (window.OneSignal && this.isInitialized) {
+        const userId = await window.OneSignal.User.onesignalId;
+        return userId;
+      }
+      return null;
+    } catch (error) {
+      console.error('❌ Error getting current user ID:', error);
+      return null;
     }
   }
 }

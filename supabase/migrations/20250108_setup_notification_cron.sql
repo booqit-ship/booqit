@@ -12,7 +12,6 @@ SELECT cron.schedule(
     net.http_post(
       url := 'https://ggclvurfcykbwmhfftkn.supabase.co/functions/v1/send-reminders',
       headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdnY2x2dXJmY3lrYndtaGZmdGtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc3MTQ3OTUsImV4cCI6MjA2MzI5MDc5NX0.0lpqHKUCWh47YTnRuksWDmv6Y5JPEanMwVyoQy9zeHw"}'::jsonb,
-      headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdnY2x2dXJmY3lrYndtaGZmdGtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc3MTQ3OTUsImV4cCI6MjA2MzI5MDc5NX0.0lpqHKUCWh47YTnRuksWDmv6Y5JPEanMwVyoQy9zeHw"}'::jsonb,
       body := '{"automated": true}'::jsonb
     ) as request_id;
   $$
@@ -31,14 +30,22 @@ DECLARE
   service_name_val text;
   staff_name_val text;
   date_time_val text;
+  request_result record;
 BEGIN
   -- Only send notifications for new bookings (INSERT) or when status changes to confirmed
   IF TG_OP = 'INSERT' OR (TG_OP = 'UPDATE' AND NEW.status = 'confirmed' AND (OLD.status IS NULL OR OLD.status != 'confirmed')) THEN
+    
+    RAISE LOG 'BOOKING NOTIFICATION: Processing booking % with status %', NEW.id, NEW.status;
     
     -- Get merchant user ID
     SELECT m.user_id INTO merchant_user_id_val
     FROM merchants m 
     WHERE m.id = NEW.merchant_id;
+    
+    IF merchant_user_id_val IS NULL THEN
+      RAISE LOG 'BOOKING NOTIFICATION: No merchant user ID found for merchant %, skipping notification', NEW.merchant_id;
+      RETURN NEW;
+    END IF;
     
     -- Get service name
     SELECT s.name INTO service_name_val
@@ -58,14 +65,13 @@ BEGIN
     service_name_val := COALESCE(service_name_val, 'Service');
     staff_name_val := COALESCE(staff_name_val, NEW.stylist_name, 'Staff Member');
     
-    -- Log the trigger activation with all details
-    RAISE LOG 'BOOKING NOTIFICATION: Trigger fired for booking %, merchant user %, customer %, service %, staff %, datetime %', 
+    -- Log all details before sending
+    RAISE LOG 'BOOKING NOTIFICATION: Sending notification - Booking: %, Merchant User: %, Customer: %, Service: %, Staff: %, DateTime: %', 
       NEW.id, merchant_user_id_val, customer_name_val, service_name_val, staff_name_val, date_time_val;
     
-    -- Only proceed if we have a valid merchant user ID
-    IF merchant_user_id_val IS NOT NULL THEN
-      -- Call the edge function to send notification
-      PERFORM
+    -- Call the edge function to send notification
+    BEGIN
+      SELECT INTO request_result
         net.http_post(
           url := 'https://ggclvurfcykbwmhfftkn.supabase.co/functions/v1/send-booking-notification',
           headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdnY2x2dXJmY3lrYndtaGZmdGtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc3MTQ3OTUsImV4cCI6MjA2MzI5MDc5NX0.0lpqHKUCWh47YTnRuksWDmv6Y5JPEanMwVyoQy9zeHw"}'::jsonb,
@@ -80,10 +86,11 @@ BEGIN
           )::jsonb
         );
         
-      RAISE LOG 'BOOKING NOTIFICATION: HTTP request sent for booking %, merchant user %', NEW.id, merchant_user_id_val;
-    ELSE
-      RAISE LOG 'BOOKING NOTIFICATION: No merchant user ID found for merchant %, skipping notification', NEW.merchant_id;
-    END IF;
+      RAISE LOG 'BOOKING NOTIFICATION: HTTP request completed for booking %, status: %', NEW.id, request_result.status;
+      
+    EXCEPTION WHEN OTHERS THEN
+      RAISE LOG 'BOOKING NOTIFICATION: HTTP request failed for booking % - Error: %', NEW.id, SQLERRM;
+    END;
   END IF;
   
   RETURN NEW;
@@ -96,32 +103,88 @@ CREATE TRIGGER booking_notification_trigger
   FOR EACH ROW
   EXECUTE FUNCTION notify_new_booking();
 
--- Create a test function for manual testing
+-- Create an improved test function for manual testing
 CREATE OR REPLACE FUNCTION test_booking_notification(test_merchant_user_id text)
-RETURNS void AS $$
+RETURNS json AS $$
+DECLARE
+  request_result record;
 BEGIN
-  PERFORM
-    net.http_post(
-      url := 'https://ggclvurfcykbwmhfftkn.supabase.co/functions/v1/send-booking-notification',
-      headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdnY2x2dXJmY3lrYndtaGZmdGtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc3MTQ3OTUsImV4cCI6MjA2MzI5MDc5NX0.0lpqHKUCWh47YTnRuksWDmv6Y5JPEanMwVyoQy9zeHw"}'::jsonb,
-      body := json_build_object(
-        'bookingId', 'test-' || extract(epoch from now())::text,
-        'merchantUserId', test_merchant_user_id,
-        'customerName', 'Test Customer',
-        'serviceName', 'Test Service',
-        'dateTime', 'Today at ' || to_char(now(), 'HH24:MI'),
-        'staffName', 'Test Stylist',
-        'automated', false
-      )::jsonb
+  RAISE LOG 'TEST NOTIFICATION: Sending test notification to merchant user: %', test_merchant_user_id;
+  
+  BEGIN
+    SELECT INTO request_result
+      net.http_post(
+        url := 'https://ggclvurfcykbwmhfftkn.supabase.co/functions/v1/send-booking-notification',
+        headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdnY2x2dXJmY3lrYndtaGZmdGtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc3MTQ3OTUsImV4cCI6MjA2MzI5MDc5NX0.0lpqHKUCWh47YTnRuksWDmv6Y5JPEanMwVyoQy9zeHw"}'::jsonb,
+        body := json_build_object(
+          'bookingId', 'test-' || extract(epoch from now())::text,
+          'merchantUserId', test_merchant_user_id,
+          'customerName', 'Test Customer',
+          'serviceName', 'Premium Haircut',
+          'dateTime', 'Today at ' || to_char(now(), 'HH24:MI'),
+          'staffName', 'Test Stylist',
+          'automated', false
+        )::jsonb
+      );
+      
+    RAISE NOTICE 'TEST NOTIFICATION: HTTP request completed with status: %', request_result.status;
+    
+    RETURN json_build_object(
+      'success', true,
+      'message', 'Test notification sent successfully',
+      'merchant_user_id', test_merchant_user_id,
+      'request_status', request_result.status
     );
     
-  RAISE NOTICE 'Test notification sent to merchant user: %', test_merchant_user_id;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE LOG 'TEST NOTIFICATION: Failed to send test notification - Error: %', SQLERRM;
+    
+    RETURN json_build_object(
+      'success', false,
+      'error', SQLERRM,
+      'merchant_user_id', test_merchant_user_id
+    );
+  END;
 END;
 $$ LANGUAGE plpgsql;
 
--- Enable detailed logging for debugging
-ALTER SYSTEM SET log_statement = 'all';
-SELECT pg_reload_conf();
+-- Create function to check notification setup
+CREATE OR REPLACE FUNCTION check_notification_setup()
+RETURNS json AS $$
+DECLARE
+  trigger_count integer;
+  merchant_count integer;
+  merchant_with_users integer;
+  recent_bookings integer;
+BEGIN
+  -- Check if trigger exists
+  SELECT COUNT(*) INTO trigger_count
+  FROM pg_trigger 
+  WHERE tgname = 'booking_notification_trigger';
+  
+  -- Check merchant data
+  SELECT COUNT(*) INTO merchant_count FROM merchants;
+  SELECT COUNT(*) INTO merchant_with_users FROM merchants WHERE user_id IS NOT NULL;
+  
+  -- Check recent bookings
+  SELECT COUNT(*) INTO recent_bookings 
+  FROM bookings 
+  WHERE created_at > now() - INTERVAL '24 hours';
+  
+  RETURN json_build_object(
+    'trigger_exists', trigger_count > 0,
+    'total_merchants', merchant_count,
+    'merchants_with_user_id', merchant_with_users,
+    'recent_bookings_24h', recent_bookings,
+    'setup_health', CASE 
+      WHEN trigger_count > 0 AND merchant_with_users > 0 THEN 'GOOD'
+      WHEN trigger_count = 0 THEN 'MISSING_TRIGGER'
+      WHEN merchant_with_users = 0 THEN 'NO_MERCHANT_USER_IDS'
+      ELSE 'UNKNOWN'
+    END
+  );
+END;
+$$ LANGUAGE plpgsql;
 
 -- Grant necessary permissions
 GRANT USAGE ON SCHEMA net TO postgres;

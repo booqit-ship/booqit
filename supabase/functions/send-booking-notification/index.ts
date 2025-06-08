@@ -35,7 +35,7 @@ const sendOneSignalNotification = async (title: string, message: string, externa
             url: 'https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com/calendar'
           }
         ],
-        // Enhanced notification settings
+        // Enhanced notification settings for better delivery
         large_icon: 'https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com/favicon.ico',
         small_icon: 'https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com/favicon.ico',
         android_sound: 'default',
@@ -43,10 +43,11 @@ const sendOneSignalNotification = async (title: string, message: string, externa
         android_vibration_pattern: [1000, 1000, 1000],
         priority: 10,
         android_visibility: 1,
-        // Ensure delivery to web browsers
-        web_push_topic: 'new_booking',
         chrome_web_icon: 'https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com/favicon.ico',
-        firefox_icon: 'https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com/favicon.ico'
+        firefox_icon: 'https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com/favicon.ico',
+        // Force immediate delivery
+        send_after: new Date().toISOString(),
+        delayed_option: 'immediate'
       })
     });
 
@@ -56,6 +57,15 @@ const sendOneSignalNotification = async (title: string, message: string, externa
     if (result.errors && result.errors.length > 0) {
       console.error('❌ OneSignal API errors:', result.errors);
       throw new Error('OneSignal API returned errors: ' + JSON.stringify(result.errors));
+    }
+    
+    // Check if notification was sent to any recipients
+    if (result.recipients && result.recipients === 0) {
+      console.warn('⚠️ No recipients received the notification. User may not be subscribed.');
+      return {
+        ...result,
+        warning: 'No recipients found - user may not be subscribed to notifications'
+      };
     }
     
     return result;
@@ -72,23 +82,38 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { bookingId, merchantUserId, customerName, serviceName, dateTime, staffName, automated } = await req.json();
-
-    console.log('📥 Received booking notification request:', {
-      bookingId,
-      merchantUserId,
-      customerName,
-      serviceName,
-      dateTime,
-      staffName,
-      automated
-    });
+    console.log('📥 Received notification request at:', new Date().toISOString());
+    
+    const requestBody = await req.json();
+    console.log('📥 Request body:', JSON.stringify(requestBody, null, 2));
+    
+    const { bookingId, merchantUserId, customerName, serviceName, dateTime, staffName, automated } = requestBody;
 
     // Validate required parameters
-    if (!bookingId || !merchantUserId || !customerName || !serviceName || !dateTime) {
-      const errorMessage = 'Missing required parameters. Required: bookingId, merchantUserId, customerName, serviceName, dateTime';
+    const missingParams = [];
+    if (!bookingId) missingParams.push('bookingId');
+    if (!merchantUserId) missingParams.push('merchantUserId');
+    if (!customerName) missingParams.push('customerName');
+    if (!serviceName) missingParams.push('serviceName');
+    if (!dateTime) missingParams.push('dateTime');
+
+    if (missingParams.length > 0) {
+      const errorMessage = `Missing required parameters: ${missingParams.join(', ')}`;
       console.error('❌ Validation error:', errorMessage);
-      throw new Error(errorMessage);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: errorMessage,
+          received_params: Object.keys(requestBody)
+        }),
+        { 
+          status: 400,
+          headers: { 
+            ...corsHeaders,
+            'Content-Type': 'application/json' 
+          } 
+        }
+      );
     }
 
     // Create an engaging notification message with stylist name
@@ -114,7 +139,8 @@ Deno.serve(async (req) => {
           title,
           message,
           staffName,
-          oneSignalResult: notificationResult
+          oneSignalResult: notificationResult,
+          timestamp: new Date().toISOString()
         }
       }),
       { 
@@ -132,7 +158,8 @@ Deno.serve(async (req) => {
       JSON.stringify({ 
         success: false, 
         error: error.message,
-        stack: error.stack
+        stack: error.stack,
+        timestamp: new Date().toISOString()
       }),
       { 
         status: 500,
