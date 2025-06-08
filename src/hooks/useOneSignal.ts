@@ -3,7 +3,15 @@ import { useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { oneSignalService } from '@/services/oneSignalService';
 import { Capacitor } from '@capacitor/core';
-import { Geolocation } from '@capacitor/geolocation';
+
+// Dynamically import geolocation to avoid build issues on web
+const getGeolocation = async () => {
+  if (Capacitor.isNativePlatform()) {
+    const { Geolocation } = await import('@capacitor/geolocation');
+    return Geolocation;
+  }
+  return null;
+};
 
 export const useOneSignal = () => {
   const { isAuthenticated, userId, userRole } = useAuth();
@@ -20,8 +28,11 @@ export const useOneSignal = () => {
         // Request location permission on native platforms
         if (Capacitor.isNativePlatform()) {
           try {
-            await Geolocation.getCurrentPosition();
-            console.log('✅ Location permission granted');
+            const Geolocation = await getGeolocation();
+            if (Geolocation) {
+              await Geolocation.getCurrentPosition();
+              console.log('✅ Location permission granted');
+            }
           } catch (error) {
             console.log('ℹ️ Location permission denied or unavailable:', error);
           }
