@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Search, MapPin } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -12,8 +12,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import UpcomingBookings from '@/components/customer/UpcomingBookings';
-import { useLocationService } from '@/hooks/useLocationService';
-import LocationPermissionDialog from '@/components/common/LocationPermissionDialog';
 
 // Updated featured categories - only Salon and Beauty Parlour as requested
 const featuredCategories = [{
@@ -27,42 +25,38 @@ const featuredCategories = [{
   icon: '💅',
   color: '#FF6B6B'
 }];
-
 const HomePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [nearbyShops, setNearbyShops] = useState<Merchant[]>([]);
   const [filteredShops, setFilteredShops] = useState<Merchant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [userLocation, setUserLocation] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
   const [userName, setUserName] = useState('there');
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const [locationName, setLocationName] = useState("Getting your location...");
-  const [showPermissionDialog, setShowPermissionDialog] = useState(false);
-  
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const { userId } = useAuth();
-
-  // Use our new location service
   const {
-    location: userLocation,
-    isLoading: locationLoading,
-    error: locationError,
-    permissionDenied,
-    hasHighAccuracy,
-    startLocationFetching,
-    retryLocationFetch
-  } = useLocationService({
-    autoStart: true,
-    onPermissionDenied: () => setShowPermissionDialog(true)
-  });
+    toast
+  } = useToast();
+  const {
+    userId
+  } = useAuth();
+
+  // Get user's current location name (this would come from geolocation + reverse geocoding)
+  const [locationName, setLocationName] = useState("Loading location...");
 
   // Fetch user profile data
   useEffect(() => {
     const fetchUserProfile = async () => {
       if (userId) {
         try {
-          const { data, error } = await supabase.from('profiles').select('name, avatar_url').eq('id', userId).single();
+          const {
+            data,
+            error
+          } = await supabase.from('profiles').select('name, avatar_url').eq('id', userId).single();
           if (error) throw error;
           if (data) {
             setUserName(data.name.split(' ')[0]); // Get first name
@@ -75,38 +69,42 @@ const HomePage: React.FC = () => {
     };
     fetchUserProfile();
   }, [userId]);
-
-  // Update location name when location changes
   useEffect(() => {
-    if (userLocation) {
-      fetchLocationName(userLocation.lat, userLocation.lng);
-      fetchNearbyShops(userLocation);
+    // Get user location
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(position => {
+        const userLoc = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        };
+        setUserLocation(userLoc);
+
+        // Fetch location name using reverse geocoding
+        fetchLocationName(userLoc.lat, userLoc.lng);
+
+        // Fetch nearby shops based on location
+        fetchNearbyShops(userLoc);
+      }, error => {
+        console.error("Error getting location:", error);
+        setLocationName("Location unavailable");
+        // Use a default location (Bengaluru)
+        const defaultLocation = {
+          lat: 12.9716,
+          lng: 77.5946
+        };
+        setUserLocation(defaultLocation);
+        fetchNearbyShops(defaultLocation);
+      });
+    } else {
+      setLocationName("Bengaluru"); // Default fallback
+      const defaultLocation = {
+        lat: 12.9716,
+        lng: 77.5946
+      };
+      setUserLocation(defaultLocation);
+      fetchNearbyShops(defaultLocation);
     }
-  }, [userLocation]);
-
-  // Handle permission dialog
-  const handleAllowLocation = () => {
-    setShowPermissionDialog(false);
-    retryLocationFetch();
-  };
-
-  const handleDenyLocation = () => {
-    setShowPermissionDialog(false);
-    setLocationName("Location unavailable");
-    // Use default location (Bengaluru)
-    const defaultLocation = {
-      lat: 12.9716,
-      lng: 77.5946
-    };
-    fetchNearbyShops(defaultLocation);
-  };
-
-  // Show loading state until we have either location or user denied permission
-  useEffect(() => {
-    if (userLocation || permissionDenied || locationError) {
-      setIsLoading(false);
-    }
-  }, [userLocation, permissionDenied, locationError]);
+  }, []);
 
   // Filter shops whenever active category changes or nearby shops update
   useEffect(() => {
@@ -261,80 +259,35 @@ const HomePage: React.FC = () => {
   const handleBookNow = (merchantId: string) => {
     navigate(`/merchant/${merchantId}`);
   };
-
-  // Show loading screen while getting location
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-r from-booqit-primary to-purple-700 text-white">
-        <div className="text-center">
-          <div className="animate-spin h-12 w-12 border-4 border-white border-t-transparent rounded-full mx-auto mb-4"></div>
-          <h2 className="text-xl font-medium mb-2">Welcome to Booqit</h2>
-          <p className="text-white/80">
-            {locationLoading ? "Getting your location..." : "Setting up your experience..."}
-          </p>
-          {!hasHighAccuracy && userLocation && (
-            <p className="text-xs text-white/60 mt-2">
-              📍 Using approximate location, getting precise location...
-            </p>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="pb-20">
-      {/* Location Permission Dialog */}
-      <LocationPermissionDialog
-        open={showPermissionDialog}
-        onOpenChange={setShowPermissionDialog}
-        onAllow={handleAllowLocation}
-        onDeny={handleDenyLocation}
-      />
-
+  return <div className="pb-20"> {/* Add padding to account for bottom navigation */}
       {/* Header Section */}
-      <motion.div 
-        className="bg-gradient-to-r from-booqit-primary to-purple-700 text-white p-6 rounded-b-3xl shadow-lg" 
-        initial={{ y: -20, opacity: 0 }} 
-        animate={{ y: 0, opacity: 1 }}
-      >
+      <motion.div className="bg-gradient-to-r from-booqit-primary to-purple-700 text-white p-6 rounded-b-3xl shadow-lg" initial={{
+      y: -20,
+      opacity: 0
+    }} animate={{
+      y: 0,
+      opacity: 1
+    }}>
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-2xl font-light">Hi {userName}! 👋</h1>
             <p className="opacity-90 flex items-center">
-              <MapPin className="w-4 h-4 mr-1" />
+              <svg className="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 13.5C13.933 13.5 15.5 11.933 15.5 10C15.5 8.067 13.933 6.5 12 6.5C10.067 6.5 8.5 8.067 8.5 10C8.5 11.933 10.067 13.5 12 13.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M12 21.5C17 17.5 22 14.0718 22 10C22 5.92819 17.5228 2.5 12 2.5C6.47715 2.5 2 5.92819 2 10C2 14.0718 7 17.5 12 21.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
               {locationName}
-              {locationLoading && !hasHighAccuracy && (
-                <span className="ml-2 text-xs bg-white/20 px-2 py-1 rounded-full">
-                  Getting precise location...
-                </span>
-              )}
             </p>
-            {locationError && (
-              <p className="text-xs text-red-200 mt-1">
-                {locationError} - Using default location
-              </p>
-            )}
           </div>
           <Avatar className="h-10 w-10 bg-white">
-            {userAvatar ? (
-              <AvatarImage src={userAvatar} alt={userName} className="object-cover" />
-            ) : (
-              <AvatarFallback className="text-booqit-primary font-medium">
+            {userAvatar ? <AvatarImage src={userAvatar} alt={userName} className="object-cover" /> : <AvatarFallback className="text-booqit-primary font-medium">
                 {userName.charAt(0).toUpperCase()}
-              </AvatarFallback>
-            )}
+              </AvatarFallback>}
           </Avatar>
         </div>
         <div className="relative">
           <Search className="absolute left-3 top-3 h-5 w-5 text-booqit-primary" />
-          <Input
-            placeholder="Search services, shops..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-            className="pl-10 bg-white text-gray-800 border-0 shadow-md focus:ring-2 focus:ring-white"
-          />
+          <Input placeholder="Search services, shops..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleSearch()} className="pl-10 bg-white text-gray-800 border-0 shadow-md focus:ring-2 focus:ring-white" />
         </div>
       </motion.div>
 
@@ -349,23 +302,17 @@ const HomePage: React.FC = () => {
           <motion.div variants={itemVariants}>
             <h2 className="mb-4 font-normal text-xl">Categories</h2>
             <div className="grid grid-cols-2 gap-4 mb-8">
-              {featuredCategories.map(category => (
-                <Button 
-                  key={category.id} 
-                  variant="outline" 
-                  className={`h-auto flex flex-col items-center justify-center p-4 border transition-all
-                    ${activeCategory === category.name ? 'border-booqit-primary bg-booqit-primary/10 shadow-md' : 'border-gray-200 shadow-sm hover:shadow-md hover:border-booqit-primary'}`} 
-                  style={{
-                    backgroundColor: activeCategory === category.name ? `${category.color}20` : `${category.color}10`
-                  }} 
-                  onClick={() => handleCategoryClick(category.name)}
-                >
-                  <span style={{ color: category.color }} className="mb-2 text-3xl font-normal text-purple-600">
+              {featuredCategories.map(category => <Button key={category.id} variant="outline" className={`h-auto flex flex-col items-center justify-center p-4 border transition-all
+                    ${activeCategory === category.name ? 'border-booqit-primary bg-booqit-primary/10 shadow-md' : 'border-gray-200 shadow-sm hover:shadow-md hover:border-booqit-primary'}`} style={{
+              backgroundColor: activeCategory === category.name ? `${category.color}20` : `${category.color}10`
+            }} onClick={() => handleCategoryClick(category.name)}>
+                  <span style={{
+                color: category.color
+              }} className="mb-2 text-3xl font-normal text-purple-600">
                     {category.icon}
                   </span>
                   <span className="text-base font-medium">{category.name}</span>
-                </Button>
-              ))}
+                </Button>)}
             </div>
           </motion.div>
 
@@ -373,33 +320,22 @@ const HomePage: React.FC = () => {
           <motion.div variants={itemVariants} className="mb-8">
             <h2 className="mb-4 font-normal text-xl">
               {activeCategory ? `${activeCategory} Near You` : "Near You"}
-              {activeCategory && (
-                <Button variant="link" className="ml-2 p-0 h-auto text-sm text-booqit-primary" onClick={() => setActiveCategory(null)}>
+              {activeCategory && <Button variant="link" className="ml-2 p-0 h-auto text-sm text-booqit-primary" onClick={() => setActiveCategory(null)}>
                   (Clear filter)
-                </Button>
-              )}
+                </Button>}
             </h2>
-            {isLoading ? (
-              <div className="flex justify-center py-8">
+            {isLoading ? <div className="flex justify-center py-8">
                 <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
-              </div>
-            ) : filteredShops.length > 0 ? (
-              <div className="space-y-4">
-                {filteredShops.map(shop => (
-                  <Card key={shop.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow">
+              </div> : filteredShops.length > 0 ? <div className="space-y-4">
+                {filteredShops.map(shop => <Card key={shop.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow">
                     <CardContent className="p-0">
                       <div className="flex">
                         <div className="w-24 h-24 bg-gray-200 flex-shrink-0">
-                          <img 
-                            src={getShopImage(shop)} 
-                            alt={shop.shop_name} 
-                            className="w-full h-full object-cover" 
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.src = 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
-                              console.error(`Failed to load image for ${shop.shop_name}, URL: ${shop.image_url}`);
-                            }} 
-                          />
+                          <img src={getShopImage(shop)} alt={shop.shop_name} className="w-full h-full object-cover" onError={e => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
+                      console.error(`Failed to load image for ${shop.shop_name}, URL: ${shop.image_url}`);
+                    }} />
                         </div>
                         <div className="p-3 flex-1 py-[6px]">
                           <div className="flex justify-between items-start">
@@ -424,19 +360,15 @@ const HomePage: React.FC = () => {
                         </div>
                       </div>
                     </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 bg-gray-50 rounded-lg">
+                  </Card>)}
+              </div> : <div className="text-center py-8 bg-gray-50 rounded-lg">
                 <p className="text-gray-500">
                   {activeCategory ? `No ${activeCategory} shops found within 5km` : "No shops found within 5km"}
                 </p>
                 <Button variant="link" className="mt-2" onClick={() => navigate('/map')}>
                   Browse on Map
                 </Button>
-              </div>
-            )}
+              </div>}
           </motion.div>
 
           {/* Explore Map Section */}
@@ -448,16 +380,14 @@ const HomePage: React.FC = () => {
               </Button>
             </h2>
             <Card className="overflow-hidden shadow-md bg-gray-100 h-48 relative">
-              <GoogleMapComponent 
-                center={userLocation || { lat: 12.9716, lng: 77.5946 }} 
-                zoom={12} 
-                className="h-full" 
-                markers={filteredShops.map(shop => ({
-                  lat: shop.lat,
-                  lng: shop.lng,
-                  title: shop.shop_name
-                }))} 
-              />
+              <GoogleMapComponent center={userLocation || {
+              lat: 12.9716,
+              lng: 77.5946
+            }} zoom={12} className="h-full" markers={filteredShops.map(shop => ({
+              lat: shop.lat,
+              lng: shop.lng,
+              title: shop.shop_name
+            }))} />
               <div className="absolute inset-0 flex items-center justify-center bg-black/10">
                 <Button className="bg-booqit-primary" onClick={() => navigate('/map')}>
                   Open Map View
@@ -467,8 +397,6 @@ const HomePage: React.FC = () => {
           </motion.div>
         </motion.div>
       </div>
-    </div>
-  );
+    </div>;
 };
-
 export default HomePage;

@@ -4,9 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { MapPin, Navigation } from 'lucide-react';
 import GoogleMapComponent from '@/components/common/GoogleMap';
+import { supabase } from '@/integrations/supabase/client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useLocationService } from '@/hooks/useLocationService';
-import LocationPermissionDialog from '@/components/common/LocationPermissionDialog';
 
 interface LocationFormProps {
   locationDetails: {
@@ -25,48 +24,47 @@ const LocationForm: React.FC<LocationFormProps> = ({
   locationDetails, 
   setLocationDetails 
 }) => {
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationPermission, setLocationPermission] = useState<'granted' | 'denied' | 'pending'>('pending');
   const [mapError, setMapError] = useState<string | null>(null);
-  const [showPermissionDialog, setShowPermissionDialog] = useState(false);
 
-  // Use our new location service
-  const {
-    location: currentLocation,
-    isLoading: locationLoading,
-    error: locationError,
-    permissionDenied,
-    hasHighAccuracy,
-    startLocationFetching
-  } = useLocationService({
-    onPermissionDenied: () => setShowPermissionDialog(true)
-  });
-
-  // Update location details when current location is received
-  useEffect(() => {
-    if (currentLocation && locationDetails.lat === 0) {
-      setLocationDetails({
-        lat: currentLocation.lat,
-        lng: currentLocation.lng,
-        address: locationDetails.address
-      });
-      
-      // Fetch address for the new location
-      fetchAddress(currentLocation.lat, currentLocation.lng);
-    }
-  }, [currentLocation, locationDetails.lat, setLocationDetails]);
-
-  const handleAllowLocation = () => {
-    setShowPermissionDialog(false);
-    startLocationFetching();
-  };
-
-  const handleDenyLocation = () => {
-    setShowPermissionDialog(false);
-    setMapError("Location permission denied. Please pin your shop manually on the map.");
-  };
-
+  // Function to request and get current location
   const getCurrentLocation = () => {
+    setIsLocating(true);
     setMapError(null);
-    startLocationFetching();
+    
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          // Success callback
+          const { latitude, longitude } = position.coords;
+          
+          // Get address via reverse geocoding
+          fetchAddress(latitude, longitude);
+          
+          setLocationDetails({
+            lat: latitude,
+            lng: longitude,
+            address: locationDetails.address
+          });
+          
+          setLocationPermission('granted');
+          setIsLocating(false);
+        },
+        (error) => {
+          // Error callback
+          console.error("Error getting location:", error);
+          setLocationPermission('denied');
+          setIsLocating(false);
+          setMapError("Unable to get your current location. Please allow location access or pin your shop manually.");
+        },
+        { enableHighAccuracy: true }
+      );
+    } else {
+      console.error("Geolocation is not supported by this browser");
+      setIsLocating(false);
+      setMapError("Geolocation is not supported by your browser. Please pin your shop location manually.");
+    }
   };
 
   const fetchAddress = async (lat: number, lng: number) => {
@@ -122,14 +120,6 @@ const LocationForm: React.FC<LocationFormProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Location Permission Dialog */}
-      <LocationPermissionDialog
-        open={showPermissionDialog}
-        onOpenChange={setShowPermissionDialog}
-        onAllow={handleAllowLocation}
-        onDeny={handleDenyLocation}
-      />
-
       <Card className="p-4 bg-gray-100 border-none">
         <div className="h-72 bg-gray-300 rounded mb-4 overflow-hidden relative">
           <GoogleMapComponent 
@@ -156,10 +146,10 @@ const LocationForm: React.FC<LocationFormProps> = ({
         <div className="space-y-3">
           <Button
             onClick={getCurrentLocation}
-            disabled={locationLoading}
+            disabled={isLocating}
             className="w-full bg-booqit-primary hover:bg-booqit-primary/90 flex items-center justify-center gap-2"
           >
-            {locationLoading ? (
+            {isLocating ? (
               <>
                 <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
                 <span>Getting Location...</span>
@@ -172,22 +162,15 @@ const LocationForm: React.FC<LocationFormProps> = ({
             )}
           </Button>
           
-          {/* Show location accuracy status */}
-          {currentLocation && !hasHighAccuracy && (
-            <p className="text-blue-600 text-xs text-center">
-              📍 Using approximate location, getting precise location...
-            </p>
-          )}
-          
-          {permissionDenied && (
+          {locationPermission === 'denied' && (
             <p className="text-red-500 text-xs text-center">
               Location permission denied. Please enable location access in your browser settings.
             </p>
           )}
           
-          {(mapError || locationError) && (
+          {mapError && (
             <Alert variant="destructive" className="mt-2">
-              <AlertDescription>{mapError || locationError}</AlertDescription>
+              <AlertDescription>{mapError}</AlertDescription>
             </Alert>
           )}
           
@@ -195,11 +178,6 @@ const LocationForm: React.FC<LocationFormProps> = ({
             <div className="mt-4 p-3 bg-white rounded border border-gray-200">
               <p className="text-sm font-medium">Detected Address:</p>
               <p className="text-sm text-gray-600">{locationDetails.address}</p>
-              {currentLocation && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Accuracy: {hasHighAccuracy ? 'High (GPS)' : 'Approximate (Network)'}
-                </p>
-              )}
             </div>
           )}
         </div>
