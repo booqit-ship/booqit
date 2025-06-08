@@ -12,12 +12,12 @@ export const saveUserFCMToken = async (userId: string, token: string, userRole: 
   try {
     console.log('💾 Saving FCM token for user:', userId);
     
-    // Try to update the profile with FCM token if the column exists
-    // If it doesn't exist, we'll just log it for now
+    // Try to update the profile - just touching the record to ensure it exists
+    // The FCM token will be saved once the migration is applied
     const { error } = await supabase
       .from('profiles')
       .update({
-        updated_at: new Date().toISOString()
+        name: (await supabase.from('profiles').select('name').eq('id', userId).single()).data?.name || 'User'
       })
       .eq('id', userId);
 
