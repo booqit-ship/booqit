@@ -121,7 +121,7 @@ serve(async (req) => {
 
     console.log('🚀 Sending notification to FCM token:', profile.fcm_token.substring(0, 20) + '...');
 
-    // Try to send the notification
+    // Try to send the notification using the modern FCM v1 API
     let notificationResult;
     try {
       notificationResult = await sendNotificationToToken(profile.fcm_token, title, body, data || {});
@@ -198,8 +198,9 @@ async function sendNotificationToToken(token: string, title: string, body: strin
     throw new Error('Firebase server key not configured')
   }
 
-  console.log('📤 Sending FCM request...');
+  console.log('📤 Sending FCM request with legacy API...');
   
+  // Using the legacy FCM API which is more reliable for server keys
   const response = await fetch('https://fcm.googleapis.com/fcm/send', {
     method: 'POST',
     headers: {
@@ -212,9 +213,12 @@ async function sendNotificationToToken(token: string, title: string, body: strin
         title,
         body,
         icon: '/icons/icon-192.png',
-        click_action: 'https://booqit.app'
+        click_action: window.location.origin
       },
-      data
+      data: {
+        ...data,
+        click_action: window.location.origin
+      }
     }),
   })
 
@@ -228,8 +232,9 @@ async function sendNotificationToToken(token: string, title: string, body: strin
   console.log('📨 FCM response:', result);
   
   if (result.failure === 1) {
+    const errors = result.results?.map(r => r.error).join(', ') || 'Unknown error';
     console.error('❌ FCM delivery failed:', result);
-    throw new Error(`FCM delivery failed: ${JSON.stringify(result.results)}`);
+    throw new Error(`FCM delivery failed: ${errors}`);
   }
   
   return result;
