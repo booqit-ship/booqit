@@ -3,16 +3,17 @@ import React, { useState } from 'react';
 import { useOneSignal } from '@/hooks/useOneSignal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Bell, Check, X, TestTube, MapPin } from 'lucide-react';
+import { Bell, Check, X, TestTube, MapPin, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Capacitor } from '@capacitor/core';
 
 const OneSignalTestComponent: React.FC = () => {
-  const { requestPermission, showPermissionPrompt, showNativePrompt } = useOneSignal();
+  const { requestPermission, showPermissionPrompt, showNativePrompt, forcePermissionPrompt } = useOneSignal();
   const { userId } = useAuth();
   const [permissionStatus, setPermissionStatus] = useState<string>('unknown');
+  const [isLoading, setIsLoading] = useState(false);
 
   const checkPermissionStatus = async () => {
     try {
@@ -32,6 +33,7 @@ const OneSignalTestComponent: React.FC = () => {
 
   const handleRequestPermission = async () => {
     try {
+      setIsLoading(true);
       const granted = await requestPermission();
       if (granted) {
         toast.success('✅ Push notifications enabled!');
@@ -43,6 +45,21 @@ const OneSignalTestComponent: React.FC = () => {
     } catch (error) {
       console.error('Error requesting permission:', error);
       toast.error('Failed to request permission');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleForcePermissionPrompt = async () => {
+    try {
+      setIsLoading(true);
+      await forcePermissionPrompt();
+      toast.info('Permission prompt shown');
+    } catch (error) {
+      console.error('Error showing force prompt:', error);
+      toast.error('Failed to show permission prompt');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -90,10 +107,14 @@ const OneSignalTestComponent: React.FC = () => {
 
   const handleTestBookingNotification = async () => {
     try {
+      setIsLoading(true);
+      
       if (!userId) {
         toast.error('You must be logged in to test notifications');
         return;
       }
+
+      console.log('Testing notification for user:', userId);
 
       const { data, error } = await supabase.functions.invoke('send-booking-notification', {
         body: {
@@ -117,6 +138,18 @@ const OneSignalTestComponent: React.FC = () => {
     } catch (error) {
       console.error('Error sending test notification:', error);
       toast.error('Failed to send test notification');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getPermissionStatusColor = () => {
+    switch (permissionStatus) {
+      case 'granted': return 'text-green-600';
+      case 'denied': return 'text-red-600';
+      case 'default': return 'text-yellow-600';
+      case 'native': return 'text-blue-600';
+      default: return 'text-gray-600';
     }
   };
 
@@ -134,6 +167,7 @@ const OneSignalTestComponent: React.FC = () => {
           className="w-full"
           variant="outline"
           size="sm"
+          disabled={isLoading}
         >
           <Check className="h-4 w-4 mr-2" />
           Check Permission Status
@@ -144,9 +178,21 @@ const OneSignalTestComponent: React.FC = () => {
           className="w-full"
           variant="outline"
           size="sm"
+          disabled={isLoading}
         >
           <Bell className="h-4 w-4 mr-2" />
           Request Push Permission
+        </Button>
+
+        <Button 
+          onClick={handleForcePermissionPrompt}
+          className="w-full"
+          variant="outline"
+          size="sm"
+          disabled={isLoading}
+        >
+          <AlertCircle className="h-4 w-4 mr-2" />
+          Force Permission Prompt
         </Button>
         
         <Button 
@@ -154,6 +200,7 @@ const OneSignalTestComponent: React.FC = () => {
           className="w-full"
           variant="outline"
           size="sm"
+          disabled={isLoading}
         >
           <X className="h-4 w-4 mr-2" />
           Show Slidedown Prompt
@@ -164,6 +211,7 @@ const OneSignalTestComponent: React.FC = () => {
           className="w-full"
           variant="outline"
           size="sm"
+          disabled={isLoading}
         >
           <Bell className="h-4 w-4 mr-2" />
           Show Native Prompt
@@ -174,6 +222,7 @@ const OneSignalTestComponent: React.FC = () => {
           className="w-full"
           variant="outline"
           size="sm"
+          disabled={isLoading}
         >
           <MapPin className="h-4 w-4 mr-2" />
           Request Location Permission
@@ -184,15 +233,17 @@ const OneSignalTestComponent: React.FC = () => {
           className="w-full"
           variant="default"
           size="sm"
+          disabled={isLoading || !userId}
         >
           <TestTube className="h-4 w-4 mr-2" />
-          Test Booking Notification
+          {isLoading ? 'Sending...' : 'Test Booking Notification'}
         </Button>
         
         <div className="text-sm text-muted-foreground text-center space-y-1">
-          <p>Permission Status: <span className="font-mono text-xs bg-gray-100 px-1 rounded">{permissionStatus}</span></p>
+          <p>Permission Status: <span className={`font-mono text-xs px-1 rounded ${getPermissionStatusColor()}`}>{permissionStatus}</span></p>
           <p>Platform: {Capacitor.isNativePlatform() ? 'Native' : 'Web'}</p>
           <p className="text-xs">Must be logged in as merchant for notifications</p>
+          {!userId && <p className="text-xs text-red-500">⚠️ Please log in to test notifications</p>}
         </div>
       </CardContent>
     </Card>

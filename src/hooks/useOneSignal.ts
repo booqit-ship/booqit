@@ -4,14 +4,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { oneSignalService } from '@/services/oneSignalService';
 import { Capacitor } from '@capacitor/core';
 
-const getGeolocation = async () => {
-  if (Capacitor.isNativePlatform()) {
-    const { Geolocation } = await import('@capacitor/geolocation');
-    return Geolocation;
-  }
-  return null;
-};
-
 export const useOneSignal = () => {
   const { isAuthenticated, userId, userRole } = useAuth();
   const initializedRef = useRef(false);
@@ -25,35 +17,19 @@ export const useOneSignal = () => {
       try {
         console.log('🔔 Starting OneSignal initialization...');
         await oneSignalService.initialize();
-        
-        // Request location permission on native platforms
-        if (Capacitor.isNativePlatform()) {
-          try {
-            const Geolocation = await getGeolocation();
-            if (Geolocation) {
-              await Geolocation.getCurrentPosition();
-              console.log('✅ Location permission granted');
-            }
-          } catch (error) {
-            console.log('ℹ️ Location permission denied or unavailable:', error);
-          }
-        }
-        
         initializedRef.current = true;
         console.log('✅ OneSignal initialization complete');
         
-        // On web, automatically request notification permission after initialization
+        // For web, auto-request permission after a short delay
         if (!Capacitor.isNativePlatform() && !permissionRequestedRef.current) {
           setTimeout(async () => {
             console.log('🔔 Auto-requesting notification permission for web...');
             const granted = await oneSignalService.requestPermission();
-            if (!granted) {
-              // If permission denied, show slidedown prompt
-              setTimeout(() => {
-                oneSignalService.showSlidedownPrompt();
-              }, 2000);
-            }
             permissionRequestedRef.current = true;
+            
+            if (!granted) {
+              console.log('❌ Permission not granted, will show prompt when user authenticates');
+            }
           }, 2000);
         }
       } catch (error) {
@@ -61,40 +37,51 @@ export const useOneSignal = () => {
       }
     };
 
+    // Start initialization after a short delay
     setTimeout(initializeOneSignal, 500);
   }, []);
 
-  // Handle user authentication state changes with segmentation
+  // Handle user authentication state changes
   useEffect(() => {
     if (!initializedRef.current || !isAuthenticated || !userId) return;
 
     const handleAuthChange = async () => {
       console.log('🔔 Setting up OneSignal for authenticated user:', userId, 'Role:', userRole);
       
-      await oneSignalService.setUserId(userId);
-      
-      if (userRole) {
-        await oneSignalService.addTag('userRole', userRole);
+      try {
+        // Set user ID in OneSignal
+        await oneSignalService.setUserId(userId);
         
-        if (userRole === 'merchant') {
-          await oneSignalService.addTag('user_type', 'merchant');
-        } else if (userRole === 'customer') {
-          await oneSignalService.addTag('user_type', 'customer');
+        // Add role-based tags
+        if (userRole) {
+          await oneSignalService.addTag('userRole', userRole);
+          await oneSignalService.addTag('user_type', userRole);
         }
-      }
-      
-      // For web users, ensure permission is requested after authentication
-      if (!Capacitor.isNativePlatform() && !permissionRequestedRef.current) {
-        setTimeout(async () => {
-          console.log('🔔 Requesting permission for authenticated user...');
-          const permission = await oneSignalService.requestPermission();
-          if (!permission) {
-            setTimeout(() => {
-              oneSignalService.showSlidedownPrompt();
+        
+        // For merchants, ensure notifications are enabled
+        if (userRole === 'merchant') {
+          await oneSignalService.addTag('merchant_id', userId);
+          
+          // For web merchants, aggressively request permission
+          if (!Capacitor.isNativePlatform()) {
+            setTimeout(async () => {
+              console.log('🔔 Requesting permission for merchant user...');
+              const granted = await oneSignalService.requestPermission();
+              
+              if (!granted) {
+                // Show slidedown as fallback
+                setTimeout(async () => {
+                  console.log('🔔 Showing slidedown as fallback for merchant...');
+                  await oneSignalService.showSlidedownPrompt();
+                }, 1000);
+              }
             }, 1000);
           }
-          permissionRequestedRef.current = true;
-        }, 1000);
+        }
+        
+        console.log('✅ OneSignal setup complete for user');
+      } catch (error) {
+        console.error('❌ Error setting up OneSignal for user:', error);
       }
     };
 
@@ -114,12 +101,6 @@ export const useOneSignal = () => {
     await oneSignalService.removeTag(key);
   };
 
-  const setUserSegmentation = async (merchantId?: string): Promise<void> => {
-    if (userId && userRole) {
-      await oneSignalService.setUserSegmentation(userId, userRole, merchantId);
-    }
-  };
-
   const showPermissionPrompt = async (): Promise<void> => {
     await oneSignalService.showSlidedownPrompt();
   };
@@ -128,12 +109,16 @@ export const useOneSignal = () => {
     await oneSignalService.showNativePrompt();
   };
 
+  const forcePermissionPrompt = async (): Promise<void> => {
+    await oneSignalService.forcePermissionPrompt();
+  };
+
   return {
     requestPermission,
     addTag,
     removeTag,
-    setUserSegmentation,
     showPermissionPrompt,
     showNativePrompt,
+    forcePermissionPrompt,
   };
 };

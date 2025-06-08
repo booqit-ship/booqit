@@ -74,11 +74,9 @@ export class OneSignalService {
       } else if (window.OneSignalDeferred) {
         window.OneSignalDeferred.push(initOneSignal);
       } else {
-        // Create the deferred array if it doesn't exist
         window.OneSignalDeferred = [];
         window.OneSignalDeferred.push(initOneSignal);
         
-        // Load OneSignal if not already loaded
         if (!document.querySelector('script[src*="OneSignalSDK"]')) {
           const script = document.createElement('script');
           script.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
@@ -99,7 +97,7 @@ export class OneSignalService {
       } else if (window.OneSignal && this.isInitialized) {
         console.log('🔔 Requesting web push notification permission...');
         
-        // First check current permission status
+        // Check current permission status first
         const currentPermission = await window.OneSignal.Notifications.permission;
         console.log('Current permission status:', currentPermission);
         
@@ -108,7 +106,14 @@ export class OneSignalService {
           return true;
         }
         
-        // Request permission using the new OneSignal v16 API
+        // For denied permissions, show custom prompt first
+        if (currentPermission === 'denied') {
+          console.log('🔔 Permission was denied, showing custom prompt');
+          await this.showSlidedownPrompt();
+          return false;
+        }
+        
+        // Request permission directly
         const permission = await window.OneSignal.Notifications.requestPermission();
         console.log('🔔 Permission request result:', permission);
         
@@ -116,15 +121,16 @@ export class OneSignalService {
           console.log('✅ Push notification permission granted');
           return true;
         } else {
-          console.log('❌ Push notification permission denied');
-          // Show slidedown as fallback
-          await this.showSlidedownPrompt();
+          console.log('❌ Push notification permission denied, showing fallback prompt');
+          setTimeout(() => this.showSlidedownPrompt(), 1000);
           return false;
         }
       }
       return false;
     } catch (error) {
       console.error('❌ Error requesting notification permission:', error);
+      // Show slidedown as fallback
+      await this.showSlidedownPrompt();
       return false;
     }
   }
@@ -162,27 +168,6 @@ export class OneSignalService {
     }
   }
 
-  async setUserSegmentation(userId: string, userRole: string, merchantId?: string): Promise<void> {
-    try {
-      if (window.OneSignal && this.isInitialized) {
-        await window.OneSignal.login(userId);
-        await window.OneSignal.User.addTag('user_type', userRole);
-        
-        if (userRole === 'merchant' && merchantId) {
-          await window.OneSignal.User.addTag('merchant_id', merchantId);
-        }
-        
-        if (userRole === 'customer') {
-          await window.OneSignal.User.addTag('customer_id', userId);
-        }
-        
-        console.log('✅ OneSignal user segmentation set:', { userId, userRole, merchantId });
-      }
-    } catch (error) {
-      console.error('❌ Error setting OneSignal user segmentation:', error);
-    }
-  }
-
   async addTag(key: string, value: string): Promise<void> {
     try {
       if (window.OneSignal && this.isInitialized) {
@@ -213,6 +198,25 @@ export class OneSignalService {
       }
     } catch (error) {
       console.error('❌ Error logging out OneSignal user:', error);
+    }
+  }
+
+  // Force permission prompt for testing
+  async forcePermissionPrompt(): Promise<void> {
+    try {
+      if (!Capacitor.isNativePlatform() && window.OneSignal && this.isInitialized) {
+        console.log('🔔 Forcing permission prompt...');
+        
+        // Try native prompt first
+        try {
+          await window.OneSignal.showNativePrompt();
+        } catch {
+          // Fallback to slidedown
+          await window.OneSignal.Slidedown.promptPush();
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error forcing permission prompt:', error);
     }
   }
 }
