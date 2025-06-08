@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { getFCMToken } from '@/firebase';
 
@@ -12,8 +11,6 @@ export const saveUserFCMToken = async (userId: string, token: string, userRole: 
   try {
     console.log('💾 Saving FCM token for user:', userId);
     
-    // TODO: Uncomment after applying FCM migration
-    /*
     const { error } = await supabase
       .from('profiles')
       .update({
@@ -27,9 +24,8 @@ export const saveUserFCMToken = async (userId: string, token: string, userRole: 
       console.error('❌ Error saving FCM token:', error);
       return false;
     }
-    */
 
-    console.log('✅ FCM token saved successfully (migration pending)');
+    console.log('✅ FCM token saved successfully');
     return true;
   } catch (error) {
     console.error('❌ Error in saveUserFCMToken:', error);

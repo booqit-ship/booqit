@@ -181,6 +181,44 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_logs: {
+        Row: {
+          body: string
+          id: string
+          sent_at: string | null
+          status: string | null
+          title: string
+          type: string
+          user_id: string | null
+        }
+        Insert: {
+          body: string
+          id?: string
+          sent_at?: string | null
+          status?: string | null
+          title: string
+          type: string
+          user_id?: string | null
+        }
+        Update: {
+          body?: string
+          id?: string
+          sent_at?: string | null
+          status?: string | null
+          title?: string
+          type?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payments: {
         Row: {
           amount: number
@@ -221,8 +259,11 @@ export type Database = {
           avatar_url: string | null
           created_at: string
           email: string
+          fcm_token: string | null
           id: string
+          last_notification_sent: string | null
           name: string
+          notification_enabled: boolean | null
           phone: string | null
           role: string
         }
@@ -230,8 +271,11 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           email: string
+          fcm_token?: string | null
           id: string
+          last_notification_sent?: string | null
           name: string
+          notification_enabled?: boolean | null
           phone?: string | null
           role: string
         }
@@ -239,8 +283,11 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           email?: string
+          fcm_token?: string | null
           id?: string
+          last_notification_sent?: string | null
           name?: string
+          notification_enabled?: boolean | null
           phone?: string | null
           role?: string
         }
