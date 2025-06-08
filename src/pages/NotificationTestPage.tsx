@@ -1,7 +1,7 @@
 
 import React from 'react';
 import NotificationTestPanel from '@/components/NotificationTestPanel';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Database } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 
@@ -31,7 +31,22 @@ const NotificationTestPage = () => {
 
         <NotificationTestPanel />
 
-        <div className="mt-8 p-6 bg-white rounded-lg shadow-sm border">
+        <div className="mt-8 p-6 bg-red-50 rounded-lg border border-red-200">
+          <h2 className="text-xl font-semibold mb-4 text-red-800 flex items-center gap-2">
+            <Database className="h-5 w-5" />
+            🚨 Database Migration Required
+          </h2>
+          <div className="space-y-3 text-sm text-red-700">
+            <p className="font-medium">Before testing notifications, run this in your Supabase SQL editor:</p>
+            <div className="bg-red-100 p-3 rounded font-mono text-xs overflow-x-auto">
+              <p>-- Run the FCM migration:</p>
+              <p>-- supabase/migrations/add_fcm_support.sql</p>
+            </div>
+            <p>This will add the necessary columns and tables for FCM token storage.</p>
+          </div>
+        </div>
+
+        <div className="mt-6 p-6 bg-white rounded-lg shadow-sm border">
           <h2 className="text-xl font-semibold mb-4">🔔 Notification Flow</h2>
           <div className="space-y-3 text-sm text-gray-700">
             <div className="flex items-start gap-3">
@@ -60,7 +75,9 @@ const NotificationTestPage = () => {
             <li>✅ Service worker registered (/firebase-messaging-sw.js)</li>
             <li>✅ VAPID key configured</li>
             <li>✅ Supabase Edge Function created for sending notifications</li>
+            <li>⚠️ Run FCM migration in Supabase</li>
             <li>⚠️ Add FIREBASE_SERVER_KEY to Supabase Secrets</li>
+            <li>⚠️ Deploy Supabase Edge Function</li>
             <li>⚠️ Replace placeholder icon with actual app icon</li>
             <li>⚠️ Update domain in notification click_action</li>
           </ul>
