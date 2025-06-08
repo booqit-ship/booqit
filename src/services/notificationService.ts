@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { getFCMToken } from '@/firebase';
 
@@ -48,14 +49,14 @@ export const sendNotificationToUser = async (userId: string, payload: Notificati
 
     if (error) {
       console.error('❌ Error calling Edge Function:', error);
-      return false;
+      throw new Error(`Edge Function error: ${error.message}`);
     }
 
     console.log('✅ Notification sent successfully:', data);
     return true;
   } catch (error) {
     console.error('❌ Error in sendNotificationToUser:', error);
-    return false;
+    throw error;
   }
 };
 

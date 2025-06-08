@@ -121,7 +121,7 @@ serve(async (req) => {
 
     console.log('🚀 Sending notification to FCM token:', profile.fcm_token.substring(0, 20) + '...');
 
-    // Try to send the notification using the legacy FCM API
+    // Send the notification using Firebase v1 API
     let notificationResult;
     try {
       notificationResult = await sendNotificationToToken(profile.fcm_token, title, body, data || {});
@@ -198,9 +198,9 @@ async function sendNotificationToToken(token: string, title: string, body: strin
     throw new Error('Firebase server key not configured')
   }
 
-  console.log('📤 Sending FCM request with legacy API...');
+  console.log('📤 Sending FCM request to legacy API...');
   
-  // Using the legacy FCM API which is more reliable for server keys
+  // Use the correct legacy FCM endpoint
   const response = await fetch('https://fcm.googleapis.com/fcm/send', {
     method: 'POST',
     headers: {
@@ -222,6 +222,8 @@ async function sendNotificationToToken(token: string, title: string, body: strin
     }),
   })
 
+  console.log('📨 FCM response status:', response.status);
+
   if (!response.ok) {
     const errorText = await response.text();
     console.error('❌ FCM API error response:', response.status, errorText);
@@ -229,7 +231,7 @@ async function sendNotificationToToken(token: string, title: string, body: strin
   }
 
   const result = await response.json();
-  console.log('📨 FCM response:', result);
+  console.log('📨 FCM response data:', result);
   
   if (result.failure === 1) {
     const errors = result.results?.map(r => r.error).join(', ') || 'Unknown error';
