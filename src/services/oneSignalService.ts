@@ -238,7 +238,7 @@ class OneSignalService {
     }
   }
 
-  async addTag(key: string, value: string): Promise<void> => {
+  async addTag(key: string, value: string): Promise<void> {
     if (!this.initialized || !window.OneSignal) return;
 
     try {
