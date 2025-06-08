@@ -21,8 +21,11 @@ SELECT cron.schedule(
 CREATE OR REPLACE FUNCTION notify_new_booking()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- Only send notification for new confirmed bookings
-  IF NEW.status = 'confirmed' AND (OLD IS NULL OR OLD.status != 'confirmed') THEN
+  -- Send notification for all new bookings (not just confirmed ones)
+  IF TG_OP = 'INSERT' OR (TG_OP = 'UPDATE' AND NEW.status = 'confirmed' AND (OLD.status IS NULL OR OLD.status != 'confirmed')) THEN
+    -- Log the trigger activation
+    RAISE LOG 'Booking notification trigger activated for booking ID: %', NEW.id;
+    
     -- Call the edge function to send notification
     PERFORM
       net.http_post(
@@ -31,9 +34,10 @@ BEGIN
         body := json_build_object(
           'bookingId', NEW.id::text,
           'merchantUserId', (SELECT user_id::text FROM merchants WHERE id = NEW.merchant_id),
-          'customerName', NEW.customer_name,
-          'serviceName', (SELECT name FROM services WHERE id = NEW.service_id),
-          'dateTime', NEW.date::text || ' at ' || NEW.time_slot
+          'customerName', COALESCE(NEW.customer_name, 'Unknown Customer'),
+          'serviceName', COALESCE((SELECT name FROM services WHERE id = NEW.service_id), 'Service'),
+          'dateTime', COALESCE(NEW.date::text, '') || ' at ' || COALESCE(NEW.time_slot, ''),
+          'automated', false
         )::jsonb
       );
   END IF;
@@ -47,3 +51,23 @@ CREATE TRIGGER booking_notification_trigger
   AFTER INSERT OR UPDATE ON bookings
   FOR EACH ROW
   EXECUTE FUNCTION notify_new_booking();
+
+-- Test the notification system by creating a test function
+CREATE OR REPLACE FUNCTION test_booking_notification(test_merchant_user_id text)
+RETURNS void AS $$
+BEGIN
+  PERFORM
+    net.http_post(
+      url := 'https://ggclvurfcykbwmhfftkn.supabase.co/functions/v1/send-booking-notification',
+      headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdnY2x2dXJmY3lrYndtaGZmdGtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc3MTQ3OTUsImV4cCI6MjA2MzI5MDc5NX0.0lpqHKUCWh47YTnRuksWDmv6Y5JPEanMwVyoQy9zeHw"}'::jsonb,
+      body := json_build_object(
+        'bookingId', 'test-123',
+        'merchantUserId', test_merchant_user_id,
+        'customerName', 'Test Customer',
+        'serviceName', 'Test Service',
+        'dateTime', 'Today at 3:00 PM',
+        'automated', false
+      )::jsonb
+    );
+END;
+$$ LANGUAGE plpgsql;

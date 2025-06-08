@@ -1,3 +1,4 @@
+
 import { Capacitor } from '@capacitor/core';
 
 declare global {
@@ -45,7 +46,6 @@ export class OneSignalService {
 
   private async initializeNative(): Promise<void> {
     // For native platforms, OneSignal is initialized through the plugin
-    // The initialization happens automatically when the app starts
     console.log('🔔 OneSignal native initialization (handled by plugin)');
   }
 
@@ -62,7 +62,12 @@ export class OneSignalService {
           appId: this.appId,
           serviceWorkerPath: '/OneSignalSDKWorker.js',
           serviceWorkerUpdaterPath: '/OneSignalSDKUpdaterWorker.js',
+          allowLocalhostAsSecureOrigin: true,
         }).then(() => {
+          // Show permission prompt immediately after initialization
+          setTimeout(() => {
+            this.showPermissionPrompt();
+          }, 1000);
           resolve();
         }).catch(reject);
       } else if (window.OneSignalDeferred) {
@@ -73,7 +78,12 @@ export class OneSignalService {
               appId: this.appId,
               serviceWorkerPath: '/OneSignalSDKWorker.js',
               serviceWorkerUpdaterPath: '/OneSignalSDKUpdaterWorker.js',
+              allowLocalhostAsSecureOrigin: true,
             });
+            // Show permission prompt immediately after initialization
+            setTimeout(() => {
+              this.showPermissionPrompt();
+            }, 1000);
             resolve();
           } catch (error) {
             reject(error);
@@ -85,6 +95,17 @@ export class OneSignalService {
     });
   }
 
+  async showPermissionPrompt(): Promise<void> {
+    try {
+      if (window.OneSignal && !Capacitor.isNativePlatform()) {
+        console.log('🔔 Showing OneSignal permission prompt');
+        await window.OneSignal.Slidedown.promptPush();
+      }
+    } catch (error) {
+      console.error('❌ Error showing permission prompt:', error);
+    }
+  }
+
   async requestPermission(): Promise<boolean> {
     try {
       if (Capacitor.isNativePlatform()) {
@@ -92,9 +113,15 @@ export class OneSignalService {
         console.log('🔔 Native push notification permissions handled by plugin');
         return true;
       } else if (window.OneSignal) {
-        // For web platforms
+        // For web platforms, request permission and show prompt
         const permission = await window.OneSignal.Notifications.requestPermission();
         console.log('🔔 Web push notification permission:', permission);
+        
+        if (!permission) {
+          // If permission not granted, show the slidedown prompt
+          await this.showPermissionPrompt();
+        }
+        
         return permission;
       }
       return false;
@@ -138,20 +165,6 @@ export class OneSignalService {
       }
     } catch (error) {
       console.error('❌ Error setting OneSignal user segmentation:', error);
-    }
-  }
-
-  async sendNewBookingNotification(merchantUserId: string, customerName: string, serviceName: string, dateTime: string): Promise<void> {
-    try {
-      // This would typically be called from a server-side function
-      console.log('📧 New booking notification should be sent to merchant:', {
-        merchantUserId,
-        customerName,
-        serviceName,
-        dateTime
-      });
-    } catch (error) {
-      console.error('❌ Error sending new booking notification:', error);
     }
   }
 

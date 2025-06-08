@@ -1,3 +1,4 @@
+
 import { useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { oneSignalService } from '@/services/oneSignalService';
@@ -22,6 +23,7 @@ export const useOneSignal = () => {
     
     const initializeOneSignal = async () => {
       try {
+        console.log('🔔 Starting OneSignal initialization...');
         await oneSignalService.initialize();
         
         // Request location permission on native platforms
@@ -38,12 +40,14 @@ export const useOneSignal = () => {
         }
         
         initializedRef.current = true;
+        console.log('✅ OneSignal initialization complete');
       } catch (error) {
         console.error('❌ Failed to initialize OneSignal:', error);
       }
     };
 
-    initializeOneSignal();
+    // Delay initialization slightly to ensure DOM is ready
+    setTimeout(initializeOneSignal, 500);
   }, []);
 
   // Handle user authentication state changes with segmentation
@@ -63,20 +67,21 @@ export const useOneSignal = () => {
           
           // For merchants, we might want to add merchant-specific data
           if (userRole === 'merchant') {
-            // You can add merchant ID here if available in auth context
             await oneSignalService.addTag('user_type', 'merchant');
           } else if (userRole === 'customer') {
             await oneSignalService.addTag('user_type', 'customer');
           }
         }
         
-        // Request notification permission
-        const permission = await oneSignalService.requestPermission();
-        if (permission) {
-          console.log('✅ Push notification permission granted');
-        } else {
-          console.log('ℹ️ Push notification permission denied');
-        }
+        // Request notification permission after user is authenticated
+        setTimeout(async () => {
+          const permission = await oneSignalService.requestPermission();
+          if (permission) {
+            console.log('✅ Push notification permission granted');
+          } else {
+            console.log('ℹ️ Push notification permission denied');
+          }
+        }, 1000);
       } else {
         console.log('🔔 Logging out OneSignal user');
         await oneSignalService.logout();
@@ -104,10 +109,15 @@ export const useOneSignal = () => {
     }
   };
 
+  const showPermissionPrompt = async (): Promise<void> => {
+    await oneSignalService.showPermissionPrompt();
+  };
+
   return {
     requestPermission,
     addTag,
     removeTag,
     setUserSegmentation,
+    showPermissionPrompt,
   };
 };

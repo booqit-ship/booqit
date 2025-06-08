@@ -8,6 +8,8 @@ const corsHeaders = {
 
 const sendOneSignalNotification = async (title: string, message: string, externalUserId: string) => {
   try {
+    console.log('📧 Sending OneSignal notification to:', externalUserId);
+    
     const response = await fetch('https://onesignal.com/api/v1/notifications', {
       method: 'POST',
       headers: {
@@ -22,15 +24,22 @@ const sendOneSignalNotification = async (title: string, message: string, externa
         data: {
           type: 'new_booking',
           timestamp: new Date().toISOString()
-        }
+        },
+        web_buttons: [
+          {
+            id: 'view_booking',
+            text: 'View Booking',
+            url: 'https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com/calendar'
+          }
+        ]
       })
     });
 
     const result = await response.json();
-    console.log('OneSignal notification sent:', result);
+    console.log('✅ OneSignal notification sent:', result);
     return result;
   } catch (error) {
-    console.error('Error sending OneSignal notification:', error);
+    console.error('❌ Error sending OneSignal notification:', error);
     throw error;
   }
 };
@@ -41,7 +50,16 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { bookingId, merchantUserId, customerName, serviceName, dateTime } = await req.json();
+    const { bookingId, merchantUserId, customerName, serviceName, dateTime, automated } = await req.json();
+
+    console.log('📥 Received booking notification request:', {
+      bookingId,
+      merchantUserId,
+      customerName,
+      serviceName,
+      dateTime,
+      automated
+    });
 
     if (!bookingId || !merchantUserId || !customerName || !serviceName || !dateTime) {
       throw new Error('Missing required parameters');
@@ -55,7 +73,13 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'Booking notification sent successfully'
+        message: 'Booking notification sent successfully',
+        details: {
+          bookingId,
+          merchantUserId,
+          title,
+          message
+        }
       }),
       { 
         headers: { 
@@ -66,7 +90,7 @@ Deno.serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error in send-booking-notification:', error);
+    console.error('❌ Error in send-booking-notification:', error);
     return new Response(
       JSON.stringify({ 
         success: false, 
