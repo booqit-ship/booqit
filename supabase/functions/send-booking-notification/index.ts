@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -16,7 +15,7 @@ const sendOneSignalNotification = async (title: string, message: string, externa
     const oneSignalResponse = await fetch('https://onesignal.com/api/v1/notifications', {
       method: 'POST',
       headers: {
-        'Authorization': 'Basic os_v2_app_2wqgcswu7rc2baouz73wfm3w3xr45htu3jyusmn2uykghbhumpxb6osm76nvpi2rdtc5xtpfhwdkekikcg52e5qrlapmqbsm3dylvha',
+        'Authorization': 'Basic os_v2_app_2wqgcswu7rc2baouz73wfm3w3xr45htu3jyusmn2uykghbhumpxgu4oco6e6zcvscuw2l5b3ccy6qlmw257jzryasr35is3may4qdsi',
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -36,7 +35,6 @@ const sendOneSignalNotification = async (title: string, message: string, externa
             url: 'https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com/calendar'
           }
         ],
-        // Enhanced notification settings for better delivery
         large_icon: 'https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com/favicon.ico',
         small_icon: 'https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com/favicon.ico',
         android_sound: 'default',
@@ -59,7 +57,6 @@ const sendOneSignalNotification = async (title: string, message: string, externa
       throw new Error('OneSignal API returned errors: ' + JSON.stringify(result.errors));
     }
     
-    // Check if notification was sent to any recipients
     if (result.recipients && result.recipients === 0) {
       console.warn('⚠️ No recipients received the notification. User may not be subscribed.');
       return {

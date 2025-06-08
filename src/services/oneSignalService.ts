@@ -18,43 +18,26 @@ class OneSignalService {
     try {
       console.log('🔔 Initializing OneSignal...');
       
-      if (!window.OneSignal) {
-        console.error('❌ OneSignal SDK not loaded');
-        throw new Error('OneSignal SDK not available');
+      // Wait for OneSignal to be available
+      while (!window.OneSignal) {
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
 
       await window.OneSignal.init({
         appId: this.appId,
-        safari_web_id: "web.onesignal.auto.18b6e89e-2e55-4554-bb27-d99aecae96b9",
+        safari_web_id: "web.onesignal.auto.0a199198-d5df-41c5-963c-72a0258657aa",
         notifyButton: {
           enable: false,
         },
         allowLocalhostAsSecureOrigin: true,
-        autoRegister: false, // We'll handle registration manually
+        autoRegister: true,
         autoResubscribe: true,
         showCredit: false,
         persistNotification: true,
         welcomeNotification: {
-          disable: true
-        },
-        promptOptions: {
-          slidedown: {
-            prompts: [
-              {
-                type: "push",
-                autoPrompt: false,
-                text: {
-                  actionMessage: "Get instant notifications when customers book appointments!",
-                  acceptButton: "Allow",
-                  cancelButton: "No Thanks"
-                },
-                delay: {
-                  pageViews: 1,
-                  timeDelay: 2
-                }
-              }
-            ]
-          }
+          disable: false,
+          title: "BooqIt",
+          message: "Welcome! You'll receive booking notifications here."
         }
       });
 
@@ -80,6 +63,10 @@ class OneSignalService {
     window.OneSignal.Notifications.addEventListener('permissionChange', (event: any) => {
       console.log('🔔 Permission changed:', event);
     });
+
+    window.OneSignal.Notifications.addEventListener('click', (event: any) => {
+      console.log('🔔 Notification clicked:', event);
+    });
   }
 
   async setUserId(userId: string): Promise<void> {
@@ -91,7 +78,6 @@ class OneSignalService {
     try {
       console.log('🔔 Setting OneSignal user ID:', userId);
       
-      // For OneSignal v5, use the new User API
       await window.OneSignal.login(userId);
       
       console.log('✅ OneSignal user ID set successfully:', userId);
@@ -179,7 +165,7 @@ class OneSignalService {
     if (!this.initialized || !window.OneSignal) return;
 
     try {
-      console.log('🔔 Starting aggressive permission flow...');
+      console.log('🔔 Starting permission flow...');
       
       // Check current status
       const isCurrentlySubscribed = await this.isSubscribed();
@@ -188,29 +174,12 @@ class OneSignalService {
         return;
       }
 
-      // Try slidedown first
-      await this.showSlidedownPrompt();
-      
-      // Wait a bit and check
-      setTimeout(async () => {
-        const stillNotSubscribed = !(await this.isSubscribed());
-        if (stillNotSubscribed) {
-          console.log('🔔 Slidedown failed, trying native prompt...');
-          await this.showNativePrompt();
-        }
-      }, 2000);
-
-      // Final fallback - direct permission request
-      setTimeout(async () => {
-        const stillNotSubscribed = !(await this.isSubscribed());
-        if (stillNotSubscribed) {
-          console.log('🔔 All prompts failed, trying direct permission...');
-          await this.requestPermission();
-        }
-      }, 4000);
+      // Request permission directly
+      const hasPermission = await this.requestPermission();
+      console.log('🔔 Permission granted:', hasPermission);
 
     } catch (error) {
-      console.error('❌ Error in force permission flow:', error);
+      console.error('❌ Error in permission flow:', error);
     }
   }
 

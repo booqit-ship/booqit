@@ -2,7 +2,6 @@
 import { useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { oneSignalService } from '@/services/oneSignalService';
-import { Capacitor } from '@capacitor/core';
 import { toast } from 'sonner';
 
 export const useOneSignal = () => {
@@ -36,7 +35,7 @@ export const useOneSignal = () => {
       console.log('🔔 Setting up OneSignal for authenticated user:', userId, 'Role:', userRole);
       
       try {
-        // CRITICAL: Set external user ID first
+        // Set external user ID
         await oneSignalService.setUserId(userId);
         
         // Add role-based tags
@@ -46,7 +45,7 @@ export const useOneSignal = () => {
           await oneSignalService.addTag('last_login', new Date().toISOString());
         }
         
-        // For merchants, be extra aggressive about notifications
+        // For merchants, be aggressive about notifications
         if (userRole === 'merchant') {
           console.log('🏪 Setting up merchant-specific notifications...');
           
@@ -59,29 +58,22 @@ export const useOneSignal = () => {
           console.log('🔔 Merchant subscription status:', isSubscribed);
           
           if (!isSubscribed) {
-            console.log('🔔 Merchant not subscribed - starting permission flow...');
+            console.log('🔔 Merchant not subscribed - requesting permission...');
             
-            // Show notification explaining importance for merchants
-            toast.info('Enable notifications to receive booking alerts from customers!', {
-              duration: 5000,
+            toast.info('📱 Enable notifications to receive booking alerts!', {
+              duration: 8000,
             });
             
-            // Wait a moment then start permission flow
+            // Try to get permission
             setTimeout(async () => {
-              await oneSignalService.forcePermissionPrompt();
-            }, 1000);
-            
-            // Verify subscription after permission flow
-            setTimeout(async () => {
-              const subscriptionDetails = await oneSignalService.getSubscriptionDetails();
-              console.log('🔔 Final merchant subscription details:', subscriptionDetails);
+              const hasPermission = await oneSignalService.requestPermission();
               
-              if (subscriptionDetails?.optedIn) {
-                toast.success('✅ Booking notifications enabled! You\'ll receive alerts when customers book.');
+              if (hasPermission) {
+                toast.success('✅ Booking notifications enabled!');
               } else {
-                toast.error('❌ Notifications disabled. You may miss customer booking alerts.');
+                toast.error('❌ Notifications disabled. You may miss booking alerts.');
               }
-            }, 10000);
+            }, 2000);
           } else {
             console.log('✅ Merchant already subscribed to notifications');
             toast.success('✅ Booking notifications are active!');
@@ -90,10 +82,6 @@ export const useOneSignal = () => {
         
         userSetupCompleteRef.current = true;
         console.log('✅ OneSignal setup complete for user');
-        
-        // Log final status for debugging
-        const finalDetails = await oneSignalService.getSubscriptionDetails();
-        console.log('🔔 Final OneSignal setup details:', finalDetails);
         
       } catch (error) {
         console.error('❌ Error setting up OneSignal for user:', error);
@@ -150,10 +138,8 @@ export const useOneSignal = () => {
       console.log('🔔 Resetting and setting up OneSignal user...');
       userSetupCompleteRef.current = false;
       
-      // Re-set the user ID
       await oneSignalService.setUserId(userId);
       
-      // Re-add tags
       if (userRole) {
         await oneSignalService.addTag('userRole', userRole);
         await oneSignalService.addTag('user_type', userRole);
