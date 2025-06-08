@@ -29,6 +29,14 @@
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="true">
 
+        <!-- OneSignal Configuration -->
+        <meta-data
+            android:name="onesignal_app_id"
+            android:value="d5a0614a-d4fc-45a0-81d4-cff762b376dd" />
+        <meta-data
+            android:name="onesignal_google_project_number"
+            android:value="REMOTE" />
+
         <activity
             android:exported="true"
             android:launchMode="singleTask"
