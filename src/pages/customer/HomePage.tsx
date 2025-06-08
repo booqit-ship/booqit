@@ -27,6 +27,7 @@ const featuredCategories = [{
   icon: '💅',
   color: '#FF6B6B'
 }];
+
 const HomePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [nearbyShops, setNearbyShops] = useState<Merchant[]>([]);
@@ -39,12 +40,8 @@ const HomePage: React.FC = () => {
   const [showPermissionDialog, setShowPermissionDialog] = useState(false);
   
   const navigate = useNavigate();
-  const {
-    toast
-  } = useToast();
-  const {
-    userId
-  } = useAuth();
+  const { toast } = useToast();
+  const { userId } = useAuth();
 
   // Use our new location service
   const {
@@ -60,18 +57,12 @@ const HomePage: React.FC = () => {
     onPermissionDenied: () => setShowPermissionDialog(true)
   });
 
-  // Get user's current location name (this would come from geolocation + reverse geocoding)
-  const [locationName, setLocationName] = useState("Loading location...");
-
   // Fetch user profile data
   useEffect(() => {
     const fetchUserProfile = async () => {
       if (userId) {
         try {
-          const {
-            data,
-            error
-          } = await supabase.from('profiles').select('name, avatar_url').eq('id', userId).single();
+          const { data, error } = await supabase.from('profiles').select('name, avatar_url').eq('id', userId).single();
           if (error) throw error;
           if (data) {
             setUserName(data.name.split(' ')[0]); // Get first name
@@ -358,17 +349,23 @@ const HomePage: React.FC = () => {
           <motion.div variants={itemVariants}>
             <h2 className="mb-4 font-normal text-xl">Categories</h2>
             <div className="grid grid-cols-2 gap-4 mb-8">
-              {featuredCategories.map(category => <Button key={category.id} variant="outline" className={`h-auto flex flex-col items-center justify-center p-4 border transition-all
-                    ${activeCategory === category.name ? 'border-booqit-primary bg-booqit-primary/10 shadow-md' : 'border-gray-200 shadow-sm hover:shadow-md hover:border-booqit-primary'}`} style={{
-              backgroundColor: activeCategory === category.name ? `${category.color}20` : `${category.color}10`
-            }} onClick={() => handleCategoryClick(category.name)}>
-                  <span style={{
-                color: category.color
-              }} className="mb-2 text-3xl font-normal text-purple-600">
+              {featuredCategories.map(category => (
+                <Button 
+                  key={category.id} 
+                  variant="outline" 
+                  className={`h-auto flex flex-col items-center justify-center p-4 border transition-all
+                    ${activeCategory === category.name ? 'border-booqit-primary bg-booqit-primary/10 shadow-md' : 'border-gray-200 shadow-sm hover:shadow-md hover:border-booqit-primary'}`} 
+                  style={{
+                    backgroundColor: activeCategory === category.name ? `${category.color}20` : `${category.color}10`
+                  }} 
+                  onClick={() => handleCategoryClick(category.name)}
+                >
+                  <span style={{ color: category.color }} className="mb-2 text-3xl font-normal text-purple-600">
                     {category.icon}
                   </span>
                   <span className="text-base font-medium">{category.name}</span>
-                </Button>)}
+                </Button>
+              ))}
             </div>
           </motion.div>
 
@@ -376,22 +373,33 @@ const HomePage: React.FC = () => {
           <motion.div variants={itemVariants} className="mb-8">
             <h2 className="mb-4 font-normal text-xl">
               {activeCategory ? `${activeCategory} Near You` : "Near You"}
-              {activeCategory && <Button variant="link" className="ml-2 p-0 h-auto text-sm text-booqit-primary" onClick={() => setActiveCategory(null)}>
+              {activeCategory && (
+                <Button variant="link" className="ml-2 p-0 h-auto text-sm text-booqit-primary" onClick={() => setActiveCategory(null)}>
                   (Clear filter)
-                </Button>}
+                </Button>
+              )}
             </h2>
-            {isLoading ? <div className="flex justify-center py-8">
+            {isLoading ? (
+              <div className="flex justify-center py-8">
                 <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
-              </div> : filteredShops.length > 0 ? <div className="space-y-4">
-                {filteredShops.map(shop => <Card key={shop.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow">
+              </div>
+            ) : filteredShops.length > 0 ? (
+              <div className="space-y-4">
+                {filteredShops.map(shop => (
+                  <Card key={shop.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow">
                     <CardContent className="p-0">
                       <div className="flex">
                         <div className="w-24 h-24 bg-gray-200 flex-shrink-0">
-                          <img src={getShopImage(shop)} alt={shop.shop_name} className="w-full h-full object-cover" onError={e => {
-                      const target = e.target as HTMLImageElement;
-                      target.src = 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
-                      console.error(`Failed to load image for ${shop.shop_name}, URL: ${shop.image_url}`);
-                    }} />
+                          <img 
+                            src={getShopImage(shop)} 
+                            alt={shop.shop_name} 
+                            className="w-full h-full object-cover" 
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.src = 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
+                              console.error(`Failed to load image for ${shop.shop_name}, URL: ${shop.image_url}`);
+                            }} 
+                          />
                         </div>
                         <div className="p-3 flex-1 py-[6px]">
                           <div className="flex justify-between items-start">
@@ -416,15 +424,19 @@ const HomePage: React.FC = () => {
                         </div>
                       </div>
                     </CardContent>
-                  </Card>)}
-              </div> : <div className="text-center py-8 bg-gray-50 rounded-lg">
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 bg-gray-50 rounded-lg">
                 <p className="text-gray-500">
                   {activeCategory ? `No ${activeCategory} shops found within 5km` : "No shops found within 5km"}
                 </p>
                 <Button variant="link" className="mt-2" onClick={() => navigate('/map')}>
                   Browse on Map
                 </Button>
-              </div>}
+              </div>
+            )}
           </motion.div>
 
           {/* Explore Map Section */}
@@ -436,14 +448,16 @@ const HomePage: React.FC = () => {
               </Button>
             </h2>
             <Card className="overflow-hidden shadow-md bg-gray-100 h-48 relative">
-              <GoogleMapComponent center={userLocation || {
-              lat: 12.9716,
-              lng: 77.5946
-            }} zoom={12} className="h-full" markers={filteredShops.map(shop => ({
-              lat: shop.lat,
-              lng: shop.lng,
-              title: shop.shop_name
-            }))} />
+              <GoogleMapComponent 
+                center={userLocation || { lat: 12.9716, lng: 77.5946 }} 
+                zoom={12} 
+                className="h-full" 
+                markers={filteredShops.map(shop => ({
+                  lat: shop.lat,
+                  lng: shop.lng,
+                  title: shop.shop_name
+                }))} 
+              />
               <div className="absolute inset-0 flex items-center justify-center bg-black/10">
                 <Button className="bg-booqit-primary" onClick={() => navigate('/map')}>
                   Open Map View
