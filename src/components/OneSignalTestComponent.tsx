@@ -1,26 +1,44 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useOneSignal } from '@/hooks/useOneSignal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Bell, Check, X, TestTube } from 'lucide-react';
+import { Bell, Check, X, TestTube, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { Capacitor } from '@capacitor/core';
 
 const OneSignalTestComponent: React.FC = () => {
-  const { requestPermission, showPermissionPrompt } = useOneSignal();
+  const { requestPermission, showPermissionPrompt, showNativePrompt } = useOneSignal();
   const { userId } = useAuth();
+  const [permissionStatus, setPermissionStatus] = useState<string>('unknown');
+
+  const checkPermissionStatus = async () => {
+    try {
+      if (!Capacitor.isNativePlatform() && window.OneSignal) {
+        const permission = await window.OneSignal.Notifications.permission;
+        setPermissionStatus(permission);
+        toast.info(`Current permission status: ${permission}`);
+      } else {
+        toast.info('Native platform - permissions handled automatically');
+        setPermissionStatus('native');
+      }
+    } catch (error) {
+      console.error('Error checking permission:', error);
+      toast.error('Failed to check permission status');
+    }
+  };
 
   const handleRequestPermission = async () => {
     try {
       const granted = await requestPermission();
       if (granted) {
         toast.success('✅ Push notifications enabled!');
+        setPermissionStatus('granted');
       } else {
         toast.error('❌ Push notifications denied');
-        // Show the slidedown prompt as a fallback
-        await showPermissionPrompt();
+        setPermissionStatus('denied');
       }
     } catch (error) {
       console.error('Error requesting permission:', error);
@@ -28,13 +46,45 @@ const OneSignalTestComponent: React.FC = () => {
     }
   };
 
-  const handleShowPrompt = async () => {
+  const handleShowSlidedownPrompt = async () => {
     try {
       await showPermissionPrompt();
-      toast.info('Permission prompt shown');
+      toast.info('Slidedown permission prompt shown');
     } catch (error) {
-      console.error('Error showing prompt:', error);
-      toast.error('Failed to show permission prompt');
+      console.error('Error showing slidedown prompt:', error);
+      toast.error('Failed to show slidedown prompt');
+    }
+  };
+
+  const handleShowNativePrompt = async () => {
+    try {
+      await showNativePrompt();
+      toast.info('Native permission prompt shown');
+    } catch (error) {
+      console.error('Error showing native prompt:', error);
+      toast.error('Failed to show native prompt');
+    }
+  };
+
+  const requestLocationPermission = async () => {
+    try {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            toast.success('✅ Location permission granted!');
+            console.log('Location:', position.coords);
+          },
+          (error) => {
+            toast.error('❌ Location permission denied');
+            console.error('Location error:', error);
+          }
+        );
+      } else {
+        toast.error('Geolocation not supported');
+      }
+    } catch (error) {
+      console.error('Error requesting location:', error);
+      toast.error('Failed to request location permission');
     }
   };
 
@@ -49,9 +99,10 @@ const OneSignalTestComponent: React.FC = () => {
         body: {
           bookingId: 'test-' + Date.now(),
           merchantUserId: userId,
-          customerName: 'Test Customer',
-          serviceName: 'Test Service',
+          customerName: 'John Doe',
+          serviceName: 'Premium Haircut',
           dateTime: 'Today at ' + new Date().toLocaleTimeString(),
+          staffName: 'Sarah Wilson',
           automated: false
         }
       });
@@ -61,7 +112,7 @@ const OneSignalTestComponent: React.FC = () => {
         toast.error('Failed to send test notification: ' + error.message);
       } else {
         console.log('Test notification response:', data);
-        toast.success('Test notification sent! Check your device.');
+        toast.success('✅ Test notification sent! Check your device.');
       }
     } catch (error) {
       console.error('Error sending test notification:', error);
@@ -77,38 +128,71 @@ const OneSignalTestComponent: React.FC = () => {
           OneSignal Test Panel
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3">
+        <Button 
+          onClick={checkPermissionStatus}
+          className="w-full"
+          variant="outline"
+          size="sm"
+        >
+          <Check className="h-4 w-4 mr-2" />
+          Check Permission Status
+        </Button>
+        
         <Button 
           onClick={handleRequestPermission}
           className="w-full"
           variant="outline"
+          size="sm"
         >
           <Bell className="h-4 w-4 mr-2" />
           Request Push Permission
         </Button>
         
         <Button 
-          onClick={handleShowPrompt}
+          onClick={handleShowSlidedownPrompt}
           className="w-full"
           variant="outline"
+          size="sm"
         >
           <X className="h-4 w-4 mr-2" />
-          Show Permission Prompt
+          Show Slidedown Prompt
+        </Button>
+
+        <Button 
+          onClick={handleShowNativePrompt}
+          className="w-full"
+          variant="outline"
+          size="sm"
+        >
+          <Bell className="h-4 w-4 mr-2" />
+          Show Native Prompt
+        </Button>
+        
+        <Button 
+          onClick={requestLocationPermission}
+          className="w-full"
+          variant="outline"
+          size="sm"
+        >
+          <MapPin className="h-4 w-4 mr-2" />
+          Request Location Permission
         </Button>
         
         <Button 
           onClick={handleTestBookingNotification}
           className="w-full"
           variant="default"
+          size="sm"
         >
           <TestTube className="h-4 w-4 mr-2" />
           Test Booking Notification
         </Button>
         
-        <div className="text-sm text-muted-foreground text-center">
-          <p>Use this panel to test OneSignal integration</p>
-          <p className="text-xs mt-1">Check browser console for detailed logs</p>
-          <p className="text-xs mt-1">Must be logged in as merchant for full testing</p>
+        <div className="text-sm text-muted-foreground text-center space-y-1">
+          <p>Permission Status: <span className="font-mono text-xs bg-gray-100 px-1 rounded">{permissionStatus}</span></p>
+          <p>Platform: {Capacitor.isNativePlatform() ? 'Native' : 'Web'}</p>
+          <p className="text-xs">Must be logged in as merchant for notifications</p>
         </div>
       </CardContent>
     </Card>

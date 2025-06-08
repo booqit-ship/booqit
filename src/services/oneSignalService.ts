@@ -30,10 +30,8 @@ export class OneSignalService {
 
     try {
       if (Capacitor.isNativePlatform()) {
-        // Native platform (Capacitor)
         await this.initializeNative();
       } else {
-        // Web platform
         await this.initializeWeb();
       }
       
@@ -45,7 +43,6 @@ export class OneSignalService {
   }
 
   private async initializeNative(): Promise<void> {
-    // For native platforms, OneSignal is initialized through the plugin
     console.log('🔔 OneSignal native initialization (handled by plugin)');
   }
 
@@ -56,78 +53,101 @@ export class OneSignalService {
         return;
       }
 
-      // Check if OneSignal is already loaded
-      if (window.OneSignal) {
-        window.OneSignal.init({
-          appId: this.appId,
-          serviceWorkerPath: '/OneSignalSDKWorker.js',
-          serviceWorkerUpdaterPath: '/OneSignalSDKUpdaterWorker.js',
-          allowLocalhostAsSecureOrigin: true,
-        }).then(() => {
-          // Show permission prompt immediately after initialization
-          setTimeout(() => {
-            this.showPermissionPrompt();
-          }, 1000);
+      const initOneSignal = async (OneSignal: any) => {
+        try {
+          await OneSignal.init({
+            appId: this.appId,
+            serviceWorkerPath: '/OneSignalSDKWorker.js',
+            serviceWorkerUpdaterPath: '/OneSignalSDKUpdaterWorker.js',
+            allowLocalhostAsSecureOrigin: true,
+          });
+          
+          console.log('✅ OneSignal web initialization complete');
           resolve();
-        }).catch(reject);
+        } catch (error) {
+          reject(error);
+        }
+      };
+
+      if (window.OneSignal) {
+        initOneSignal(window.OneSignal);
       } else if (window.OneSignalDeferred) {
-        // Use deferred initialization if OneSignal is not yet loaded
-        window.OneSignalDeferred.push(async (OneSignal: any) => {
-          try {
-            await OneSignal.init({
-              appId: this.appId,
-              serviceWorkerPath: '/OneSignalSDKWorker.js',
-              serviceWorkerUpdaterPath: '/OneSignalSDKUpdaterWorker.js',
-              allowLocalhostAsSecureOrigin: true,
-            });
-            // Show permission prompt immediately after initialization
-            setTimeout(() => {
-              this.showPermissionPrompt();
-            }, 1000);
-            resolve();
-          } catch (error) {
-            reject(error);
-          }
-        });
+        window.OneSignalDeferred.push(initOneSignal);
       } else {
-        reject(new Error('OneSignal SDK not found'));
+        // Create the deferred array if it doesn't exist
+        window.OneSignalDeferred = [];
+        window.OneSignalDeferred.push(initOneSignal);
+        
+        // Load OneSignal if not already loaded
+        if (!document.querySelector('script[src*="OneSignalSDK"]')) {
+          const script = document.createElement('script');
+          script.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
+          script.defer = true;
+          document.head.appendChild(script);
+        }
+        
+        setTimeout(() => reject(new Error('OneSignal SDK failed to load')), 10000);
       }
     });
-  }
-
-  async showPermissionPrompt(): Promise<void> {
-    try {
-      if (window.OneSignal && !Capacitor.isNativePlatform()) {
-        console.log('🔔 Showing OneSignal permission prompt');
-        await window.OneSignal.Slidedown.promptPush();
-      }
-    } catch (error) {
-      console.error('❌ Error showing permission prompt:', error);
-    }
   }
 
   async requestPermission(): Promise<boolean> {
     try {
       if (Capacitor.isNativePlatform()) {
-        // For native platforms, permissions are handled automatically
         console.log('🔔 Native push notification permissions handled by plugin');
         return true;
-      } else if (window.OneSignal) {
-        // For web platforms, request permission and show prompt
-        const permission = await window.OneSignal.Notifications.requestPermission();
-        console.log('🔔 Web push notification permission:', permission);
+      } else if (window.OneSignal && this.isInitialized) {
+        console.log('🔔 Requesting web push notification permission...');
         
-        if (!permission) {
-          // If permission not granted, show the slidedown prompt
-          await this.showPermissionPrompt();
+        // First check current permission status
+        const currentPermission = await window.OneSignal.Notifications.permission;
+        console.log('Current permission status:', currentPermission);
+        
+        if (currentPermission === 'granted') {
+          console.log('✅ Push notifications already granted');
+          return true;
         }
         
-        return permission;
+        // Request permission using the new OneSignal v16 API
+        const permission = await window.OneSignal.Notifications.requestPermission();
+        console.log('🔔 Permission request result:', permission);
+        
+        if (permission) {
+          console.log('✅ Push notification permission granted');
+          return true;
+        } else {
+          console.log('❌ Push notification permission denied');
+          // Show slidedown as fallback
+          await this.showSlidedownPrompt();
+          return false;
+        }
       }
       return false;
     } catch (error) {
       console.error('❌ Error requesting notification permission:', error);
       return false;
+    }
+  }
+
+  async showSlidedownPrompt(): Promise<void> {
+    try {
+      if (window.OneSignal && !Capacitor.isNativePlatform() && this.isInitialized) {
+        console.log('🔔 Showing OneSignal slidedown prompt');
+        await window.OneSignal.Slidedown.promptPush();
+      }
+    } catch (error) {
+      console.error('❌ Error showing slidedown prompt:', error);
+    }
+  }
+
+  async showNativePrompt(): Promise<void> {
+    try {
+      if (window.OneSignal && !Capacitor.isNativePlatform() && this.isInitialized) {
+        console.log('🔔 Showing OneSignal native prompt');
+        await window.OneSignal.showNativePrompt();
+      }
+    } catch (error) {
+      console.error('❌ Error showing native prompt:', error);
     }
   }
 
@@ -145,18 +165,13 @@ export class OneSignalService {
   async setUserSegmentation(userId: string, userRole: string, merchantId?: string): Promise<void> {
     try {
       if (window.OneSignal && this.isInitialized) {
-        // Set external user ID for targeted notifications
         await window.OneSignal.login(userId);
-        
-        // Add user role tag
         await window.OneSignal.User.addTag('user_type', userRole);
         
-        // Add merchant-specific tags for merchants
         if (userRole === 'merchant' && merchantId) {
           await window.OneSignal.User.addTag('merchant_id', merchantId);
         }
         
-        // Add customer-specific tags for customers
         if (userRole === 'customer') {
           await window.OneSignal.User.addTag('customer_id', userId);
         }

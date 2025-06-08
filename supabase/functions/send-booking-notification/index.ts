@@ -23,15 +23,26 @@ const sendOneSignalNotification = async (title: string, message: string, externa
         contents: { en: message },
         data: {
           type: 'new_booking',
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          externalUserId: externalUserId
         },
         web_buttons: [
           {
             id: 'view_booking',
-            text: 'View Booking',
+            text: 'View Calendar',
             url: 'https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com/calendar'
           }
-        ]
+        ],
+        // Add notification customization
+        large_icon: 'https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com/favicon.ico',
+        small_icon: 'https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com/favicon.ico',
+        // Sound and vibration settings
+        android_sound: 'default',
+        ios_sound: 'default',
+        android_vibration_pattern: [1000, 1000, 1000],
+        // Priority settings
+        priority: 10,
+        android_visibility: 1
       })
     });
 
@@ -50,7 +61,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { bookingId, merchantUserId, customerName, serviceName, dateTime, automated } = await req.json();
+    const { bookingId, merchantUserId, customerName, serviceName, dateTime, staffName, automated } = await req.json();
 
     console.log('📥 Received booking notification request:', {
       bookingId,
@@ -58,6 +69,7 @@ Deno.serve(async (req) => {
       customerName,
       serviceName,
       dateTime,
+      staffName,
       automated
     });
 
@@ -65,8 +77,12 @@ Deno.serve(async (req) => {
       throw new Error('Missing required parameters');
     }
 
-    const title = '🎉 New Booking Received!';
-    const message = `${customerName} has booked ${serviceName} for ${dateTime}. Check your calendar for details.`;
+    // Create a more engaging notification message
+    const staffInfo = staffName ? ` for ${staffName}` : '';
+    const title = '🎉 New Booking Alert!';
+    const message = `Hey! ${customerName} just booked ${serviceName}${staffInfo} for ${dateTime}. Check it out on your calendar!`;
+
+    console.log('📤 Sending notification:', { title, message, merchantUserId });
 
     await sendOneSignalNotification(title, message, merchantUserId);
 
@@ -78,7 +94,8 @@ Deno.serve(async (req) => {
           bookingId,
           merchantUserId,
           title,
-          message
+          message,
+          staffName
         }
       }),
       { 
