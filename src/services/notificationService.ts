@@ -12,21 +12,21 @@ export const saveUserFCMToken = async (userId: string, token: string, userRole: 
   try {
     console.log('💾 Saving FCM token for user:', userId);
     
-    // Try to update the profile - just touching the record to ensure it exists
-    // The FCM token will be saved once the migration is applied
     const { error } = await supabase
       .from('profiles')
       .update({
-        name: (await supabase.from('profiles').select('name').eq('id', userId).single()).data?.name || 'User'
+        fcm_token: token,
+        notification_enabled: true,
+        last_notification_sent: new Date().toISOString()
       })
       .eq('id', userId);
 
     if (error) {
-      console.error('❌ Error updating profile:', error);
+      console.error('❌ Error saving FCM token:', error);
       return false;
     }
 
-    console.log('✅ Profile updated (FCM token will be saved once migration is applied)');
+    console.log('✅ FCM token saved successfully');
     return true;
   } catch (error) {
     console.error('❌ Error in saveUserFCMToken:', error);
@@ -38,16 +38,21 @@ export const sendNotificationToUser = async (userId: string, payload: Notificati
   try {
     console.log('📤 Sending notification to user:', userId, payload);
 
-    // For now, we'll simulate sending a notification since the FCM token column doesn't exist yet
-    console.log('📝 Notification would be sent:', {
-      userId,
-      title: payload.title,
-      body: payload.body,
-      data: payload.data
+    const { data, error } = await supabase.functions.invoke('send-notification', {
+      body: {
+        userId,
+        title: payload.title,
+        body: payload.body,
+        data: payload.data
+      }
     });
 
-    // Once the migration is applied and the Edge Function is deployed, 
-    // this will actually send the notification
+    if (error) {
+      console.error('❌ Error calling Edge Function:', error);
+      return false;
+    }
+
+    console.log('✅ Notification sent successfully:', data);
     return true;
   } catch (error) {
     console.error('❌ Error in sendNotificationToUser:', error);
@@ -68,7 +73,7 @@ export const initializeUserNotifications = async (userId: string, userRole: 'cus
 
     console.log('🔑 FCM Token obtained:', token.substring(0, 20) + '...');
 
-    // Save token to user profile (will work once migration is applied)
+    // Save token to user profile
     const saved = await saveUserFCMToken(userId, token, userRole);
     if (!saved) {
       console.log('❌ Could not save FCM token');
