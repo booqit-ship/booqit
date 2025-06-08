@@ -56,7 +56,7 @@ const ProfilePage: React.FC = () => {
   } = useToast();
   const {
     userId,
-    logout
+    signOut
   } = useAuth();
   const isMobile = useIsMobile();
 
@@ -240,7 +240,7 @@ const ProfilePage: React.FC = () => {
   };
   const handleLogout = async () => {
     try {
-      await logout();
+      await signOut();
       window.location.href = '/auth';
     } catch (error) {
       toast({

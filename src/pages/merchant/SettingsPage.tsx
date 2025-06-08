@@ -17,7 +17,7 @@ interface SqlResponse {
 const SettingsPage: React.FC = () => {
   const {
     userId,
-    logout
+    signOut
   } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [merchant, setMerchant] = useState<Merchant | null>(null);
@@ -261,7 +261,7 @@ const SettingsPage: React.FC = () => {
   };
   const handleLogout = async () => {
     try {
-      await logout();
+      await signOut();
       window.location.href = '/auth';
     } catch (error) {
       console.error('Logout error:', error);

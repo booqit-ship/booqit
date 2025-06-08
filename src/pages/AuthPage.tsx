@@ -39,7 +39,7 @@ const AuthPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { setAuth, isAuthenticated, userRole, loading } = useAuth();
+  const { setAuth, isAuthenticated, userRole, isLoading: authLoading } = useAuth();
 
   // Initialize role selection from navigation state
   useEffect(() => {
@@ -65,7 +65,7 @@ const AuthPage: React.FC = () => {
       return;
     }
 
-    if (!loading && isAuthenticated && userRole) {
+    if (!authLoading && isAuthenticated && userRole) {
       console.log('🔄 User authenticated via context, redirecting...', { userRole });
       if (userRole === 'merchant') {
         navigate('/merchant', { replace: true });
@@ -73,7 +73,7 @@ const AuthPage: React.FC = () => {
         navigate('/home', { replace: true });
       }
     }
-  }, [isAuthenticated, userRole, loading, navigate]);
+  }, [isAuthenticated, userRole, authLoading, navigate]);
 
   // Handle role selection with proper state management
   const handleRoleSelect = (role: UserRole) => {
@@ -243,7 +243,7 @@ const AuthPage: React.FC = () => {
   };
 
   // Show loading while auth is being checked
-  if (loading) {
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-booqit-primary/10 to-white">
         <div className="text-center">

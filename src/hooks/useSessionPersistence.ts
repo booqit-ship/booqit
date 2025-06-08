@@ -18,7 +18,7 @@ const debounce = (func: Function, wait: number) => {
 };
 
 export const useSessionPersistence = () => {
-  const { isAuthenticated, setAuth, logout, session, loading } = useAuth();
+  const { isAuthenticated, setAuth, signOut, session, isLoading } = useAuth();
   const validationInProgress = useRef(false);
   const lastValidation = useRef(0);
   const hookActive = useRef(false);
@@ -26,7 +26,7 @@ export const useSessionPersistence = () => {
   // Enhanced debounced session validation with reduced delay
   const debouncedValidation = useRef(
     debounce(async () => {
-      if (validationInProgress.current || loading) {
+      if (validationInProgress.current || isLoading) {
         console.log('🔄 Validation already in progress or auth loading, skipping');
         return;
       }
@@ -42,7 +42,7 @@ export const useSessionPersistence = () => {
   ).current;
 
   const performSessionValidation = async () => {
-    if (validationInProgress.current || loading) return;
+    if (validationInProgress.current || isLoading) return;
     
     try {
       validationInProgress.current = true;
@@ -69,7 +69,7 @@ export const useSessionPersistence = () => {
           }
         } else {
           console.log('❌ Session recovery failed, logging out');
-          logout();
+          signOut();
         }
       } else if (isValid && permanentData.isLoggedIn && !isAuthenticated) {
         console.log('✅ Valid session found, updating auth state');
@@ -89,7 +89,7 @@ export const useSessionPersistence = () => {
       const permanentData = PermanentSession.getSession();
       if (permanentData.isLoggedIn && isAuthenticated) {
         console.log('🚨 Critical validation error, forcing logout');
-        logout();
+        signOut();
       }
     } finally {
       validationInProgress.current = false;
@@ -98,7 +98,7 @@ export const useSessionPersistence = () => {
 
   useEffect(() => {
     // Don't start session monitoring if auth is still loading
-    if (loading) {
+    if (isLoading) {
       console.log('⏳ Auth still loading, delaying session persistence setup');
       return;
     }
@@ -123,7 +123,7 @@ export const useSessionPersistence = () => {
     // Periodic validation every 2 minutes (less frequent to reduce interference)
     const validationInterval = setInterval(() => {
       const permanentData = PermanentSession.getSession();
-      if (permanentData.isLoggedIn && !loading) {
+      if (permanentData.isLoggedIn && !isLoading) {
         console.log('⏰ Periodic session validation');
         debouncedValidation();
       }
@@ -131,7 +131,7 @@ export const useSessionPersistence = () => {
     
     // Listen for page visibility changes (only when not loading)
     const handleVisibilityChange = () => {
-      if (!document.hidden && !loading) {
+      if (!document.hidden && !isLoading) {
         const permanentData = PermanentSession.getSession();
         console.log('👁️ Tab became visible - session status:', permanentData.isLoggedIn);
         
@@ -146,7 +146,7 @@ export const useSessionPersistence = () => {
     
     // Listen for focus events (only when not loading)
     const handleFocus = () => {
-      if (!loading) {
+      if (!isLoading) {
         const permanentData = PermanentSession.getSession();
         console.log('🎯 Window focused - session status:', permanentData.isLoggedIn);
         
@@ -161,7 +161,7 @@ export const useSessionPersistence = () => {
     
     // Listen for storage events (for cross-tab synchronization)
     const handleStorageChange = (e: StorageEvent) => {
-      if ((e.key?.startsWith('booqit-') || e.key?.startsWith('sb-')) && !loading) {
+      if ((e.key?.startsWith('booqit-') || e.key?.startsWith('sb-')) && !isLoading) {
         console.log('🔄 Storage changed, validating session after delay');
         setTimeout(() => {
           debouncedValidation();
@@ -181,7 +181,7 @@ export const useSessionPersistence = () => {
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, [loading, isAuthenticated, setAuth, logout]); // Added loading dependency
+  }, [isLoading, isAuthenticated, setAuth, signOut]); // Added isLoading dependency
   
   // No return value needed - this is purely active monitoring with state sync
 };

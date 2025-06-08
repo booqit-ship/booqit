@@ -10,7 +10,11 @@ interface AuthContextType {
   userRole: 'customer' | 'merchant' | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  loading: boolean; // Add this for backward compatibility
   signOut: () => Promise<void>;
+  logout: () => Promise<void>; // Add this for backward compatibility
+  setAuth: (authenticated: boolean, role: 'customer' | 'merchant', userId: string) => void;
+  session: any; // Add this for session persistence
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,6 +33,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userRole, setUserRole] = useState<'customer' | 'merchant' | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasTriggeredWelcome, setHasTriggeredWelcome] = useState(false);
+  const [session, setSession] = useState<any>(null);
 
   useEffect(() => {
     // Get initial session
@@ -38,6 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (session?.user) {
           setUser(session.user);
           setUserId(session.user.id);
+          setSession(session);
           await fetchUserProfile(session.user.id);
         }
       } catch (error) {
@@ -56,6 +62,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (session?.user) {
         setUser(session.user);
         setUserId(session.user.id);
+        setSession(session);
         await fetchUserProfile(session.user.id);
         
         // Send welcome notification on sign in (not on initial load)
@@ -70,7 +77,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               .single();
             
             if (profile) {
-              await sendWelcomeNotification(session.user.id, profile.name, profile.role);
+              await sendWelcomeNotification(session.user.id, profile.name, profile.role as 'customer' | 'merchant');
             }
           }, 2000);
         }
@@ -78,6 +85,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(null);
         setUserId(null);
         setUserRole(null);
+        setSession(null);
         setHasTriggeredWelcome(false);
       }
       setIsLoading(false);
@@ -99,7 +107,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
       
-      setUserRole(profile.role);
+      setUserRole(profile.role as 'customer' | 'merchant');
     } catch (error) {
       console.error('Error in fetchUserProfile:', error);
     }
@@ -111,9 +119,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(null);
       setUserId(null);
       setUserRole(null);
+      setSession(null);
       setHasTriggeredWelcome(false);
     } catch (error) {
       console.error('Error signing out:', error);
+    }
+  };
+
+  // Add setAuth method for session persistence
+  const setAuth = (authenticated: boolean, role: 'customer' | 'merchant', userId: string) => {
+    if (authenticated) {
+      setUserId(userId);
+      setUserRole(role);
+    } else {
+      setUser(null);
+      setUserId(null);
+      setUserRole(null);
+      setSession(null);
     }
   };
 
@@ -126,7 +148,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       userRole,
       isAuthenticated,
       isLoading,
+      loading: isLoading, // Alias for backward compatibility
       signOut,
+      logout: signOut, // Alias for backward compatibility
+      setAuth,
+      session,
     }}>
       {children}
     </AuthContext.Provider>
