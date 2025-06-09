@@ -96,6 +96,74 @@ const BookingCard: React.FC<BookingCardProps> = ({
     return 'border-l-booqit-primary';
   };
 
+  // Use total_duration if available, otherwise fall back to single service duration
+  const getDisplayDuration = () => {
+    if (booking.total_duration) {
+      return booking.total_duration;
+    }
+    return booking.service?.duration || 30;
+  };
+
+  const getTimeRange = () => {
+    const duration = getDisplayDuration();
+    const startMinutes = timeToMinutes(booking.time_slot);
+    const endMinutes = startMinutes + duration;
+    const endTime = minutesToTime(endMinutes);
+    
+    return `${formatTimeToAmPm(booking.time_slot)} - ${formatTimeToAmPm(endTime)}`;
+  };
+
+  // Display services (multiple or single)
+  const renderServices = () => {
+    if (booking.services && booking.services.length > 0) {
+      return (
+        <div className="space-y-2 mb-3">
+          <h4 className={`font-medium text-sm ${booking.status === 'cancelled' ? 'text-gray-500' : 'text-gray-700'}`}>
+            Services ({booking.services.length})
+          </h4>
+          {booking.services.map((service, index) => (
+            <div key={index} className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className={`w-2 h-2 rounded-full ${booking.status === 'cancelled' ? 'bg-red-400' : 'bg-booqit-primary'}`}></div>
+                <span className={`font-medium ${booking.status === 'cancelled' ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
+                  {service.name}
+                </span>
+              </div>
+              <div className="flex items-center space-x-2 text-gray-600">
+                <Timer className="h-3 w-3 text-gray-500" />
+                <span className="text-xs">{service.duration} min</span>
+              </div>
+            </div>
+          ))}
+          <div className="flex items-center space-x-2 text-gray-600 pt-1 border-t">
+            <Timer className="h-4 w-4 text-gray-500" />
+            <span className="text-sm font-medium">Total: {getDisplayDuration()} min</span>
+          </div>
+        </div>
+      );
+    }
+
+    // Fallback to single service display
+    if (booking.service) {
+      return (
+        <div className="space-y-2 mb-3">
+          <div className="flex items-center space-x-2">
+            <div className={`w-2 h-2 rounded-full ${booking.status === 'cancelled' ? 'bg-red-400' : 'bg-booqit-primary'}`}></div>
+            <span className={`font-medium ${booking.status === 'cancelled' ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
+              {booking.service.name}
+            </span>
+          </div>
+          <div className="flex items-center space-x-2 text-gray-600">
+            <Timer className="h-4 w-4 text-gray-500" />
+            <span className="text-sm">{booking.service.duration} min</span>
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <Card className={`hover:shadow-lg transition-shadow duration-200 border-l-4 ${getCardStyling()}`}>
       <CardContent className="p-4">
@@ -112,23 +180,8 @@ const BookingCard: React.FC<BookingCardProps> = ({
           </Badge>
         </div>
 
-        {/* Service name and duration */}
-        {booking.service && (
-          <div className="space-y-2 mb-3">
-            <div className="flex items-center space-x-2">
-              <div className={`w-2 h-2 rounded-full ${booking.status === 'cancelled' ? 'bg-red-400' : 'bg-booqit-primary'}`}></div>
-              <span className={`font-medium ${booking.status === 'cancelled' ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
-                {booking.service.name}
-              </span>
-            </div>
-            {booking.service.duration && (
-              <div className="flex items-center space-x-2 text-gray-600">
-                <Timer className="h-4 w-4 text-gray-500" />
-                <span className="text-sm">{booking.service.duration} min</span>
-              </div>
-            )}
-          </div>
-        )}
+        {/* Services display */}
+        {renderServices()}
 
         {/* Customer and stylist information */}
         <div className="space-y-2 mb-4">

@@ -125,6 +125,8 @@ const DashboardPage: React.FC = () => {
             stylist_name,
             user_id,
             created_at,
+            services,
+            total_duration,
             services!inner(name)
           `)
           .eq('merchant_id', mId)
@@ -169,7 +171,9 @@ const DashboardPage: React.FC = () => {
                 customer_email: booking.customer_email,
                 stylist_name: booking.stylist_name || 'Unassigned',
                 created_at: booking.created_at,
-                service: booking.services
+                service: booking.services,
+                services: booking.services,
+                total_duration: booking.total_duration
               } as Booking;
             })
           );
@@ -218,6 +222,36 @@ const DashboardPage: React.FC = () => {
       }
     };
   }, [userId, merchantId]);
+
+  // Render services for booking card
+  const renderBookingServices = (booking: Booking) => {
+    if (booking.services && Array.isArray(booking.services) && booking.services.length > 1) {
+      return (
+        <div className="space-y-1">
+          <span className="font-medium text-gray-800">
+            Multiple Services ({booking.services.length})
+          </span>
+          <div className="text-xs text-gray-600">
+            {booking.services.map((service, index) => (
+              <div key={index}>{service.name}</div>
+            ))}
+          </div>
+          <div className="text-xs text-gray-500">
+            Total: {booking.total_duration || booking.services.reduce((sum, s) => sum + s.duration, 0)} min
+          </div>
+        </div>
+      );
+    } else if (booking.service?.name) {
+      return (
+        <span className="font-medium text-gray-800">{booking.service.name}</span>
+      );
+    } else if (booking.services && booking.services.length === 1) {
+      return (
+        <span className="font-medium text-gray-800">{booking.services[0].name}</span>
+      );
+    }
+    return <span className="font-medium text-gray-800">Service</span>;
+  };
 
   // Dashboard stats - only bookings today and total earnings
   const dashboardStats = [
@@ -361,7 +395,9 @@ const DashboardPage: React.FC = () => {
                       {/* Service and time information */}
                       <div className="grid grid-cols-1 gap-2 text-sm text-gray-600">
                         <div className="flex items-center justify-between">
-                          <span className="font-medium text-gray-800">{booking.service?.name}</span>
+                          <div className="flex-1">
+                            {renderBookingServices(booking)}
+                          </div>
                           <span className="font-semibold text-booqit-primary">
                             {formatTimeToAmPm(booking.time_slot)}
                           </span>

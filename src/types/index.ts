@@ -53,6 +53,13 @@ export interface Service {
   created_at: string;
 }
 
+export interface BookingService {
+  id: string;
+  name: string;
+  price: number;
+  duration: number;
+}
+
 export interface Booking {
   id: string;
   user_id: string;
@@ -66,6 +73,8 @@ export interface Booking {
   staff_id?: string | null;
   stylist_name?: string | null; // Added stylist_name property
   service?: Service;
+  services?: BookingService[]; // New field for multiple services
+  total_duration?: number; // New field for total duration
   merchant?: Merchant;
   customer_name?: string;
   customer_phone?: string;

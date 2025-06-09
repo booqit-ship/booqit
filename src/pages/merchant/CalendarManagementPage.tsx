@@ -17,6 +17,13 @@ interface BookingWithCustomerDetails {
     name: string;
     duration?: number;
   };
+  services?: Array<{
+    id: string;
+    name: string;
+    duration: number;
+    price: number;
+  }>;
+  total_duration?: number;
   time_slot: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   customer_name?: string;
@@ -77,6 +84,8 @@ const CalendarManagementPage: React.FC = () => {
           customer_phone,
           customer_email,
           stylist_name,
+          services,
+          total_duration,
           services:service_id (
             name,
             duration
@@ -100,6 +109,8 @@ const CalendarManagementPage: React.FC = () => {
           name: booking.services.name,
           duration: booking.services.duration
         } : undefined,
+        services: booking.services ? booking.services : undefined,
+        total_duration: booking.total_duration,
         time_slot: booking.time_slot,
         status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
         customer_name: booking.customer_name,
