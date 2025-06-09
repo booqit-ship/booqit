@@ -68,36 +68,37 @@ const BookingsList: React.FC<BookingsListProps> = ({
 
   return (
     <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-gray-50/30">
-      <CardHeader className="bg-gradient-to-r from-booqit-primary to-booqit-primary/80 text-white rounded-t-lg py-5">
-        <div className="text-xl flex items-center font-semibold">
-          <CalendarCheck className="mr-3 h-6 w-6" />
-          {format(date, 'MMMM d, yyyy')} Bookings
+      <CardHeader className="bg-gradient-to-r from-booqit-primary to-booqit-primary/80 text-white rounded-t-lg py-5 pb-8">
+        <div className="flex items-center justify-between">
+          <div className="text-xl flex items-center font-semibold">
+            <CalendarCheck className="mr-3 h-6 w-6" />
+            {format(date, 'MMMM d, yyyy')} Bookings
+          </div>
+          
+          {/* Filter in the purple header area */}
+          {stylists.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">{filteredAndSortedBookings.length}</span>
+              <Filter className="h-4 w-4" />
+              <Select value={selectedStylist} onValueChange={setSelectedStylist}>
+                <SelectTrigger className="w-32 h-8 bg-white/20 border-white/30 text-white text-sm">
+                  <SelectValue placeholder="All Stylists" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Stylists</SelectItem>
+                  {stylists.map(stylist => (
+                    <SelectItem key={stylist} value={stylist}>
+                      {stylist}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
       </CardHeader>
+      
       <CardContent className="p-6">
-        {/* Stylist Filter */}
-        {stylists.length > 0 && (
-          <div className="mb-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Filter className="h-4 w-4 text-gray-500" />
-              <span className="text-sm font-medium text-gray-700">Filter by Stylist:</span>
-            </div>
-            <Select value={selectedStylist} onValueChange={setSelectedStylist}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Select stylist" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Stylists</SelectItem>
-                {stylists.map(stylist => (
-                  <SelectItem key={stylist} value={stylist}>
-                    {stylist}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
         {isLoading ? (
           <div className="flex justify-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-3 border-booqit-primary border-t-transparent"></div>
