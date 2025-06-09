@@ -144,7 +144,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
         </div>
 
         {/* Action buttons */}
-        {booking.status !== 'cancelled' && booking.status !== 'completed' && (
+        {(booking.status === 'pending' || booking.status === 'confirmed') && (
           <div className="flex flex-wrap gap-2">
             {booking.status === 'pending' && (
               <Button 
