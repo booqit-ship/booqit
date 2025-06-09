@@ -17,7 +17,6 @@ interface BookingResponse {
   booking_id?: string;
   error?: string;
   message?: string;
-  slots_blocked?: number;
 }
 
 const PaymentPage: React.FC = () => {
@@ -70,67 +69,14 @@ const PaymentPage: React.FC = () => {
     setIsProcessing(true);
     
     try {
-      console.log('💳 Processing payment and creating booking...');
+      console.log('💳 Processing payment and creating confirmed booking...');
 
       // Simulate payment processing (2 seconds)
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Create booking directly as confirmed
-      const serviceId = selectedServices[0]?.id;
-      console.log('📝 Creating booking with atomic slot blocking:', {
-        p_user_id: userId,
-        p_merchant_id: merchantId,
-        p_service_id: serviceId,
-        p_staff_id: selectedStaff,
-        p_date: bookingDate,
-        p_time_slot: bookingTime,
-        p_service_duration: totalDuration
-      });
-
-      const { data: bookingResult, error: bookingError } = await supabase.rpc('create_confirmed_booking', {
-        p_user_id: userId,
-        p_merchant_id: merchantId,
-        p_service_id: serviceId,
-        p_staff_id: selectedStaff,
-        p_date: bookingDate,
-        p_time_slot: bookingTime,
-        p_service_duration: totalDuration
-      });
-
-      if (bookingError) {
-        console.error('❌ Error creating booking:', bookingError);
-        toast.error(`Failed to create booking: ${bookingError.message}`);
-        return;
-      }
-
-      const response = bookingResult as unknown as BookingResponse;
-      console.log('✅ Booking creation response:', response);
-      
-      if (!response.success) {
-        toast.error(response.error || 'Failed to create booking');
-        return;
-      }
-
-      // Now call the duration blocking function to properly block slots
-      console.log('🔒 Blocking slots for duration:', totalDuration, 'minutes');
-      const { data: blockingResult, error: blockingError } = await supabase.rpc('book_appointment_with_duration_blocking', {
-        p_booking_id: response.booking_id,
-        p_staff_id: selectedStaff,
-        p_date: bookingDate,
-        p_time_slot: bookingTime,
-        p_service_duration: totalDuration
-      });
-
-      if (blockingError) {
-        console.error('⚠️ Error blocking slots:', blockingError);
-        console.warn('Slot blocking failed but booking was created');
-      } else {
-        console.log('✅ Slot blocking result:', blockingResult);
-      }
-
-      // Release our temporary locks since the booking is now confirmed and slots are blocked
+      // Release temporary locks first since we're creating a confirmed booking
       if (lockedSlotInfo) {
-        console.log('🔓 Releasing temporary locks after successful booking');
+        console.log('🔓 Releasing temporary locks before creating confirmed booking');
         await releaseSlot(
           lockedSlotInfo.staffId,
           lockedSlotInfo.date,
@@ -139,20 +85,48 @@ const PaymentPage: React.FC = () => {
         );
       }
 
-      // Update the booking with services and total_duration information
-      const { error: updateError } = await supabase
-        .from('bookings')
-        .update({
-          services: JSON.stringify(selectedServices),
-          total_duration: totalDuration
-        })
-        .eq('id', response.booking_id);
+      // Create booking directly as confirmed with services and total duration
+      const serviceId = selectedServices[0]?.id;
+      console.log('📝 Creating confirmed booking with services:', {
+        p_user_id: userId,
+        p_merchant_id: merchantId,
+        p_service_id: serviceId,
+        p_staff_id: selectedStaff,
+        p_date: bookingDate,
+        p_time_slot: bookingTime,
+        p_service_duration: totalDuration,
+        p_services: JSON.stringify(selectedServices),
+        p_total_duration: totalDuration
+      });
 
-      if (updateError) {
-        console.error('⚠️ Error updating booking with services:', updateError);
-      } else {
-        console.log('✅ Successfully updated booking with services and total duration');
+      const { data: bookingResult, error: bookingError } = await supabase.rpc('create_confirmed_booking_with_services', {
+        p_user_id: userId,
+        p_merchant_id: merchantId,
+        p_service_id: serviceId,
+        p_staff_id: selectedStaff,
+        p_date: bookingDate,
+        p_time_slot: bookingTime,
+        p_service_duration: totalDuration,
+        p_services: JSON.stringify(selectedServices),
+        p_total_duration: totalDuration
+      });
+
+      if (bookingError) {
+        console.error('❌ Error creating confirmed booking:', bookingError);
+        toast.error(`Failed to create booking: ${bookingError.message}`);
+        return;
       }
+
+      const response = bookingResult as unknown as BookingResponse;
+      console.log('✅ Confirmed booking creation response:', response);
+      
+      if (!response.success) {
+        toast.error(response.error || 'Failed to create booking');
+        return;
+      }
+
+      // The trigger will automatically block the slots based on total_duration
+      console.log('✅ Booking created as confirmed, slots will be blocked by trigger');
 
       // Create payment record
       console.log('💰 Creating payment record for booking:', response.booking_id);
