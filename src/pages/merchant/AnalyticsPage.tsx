@@ -99,6 +99,7 @@ const AnalyticsPage: React.FC = () => {
 
         if (merchantError || !merchantData) {
           console.error('Error fetching merchant ID:', merchantError);
+          toast.error('Failed to load merchant data');
           return;
         }
 
@@ -112,122 +113,94 @@ const AnalyticsPage: React.FC = () => {
         const monthStart = format(startOfMonth(new Date()), 'yyyy-MM-dd');
         const monthEnd = format(endOfMonth(new Date()), 'yyyy-MM-dd');
 
-        console.log('Date ranges:', { today, weekStart, weekEnd, monthStart, monthEnd });
+        console.log('🔍 Analytics Data Fetch:', { mId, today, weekStart, weekEnd, monthStart, monthEnd });
 
-        // Fetch all bookings with their services and payment data
-        const { data: bookingsWithServices, error: bookingsError } = await supabase
-          .from('bookings')
-          .select(`
-            id,
-            date,
-            staff_id,
-            status,
-            payment_status,
-            services!inner(name, price, duration)
-          `)
-          .eq('merchant_id', mId);
-
-        console.log('All bookings fetched:', bookingsWithServices);
-
-        if (bookingsError) {
-          console.error('Error fetching bookings data:', bookingsError);
-          toast('Error loading bookings data', {
-            description: 'Could not fetch bookings data',
+        // Fetch earnings data using raw SQL for accuracy
+        const { data: earningsData, error: earningsError } = await supabase
+          .rpc('get_merchant_earnings', {
+            p_merchant_id: mId,
+            p_today: today,
+            p_week_start: weekStart,
+            p_week_end: weekEnd,
+            p_month_start: monthStart,
+            p_month_end: monthEnd
           });
-          return;
+
+        if (earningsError) {
+          console.error('❌ Error fetching earnings:', earningsError);
+          // Fallback to manual calculation
+          await fetchEarningsManually(mId, today, weekStart, weekEnd, monthStart, monthEnd);
+        } else if (earningsData && earningsData.length > 0) {
+          const earnings = earningsData[0];
+          console.log('✅ Earnings data received:', earnings);
+          setEarnings({
+            total: earnings.total_earnings || 0,
+            today: earnings.today_earnings || 0,
+            thisWeek: earnings.week_earnings || 0,
+            thisMonth: earnings.month_earnings || 0,
+            customRange: 0,
+          });
+        } else {
+          // Fallback to manual calculation
+          await fetchEarningsManually(mId, today, weekStart, weekEnd, monthStart, monthEnd);
         }
 
-        if (bookingsWithServices) {
-          // Filter completed bookings with completed payment for earnings
-          const completedPaidBookings = bookingsWithServices.filter(
-            booking => booking.status === 'completed' && booking.payment_status === 'completed'
-          );
-          
-          console.log('Completed and paid bookings:', completedPaidBookings);
-
-          // Calculate earnings from completed and paid bookings only
-          const totalEarnings = completedPaidBookings.reduce((sum, booking) => 
-            sum + (booking.services?.price || 0), 0
-          );
-          
-          const todayEarnings = completedPaidBookings
-            .filter(booking => booking.date === today)
-            .reduce((sum, booking) => sum + (booking.services?.price || 0), 0);
-          
-          const weekEarnings = completedPaidBookings
-            .filter(booking => booking.date >= weekStart && booking.date <= weekEnd)
-            .reduce((sum, booking) => sum + (booking.services?.price || 0), 0);
-          
-          const monthEarnings = completedPaidBookings
-            .filter(booking => booking.date >= monthStart && booking.date <= monthEnd)
-            .reduce((sum, booking) => sum + (booking.services?.price || 0), 0);
-
-          console.log('Calculated earnings:', { totalEarnings, todayEarnings, weekEarnings, monthEarnings });
-
-          setEarnings({
-            total: totalEarnings,
-            today: todayEarnings,
-            thisWeek: weekEarnings,
-            thisMonth: monthEarnings,
-            customRange: 0,
+        // Fetch bookings data
+        const { data: bookingsData, error: bookingsError } = await supabase
+          .rpc('get_merchant_bookings_count', {
+            p_merchant_id: mId,
+            p_today: today,
+            p_week_start: weekStart,
+            p_week_end: weekEnd,
+            p_month_start: monthStart,
+            p_month_end: monthEnd
           });
 
-          // Count all bookings (except cancelled) for booking statistics
-          const activeBookings = bookingsWithServices.filter(
-            booking => booking.status !== 'cancelled'
-          );
-
-          const totalBookingsCount = activeBookings.length;
-          const todayBookingsCount = activeBookings.filter(b => b.date === today).length;
-          const weekBookingsCount = activeBookings.filter(b => b.date >= weekStart && b.date <= weekEnd).length;
-          const monthBookingsCount = activeBookings.filter(b => b.date >= monthStart && b.date <= monthEnd).length;
-
-          console.log('Calculated booking counts:', { totalBookingsCount, todayBookingsCount, weekBookingsCount, monthBookingsCount });
-
+        if (bookingsError) {
+          console.error('❌ Error fetching bookings count:', bookingsError);
+          // Fallback to manual calculation
+          await fetchBookingsManually(mId, today, weekStart, weekEnd, monthStart, monthEnd);
+        } else if (bookingsData && bookingsData.length > 0) {
+          const bookings = bookingsData[0];
+          console.log('✅ Bookings data received:', bookings);
           setBookings({
-            total: totalBookingsCount,
-            today: todayBookingsCount,
-            thisWeek: weekBookingsCount,
-            thisMonth: monthBookingsCount,
+            total: bookings.total_bookings || 0,
+            today: bookings.today_bookings || 0,
+            thisWeek: bookings.week_bookings || 0,
+            thisMonth: bookings.month_bookings || 0,
             customRange: 0,
           });
+        } else {
+          // Fallback to manual calculation
+          await fetchBookingsManually(mId, today, weekStart, weekEnd, monthStart, monthEnd);
+        }
 
-          // Fetch staff data with earnings from completed and paid bookings
-          const { data: staffList, error: staffError } = await supabase
-            .from('staff')
-            .select('id, name')
-            .eq('merchant_id', mId);
+        // Fetch staff performance data
+        const { data: staffPerformanceData, error: staffError } = await supabase
+          .rpc('get_staff_performance', {
+            p_merchant_id: mId
+          });
 
-          console.log('Staff list:', staffList);
-
-          if (staffError) {
-            console.error('Error fetching staff:', staffError);
-          } else if (staffList) {
-            const staffEarningsData = staffList.map(staff => {
-              const staffCompletedBookings = completedPaidBookings.filter(b => b.staff_id === staff.id);
-              const staffEarnings = staffCompletedBookings.reduce((sum, booking) => 
-                sum + (booking.services?.price || 0), 0
-              );
-              
-              console.log(`Staff ${staff.name}: ${staffCompletedBookings.length} completed bookings, ₹${staffEarnings} earnings`);
-              
-              return {
-                id: staff.id,
-                name: staff.name,
-                earnings: staffEarnings,
-                bookings: staffCompletedBookings.length,
-              };
-            });
-
-            setStaffData(staffEarningsData);
-          }
+        if (staffError) {
+          console.error('❌ Error fetching staff performance:', staffError);
+          // Fallback to manual calculation
+          await fetchStaffPerformanceManually(mId);
+        } else if (staffPerformanceData) {
+          console.log('✅ Staff performance data received:', staffPerformanceData);
+          setStaffData(staffPerformanceData.map((staff: any) => ({
+            id: staff.staff_id,
+            name: staff.staff_name,
+            earnings: staff.total_earnings || 0,
+            bookings: staff.total_bookings || 0,
+          })));
+        } else {
+          // Fallback to manual calculation
+          await fetchStaffPerformanceManually(mId);
         }
 
       } catch (error) {
-        console.error('Error fetching analytics data:', error);
-        toast('Error loading analytics', {
-          description: 'Could not fetch analytics data',
-        });
+        console.error('❌ Error fetching analytics data:', error);
+        toast.error('Failed to load analytics data');
       } finally {
         setIsLoading(false);
       }
@@ -235,6 +208,157 @@ const AnalyticsPage: React.FC = () => {
 
     fetchAnalyticsData();
   }, [userId]);
+
+  // Fallback manual earnings calculation
+  const fetchEarningsManually = async (mId: string, today: string, weekStart: string, weekEnd: string, monthStart: string, monthEnd: string) => {
+    try {
+      console.log('🔄 Fetching earnings manually...');
+      
+      const { data: completedBookings, error } = await supabase
+        .from('bookings')
+        .select(`
+          id,
+          date,
+          payment_status,
+          services!inner(price)
+        `)
+        .eq('merchant_id', mId)
+        .eq('status', 'completed')
+        .eq('payment_status', 'completed');
+
+      if (error) {
+        console.error('❌ Manual earnings fetch error:', error);
+        return;
+      }
+
+      console.log('📊 Manual earnings - completed bookings:', completedBookings);
+
+      if (completedBookings && completedBookings.length > 0) {
+        const totalEarnings = completedBookings.reduce((sum, booking) => 
+          sum + (booking.services?.price || 0), 0
+        );
+        
+        const todayEarnings = completedBookings
+          .filter(booking => booking.date === today)
+          .reduce((sum, booking) => sum + (booking.services?.price || 0), 0);
+        
+        const weekEarnings = completedBookings
+          .filter(booking => booking.date >= weekStart && booking.date <= weekEnd)
+          .reduce((sum, booking) => sum + (booking.services?.price || 0), 0);
+        
+        const monthEarnings = completedBookings
+          .filter(booking => booking.date >= monthStart && booking.date <= monthEnd)
+          .reduce((sum, booking) => sum + (booking.services?.price || 0), 0);
+
+        console.log('💰 Manual earnings calculated:', { totalEarnings, todayEarnings, weekEarnings, monthEarnings });
+
+        setEarnings({
+          total: totalEarnings,
+          today: todayEarnings,
+          thisWeek: weekEarnings,
+          thisMonth: monthEarnings,
+          customRange: 0,
+        });
+      }
+    } catch (error) {
+      console.error('❌ Manual earnings calculation error:', error);
+    }
+  };
+
+  // Fallback manual bookings calculation
+  const fetchBookingsManually = async (mId: string, today: string, weekStart: string, weekEnd: string, monthStart: string, monthEnd: string) => {
+    try {
+      console.log('🔄 Fetching bookings manually...');
+      
+      const { data: allBookings, error } = await supabase
+        .from('bookings')
+        .select('id, date, status')
+        .eq('merchant_id', mId)
+        .neq('status', 'cancelled');
+
+      if (error) {
+        console.error('❌ Manual bookings fetch error:', error);
+        return;
+      }
+
+      console.log('📊 Manual bookings - all bookings:', allBookings);
+
+      if (allBookings) {
+        const totalBookingsCount = allBookings.length;
+        const todayBookingsCount = allBookings.filter(b => b.date === today).length;
+        const weekBookingsCount = allBookings.filter(b => b.date >= weekStart && b.date <= weekEnd).length;
+        const monthBookingsCount = allBookings.filter(b => b.date >= monthStart && b.date <= monthEnd).length;
+
+        console.log('📈 Manual bookings calculated:', { totalBookingsCount, todayBookingsCount, weekBookingsCount, monthBookingsCount });
+
+        setBookings({
+          total: totalBookingsCount,
+          today: todayBookingsCount,
+          thisWeek: weekBookingsCount,
+          thisMonth: monthBookingsCount,
+          customRange: 0,
+        });
+      }
+    } catch (error) {
+      console.error('❌ Manual bookings calculation error:', error);
+    }
+  };
+
+  // Fallback manual staff performance calculation
+  const fetchStaffPerformanceManually = async (mId: string) => {
+    try {
+      console.log('🔄 Fetching staff performance manually...');
+      
+      const { data: staffList, error: staffError } = await supabase
+        .from('staff')
+        .select('id, name')
+        .eq('merchant_id', mId);
+
+      if (staffError) {
+        console.error('❌ Staff list fetch error:', staffError);
+        return;
+      }
+
+      const { data: staffBookings, error: bookingsError } = await supabase
+        .from('bookings')
+        .select(`
+          staff_id,
+          services!inner(price)
+        `)
+        .eq('merchant_id', mId)
+        .eq('status', 'completed')
+        .eq('payment_status', 'completed');
+
+      if (bookingsError) {
+        console.error('❌ Staff bookings fetch error:', bookingsError);
+        return;
+      }
+
+      console.log('👥 Manual staff performance - staff list:', staffList);
+      console.log('👥 Manual staff performance - staff bookings:', staffBookings);
+
+      if (staffList && staffBookings) {
+        const staffEarningsData = staffList.map(staff => {
+          const staffCompletedBookings = staffBookings.filter(b => b.staff_id === staff.id);
+          const staffEarnings = staffCompletedBookings.reduce((sum, booking) => 
+            sum + (booking.services?.price || 0), 0
+          );
+          
+          return {
+            id: staff.id,
+            name: staff.name,
+            earnings: staffEarnings,
+            bookings: staffCompletedBookings.length,
+          };
+        });
+
+        console.log('💼 Manual staff performance calculated:', staffEarningsData);
+        setStaffData(staffEarningsData);
+      }
+    } catch (error) {
+      console.error('❌ Manual staff performance calculation error:', error);
+    }
+  };
 
   // Function to fetch custom range data
   const fetchCustomRangeData = async (type: 'earnings' | 'bookings' | 'staff', dateRange: DateRange) => {
@@ -244,7 +368,7 @@ const AnalyticsPage: React.FC = () => {
       const fromDate = format(dateRange.from, 'yyyy-MM-dd');
       const toDate = format(dateRange.to, 'yyyy-MM-dd');
 
-      console.log(`Fetching custom range data for ${type}:`, { fromDate, toDate });
+      console.log(`📅 Fetching custom range data for ${type}:`, { fromDate, toDate });
 
       if (type === 'earnings') {
         const { data: earningsBookings, error } = await supabase
@@ -259,13 +383,11 @@ const AnalyticsPage: React.FC = () => {
           .gte('date', fromDate)
           .lte('date', toDate);
 
-        console.log('Custom range earnings bookings:', earningsBookings);
-
         if (!error && earningsBookings) {
           const customEarnings = earningsBookings.reduce((sum, booking) => 
             sum + (booking.services?.price || 0), 0
           );
-          console.log('Custom range earnings:', customEarnings);
+          console.log('💰 Custom range earnings:', customEarnings);
           setEarnings(prev => ({ ...prev, customRange: customEarnings }));
         }
       } else if (type === 'bookings') {
@@ -277,10 +399,8 @@ const AnalyticsPage: React.FC = () => {
           .gte('date', fromDate)
           .lte('date', toDate);
 
-        console.log('Custom range bookings:', bookingsData);
-
         if (!error && bookingsData) {
-          console.log('Custom range bookings count:', bookingsData.length);
+          console.log('📈 Custom range bookings count:', bookingsData.length);
           setBookings(prev => ({ ...prev, customRange: bookingsData.length }));
         }
       } else if (type === 'staff') {
@@ -301,8 +421,6 @@ const AnalyticsPage: React.FC = () => {
           .gte('date', fromDate)
           .lte('date', toDate);
 
-        console.log('Custom range staff bookings:', staffBookings);
-
         if (!staffError && !bookingsError && staffList && staffBookings) {
           const staffEarningsData = staffList.map(staff => {
             const staffBookingsFiltered = staffBookings.filter(b => b.staff_id === staff.id);
@@ -318,14 +436,16 @@ const AnalyticsPage: React.FC = () => {
             };
           });
 
+          console.log('👥 Custom range staff performance:', staffEarningsData);
           setStaffData(staffEarningsData);
         }
       }
     } catch (error) {
-      console.error(`Error fetching custom range data for ${type}:`, error);
+      console.error(`❌ Error fetching custom range data for ${type}:`, error);
     }
   };
 
+  // DateRangePicker component
   const DateRangePicker = ({ 
     dateRange, 
     setDateRange, 
