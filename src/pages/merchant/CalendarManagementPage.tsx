@@ -172,29 +172,52 @@ const CalendarManagementPage: React.FC = () => {
   const handleStatusChange = async (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
     try {
       console.log('Updating booking status:', bookingId, 'to:', newStatus);
-      const { data, error } = await supabase.rpc('update_booking_status_with_slot_management', {
-        p_booking_id: bookingId,
-        p_new_status: newStatus,
-        p_user_id: userId
-      });
+      
+      if (newStatus === 'completed') {
+        // For completion, update both status and payment_status
+        const { error } = await supabase
+          .from('bookings')
+          .update({ 
+            status: 'completed',
+            payment_status: 'completed'
+          })
+          .eq('id', bookingId);
 
-      if (error) {
-        console.error('Error updating booking status:', error);
-        if (error.message.includes('not found')) {
-          toast.error('Booking not found');
-        } else if (error.message.includes('unauthorized')) {
-          toast.error('You are not authorized to update this booking');
-        } else {
-          toast.error(`Failed to update booking status: ${error.message}`);
+        if (error) {
+          console.error('Error updating booking status:', error);
+          toast.error(`Failed to complete booking: ${error.message}`);
+          return;
         }
-        return;
-      }
+      } else if (newStatus === 'cancelled') {
+        // For cancellation, use the proper function
+        const { data, error } = await supabase.rpc('cancel_booking_properly', {
+          p_booking_id: bookingId,
+          p_user_id: userId
+        });
 
-      console.log('Booking status update response:', data);
-      const result = data as any;
-      if (result && !result.success) {
-        toast.error(result.error || 'Failed to update booking status');
-        return;
+        if (error) {
+          console.error('Error cancelling booking:', error);
+          toast.error(`Failed to cancel booking: ${error.message}`);
+          return;
+        }
+
+        const result = data as any;
+        if (result && !result.success) {
+          toast.error(result.error || 'Failed to cancel booking');
+          return;
+        }
+      } else {
+        // For other status updates (pending, confirmed)
+        const { error } = await supabase
+          .from('bookings')
+          .update({ status: newStatus })
+          .eq('id', bookingId);
+
+        if (error) {
+          console.error('Error updating booking status:', error);
+          toast.error(`Failed to update booking status: ${error.message}`);
+          return;
+        }
       }
 
       toast.success(`Booking ${newStatus} successfully`);
