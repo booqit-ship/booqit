@@ -48,7 +48,7 @@ const CalendarManagementPage: React.FC = () => {
   const { data: bookings = [], isFetching: isBookingsFetching } = useQuery({
     queryKey: ['bookings-with-services', merchantId, formatDateInIST(selectedDate, 'yyyy-MM-dd')],
     queryFn: async (): Promise<BookingWithServices[]> => {
-      if (!merchantId) return [];
+      if (!merchantId || !merchant) return [];
       
       const dateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
       console.log('Fetching bookings with services for date:', dateStr, 'merchant:', merchantId);
@@ -98,7 +98,12 @@ const CalendarManagementPage: React.FC = () => {
               services: [],
               total_duration: 0,
               total_price: 0,
-              status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled'
+              status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
+              merchant: {
+                shop_name: merchant.shop_name,
+                address: merchant.address,
+                image_url: merchant.image_url
+              }
             };
           }
           
@@ -116,7 +121,12 @@ const CalendarManagementPage: React.FC = () => {
             })),
             total_duration,
             total_price,
-            status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled'
+            status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
+            merchant: {
+              shop_name: merchant.shop_name,
+              address: merchant.address,
+              image_url: merchant.image_url
+            }
           };
         })
       );
@@ -124,7 +134,7 @@ const CalendarManagementPage: React.FC = () => {
       console.log('Fetched bookings with services:', bookingsWithServices);
       return bookingsWithServices;
     },
-    enabled: !!merchantId,
+    enabled: !!merchantId && !!merchant,
     staleTime: 2 * 60 * 1000,
     refetchOnWindowFocus: true,
   });
