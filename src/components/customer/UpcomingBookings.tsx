@@ -2,28 +2,41 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
-import { CalendarIcon, Clock, Package, Timer } from 'lucide-react';
-import { formatTimeToAmPm, timeToMinutes, minutesToTime } from '@/utils/timeUtils';
+import { CalendarIcon, Clock } from 'lucide-react';
+import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { formatDateInIST } from '@/utils/dateUtils';
 import { useNavigate } from 'react-router-dom';
-import { BookingWithServices } from '@/types/booking';
+
+interface BookingWithDetails {
+  id: string;
+  user_id: string;
+  merchant_id: string;
+  service_id: string;
+  date: string;
+  time_slot: string;
+  status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
+  payment_status: string;
+  created_at: string;
+  staff_id?: string | null;
+  stylist_name?: string | null;
+  customer_name?: string;
+  customer_phone?: string;
+  customer_email?: string;
+  merchant: {
+    shop_name: string;
+    address: string;
+    image_url?: string;
+  };
+  service: {
+    name: string;
+    duration: number;
+  };
+}
 
 const UpcomingBookings: React.FC = () => {
-  const [nextBooking, setNextBooking] = useState<BookingWithServices | null>(null);
+  const [nextBooking, setNextBooking] = useState<BookingWithDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-
-  const getTimeRange = (booking: BookingWithServices) => {
-    if (!booking.total_duration || booking.total_duration === 0) {
-      return formatTimeToAmPm(booking.time_slot);
-    }
-    
-    const startMinutes = timeToMinutes(booking.time_slot);
-    const endMinutes = startMinutes + booking.total_duration;
-    const endTime = minutesToTime(endMinutes);
-    
-    return `${formatTimeToAmPm(booking.time_slot)} - ${formatTimeToAmPm(endTime)}`;
-  };
 
   const fetchNextUpcomingBooking = async () => {
     try {
@@ -38,7 +51,8 @@ const UpcomingBookings: React.FC = () => {
         .from('bookings')
         .select(`
           *,
-          merchant:merchants!inner(shop_name, address, image_url)
+          merchant:merchants!inner(shop_name, address, image_url),
+          service:services!inner(name, duration)
         `)
         .eq('user_id', user.id)
         .in('status', ['pending', 'confirmed'])
@@ -53,33 +67,12 @@ const UpcomingBookings: React.FC = () => {
         return;
       }
 
+      // Type cast the status to ensure it matches our interface
       if (data) {
-        // Fetch services for this booking
-        const { data: servicesData, error: servicesError } = await supabase
-          .rpc('get_booking_services', { p_booking_id: data.id });
-
-        if (servicesError) {
-          console.error('Error fetching booking services:', servicesError);
-        }
-
-        const services = servicesData || [];
-        const total_duration = services.reduce((sum: number, s: any) => sum + (s.service_duration || 0), 0);
-        const total_price = services.reduce((sum: number, s: any) => sum + (s.service_price || 0), 0);
-
-        const typedBooking: BookingWithServices = {
+        const typedBooking = {
           ...data,
-          status: data.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
-          services: services.map((s: any) => ({
-            service_id: s.service_id,
-            service_name: s.service_name,
-            service_duration: s.service_duration,
-            service_price: s.service_price
-          })),
-          total_duration,
-          total_price,
-          merchant: data.merchant
-        };
-        
+          status: data.status as 'pending' | 'confirmed' | 'completed' | 'cancelled'
+        } as BookingWithDetails;
         setNextBooking(typedBooking);
       } else {
         setNextBooking(null);
@@ -94,12 +87,13 @@ const UpcomingBookings: React.FC = () => {
   useEffect(() => {
     fetchNextUpcomingBooking();
     
+    // Refresh every minute to check if the current booking has passed
     const interval = setInterval(fetchNextUpcomingBooking, 60000);
     
     return () => clearInterval(interval);
   }, []);
 
-  const getShopImage = (merchant: BookingWithServices['merchant']) => {
+  const getShopImage = (merchant: BookingWithDetails['merchant']) => {
     if (merchant.image_url && merchant.image_url.trim() !== '') {
       if (merchant.image_url.startsWith('http')) {
         return merchant.image_url;
@@ -157,7 +151,7 @@ const UpcomingBookings: React.FC = () => {
         onClick={handleBookingClick}
       >
         <CardContent className="p-4">
-          <div className="flex items-start space-x-4">
+          <div className="flex items-center space-x-4">
             {/* Shop Image */}
             <div className="w-16 h-16 flex-shrink-0">
               <img 
@@ -183,29 +177,9 @@ const UpcomingBookings: React.FC = () => {
                 </div>
               </div>
               
-              {/* Services information */}
-              {nextBooking.services && nextBooking.services.length > 0 && (
-                <div className="mb-3 space-y-1">
-                  <div className="flex items-center space-x-2">
-                    <Package className="h-4 w-4 text-booqit-primary" />
-                    <span className="text-sm font-medium text-gray-700">
-                      {nextBooking.services.length === 1 ? '1 Service' : `${nextBooking.services.length} Services`}
-                    </span>
-                  </div>
-                  
-                  {nextBooking.services.slice(0, 2).map((service) => (
-                    <div key={service.service_id} className="ml-6 text-sm text-gray-600">
-                      {service.service_name} ({service.service_duration} min)
-                    </div>
-                  ))}
-                  
-                  {nextBooking.services.length > 2 && (
-                    <div className="ml-6 text-sm text-gray-500">
-                      +{nextBooking.services.length - 2} more service{nextBooking.services.length > 3 ? 's' : ''}
-                    </div>
-                  )}
-                </div>
-              )}
+              <p className="text-sm text-gray-600 mb-3 truncate">
+                {nextBooking.service.name}
+              </p>
               
               <div className="flex items-center justify-between">
                 <div className="flex items-center text-sm text-gray-700">
@@ -218,20 +192,9 @@ const UpcomingBookings: React.FC = () => {
                 <div className="flex items-center text-sm text-gray-700">
                   <Clock className="h-4 w-4 mr-1.5 text-booqit-primary" />
                   <span className="font-medium">
-                    {getTimeRange(nextBooking)}
+                    {formatTimeToAmPm(nextBooking.time_slot)}
                   </span>
                 </div>
-              </div>
-              
-              {/* Total duration and price */}
-              <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200">
-                <div className="flex items-center space-x-2 text-sm text-gray-600">
-                  <Timer className="h-4 w-4 text-booqit-primary" />
-                  <span>{nextBooking.total_duration} min total</span>
-                </div>
-                <span className="text-sm font-semibold text-booqit-primary">
-                  ₹{nextBooking.total_price}
-                </span>
               </div>
               
               {nextBooking.stylist_name && (

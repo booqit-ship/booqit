@@ -5,12 +5,12 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { Booking } from '@/types';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { formatTimeToAmPm, timeToMinutes, minutesToTime } from '@/utils/timeUtils';
-import { User, Scissors, BarChart3, Package, Timer } from 'lucide-react';
+import { formatTimeToAmPm } from '@/utils/timeUtils';
+import { User, Scissors, BarChart3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { BookingWithServices } from '@/types/booking';
 
 const DashboardPage: React.FC = () => {
   const { userId } = useAuth();
@@ -18,7 +18,7 @@ const DashboardPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [bookingsToday, setBookingsToday] = useState(0);
   const [totalEarnings, setTotalEarnings] = useState(0);
-  const [recentBookings, setRecentBookings] = useState<BookingWithServices[]>([]);
+  const [recentBookings, setRecentBookings] = useState<Booking[]>([]);
   const [merchantId, setMerchantId] = useState<string | null>(null);
   const [shopImage, setShopImage] = useState<string | null>(null);
   const [shopName, setShopName] = useState<string>('');
@@ -35,18 +35,6 @@ const DashboardPage: React.FC = () => {
   const itemVariants = {
     hidden: { y: 20, opacity: 0 },
     visible: { y: 0, opacity: 1 }
-  };
-
-  const getTimeRange = (booking: BookingWithServices) => {
-    if (!booking.total_duration || booking.total_duration === 0) {
-      return formatTimeToAmPm(booking.time_slot);
-    }
-    
-    const startMinutes = timeToMinutes(booking.time_slot);
-    const endMinutes = startMinutes + booking.total_duration;
-    const endTime = minutesToTime(endMinutes);
-    
-    return `${formatTimeToAmPm(booking.time_slot)} - ${formatTimeToAmPm(endTime)}`;
   };
 
   useEffect(() => {
@@ -78,9 +66,10 @@ const DashboardPage: React.FC = () => {
         setShopImage(merchantData.image_url);
         setShopName(merchantData.shop_name || 'Merchant');
 
+        // Get today's date in ISO format (YYYY-MM-DD)
         const today = new Date().toISOString().split('T')[0];
 
-        // Get bookings count for today - exclude cancelled bookings
+        // Get bookings count for today - all statuses except cancelled
         const { data: todayBookings, error: bookingsCountError } = await supabase
           .from('bookings')
           .select('id')
@@ -95,10 +84,13 @@ const DashboardPage: React.FC = () => {
           setBookingsToday(todayBookings?.length || 0);
         }
 
-        // Get total earnings using the new booking_services structure
+        // Get total earnings ONLY from completed bookings with completed payment status
         const { data: completedBookings, error: earningsError } = await supabase
           .from('bookings')
-          .select('id')
+          .select(`
+            id,
+            services!inner(price)
+          `)
           .eq('merchant_id', mId)
           .eq('status', 'completed')
           .eq('payment_status', 'completed');
@@ -107,31 +99,22 @@ const DashboardPage: React.FC = () => {
           console.error('Error fetching earnings data:', earningsError);
           setTotalEarnings(0);
         } else if (completedBookings && completedBookings.length > 0) {
-          let totalEarnings = 0;
-          
-          // For each completed booking, get its services total price
-          for (const booking of completedBookings) {
-            const { data: servicesData, error: servicesError } = await supabase
-              .rpc('get_booking_services', { p_booking_id: booking.id });
-            
-            if (!servicesError && servicesData) {
-              const bookingTotal = servicesData.reduce((sum: number, service: any) => 
-                sum + (service.service_price || 0), 0);
-              totalEarnings += bookingTotal;
-            }
-          }
-          
+          // Sum up all service prices
+          const totalEarnings = completedBookings.reduce((sum, booking) => {
+            return sum + (booking.services?.price || 0);
+          }, 0);
           setTotalEarnings(totalEarnings);
         } else {
           setTotalEarnings(0);
         }
 
-        // Fetch recent bookings for today with services - exclude cancelled
+        // Fetch recent bookings for today with customer and stylist details
         const { data: recentBookingsData, error: recentBookingsError } = await supabase
           .from('bookings')
           .select(`
             id,
             merchant_id,
+            service_id,
             date,
             time_slot,
             status,
@@ -142,7 +125,7 @@ const DashboardPage: React.FC = () => {
             stylist_name,
             user_id,
             created_at,
-            staff_id
+            services!inner(name)
           `)
           .eq('merchant_id', mId)
           .eq('date', today)
@@ -154,8 +137,8 @@ const DashboardPage: React.FC = () => {
           console.error('Error fetching recent bookings:', recentBookingsError);
           setRecentBookings([]);
         } else if (recentBookingsData) {
-          // For each booking, fetch its services
-          const bookingsWithServices = await Promise.all(
+          // Process bookings and ensure we have customer names
+          const bookingsWithDetails = await Promise.all(
             recentBookingsData.map(async (booking) => {
               let customerName = booking.customer_name || 'Unknown Customer';
 
@@ -172,46 +155,26 @@ const DashboardPage: React.FC = () => {
                 }
               }
 
-              // Get services for this booking
-              const { data: servicesData, error: servicesError } = await supabase
-                .rpc('get_booking_services', { p_booking_id: booking.id });
-
-              const services = servicesData || [];
-              const total_duration = services.reduce((sum: number, s: any) => sum + (s.service_duration || 0), 0);
-              const total_price = services.reduce((sum: number, s: any) => sum + (s.service_price || 0), 0);
-
               return {
                 id: booking.id,
                 merchant_id: booking.merchant_id,
+                service_id: booking.service_id,
                 user_id: booking.user_id,
                 date: booking.date,
                 time_slot: booking.time_slot,
-                status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
+                status: booking.status,
                 payment_status: booking.payment_status,
                 customer_name: customerName,
                 customer_phone: booking.customer_phone,
                 customer_email: booking.customer_email,
                 stylist_name: booking.stylist_name || 'Unassigned',
                 created_at: booking.created_at,
-                staff_id: booking.staff_id,
-                services: services.map((s: any) => ({
-                  service_id: s.service_id,
-                  service_name: s.service_name,
-                  service_duration: s.service_duration,
-                  service_price: s.service_price
-                })),
-                total_duration,
-                total_price,
-                merchant: {
-                  shop_name: merchantData.shop_name,
-                  address: '',
-                  image_url: merchantData.image_url
-                }
-              } as BookingWithServices;
+                service: booking.services
+              } as Booking;
             })
           );
 
-          setRecentBookings(bookingsWithServices);
+          setRecentBookings(bookingsWithDetails);
         }
 
       } catch (error) {
@@ -230,7 +193,7 @@ const DashboardPage: React.FC = () => {
 
     fetchDashboardData();
 
-    // Set up realtime subscription for booking changes
+    // Set up realtime subscription
     let subscription: any = null;
     
     if (merchantId) {
@@ -395,47 +358,18 @@ const DashboardPage: React.FC = () => {
                         </span>
                       </div>
 
-                      {/* Services information */}
-                      <div className="space-y-2">
-                        {booking.services && booking.services.length > 0 ? (
-                          <>
-                            <div className="flex items-center space-x-2">
-                              <Package className="h-4 w-4 text-gray-500" />
-                              <span className="text-sm font-medium text-gray-700">
-                                {booking.services.length === 1 ? '1 Service' : `${booking.services.length} Services`}
-                              </span>
-                            </div>
-                            
-                            {booking.services.map((service, index) => (
-                              <div key={service.service_id} className="ml-6 text-sm text-gray-600">
-                                <span className="font-medium">{service.service_name}</span>
-                                <span className="ml-2">({service.service_duration} min - ₹{service.service_price})</span>
-                              </div>
-                            ))}
-                            
-                            {/* Total duration and time */}
-                            <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200">
-                              <div className="flex items-center space-x-2 text-sm text-gray-700">
-                                <Timer className="h-4 w-4 text-gray-500" />
-                                <span>Total: {booking.total_duration} min</span>
-                              </div>
-                              <div className="flex items-center space-x-4">
-                                <span className="font-semibold text-booqit-primary text-sm">
-                                  ₹{booking.total_price}
-                                </span>
-                                <span className="font-semibold text-booqit-primary text-sm">
-                                  {getTimeRange(booking)}
-                                </span>
-                              </div>
-                            </div>
-                          </>
-                        ) : (
-                          <div className="text-sm text-gray-500">Loading services...</div>
-                        )}
+                      {/* Service and time information */}
+                      <div className="grid grid-cols-1 gap-2 text-sm text-gray-600">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-gray-800">{booking.service?.name}</span>
+                          <span className="font-semibold text-booqit-primary">
+                            {formatTimeToAmPm(booking.time_slot)}
+                          </span>
+                        </div>
                         
                         {/* Stylist information */}
                         {booking.stylist_name && (
-                          <div className="flex items-center space-x-2 text-sm text-gray-600">
+                          <div className="flex items-center space-x-2">
                             <Scissors className="h-4 w-4 text-gray-500" />
                             <span>Stylist: {booking.stylist_name}</span>
                           </div>

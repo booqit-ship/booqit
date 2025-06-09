@@ -86,15 +86,23 @@ const EarningsPage: React.FC = () => {
         const todayStr = format(today, 'yyyy-MM-dd');
         const yesterdayStr = format(yesterday, 'yyyy-MM-dd');
         
-        // Fetch all bookings
+        // Fetch all bookings with service data
         const { data: bookingsData, error: bookingsError } = await supabase
           .from('bookings')
-          .select('id, date, status, payment_status')
+          .select(`
+            id,
+            date,
+            status,
+            payment_status,
+            service:service_id (
+              price
+            )
+          `)
           .eq('merchant_id', merchantId);
           
         if (bookingsError) throw bookingsError;
         
-        // Calculate earnings using the new structure
+        // Calculate earnings
         let todayEarnings = 0;
         let yesterdayEarnings = 0;
         let weekEarnings = 0;
@@ -108,10 +116,10 @@ const EarningsPage: React.FC = () => {
         // Map of date to earnings for chart data
         const dateEarnings = new Map<string, number>();
         
-        // Process each booking to calculate earnings
-        for (const booking of bookingsData) {
+        bookingsData.forEach(booking => {
           const bookingDate = new Date(booking.date);
           const dateStr = booking.date;
+          const amount = booking.service?.price || 0;
           
           // Count booking status for statistics
           if (booking.status === 'completed') {
@@ -122,38 +130,29 @@ const EarningsPage: React.FC = () => {
           
           // Only count earnings from completed bookings with completed payment status
           if (booking.status === 'completed' && booking.payment_status === 'completed') {
-            // Get services for this booking to calculate total price
-            const { data: servicesData, error: servicesError } = await supabase
-              .rpc('get_booking_services', { p_booking_id: booking.id });
+            totalEarnings += amount;
             
-            if (!servicesError && servicesData) {
-              const amount = servicesData.reduce((sum: number, service: any) => 
-                sum + (service.service_price || 0), 0);
-              
-              totalEarnings += amount;
-              
-              // Check date ranges
-              if (dateStr === todayStr) {
-                todayEarnings += amount;
-              }
-              
-              if (dateStr === yesterdayStr) {
-                yesterdayEarnings += amount;
-              }
-              
-              if (bookingDate >= weekStart && bookingDate <= weekEnd) {
-                weekEarnings += amount;
-              }
-              
-              if (bookingDate >= monthStart && bookingDate <= monthEnd) {
-                monthEarnings += amount;
-              }
-              
-              // Add to chart data map
-              dateEarnings.set(dateStr, (dateEarnings.get(dateStr) || 0) + amount);
+            // Check date ranges
+            if (dateStr === todayStr) {
+              todayEarnings += amount;
             }
+            
+            if (dateStr === yesterdayStr) {
+              yesterdayEarnings += amount;
+            }
+            
+            if (bookingDate >= weekStart && bookingDate <= weekEnd) {
+              weekEarnings += amount;
+            }
+            
+            if (bookingDate >= monthStart && bookingDate <= monthEnd) {
+              monthEarnings += amount;
+            }
+            
+            // Add to chart data map
+            dateEarnings.set(dateStr, (dateEarnings.get(dateStr) || 0) + amount);
           }
-        }
+        });
         
         // Create chart data array
         let chartData = [];

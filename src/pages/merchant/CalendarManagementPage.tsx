@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -11,7 +11,20 @@ import HolidayManager from '@/components/merchant/calendar/HolidayManager';
 import WeekCalendar from '@/components/merchant/calendar/WeekCalendar';
 import StylistAvailabilityWidget from '@/components/merchant/StylistAvailabilityWidget';
 import { formatDateInIST, getCurrentDateIST } from '@/utils/dateUtils';
-import { BookingWithServices } from '@/types/booking';
+
+interface BookingWithCustomerDetails {
+  id: string;
+  service?: {
+    name: string;
+    duration?: number;
+  };
+  time_slot: string;
+  status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
+  customer_name?: string;
+  customer_phone?: string;
+  customer_email?: string;
+  stylist_name?: string;
+}
 
 const CalendarManagementPage: React.FC = () => {
   const { userId } = useAuth();
@@ -40,22 +53,21 @@ const CalendarManagementPage: React.FC = () => {
       return data;
     },
     enabled: !!userId,
-    staleTime: 10 * 60 * 1000,
+    staleTime: 10 * 60 * 1000, // 10 minutes
   });
 
   const merchantId = merchant?.id;
 
-  // Get bookings with services using the updated structure
-  const { data: bookings = [], isFetching: isBookingsFetching, refetch: refetchBookingsQuery } = useQuery({
-    queryKey: ['bookings-with-services', merchantId, formatDateInIST(selectedDate, 'yyyy-MM-dd')],
-    queryFn: async (): Promise<BookingWithServices[]> => {
-      if (!merchantId || !merchant) return [];
+  // Get bookings with enhanced caching and proper typing
+  const { data: bookings = [], isFetching: isBookingsFetching } = useQuery({
+    queryKey: ['bookings', merchantId, formatDateInIST(selectedDate, 'yyyy-MM-dd')],
+    queryFn: async (): Promise<BookingWithCustomerDetails[]> => {
+      if (!merchantId) return [];
       
       const dateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
-      console.log('Fetching bookings with services for date:', dateStr, 'merchant:', merchantId);
+      console.log('Fetching bookings for date:', dateStr, 'merchant:', merchantId);
       
-      // Get all bookings for the date (including cancelled for audit purposes)
-      const { data: bookingsData, error: bookingsError } = await supabase
+      const { data, error } = await supabase
         .from('bookings')
         .select(`
           id,
@@ -66,77 +78,39 @@ const CalendarManagementPage: React.FC = () => {
           customer_phone,
           customer_email,
           stylist_name,
-          user_id,
-          merchant_id,
-          staff_id,
-          date,
-          created_at
+          services:service_id (
+            name,
+            duration
+          )
         `)
         .eq('merchant_id', merchantId)
         .eq('date', dateStr)
         .order('time_slot', { ascending: true });
       
-      if (bookingsError) {
-        console.error('Error fetching bookings:', bookingsError);
-        throw bookingsError;
+      if (error) {
+        console.error('Error fetching bookings:', error);
+        throw error;
       }
       
-      if (!bookingsData || bookingsData.length === 0) {
-        return [];
-      }
+      console.log('Fetched bookings:', data);
       
-      // For each booking, fetch its services
-      const bookingsWithServices = await Promise.all(
-        bookingsData.map(async (booking) => {
-          const { data: servicesData, error: servicesError } = await supabase
-            .rpc('get_booking_services', { p_booking_id: booking.id });
-          
-          if (servicesError) {
-            console.error('Error fetching services for booking:', booking.id, servicesError);
-            // Return booking with empty services if fetch fails
-            return {
-              ...booking,
-              services: [],
-              total_duration: 0,
-              total_price: 0,
-              status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
-              merchant: {
-                shop_name: merchant.shop_name,
-                address: merchant.address,
-                image_url: merchant.image_url
-              }
-            };
-          }
-          
-          const services = servicesData || [];
-          const total_duration = services.reduce((sum: number, s: any) => sum + (s.service_duration || 0), 0);
-          const total_price = services.reduce((sum: number, s: any) => sum + (s.service_price || 0), 0);
-          
-          return {
-            ...booking,
-            services: services.map((s: any) => ({
-              service_id: s.service_id,
-              service_name: s.service_name,
-              service_duration: s.service_duration,
-              service_price: s.service_price
-            })),
-            total_duration,
-            total_price,
-            status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
-            merchant: {
-              shop_name: merchant.shop_name,
-              address: merchant.address,
-              image_url: merchant.image_url
-            }
-          };
-        })
-      );
-      
-      console.log('Fetched bookings with services:', bookingsWithServices);
-      return bookingsWithServices;
+      // Transform and type the data properly
+      return (data || []).map(booking => ({
+        id: booking.id,
+        service: booking.services ? {
+          name: booking.services.name,
+          duration: booking.services.duration
+        } : undefined,
+        time_slot: booking.time_slot,
+        status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
+        customer_name: booking.customer_name,
+        customer_phone: booking.customer_phone,
+        customer_email: booking.customer_email,
+        stylist_name: booking.stylist_name
+      }));
     },
-    enabled: !!merchantId && !!merchant,
-    staleTime: 1 * 60 * 1000, // Reduce stale time to 1 minute for more frequent updates
+    enabled: !!merchantId,
+    staleTime: 2 * 60 * 1000, // 2 minutes
     refetchOnWindowFocus: true,
   });
 
@@ -156,7 +130,7 @@ const CalendarManagementPage: React.FC = () => {
       return data || [];
     },
     enabled: !!merchantId,
-    staleTime: 15 * 60 * 1000,
+    staleTime: 15 * 60 * 1000, // 15 minutes
   });
 
   // Generate visible days for appointment counts (5 days from selected date)
@@ -192,14 +166,30 @@ const CalendarManagementPage: React.FC = () => {
       return counts;
     },
     enabled: !!merchantId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
   const handleStatusChange = async (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
     try {
       console.log('Updating booking status:', bookingId, 'to:', newStatus);
       
-      if (newStatus === 'cancelled') {
+      if (newStatus === 'completed') {
+        // For completion, update both status and payment_status
+        const { error } = await supabase
+          .from('bookings')
+          .update({ 
+            status: 'completed',
+            payment_status: 'completed'
+          })
+          .eq('id', bookingId);
+
+        if (error) {
+          console.error('Error updating booking status:', error);
+          toast.error(`Failed to complete booking: ${error.message}`);
+          return;
+        }
+      } else if (newStatus === 'cancelled') {
+        // For cancellation, use the proper function
         const { data, error } = await supabase.rpc('cancel_booking_properly', {
           p_booking_id: bookingId,
           p_user_id: userId
@@ -216,21 +206,8 @@ const CalendarManagementPage: React.FC = () => {
           toast.error(result.error || 'Failed to cancel booking');
           return;
         }
-      } else if (newStatus === 'completed') {
-        const { error } = await supabase
-          .from('bookings')
-          .update({ 
-            status: 'completed',
-            payment_status: 'completed'
-          })
-          .eq('id', bookingId);
-
-        if (error) {
-          console.error('Error updating booking status:', error);
-          toast.error(`Failed to complete booking: ${error.message}`);
-          return;
-        }
       } else {
+        // For other status updates (pending, confirmed)
         const { error } = await supabase
           .from('bookings')
           .update({ status: newStatus })
@@ -245,8 +222,8 @@ const CalendarManagementPage: React.FC = () => {
 
       toast.success(`Booking ${newStatus} successfully`);
       
-      // Force refetch of bookings
-      await refetchBookingsQuery();
+      // Invalidate relevant queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['bookings', merchantId] });
       queryClient.invalidateQueries({ queryKey: ['appointment-counts', merchantId] });
     } catch (error) {
       console.error('Error updating booking status:', error);
@@ -281,35 +258,12 @@ const CalendarManagementPage: React.FC = () => {
   };
 
   const refetchBookings = () => {
-    queryClient.invalidateQueries({ queryKey: ['bookings-with-services', merchantId] });
+    queryClient.invalidateQueries({ queryKey: ['bookings', merchantId] });
   };
 
   const refetchHolidays = () => {
     queryClient.invalidateQueries({ queryKey: ['shop_holidays', merchantId] });
   };
-
-  // Set up realtime subscription for booking changes
-  useEffect(() => {
-    if (!merchantId) return;
-
-    const subscription = supabase
-      .channel('calendar-bookings-changes')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'bookings',
-        filter: `merchant_id=eq.${merchantId}`
-      }, () => {
-        console.log('Booking change detected, refreshing data');
-        refetchBookings();
-        queryClient.invalidateQueries({ queryKey: ['appointment-counts', merchantId] });
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(subscription);
-    };
-  }, [merchantId, refetchBookings, queryClient]);
 
   if (!merchantId) {
     return (
@@ -348,7 +302,7 @@ const CalendarManagementPage: React.FC = () => {
           <BookingsList 
             date={selectedDate} 
             bookings={bookings} 
-            isLoading={false}
+            isLoading={false} // Always show cached data, use isFetching for spinner
             onStatusChange={handleStatusChange} 
           />
         </div>
@@ -357,7 +311,7 @@ const CalendarManagementPage: React.FC = () => {
           <HolidayManager 
             merchantId={merchantId} 
             holidays={holidays} 
-            isLoading={false}
+            isLoading={false} // Always show cached data
             onDeleteHoliday={handleDeleteHoliday} 
             onHolidayAdded={refetchHolidays} 
           />

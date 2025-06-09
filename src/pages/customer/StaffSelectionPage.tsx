@@ -1,217 +1,166 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ChevronLeft, User, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Card, CardContent } from '@/components/ui/card';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
+import { Staff } from '@/types';
 import { toast } from 'sonner';
-import { User, Clock, Package } from 'lucide-react';
-
-interface Staff {
-  id: string;
-  name: string;
-}
-
-interface ServiceSelection {
-  id: string;
-  name: string;
-  price: number;
-  duration: number;
-}
 
 const StaffSelectionPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const { merchant, selectedServices, totalPrice, totalDuration } = location.state;
+
   const [staff, setStaff] = useState<Staff[]>([]);
-  const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
-  const [merchantData, setMerchantData] = useState<any>(null);
+  const [selectedStaff, setSelectedStaff] = useState<string>('any');
+  const [selectedStaffDetails, setSelectedStaffDetails] = useState<Staff | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedServices, setSelectedServices] = useState<ServiceSelection[]>([]);
 
   useEffect(() => {
-    // Get selected services from previous page
-    const services = location.state?.selectedServices;
-    if (!services || services.length === 0) {
-      toast.error('No services selected');
-      navigate(`/service-selection/${merchantId}`);
-      return;
-    }
-    setSelectedServices(services);
-  }, [location.state, merchantId, navigate]);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!merchantId) return;
-
+    const fetchStaff = async () => {
       try {
-        // Fetch merchant info
-        const { data: merchant, error: merchantError } = await supabase
-          .from('merchants')
-          .select('*')
-          .eq('id', merchantId)
-          .single();
+        if (!merchantId) return;
 
-        if (merchantError) throw merchantError;
-        setMerchantData(merchant);
-
-        // Fetch staff
-        const { data: staffData, error: staffError } = await supabase
+        console.log('Fetching staff for merchant:', merchantId);
+        
+        const { data, error } = await supabase
           .from('staff')
           .select('*')
-          .eq('merchant_id', merchantId)
-          .order('name');
+          .eq('merchant_id', merchantId);
 
-        if (staffError) throw staffError;
-        setStaff(staffData || []);
+        if (error) {
+          console.error('Error fetching staff:', error);
+          throw error;
+        }
+        
+        console.log('Fetched staff data:', data);
+        setStaff(data || []);
       } catch (error) {
-        console.error('Error fetching data:', error);
-        toast.error('Failed to load staff');
+        console.error('Error fetching staff:', error);
+        toast.error('Could not load staff');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchData();
+    fetchStaff();
   }, [merchantId]);
 
-  const handleStaffSelect = (staffMember: Staff) => {
-    setSelectedStaff(staffMember);
+  const handleStaffChange = (value: string) => {
+    setSelectedStaff(value);
+    if (value === 'any') {
+      setSelectedStaffDetails(null);
+    } else {
+      const staffMember = staff.find(s => s.id === value);
+      setSelectedStaffDetails(staffMember || null);
+    }
   };
 
   const handleContinue = () => {
-    if (!selectedStaff) {
-      toast.error('Please select a stylist');
-      return;
-    }
-
-    if (!merchantData) {
-      toast.error('Merchant data not loaded');
-      return;
-    }
-
-    // Navigate to date/time selection with all the booking data
-    navigate(`/date-time-selection/${merchantId}`, {
+    navigate(`/booking/${merchantId}/datetime`, {
       state: {
+        merchant,
         selectedServices,
-        selectedStaff,
-        merchantData
+        totalPrice,
+        totalDuration,
+        selectedStaff: selectedStaff === 'any' ? null : selectedStaff,
+        selectedStaffDetails
       }
     });
   };
 
-  const getTotalPrice = () => {
-    return selectedServices.reduce((sum, service) => sum + service.price, 0);
-  };
-
-  const getTotalDuration = () => {
-    return selectedServices.reduce((sum, service) => sum + service.duration, 0);
-  };
-
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-booqit-primary"></div>
+      <div className="h-screen flex items-center justify-center">
+        <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-md">
-      <div className="mb-6">
-        <h1 className="text-2xl font-light mb-2">Select Stylist</h1>
-        <p className="text-gray-600">{merchantData?.shop_name}</p>
+    <div className="pb-24 bg-white min-h-screen">
+      <div className="bg-booqit-primary text-white p-4 sticky top-0 z-10">
+        <div className="relative flex items-center justify-center">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="absolute left-0 text-white hover:bg-white/20"
+            onClick={() => navigate(-1)}
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-xl font-medium">Choose Stylist</h1>
+        </div>
       </div>
 
-      {/* Selected Services Summary */}
-      <Card className="mb-6 border-booqit-primary">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Package className="h-5 w-5" />
-            Selected Services ({selectedServices.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2 mb-4">
-            {selectedServices.map((service) => (
-              <div key={service.id} className="flex justify-between items-center text-sm">
-                <span>{service.name}</span>
-                <span>₹{service.price}</span>
-              </div>
-            ))}
-          </div>
-          <div className="border-t pt-3">
-            <div className="flex justify-between items-center font-semibold">
-              <div>
-                <p>Total: ₹{getTotalPrice()}</p>
-                <p className="text-sm text-gray-600 font-normal">{getTotalDuration()} minutes</p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="p-4">
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold mb-2">Select Your Preferred Stylist</h2>
+          <p className="text-gray-500 text-sm">Choose any available stylist or let us assign one for you</p>
+        </div>
 
-      <div className="space-y-4 mb-6">
-        {staff.map((staffMember) => (
-          <Card 
-            key={staffMember.id} 
-            className={`cursor-pointer transition-all ${
-              selectedStaff?.id === staffMember.id 
-                ? 'border-booqit-primary bg-booqit-primary/5' 
-                : 'hover:shadow-md'
-            }`}
-            onClick={() => handleStaffSelect(staffMember)}
-          >
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-4">
-                <Avatar className="h-12 w-12">
-                  <AvatarImage src="" alt={staffMember.name} />
-                  <AvatarFallback className="bg-booqit-primary/10 text-booqit-primary">
-                    {staffMember.name.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                
-                <div className="flex-1">
-                  <h3 className="font-semibold">{staffMember.name}</h3>
-                  <p className="text-gray-600 text-sm">Professional Stylist</p>
+        <RadioGroup value={selectedStaff} onValueChange={handleStaffChange} className="space-y-3">
+          {/* Any Stylist Option */}
+          <Card className={`border transition-all overflow-hidden ${selectedStaff === 'any' ? 'border-booqit-primary' : 'border-gray-200'}`}>
+            <CardContent className="p-0">
+              <label htmlFor="any" className="flex items-center p-4 cursor-pointer">
+                <RadioGroupItem value="any" id="any" className="mr-4" />
+                <div className="bg-blue-100 rounded-full p-3 mr-4">
+                  <Users className="h-6 w-6 text-blue-500" />
                 </div>
-                
-                {selectedStaff?.id === staffMember.id && (
-                  <div className="w-6 h-6 bg-booqit-primary rounded-full flex items-center justify-center">
-                    <div className="w-2 h-2 bg-white rounded-full"></div>
-                  </div>
-                )}
-              </div>
+                <div>
+                  <div className="font-semibold">Any Available Stylist</div>
+                  <div className="text-gray-500 text-sm">We'll assign the next available stylist for you</div>
+                </div>
+              </label>
             </CardContent>
           </Card>
-        ))}
+
+          {/* Individual Staff Options */}
+          {staff.map((stylist) => (
+            <Card 
+              key={stylist.id}
+              className={`border transition-all overflow-hidden ${selectedStaff === stylist.id ? 'border-booqit-primary' : 'border-gray-200'}`}
+            >
+              <CardContent className="p-0">
+                <label htmlFor={stylist.id} className="flex items-center p-4 cursor-pointer">
+                  <RadioGroupItem value={stylist.id} id={stylist.id} className="mr-4" />
+                  <Avatar className="h-12 w-12 mr-4">
+                    <AvatarFallback className="bg-gray-200 text-gray-700">
+                      {stylist.name.charAt(0)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <div className="font-semibold">{stylist.name}</div>
+                    <div className="text-gray-500 text-sm">Hair Specialist</div>
+                  </div>
+                </label>
+              </CardContent>
+            </Card>
+          ))}
+        </RadioGroup>
+
+        {staff.length === 0 && (
+          <div className="text-center py-8 bg-gray-50 rounded-lg mt-4">
+            <User className="h-12 w-12 mx-auto text-gray-400 mb-2" />
+            <p className="text-gray-500">No stylists available</p>
+            <p className="text-gray-400 text-sm">You can still proceed with your booking</p>
+          </div>
+        )}
       </div>
 
-      {staff.length === 0 && (
-        <div className="text-center py-12">
-          <User className="h-16 w-16 mx-auto text-gray-400 mb-4" />
-          <p className="text-gray-600">No stylists available</p>
-        </div>
-      )}
-
-      <div className="space-y-3">
-        <Button
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
+        <Button 
+          className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6"
+          size="lg"
           onClick={handleContinue}
-          disabled={!selectedStaff}
-          className="w-full bg-booqit-primary hover:bg-booqit-primary/90"
-          size="lg"
         >
-          Continue to Date & Time
-        </Button>
-        
-        <Button
-          onClick={() => navigate(-1)}
-          variant="outline"
-          className="w-full"
-          size="lg"
-        >
-          Go Back
+          Continue
         </Button>
       </div>
     </div>

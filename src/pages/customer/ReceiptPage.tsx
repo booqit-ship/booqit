@@ -1,255 +1,243 @@
-
-import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect } from 'react';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import { ChevronLeft, Store, Clock, User, CheckCircle2, CreditCard, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { CalendarIcon, Clock, MapPin, User, Package, Phone, Mail, Timer } from 'lucide-react';
-import { formatTimeToAmPm, timeToMinutes, minutesToTime } from '@/utils/timeUtils';
-import { getBookingWithServices } from '@/utils/bookingUtils';
-import { toast } from 'sonner';
+import { Card, CardContent } from '@/components/ui/card';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { formatTimeToAmPm } from '@/utils/timeUtils';
+import { format } from 'date-fns';
 import CancelBookingButton from '@/components/customer/CancelBookingButton';
 
 const ReceiptPage: React.FC = () => {
-  const { bookingId } = useParams<{ bookingId: string }>();
+  const {
+    bookingId
+  } = useParams<{
+    bookingId: string;
+  }>();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const {
+    userId
+  } = useAuth();
   const [booking, setBooking] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  // Get data from navigation state if available
+  const stateData = location.state;
   useEffect(() => {
-    const fetchBooking = async () => {
+    const fetchBookingDetails = async () => {
       if (!bookingId) return;
-      
       try {
-        const bookingData = await getBookingWithServices(bookingId);
+        const {
+          data: bookingData,
+          error
+        } = await supabase.from('bookings').select(`
+            *,
+            merchants (shop_name, address),
+            services (name, price),
+            staff (name)
+          `).eq('id', bookingId).single();
+        if (error) {
+          console.error('Error fetching booking:', error);
+          return;
+        }
         setBooking(bookingData);
       } catch (error) {
-        console.error('Error fetching booking:', error);
-        toast.error('Failed to load booking details');
+        console.error('Error fetching booking details:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchBooking();
-  }, [bookingId]);
-
-  const getTimeRange = () => {
-    if (!booking?.total_duration || booking.total_duration === 0) {
-      return formatTimeToAmPm(booking.time_slot);
+    // Use state data if available, otherwise fetch from database
+    if (stateData && stateData.booking) {
+      setBooking(stateData.booking);
+      setLoading(false);
+    } else {
+      fetchBookingDetails();
     }
-    
-    const startMinutes = timeToMinutes(booking.time_slot);
-    const endMinutes = startMinutes + booking.total_duration;
-    const endTime = minutesToTime(endMinutes);
-    
-    return `${formatTimeToAmPm(booking.time_slot)} - ${formatTimeToAmPm(endTime)}`;
+  }, [bookingId, stateData]);
+  const handleCancelSuccess = () => {
+    // Update booking status locally
+    setBooking((prev: any) => ({
+      ...prev,
+      status: 'cancelled'
+    }));
   };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'confirmed':
-        return 'bg-green-100 text-green-800 border-green-200';
-      case 'completed':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800 border-red-200';
-      case 'pending':
-      default:
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+  const handleOpenMapDirections = () => {
+    if (merchant?.address) {
+      const encodedAddress = encodeURIComponent(merchant.address);
+      const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`;
+      window.open(googleMapsUrl, '_blank');
     }
   };
-
-  const getShopImage = (merchant: any) => {
-    if (merchant?.image_url && merchant.image_url.trim() !== '') {
-      if (merchant.image_url.startsWith('http')) {
-        return merchant.image_url;
-      }
-      return `https://ggclvurfcykbwmhfftkn.supabase.co/storage/v1/object/public/merchant_images/${merchant.image_url}`;
-    }
-    return 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
-  };
-
   if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-booqit-primary"></div>
-      </div>
-    );
+    return <div className="h-screen flex items-center justify-center">
+        <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
+      </div>;
   }
-
   if (!booking) {
-    return (
-      <div className="container mx-auto px-4 py-6 text-center">
-        <h1 className="text-2xl font-light mb-4">Booking Not Found</h1>
-        <p className="text-gray-600">The booking you're looking for doesn't exist.</p>
-      </div>
-    );
+    return <div className="h-screen flex flex-col items-center justify-center p-4">
+        <p className="text-gray-500 mb-4">Booking not found</p>
+        <Button onClick={() => navigate('/calendar')}>Go to My Bookings</Button>
+      </div>;
   }
-
-  return (
-    <div className="container mx-auto px-4 py-6 max-w-md">
-      <div className="mb-6 text-center">
-        <h1 className="text-2xl font-light mb-2">Booking Receipt</h1>
-        <Badge className={`${getStatusColor(booking.status)} font-medium`}>
-          {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-        </Badge>
+  const merchant = stateData?.merchant || booking.merchants;
+  const selectedServices = stateData?.selectedServices || [booking.services];
+  const selectedStaffDetails = stateData?.selectedStaffDetails || {
+    name: booking.staff?.name || booking.stylist_name
+  };
+  const payment = stateData?.payment;
+  return <div className="pb-24 bg-gray-50 min-h-screen">
+      <div className="bg-booqit-primary text-white p-4 sticky top-0 z-10">
+        <div className="relative flex items-center justify-center">
+          <Button variant="ghost" size="icon" className="absolute left-0 text-white hover:bg-white/20" onClick={() => navigate('/calendar')}>
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-xl font-medium">Booking Receipt</h1>
+        </div>
       </div>
 
-      {/* Shop Information */}
-      <Card className="mb-6">
-        <CardContent className="p-4">
-          <div className="flex items-start space-x-4">
-            <div className="w-16 h-16 flex-shrink-0">
-              <img 
-                src={getShopImage(booking.merchant)} 
-                alt={booking.merchant?.shop_name}
-                className="w-full h-full object-cover rounded-lg shadow-sm"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.src = 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
-                }}
-              />
-            </div>
-            
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-lg text-gray-900 mb-1">
-                {booking.merchant?.shop_name}
-              </h3>
-              <div className="flex items-center text-gray-600 mb-2">
-                <MapPin className="h-4 w-4 mr-1" />
-                <span className="text-sm">{booking.merchant?.address}</span>
-              </div>
-              {booking.stylist_name && (
-                <div className="flex items-center text-gray-600">
-                  <User className="h-4 w-4 mr-1" />
-                  <span className="text-sm">Stylist: {booking.stylist_name}</span>
+      <div className="p-4 space-y-6">
+        {/* Booking Status */}
+        <Card className="shadow-lg border-0">
+          <CardContent className="p-6 text-center">
+            {booking.status === 'cancelled' ? <>
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle2 className="h-8 w-8 text-red-600" />
                 </div>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Appointment Details */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CalendarIcon className="h-5 w-5" />
-            Appointment Details
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex justify-between">
-            <span className="text-gray-600">Date:</span>
-            <span className="font-medium">
-              {new Date(booking.date).toLocaleDateString('en-US', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-              })}
-            </span>
-          </div>
-          
-          <div className="flex justify-between">
-            <span className="text-gray-600">Time:</span>
-            <span className="font-medium">{getTimeRange()}</span>
-          </div>
-          
-          <div className="flex justify-between">
-            <span className="text-gray-600">Booking ID:</span>
-            <span className="font-mono text-sm">{booking.id.split('-')[0].toUpperCase()}</span>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Services */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" />
-            Services ({booking.services?.length || 0})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {booking.services && booking.services.length > 0 ? (
-            <div className="space-y-3">
-              {booking.services.map((service: any, index: number) => (
-                <div key={service.service_id} className="flex justify-between items-center">
-                  <div>
-                    <p className="font-medium">{service.service_name}</p>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Timer className="h-3 w-3 mr-1" />
-                      <span>{service.service_duration} minutes</span>
-                    </div>
-                  </div>
-                  <p className="font-semibold text-booqit-primary">₹{service.service_price}</p>
+                <h2 className="text-xl font-semibold text-red-600 mb-2">Booking Cancelled</h2>
+                <p className="text-gray-600">Your booking has been cancelled successfully</p>
+              </> : <>
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle2 className="h-8 w-8 text-green-600" />
                 </div>
-              ))}
-              
-              <Separator className="my-4" />
-              
-              <div className="flex justify-between items-center font-semibold text-lg">
-                <div>
-                  <p>Total</p>
-                  <p className="text-sm text-gray-600 font-normal">{booking.total_duration} minutes total</p>
-                </div>
-                <p className="text-booqit-primary">₹{booking.total_price}</p>
-              </div>
-            </div>
-          ) : (
-            <p className="text-gray-500 text-center py-4">No services information available</p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Contact Information */}
-      {(booking.customer_phone || booking.customer_email) && (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Contact Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {booking.customer_phone && (
-              <div className="flex items-center gap-2">
-                <Phone className="h-4 w-4 text-gray-500" />
-                <span>{booking.customer_phone}</span>
-              </div>
-            )}
-            
-            {booking.customer_email && (
-              <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-gray-500" />
-                <span>{booking.customer_email}</span>
-              </div>
-            )}
+                <h2 className="text-green-600 mb-2 font-medium text-xl">Booking Confirmed!</h2>
+                <p className="text-gray-600">Your appointment has been successfully booked</p>
+              </>}
           </CardContent>
         </Card>
-      )}
 
-      {/* Action Buttons */}
-      <div className="space-y-3">
-        {booking.status === 'pending' && (
-          <CancelBookingButton 
-            bookingId={booking.id} 
-            onCancelled={() => {
-              setBooking(prev => ({ ...prev, status: 'cancelled' }));
-            }}
-          />
-        )}
-        
-        <Button
-          onClick={() => window.history.back()}
-          variant="outline"
-          className="w-full"
-          size="lg"
-        >
-          Back to Home
-        </Button>
+        {/* Booking Details */}
+        <Card className="shadow-lg">
+          <CardContent className="p-6">
+            <h3 className="mb-4 flex items-center font-medium text-lg">
+              <Store className="h-5 w-5 mr-2 text-booqit-primary" />
+              Booking Details
+            </h3>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Booking ID:</span>
+                <span className="font-medium text-sm">{booking.id.substring(0, 8)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Shop:</span>
+                <span className="font-medium">{merchant?.shop_name}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Date:</span>
+                <span className="font-medium">{format(new Date(booking.date), 'MMM d, yyyy')}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Time:</span>
+                <span className="font-medium flex items-center">
+                  <Clock className="h-4 w-4 mr-1" />
+                  {formatTimeToAmPm(booking.time_slot)}
+                </span>
+              </div>
+              {selectedStaffDetails && <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Stylist:</span>
+                  <span className="font-medium flex items-center">
+                    <User className="h-4 w-4 mr-1" />
+                    {selectedStaffDetails.name}
+                  </span>
+                </div>}
+              <div className="flex justify-between items-start">
+                <span className="text-gray-600">Services:</span>
+                <div className="text-right">
+                  {selectedServices.map((service: any) => <div key={service.id} className="font-medium">{service.name}</div>)}
+                </div>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Status:</span>
+                <span className={`font-medium capitalize ${booking.status === 'confirmed' ? 'text-green-600' : booking.status === 'cancelled' ? 'text-red-600' : 'text-yellow-600'}`}>
+                  {booking.status}
+                </span>
+              </div>
+              <div className="border-t pt-3 mt-3">
+                <div className="flex justify-between items-center font-semibold text-lg">
+                  <span>Total Amount:</span>
+                  <span className="text-booqit-primary">
+                    ₹{selectedServices.reduce((sum: number, service: any) => sum + service.price, 0)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Payment Info */}
+        <Card className="shadow-lg">
+          <CardContent className="p-6">
+            <h3 className="mb-4 text-lg flex items-center font-medium">
+              <CreditCard className="h-5 w-5 mr-2 text-booqit-primary" />
+              Payment Information
+            </h3>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Payment Method:</span>
+                <span className="font-medium">Pay at Shop</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Payment Status:</span>
+                <span className={`font-medium capitalize ${booking.payment_status === 'completed' ? 'text-green-600' : 'text-yellow-600'}`}>
+                  {booking.payment_status}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Action Buttons */}
+        <div className="space-y-3">
+          {booking.status !== 'cancelled' && <CancelBookingButton bookingId={booking.id} onCancelled={handleCancelSuccess} className="w-full" />}
+          
+          <Button variant="outline" className="w-full" onClick={() => navigate('/calendar')}>
+            View All Bookings
+          </Button>
+        </div>
+
+        {/* Shop Location Map */}
+        {merchant?.address && <Card className="shadow-lg border-blue-200 bg-blue-50 cursor-pointer hover:bg-blue-100 transition-colors" onClick={handleOpenMapDirections}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-medium text-blue-800 mb-2 flex items-center">
+                    <MapPin className="h-4 w-4 mr-2" />
+                    Shop Location
+                  </h4>
+                  <p className="text-sm text-blue-700">{merchant.address}</p>
+                </div>
+                <div className="text-blue-600">
+                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </div>
+              <p className="text-xs text-blue-600 mt-2">Tap to open directions in Google Maps</p>
+            </CardContent>
+          </Card>}
+
+        {/* Important Note */}
+        {booking.status === 'confirmed' && <Card className="border-orange-200 bg-orange-50">
+            <CardContent className="p-4">
+              <h4 className="font-medium text-orange-800 mb-2">📋 Important Note</h4>
+              <p className="text-sm text-orange-700">Please arrive on time and pay the amount at the shop. You can cancel up to 30 mins before your appointment.</p>
+            </CardContent>
+          </Card>}
       </div>
-    </div>
-  );
+    </div>;
 };
 
 export default ReceiptPage;
