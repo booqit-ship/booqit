@@ -1,286 +1,77 @@
-import { StrictMode } from 'react';
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Toaster } from '@/components/ui/sonner';
-import { TooltipProvider } from '@/components/ui/tooltip';
-import { AuthProvider } from '@/contexts/AuthContext';
-import ProtectedRoute from '@/components/ProtectedRoute';
-import AuthPage from '@/pages/AuthPage';
-import ForgotPasswordPage from '@/pages/ForgotPasswordPage';
-import ResetPasswordPage from '@/pages/ResetPasswordPage';
-import Index from '@/pages/Index';
-import NotFound from '@/pages/NotFound';
-import PrivacyPolicy from '@/pages/PrivacyPolicy';
-import TermsAndConditions from '@/pages/TermsAndConditions';
-import NotificationTestPage from '@/pages/NotificationTestPage';
-import { useSessionPersistence } from '@/hooks/useSessionPersistence';
-import { useNotifications } from '@/hooks/useNotifications';
+import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider } from "@/contexts/AuthContext";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import SplashScreen from "@/components/SplashScreen";
+import NotificationBanner from "@/components/NotificationBanner";
+import LoginPage from "@/pages/LoginPage";
+import RegisterPage from "@/pages/RegisterPage";
+import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
+import ResetPasswordPage from "@/pages/ResetPasswordPage";
+import ProfilePage from "@/pages/ProfilePage";
+import BookingPage from "@/pages/BookingPage";
+import CustomerDashboardPage from "@/pages/CustomerDashboardPage";
+import MerchantDashboardPage from "@/pages/MerchantDashboardPage";
+import MerchantAvailabilityPage from "@/pages/MerchantAvailabilityPage";
+import MerchantServicesPage from "@/pages/MerchantServicesPage";
+import MerchantBookingsPage from "@/pages/MerchantBookingsPage";
+import MerchantProfilePage from "@/pages/MerchantProfilePage";
+import ServiceDetailsPage from "@/pages/ServiceDetailsPage";
+import CategoryPage from "@/pages/CategoryPage";
+import SearchResultsPage from "@/pages/SearchResultsPage";
+import VerifyEmailPage from "@/pages/VerifyEmailPage";
+import NotificationTestPage from "@/pages/NotificationTestPage";
+import { useEffect, useState } from "react";
 
-// Customer Pages
-import CustomerLayout from '@/layouts/CustomerLayout';
-import HomePage from '@/pages/customer/HomePage';
-import SearchPage from '@/pages/customer/SearchPage';
-import MapPage from '@/pages/customer/MapPage';
-import CalendarPage from '@/pages/customer/CalendarPage';
-import ProfilePage from '@/pages/customer/ProfilePage';
-import MerchantDetailPage from '@/pages/customer/MerchantDetailPage';
-import ServiceSelectionPage from '@/pages/customer/ServiceSelectionPage';
-import StaffSelectionPage from '@/pages/customer/StaffSelectionPage';
-import DateTimeSelectionPage from '@/pages/customer/DateTimeSelectionPage';
-import BookingSummaryPage from '@/pages/customer/BookingSummaryPage';
-import PaymentPage from '@/pages/customer/PaymentPage';
-import ReceiptPage from '@/pages/customer/ReceiptPage';
+const queryClient = new QueryClient();
 
-// Merchant Pages
-import MerchantLayout from '@/layouts/MerchantLayout';
-import DashboardPage from '@/pages/merchant/DashboardPage';
-import ServicesPage from '@/pages/merchant/ServicesPage';
-import CalendarManagementPage from '@/pages/merchant/CalendarManagementPage';
-import AnalyticsPage from '@/pages/merchant/AnalyticsPage';
-import SettingsPage from '@/pages/merchant/SettingsPage';
-import OnboardingPage from '@/pages/merchant/OnboardingPage';
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      gcTime: 10 * 60 * 1000, // 10 minutes
-      retry: 1,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
-
-// Component to handle session persistence and notifications - must be inside AuthProvider
-const AppWithProviders = () => {
-  useSessionPersistence();
-  useNotifications(); // Initialize Firebase notifications
-  return null;
-};
-
-const router = createBrowserRouter([
-  {
-    path: "/",
-    element: <Index />,
-  },
-  {
-    path: "/auth",
-    element: <AuthPage />,
-  },
-  {
-    path: "/forgot-password",
-    element: <ForgotPasswordPage />,
-  },
-  {
-    path: "/reset-password",
-    element: <ResetPasswordPage />,
-  },
-  {
-    path: "/privacy-policy",
-    element: <PrivacyPolicy />,
-  },
-  {
-    path: "/terms-and-conditions",
-    element: <TermsAndConditions />,
-  },
-  {
-    path: "/test-notifications",
-    element: <NotificationTestPage />,
-  },
-  // Customer routes - direct paths
-  {
-    path: "/home",
-    element: <ProtectedRoute requiredRole="customer" />,
-    children: [
-      {
-        path: "/home",
-        element: <CustomerLayout />,
-        children: [
-          { index: true, element: <HomePage /> },
-        ],
-      },
-    ],
-  },
-  {
-    path: "/search",
-    element: <ProtectedRoute requiredRole="customer" />,
-    children: [
-      {
-        path: "/search",
-        element: <CustomerLayout />,
-        children: [
-          { index: true, element: <SearchPage /> },
-        ],
-      },
-    ],
-  },
-  {
-    path: "/map",
-    element: <ProtectedRoute requiredRole="customer" />,
-    children: [
-      {
-        path: "/map",
-        element: <CustomerLayout />,
-        children: [
-          { index: true, element: <MapPage /> },
-        ],
-      },
-    ],
-  },
-  {
-    path: "/calendar",
-    element: <ProtectedRoute requiredRole="customer" />,
-    children: [
-      {
-        path: "/calendar",
-        element: <CustomerLayout />,
-        children: [
-          { index: true, element: <CalendarPage /> },
-        ],
-      },
-    ],
-  },
-  {
-    path: "/profile",
-    element: <ProtectedRoute requiredRole="customer" />,
-    children: [
-      {
-        path: "/profile",
-        element: <CustomerLayout />,
-        children: [
-          { index: true, element: <ProfilePage /> },
-        ],
-      },
-    ],
-  },
-  {
-    path: "/merchant/:merchantId",
-    element: <ProtectedRoute requiredRole="customer" />,
-    children: [
-      {
-        path: "/merchant/:merchantId",
-        element: <CustomerLayout />,
-        children: [
-          { index: true, element: <MerchantDetailPage /> },
-        ],
-      },
-    ],
-  },
-  {
-    path: "/booking/:merchantId",
-    element: <ProtectedRoute requiredRole="customer" />,
-    children: [
-      {
-        path: "/booking/:merchantId",
-        element: <CustomerLayout />,
-        children: [
-          { index: true, element: <ServiceSelectionPage /> },
-        ],
-      },
-    ],
-  },
-  {
-    path: "/booking/:merchantId/staff",
-    element: <ProtectedRoute requiredRole="customer" />,
-    children: [
-      {
-        path: "/booking/:merchantId/staff",
-        element: <CustomerLayout />,
-        children: [
-          { index: true, element: <StaffSelectionPage /> },
-        ],
-      },
-    ],
-  },
-  {
-    path: "/booking/:merchantId/datetime",
-    element: <ProtectedRoute requiredRole="customer" />,
-    children: [
-      {
-        path: "/booking/:merchantId/datetime",
-        element: <CustomerLayout />,
-        children: [
-          { index: true, element: <DateTimeSelectionPage /> },
-        ],
-      },
-    ],
-  },
-  {
-    path: "/booking/:merchantId/summary",
-    element: <ProtectedRoute requiredRole="customer" />,
-    children: [
-      {
-        path: "/booking/:merchantId/summary",
-        element: <CustomerLayout />,
-        children: [
-          { index: true, element: <BookingSummaryPage /> },
-        ],
-      },
-    ],
-  },
-  {
-    path: "/payment/:merchantId",
-    element: <ProtectedRoute requiredRole="customer" />,
-    children: [
-      {
-        path: "/payment/:merchantId",
-        element: <CustomerLayout />,
-        children: [
-          { index: true, element: <PaymentPage /> },
-        ],
-      },
-    ],
-  },
-  {
-    path: "/receipt/:bookingId",
-    element: <ProtectedRoute requiredRole="customer" />,
-    children: [
-      {
-        path: "/receipt/:bookingId",
-        element: <CustomerLayout />,
-        children: [
-          { index: true, element: <ReceiptPage /> },
-        ],
-      },
-    ],
-  },
-  // Merchant routes
-  {
-    path: "/merchant",
-    element: <ProtectedRoute requiredRole="merchant" />,
-    children: [
-      {
-        path: "/merchant",
-        element: <MerchantLayout />,
-        children: [
-          { index: true, element: <DashboardPage /> },
-          { path: "services", element: <ServicesPage /> },
-          { path: "calendar", element: <CalendarManagementPage /> },
-          { path: "analytics", element: <AnalyticsPage /> },
-          { path: "settings", element: <SettingsPage /> },
-        ],
-      },
-      { path: "onboarding", element: <OnboardingPage /> },
-    ],
-  },
-  {
-    path: "*",
-    element: <NotFound />,
-  },
-]);
-
-function App() {
+const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <AppWithProviders />
-          <RouterProvider router={router} />
           <Toaster />
+          <BrowserRouter>
+            <div className="min-h-screen bg-background font-sans antialiased">
+              <NotificationBanner />
+              <Routes>
+                <Route path="/splash" element={<SplashScreen />} />
+                <Route path="/auth" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
+                <Route path="/verify-email" element={<VerifyEmailPage />} />
+                
+                <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+                
+                {/* Customer Routes */}
+                <Route path="/" element={<ProtectedRoute><CustomerDashboardPage /></ProtectedRoute>} />
+                <Route path="/booking/:merchantId" element={<ProtectedRoute><BookingPage /></ProtectedRoute>} />
+                <Route path="/service/:serviceId" element={<ProtectedRoute><ServiceDetailsPage /></ProtectedRoute>} />
+                <Route path="/category/:categoryId" element={<ProtectedRoute><CategoryPage /></ProtectedRoute>} />
+                <Route path="/search" element={<ProtectedRoute><SearchResultsPage /></ProtectedRoute>} />
+                
+                {/* Merchant Routes */}
+                <Route path="/merchant/dashboard" element={<ProtectedRoute requireRole="merchant"><MerchantDashboardPage /></ProtectedRoute>} />
+                <Route path="/merchant/availability" element={<ProtectedRoute requireRole="merchant"><MerchantAvailabilityPage /></ProtectedRoute>} />
+                <Route path="/merchant/services" element={<ProtectedRoute requireRole="merchant"><MerchantServicesPage /></ProtectedRoute>} />
+                <Route path="/merchant/bookings" element={<ProtectedRoute requireRole="merchant"><MerchantBookingsPage /></ProtectedRoute>} />
+                <Route path="/merchant/profile" element={<ProtectedRoute requireRole="merchant"><MerchantProfilePage /></ProtectedRoute>} />
+
+                {/* Testing Route - remove in production */}
+                <Route path="/notification-test" element={<ProtectedRoute><NotificationTestPage /></ProtectedRoute>} />
+                
+                {/* Fallback Route */}
+                <Route path="*" element={<Navigate to="/" />} />
+              </Routes>
+            </div>
+          </BrowserRouter>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
-}
+};
 
 export default App;

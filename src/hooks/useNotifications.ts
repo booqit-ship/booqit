@@ -11,7 +11,7 @@ export const useNotifications = () => {
   const [hasPermission, setHasPermission] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
 
-  // Check current permission status on mount
+  // Check current permission status on mount and when auth changes
   useEffect(() => {
     if (!('Notification' in window)) {
       setIsSupported(false);
@@ -21,26 +21,27 @@ export const useNotifications = () => {
     const currentPermission = Notification.permission;
     console.log('🔔 Current permission status:', currentPermission);
     setHasPermission(currentPermission === 'granted');
-  }, []);
+  }, [isAuthenticated]);
 
+  // Initialize notifications when user is authenticated and has permission
   useEffect(() => {
     const initializeNotifications = async () => {
       if (!isAuthenticated || !userId || !userRole) {
-        console.log('🔔 Missing auth data:', { isAuthenticated, userId, userRole });
+        console.log('🔔 Missing auth data for initialization:', { isAuthenticated, userId, userRole });
         return;
       }
 
       if (!hasPermission) {
-        console.log('🔔 No notification permission granted');
+        console.log('🔔 No notification permission granted - skipping initialization');
         return;
       }
 
       if (isInitialized) {
-        console.log('🔔 Already initialized');
+        console.log('🔔 Already initialized - skipping');
         return;
       }
 
-      console.log('🔔 Initializing notifications for user:', userId, userRole);
+      console.log('🔔 Starting notification initialization for user:', userId, userRole);
 
       try {
         const result = await initializeUserNotifications(userId, userRole);
@@ -67,9 +68,9 @@ export const useNotifications = () => {
       }
     };
 
-    // Only run if we have permission
+    // Delay initialization slightly to ensure Firebase is ready
     if (hasPermission && isAuthenticated && userId && userRole) {
-      initializeNotifications();
+      setTimeout(initializeNotifications, 1000);
     }
   }, [isAuthenticated, userId, userRole, hasPermission, isInitialized]);
 
@@ -86,24 +87,28 @@ export const useNotifications = () => {
       
       if (permission && userId && userRole) {
         console.log('🔔 Permission granted, initializing notifications...');
-        const result = await initializeUserNotifications(userId, userRole);
         
-        if (result.success) {
-          setIsInitialized(true);
-          toast.success('Notifications enabled successfully! 🔔');
+        // Wait a bit for permission to be fully processed
+        setTimeout(async () => {
+          const result = await initializeUserNotifications(userId, userRole);
           
-          // Setup foreground message handling
-          setupForegroundMessaging((payload) => {
-            console.log('📱 Foreground notification received:', payload);
-            toast(payload.notification?.title || 'Notification', {
-              description: payload.notification?.body,
-              duration: 5000,
+          if (result.success) {
+            setIsInitialized(true);
+            toast.success('Notifications enabled successfully! 🔔');
+            
+            // Setup foreground message handling
+            setupForegroundMessaging((payload) => {
+              console.log('📱 Foreground notification received:', payload);
+              toast(payload.notification?.title || 'Notification', {
+                description: payload.notification?.body,
+                duration: 5000,
+              });
             });
-          });
-        } else {
-          console.error('❌ Failed to initialize after permission grant:', result.reason);
-          toast.error('Failed to initialize notifications: ' + result.reason);
-        }
+          } else {
+            console.error('❌ Failed to initialize after permission grant:', result.reason);
+            toast.error('Failed to initialize notifications: ' + result.reason);
+          }
+        }, 500);
       } else {
         toast('To get booking updates, please enable notifications in your browser settings', {
           duration: 7000,
