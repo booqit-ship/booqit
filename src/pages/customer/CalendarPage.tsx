@@ -13,7 +13,6 @@ import { format, parseISO, addDays, isSameDay, isToday } from 'date-fns';
 import { Calendar as CalendarIcon, Clock, Store, CalendarX, Scissors, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
-import { useCancelBooking } from '@/hooks/useCancelBooking';
 import CancelBookingButton from '@/components/customer/CancelBookingButton';
 
 const CalendarPage: React.FC = () => {
@@ -22,7 +21,6 @@ const CalendarPage: React.FC = () => {
   const { userId } = useAuth();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const { cancelBooking, isCancelling } = useCancelBooking();
   const queryClient = useQueryClient();
 
   // Generate 5 days starting from today (current date + next 4 days)
@@ -146,27 +144,6 @@ const CalendarPage: React.FC = () => {
       return isSameDay(bookingDate, date);
     }).sort((a, b) => a.time_slot.localeCompare(b.time_slot));
   }, [bookings, date]);
-
-  // Handle booking cancellation with improved error handling
-  const handleCancelBooking = async (bookingId: string) => {
-    console.log('Customer cancelling booking via direct function:', bookingId);
-    try {
-      const success = await cancelBooking(bookingId, userId);
-      if (success) {
-        // Invalidate queries to refresh data
-        queryClient.invalidateQueries({ queryKey: ['customer-bookings', userId] });
-        queryClient.invalidateQueries({ queryKey: ['appointment-counts', userId] });
-        console.log('Booking cancelled and bookings list refreshed');
-      }
-    } catch (error) {
-      console.error('Error in handleCancelBooking:', error);
-      toast({
-        title: "Error",
-        description: "Failed to cancel booking. Please try again.",
-        variant: "destructive"
-      });
-    }
-  };
 
   // Get status badge color
   const getStatusColor = (status: string) => {
@@ -337,7 +314,6 @@ const CalendarPage: React.FC = () => {
                             queryClient.invalidateQueries({ queryKey: ['customer-bookings', userId] });
                             queryClient.invalidateQueries({ queryKey: ['appointment-counts', userId] });
                           }} 
-                          className="h-8 text-sm px-4" 
                         />
                       </div>
                     )}
