@@ -1,5 +1,3 @@
-
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -108,6 +106,18 @@ serve(async (req) => {
 
     if (!profile.fcm_token) {
       console.log('⚠️ No FCM token for user:', userId)
+      
+      // Log the failed notification attempt
+      await supabaseClient
+        .from('notification_logs')
+        .insert({
+          user_id: userId,
+          title,
+          body,
+          type: data?.type || 'general',
+          status: 'failed'
+        })
+
       return new Response(
         JSON.stringify({ error: 'No FCM token found for user' }), 
         { 
@@ -119,6 +129,18 @@ serve(async (req) => {
 
     if (profile.notification_enabled === false) {
       console.log('🔕 Notifications disabled for user:', userId)
+      
+      // Log the skipped notification
+      await supabaseClient
+        .from('notification_logs')
+        .insert({
+          user_id: userId,
+          title,
+          body,
+          type: data?.type || 'general',
+          status: 'skipped'
+        })
+
       return new Response(
         JSON.stringify({ message: 'Notifications disabled for user' }), 
         { 
@@ -146,8 +168,7 @@ serve(async (req) => {
           title,
           body,
           type: data?.type || 'general',
-          status: 'failed',
-          error_message: fcmError.message
+          status: 'failed'
         })
 
       return new Response(
@@ -162,7 +183,7 @@ serve(async (req) => {
       )
     }
 
-    // Log the successful notification
+    // Log the successful notification (without fcm_response to avoid schema issues)
     const { error: logError } = await supabaseClient
       .from('notification_logs')
       .insert({
@@ -170,8 +191,7 @@ serve(async (req) => {
         title,
         body,
         type: data?.type || 'general',
-        status: 'sent',
-        fcm_response: notificationResult
+        status: 'sent'
       })
 
     if (logError) {
@@ -394,4 +414,3 @@ async function sendNotificationToToken(token: string, title: string, body: strin
     throw error;
   }
 }
-
