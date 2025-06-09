@@ -679,6 +679,10 @@ export type Database = {
         }
         Returns: Json
       }
+      fix_completed_bookings_payment_status: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       generate_all_shop_income_reports: {
         Args: { report_date: string; report_type: string }
         Returns: undefined

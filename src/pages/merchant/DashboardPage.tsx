@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -85,7 +84,7 @@ const DashboardPage: React.FC = () => {
           setBookingsToday(todayBookings?.length || 0);
         }
 
-        // Get total earnings from all completed bookings with proper status
+        // Get total earnings ONLY from completed bookings with completed payment status
         const { data: completedBookings, error: earningsError } = await supabase
           .from('bookings')
           .select(`

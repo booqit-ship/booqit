@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -94,6 +93,7 @@ const EarningsPage: React.FC = () => {
             id,
             date,
             status,
+            payment_status,
             service:service_id (
               price
             )
@@ -121,10 +121,15 @@ const EarningsPage: React.FC = () => {
           const dateStr = booking.date;
           const amount = booking.service?.price || 0;
           
-          // Only count completed bookings for earnings
+          // Count booking status for statistics
           if (booking.status === 'completed') {
-            // Update counts
             completedBookings++;
+          } else if (booking.status === 'cancelled') {
+            cancelledBookings++;
+          }
+          
+          // Only count earnings from completed bookings with completed payment status
+          if (booking.status === 'completed' && booking.payment_status === 'completed') {
             totalEarnings += amount;
             
             // Check date ranges
@@ -146,10 +151,6 @@ const EarningsPage: React.FC = () => {
             
             // Add to chart data map
             dateEarnings.set(dateStr, (dateEarnings.get(dateStr) || 0) + amount);
-          }
-          
-          if (booking.status === 'cancelled') {
-            cancelledBookings++;
           }
         });
         
