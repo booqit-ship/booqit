@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React, { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -6,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Merchant } from '@/types';
 import { SlidersHorizontal, ChevronUp, ChevronDown, Star, MapPin, Clock, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
 interface SearchBottomSheetProps {
   merchants: Merchant[];
   filters: {
@@ -20,6 +22,7 @@ interface SearchBottomSheetProps {
   onMerchantSelect: (merchant: Merchant) => void;
   userCity: string;
 }
+
 const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
   merchants,
   filters,
@@ -30,6 +33,61 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+
+  // Filter merchants locally in the bottom sheet
+  const filteredMerchants = useMemo(() => {
+    let filtered = [...merchants];
+
+    // Apply category filter
+    if (filters.category !== 'all') {
+      filtered = filtered.filter(merchant => merchant.category === filters.category);
+    }
+
+    // Apply gender focus filter
+    if (filters.genderFocus !== 'all') {
+      filtered = filtered.filter(merchant => 
+        merchant.gender_focus === filters.genderFocus || merchant.gender_focus === 'unisex'
+      );
+    }
+
+    // Apply rating filter
+    if (filters.rating !== 'all') {
+      const minRating = parseFloat(filters.rating);
+      filtered = filtered.filter(merchant => (merchant.rating || 0) >= minRating);
+    }
+
+    // Apply price range filter based on services
+    if (filters.priceRange !== 'all') {
+      filtered = filtered.filter(merchant => {
+        if (!merchant.services || merchant.services.length === 0) return false;
+        
+        const minPrice = Math.min(...merchant.services.map(s => s.price));
+        
+        switch (filters.priceRange) {
+          case 'low':
+            return minPrice <= 500;
+          case 'medium':
+            return minPrice > 500 && minPrice <= 1000;
+          case 'high':
+            return minPrice > 1000;
+          default:
+            return true;
+        }
+      });
+    }
+
+    // Apply sorting
+    if (filters.sortBy === 'rating') {
+      filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    } else if (filters.sortBy === 'name') {
+      filtered.sort((a, b) => a.shop_name.localeCompare(b.shop_name));
+    } else if (filters.sortBy === 'distance' && filtered.some(m => m.distanceValue)) {
+      filtered.sort((a, b) => (a.distanceValue || 0) - (b.distanceValue || 0));
+    }
+
+    return filtered;
+  }, [merchants, filters]);
+
   const handleFilterChange = (key: string, value: string) => {
     console.log(`Filter changed: ${key} = ${value}`);
     onFiltersChange(prev => ({
@@ -37,6 +95,7 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
       [key]: value
     }));
   };
+
   const resetFilters = () => {
     console.log('Resetting all filters');
     onFiltersChange({
@@ -47,9 +106,11 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
       genderFocus: 'all'
     });
   };
+
   const formatPrice = (price: number) => {
     return `₹${price}`;
   };
+
   const formatDuration = (duration: number) => {
     const hours = Math.floor(duration / 60);
     const minutes = duration % 60;
@@ -58,10 +119,51 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
     }
     return `${minutes} min`;
   };
+
   const handleExpandToggle = () => {
     setIsExpanded(!isExpanded);
   };
-  return <div className={cn("fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl transition-all duration-300 ease-out z-40 flex flex-col", isExpanded ? "h-[85vh]" : "h-44")}>
+
+  const renderStars = (rating: number | null | undefined) => {
+    if (!rating) return null;
+    
+    const stars = [];
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 >= 0.5;
+    
+    for (let i = 0; i < 5; i++) {
+      if (i < fullStars) {
+        stars.push(
+          <Star key={i} className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+        );
+      } else if (i === fullStars && hasHalfStar) {
+        stars.push(
+          <div key={i} className="relative w-3 h-3">
+            <Star className="w-3 h-3 text-gray-300 absolute" />
+            <div className="overflow-hidden w-1.5">
+              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400 absolute" />
+            </div>
+          </div>
+        );
+      } else {
+        stars.push(
+          <Star key={i} className="w-3 h-3 text-gray-300" />
+        );
+      }
+    }
+    
+    return (
+      <div className="flex items-center gap-1 mt-1">
+        {stars}
+        <span className="text-xs text-gray-600 ml-1 font-poppins">
+          {rating.toFixed(1)}
+        </span>
+      </div>
+    );
+  };
+
+  return (
+    <div className={cn("fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl transition-all duration-300 ease-out z-40 flex flex-col", isExpanded ? "h-[85vh]" : "h-44")}>
       {/* Handle bar and header */}
       <div className="flex flex-col items-center pt-3 pb-4 flex-shrink-0">
         {/* Only the handle bar should be clickable for expanding */}
@@ -117,13 +219,14 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
         {/* Venue count */}
         <div className="px-4 w-full">
           <p className="text-sm text-gray-500 text-left font-poppins">
-            {merchants.length} salons & spas found {userCity && `in ${userCity}`}
+            {filteredMerchants.length} salons & spas found {userCity && `in ${userCity}`}
           </p>
         </div>
       </div>
 
       {/* Extended filters */}
-      {showFilters && <div className="px-4 py-4 border-t border-gray-100 bg-gray-50 flex-shrink-0">
+      {showFilters && (
+        <div className="px-4 py-4 border-t border-gray-100 bg-gray-50 flex-shrink-0">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-gray-900 font-righteous font-medium">More Filters</h3>
             <Button variant="ghost" size="sm" onClick={resetFilters} className="text-booqit-primary font-poppins">
@@ -135,42 +238,56 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
             <div>
               <label className="text-sm font-medium mb-3 block text-gray-700 font-poppins">Price Range</label>
               <div className="flex gap-2 flex-wrap">
-                {[{
-              value: 'all',
-              label: 'Any'
-            }, {
-              value: 'low',
-              label: '₹0-500'
-            }, {
-              value: 'medium',
-              label: '₹500-1000'
-            }, {
-              value: 'high',
-              label: '₹1000+'
-            }].map(price => <Button key={price.value} variant={filters.priceRange === price.value ? "default" : "outline"} size="sm" onClick={() => handleFilterChange('priceRange', price.value)} className="rounded-full h-9 font-poppins">
+                {[
+                  { value: 'all', label: 'Any' },
+                  { value: 'low', label: '₹0-500' },
+                  { value: 'medium', label: '₹500-1000' },
+                  { value: 'high', label: '₹1000+' }
+                ].map(price => (
+                  <Button 
+                    key={price.value} 
+                    variant={filters.priceRange === price.value ? "default" : "outline"} 
+                    size="sm" 
+                    onClick={() => handleFilterChange('priceRange', price.value)} 
+                    className="rounded-full h-9 font-poppins"
+                  >
                     {price.label}
-                  </Button>)}
+                  </Button>
+                ))}
               </div>
             </div>
             
             <div>
               <label className="text-sm font-medium mb-3 block text-gray-700 font-poppins">Minimum Rating</label>
               <div className="flex gap-2 flex-wrap">
-                {['all', '3', '4', '4.5'].map(rating => <Button key={rating} variant={filters.rating === rating ? "default" : "outline"} size="sm" onClick={() => handleFilterChange('rating', rating)} className="rounded-full h-9 font-poppins">
+                {['all', '3', '4', '4.5'].map(rating => (
+                  <Button 
+                    key={rating} 
+                    variant={filters.rating === rating ? "default" : "outline"} 
+                    size="sm" 
+                    onClick={() => handleFilterChange('rating', rating)} 
+                    className="rounded-full h-9 font-poppins"
+                  >
                     {rating === 'all' ? 'Any' : `${rating}+ ⭐`}
-                  </Button>)}
+                  </Button>
+                ))}
               </div>
             </div>
           </div>
           
           <Separator className="my-4" />
-        </div>}
+        </div>
+      )}
 
       {/* Merchant list - Scrollable */}
-      {isExpanded && <div className="flex-1 overflow-y-auto px-4 pb-20">
-          {isLoading ? <div className="flex justify-center py-10">
+      {isExpanded && (
+        <div className="flex-1 overflow-y-auto px-4 pb-20">
+          {isLoading ? (
+            <div className="flex justify-center py-10">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-booqit-primary"></div>
-            </div> : merchants.length === 0 ? <div className="flex flex-col items-center justify-center py-16 px-8">
+            </div>
+          ) : filteredMerchants.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 px-8">
               <div className="relative mb-6">
                 <div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center">
                   <Search className="w-10 h-10 text-blue-400" />
@@ -189,27 +306,32 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
                 <br />
                 Try adjusting your filters or search in a different area.
               </p>
-            </div> : <div className="space-y-6">
-              {merchants.map(merchant => <Card key={merchant.id} className="overflow-hidden cursor-pointer hover:shadow-lg transition-all duration-200 border-0 shadow-md rounded-2xl" onClick={() => onMerchantSelect(merchant)}>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {filteredMerchants.map(merchant => (
+                <Card key={merchant.id} className="overflow-hidden cursor-pointer hover:shadow-lg transition-all duration-200 border-0 shadow-md rounded-2xl" onClick={() => onMerchantSelect(merchant)}>
                   <div className="relative">
                     {/* Shop Image */}
                     <div className="w-full h-48 relative">
                       <img src={merchant.image_url || '/placeholder.svg'} alt={merchant.shop_name} className="w-full h-full object-cover rounded-t-2xl" />
-                      
                     </div>
                     
                     <CardContent className="p-4">
-                      {/* Shop Name and Location */}
+                      {/* Shop Name and Rating */}
                       <div className="mb-3">
                         <h3 className="font-bold text-gray-900 mb-1 font-righteous font-medium text-xl">
                           {merchant.shop_name}
                         </h3>
-                        
+                        {/* Rating Stars */}
+                        {renderStars(merchant.rating)}
                       </div>
 
                       {/* Services */}
-                      {merchant.services && merchant.services.length > 0 && <div className="space-y-3">
-                          {merchant.services.slice(0, 3).map((service, index) => <div key={service.id} className="flex justify-between items-center">
+                      {merchant.services && merchant.services.length > 0 && (
+                        <div className="space-y-3">
+                          {merchant.services.slice(0, 3).map((service, index) => (
+                            <div key={service.id} className="flex justify-between items-center">
                               <div className="flex-1">
                                 <h4 className="font-medium text-gray-900 font-poppins text-base">{service.name}</h4>
                                 <div className="flex items-center text-gray-500 text-xs mt-1">
@@ -222,27 +344,38 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
                                   from {formatPrice(service.price)}
                                 </span>
                               </div>
-                            </div>)}
+                            </div>
+                          ))}
                           
-                          {merchant.services.length > 3 && <div className="pt-2">
+                          {merchant.services.length > 3 && (
+                            <div className="pt-2">
                               <span className="text-booqit-primary text-sm font-medium font-poppins">
                                 See more
                               </span>
-                            </div>}
-                        </div>}
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {/* Distance */}
-                      {merchant.distanceValue && <div className="mt-3 pt-3 border-t border-gray-100">
+                      {merchant.distanceValue && (
+                        <div className="mt-3 pt-3 border-t border-gray-100">
                           <div className="flex items-center text-gray-600">
                             <MapPin className="w-4 h-4 mr-1" />
                             <span className="text-sm font-poppins">{merchant.distance} away</span>
                           </div>
-                        </div>}
+                        </div>
+                      )}
                     </CardContent>
                   </div>
-                </Card>)}
-            </div>}
-        </div>}
-    </div>;
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 };
+
 export default SearchBottomSheet;
