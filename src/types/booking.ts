@@ -23,4 +23,9 @@ export interface BookingWithServices {
   services: BookingService[];
   total_duration: number;
   total_price: number;
+  merchant: {
+    shop_name: string;
+    address: string;
+    image_url: string | null;
+  };
 }

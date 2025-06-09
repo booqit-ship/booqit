@@ -58,6 +58,10 @@ const UpcomingBookings: React.FC = () => {
         const { data: servicesData, error: servicesError } = await supabase
           .rpc('get_booking_services', { p_booking_id: data.id });
 
+        if (servicesError) {
+          console.error('Error fetching booking services:', servicesError);
+        }
+
         const services = servicesData || [];
         const total_duration = services.reduce((sum: number, s: any) => sum + (s.service_duration || 0), 0);
         const total_price = services.reduce((sum: number, s: any) => sum + (s.service_price || 0), 0);
@@ -72,7 +76,8 @@ const UpcomingBookings: React.FC = () => {
             service_price: s.service_price
           })),
           total_duration,
-          total_price
+          total_price,
+          merchant: data.merchant
         };
         
         setNextBooking(typedBooking);
