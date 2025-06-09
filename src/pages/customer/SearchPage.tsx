@@ -108,7 +108,7 @@ const SearchPage: React.FC = () => {
     }
   };
 
-  // Fetch merchants from database with services and ratings
+  // Fetch merchants from database with services and apply filters
   const fetchMerchants = async () => {
     setIsLoading(true);
     try {
@@ -156,57 +156,8 @@ const SearchPage: React.FC = () => {
       console.log(`Fetched ${data?.length || 0} merchants from database`);
       
       if (data) {
-        // Process merchants and fetch ratings
-        const processedMerchants: Merchant[] = [];
-        
-        for (const rawMerchant of data) {
-          try {
-            // Fetch reviews for this merchant
-            const { data: reviews, error: reviewError } = await supabase
-              .from('reviews')
-              .select('rating')
-              .eq('merchant_id', rawMerchant.id);
-            
-            if (reviewError) {
-              console.error('Error fetching reviews for merchant:', rawMerchant.id, reviewError);
-              // Create merchant object with null rating
-              const merchantWithRating: Merchant = {
-                ...rawMerchant,
-                rating: null
-              };
-              processedMerchants.push(merchantWithRating);
-              continue;
-            }
-            
-            // Calculate average rating
-            let averageRating: number | null = null;
-            if (reviews && reviews.length > 0) {
-              const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
-              averageRating = totalRating / reviews.length;
-              console.log(`Merchant ${rawMerchant.shop_name}: ${reviews.length} reviews, average rating: ${averageRating.toFixed(1)}`);
-            } else {
-              console.log(`Merchant ${rawMerchant.shop_name}: No reviews found`);
-            }
-            
-            // Create merchant object with calculated rating
-            const merchantWithRating: Merchant = {
-              ...rawMerchant,
-              rating: averageRating
-            };
-            processedMerchants.push(merchantWithRating);
-          } catch (error) {
-            console.error('Error processing merchant rating:', error);
-            // Create merchant object with null rating as fallback
-            const merchantWithRating: Merchant = {
-              ...rawMerchant,
-              rating: null
-            };
-            processedMerchants.push(merchantWithRating);
-          }
-        }
-        
         // Apply price range filter client-side based on services
-        let filteredData = processedMerchants;
+        let filteredData = data as Merchant[];
         
         if (filters.priceRange !== 'all') {
           console.log(`Applying price range filter: ${filters.priceRange}`);
