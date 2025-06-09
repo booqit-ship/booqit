@@ -58,26 +58,41 @@ const CalendarManagementPage: React.FC = () => {
 
   const merchantId = merchant?.id;
 
-  // Get bookings with caching and proper typing
+  // Get bookings with enhanced caching and proper typing
   const { data: bookings = [], isFetching: isBookingsFetching } = useQuery({
     queryKey: ['bookings', merchantId, formatDateInIST(selectedDate, 'yyyy-MM-dd')],
     queryFn: async (): Promise<BookingWithCustomerDetails[]> => {
       if (!merchantId) return [];
       
       const dateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
+      console.log('Fetching bookings for date:', dateStr, 'merchant:', merchantId);
+      
       const { data, error } = await supabase
         .from('bookings')
         .select(`
-          *,
-          services (name, price, duration),
-          staff (name),
-          users (email, full_name)
+          id,
+          time_slot,
+          status,
+          payment_status,
+          customer_name,
+          customer_phone,
+          customer_email,
+          stylist_name,
+          services:service_id (
+            name,
+            duration
+          )
         `)
         .eq('merchant_id', merchantId)
         .eq('date', dateStr)
         .order('time_slot', { ascending: true });
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching bookings:', error);
+        throw error;
+      }
+      
+      console.log('Fetched bookings:', data);
       
       // Transform and type the data properly
       return (data || []).map(booking => ({
@@ -96,6 +111,7 @@ const CalendarManagementPage: React.FC = () => {
     },
     enabled: !!merchantId,
     staleTime: 2 * 60 * 1000, // 2 minutes
+    refetchOnWindowFocus: true,
   });
 
   // Get holidays with caching

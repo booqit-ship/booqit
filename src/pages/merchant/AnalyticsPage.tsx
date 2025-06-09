@@ -114,8 +114,8 @@ const AnalyticsPage: React.FC = () => {
 
         console.log('Date ranges:', { today, weekStart, weekEnd, monthStart, monthEnd });
 
-        // Fetch all completed bookings with payment status completed for earnings
-        const { data: completedBookingsForEarnings, error: earningsError } = await supabase
+        // Fetch all bookings with their services and payment data
+        const { data: bookingsWithServices, error: bookingsError } = await supabase
           .from('bookings')
           .select(`
             id,
@@ -123,31 +123,42 @@ const AnalyticsPage: React.FC = () => {
             staff_id,
             status,
             payment_status,
-            services!inner(price)
+            services!inner(name, price, duration)
           `)
-          .eq('merchant_id', mId)
-          .eq('status', 'completed')
-          .eq('payment_status', 'completed');
+          .eq('merchant_id', mId);
 
-        console.log('Completed bookings for earnings:', completedBookingsForEarnings);
+        console.log('All bookings fetched:', bookingsWithServices);
 
-        if (earningsError) {
-          console.error('Error fetching earnings data:', earningsError);
-        } else if (completedBookingsForEarnings) {
-          // Calculate earnings
-          const totalEarnings = completedBookingsForEarnings.reduce((sum, booking) => 
+        if (bookingsError) {
+          console.error('Error fetching bookings data:', bookingsError);
+          toast('Error loading bookings data', {
+            description: 'Could not fetch bookings data',
+          });
+          return;
+        }
+
+        if (bookingsWithServices) {
+          // Filter completed bookings with completed payment for earnings
+          const completedPaidBookings = bookingsWithServices.filter(
+            booking => booking.status === 'completed' && booking.payment_status === 'completed'
+          );
+          
+          console.log('Completed and paid bookings:', completedPaidBookings);
+
+          // Calculate earnings from completed and paid bookings only
+          const totalEarnings = completedPaidBookings.reduce((sum, booking) => 
             sum + (booking.services?.price || 0), 0
           );
           
-          const todayEarnings = completedBookingsForEarnings
+          const todayEarnings = completedPaidBookings
             .filter(booking => booking.date === today)
             .reduce((sum, booking) => sum + (booking.services?.price || 0), 0);
           
-          const weekEarnings = completedBookingsForEarnings
+          const weekEarnings = completedPaidBookings
             .filter(booking => booking.date >= weekStart && booking.date <= weekEnd)
             .reduce((sum, booking) => sum + (booking.services?.price || 0), 0);
           
-          const monthEarnings = completedBookingsForEarnings
+          const monthEarnings = completedPaidBookings
             .filter(booking => booking.date >= monthStart && booking.date <= monthEnd)
             .reduce((sum, booking) => sum + (booking.services?.price || 0), 0);
 
@@ -160,25 +171,16 @@ const AnalyticsPage: React.FC = () => {
             thisMonth: monthEarnings,
             customRange: 0,
           });
-        }
 
-        // Fetch all bookings (not just completed) for booking counts
-        const { data: allBookings, error: bookingsError } = await supabase
-          .from('bookings')
-          .select('id, date, status')
-          .eq('merchant_id', mId)
-          .in('status', ['pending', 'confirmed', 'completed']);
+          // Count all bookings (except cancelled) for booking statistics
+          const activeBookings = bookingsWithServices.filter(
+            booking => booking.status !== 'cancelled'
+          );
 
-        console.log('All bookings for counts:', allBookings);
-
-        if (bookingsError) {
-          console.error('Error fetching bookings data:', bookingsError);
-        } else if (allBookings) {
-          // Calculate bookings counts
-          const totalBookingsCount = allBookings.length;
-          const todayBookingsCount = allBookings.filter(b => b.date === today).length;
-          const weekBookingsCount = allBookings.filter(b => b.date >= weekStart && b.date <= weekEnd).length;
-          const monthBookingsCount = allBookings.filter(b => b.date >= monthStart && b.date <= monthEnd).length;
+          const totalBookingsCount = activeBookings.length;
+          const todayBookingsCount = activeBookings.filter(b => b.date === today).length;
+          const weekBookingsCount = activeBookings.filter(b => b.date >= weekStart && b.date <= weekEnd).length;
+          const monthBookingsCount = activeBookings.filter(b => b.date >= monthStart && b.date <= monthEnd).length;
 
           console.log('Calculated booking counts:', { totalBookingsCount, todayBookingsCount, weekBookingsCount, monthBookingsCount });
 
@@ -189,36 +191,36 @@ const AnalyticsPage: React.FC = () => {
             thisMonth: monthBookingsCount,
             customRange: 0,
           });
-        }
 
-        // Fetch staff data with earnings
-        const { data: staffList, error: staffError } = await supabase
-          .from('staff')
-          .select('id, name')
-          .eq('merchant_id', mId);
+          // Fetch staff data with earnings from completed and paid bookings
+          const { data: staffList, error: staffError } = await supabase
+            .from('staff')
+            .select('id, name')
+            .eq('merchant_id', mId);
 
-        console.log('Staff list:', staffList);
+          console.log('Staff list:', staffList);
 
-        if (staffError) {
-          console.error('Error fetching staff:', staffError);
-        } else if (staffList && completedBookingsForEarnings) {
-          const staffEarningsData = staffList.map(staff => {
-            const staffBookings = completedBookingsForEarnings.filter(b => b.staff_id === staff.id);
-            const staffEarnings = staffBookings.reduce((sum, booking) => 
-              sum + (booking.services?.price || 0), 0
-            );
-            
-            console.log(`Staff ${staff.name}: ${staffBookings.length} bookings, ₹${staffEarnings} earnings`);
-            
-            return {
-              id: staff.id,
-              name: staff.name,
-              earnings: staffEarnings,
-              bookings: staffBookings.length,
-            };
-          });
+          if (staffError) {
+            console.error('Error fetching staff:', staffError);
+          } else if (staffList) {
+            const staffEarningsData = staffList.map(staff => {
+              const staffCompletedBookings = completedPaidBookings.filter(b => b.staff_id === staff.id);
+              const staffEarnings = staffCompletedBookings.reduce((sum, booking) => 
+                sum + (booking.services?.price || 0), 0
+              );
+              
+              console.log(`Staff ${staff.name}: ${staffCompletedBookings.length} completed bookings, ₹${staffEarnings} earnings`);
+              
+              return {
+                id: staff.id,
+                name: staff.name,
+                earnings: staffEarnings,
+                bookings: staffCompletedBookings.length,
+              };
+            });
 
-          setStaffData(staffEarningsData);
+            setStaffData(staffEarningsData);
+          }
         }
 
       } catch (error) {
@@ -271,7 +273,7 @@ const AnalyticsPage: React.FC = () => {
           .from('bookings')
           .select('id')
           .eq('merchant_id', merchantId)
-          .in('status', ['pending', 'confirmed', 'completed'])
+          .neq('status', 'cancelled')
           .gte('date', fromDate)
           .lte('date', toDate);
 
