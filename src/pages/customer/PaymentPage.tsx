@@ -64,17 +64,21 @@ const PaymentPage: React.FC = () => {
         p_staff_id: selectedStaff,
         p_date: bookingDate,
         p_time_slot: bookingTime,
-        p_service_duration: totalDuration
+        p_service_duration: totalDuration,
+        p_services: selectedServices,
+        p_total_duration: totalDuration
       });
 
-      const { data: bookingResult, error: bookingError } = await supabase.rpc('create_confirmed_booking', {
+      const { data: bookingResult, error: bookingError } = await supabase.rpc('create_confirmed_booking_with_services', {
         p_user_id: userId,
         p_merchant_id: merchantId,
         p_service_id: serviceId,
         p_staff_id: selectedStaff,
         p_date: bookingDate,
         p_time_slot: bookingTime,
-        p_service_duration: totalDuration
+        p_service_duration: totalDuration,
+        p_services: JSON.stringify(selectedServices),
+        p_total_duration: totalDuration
       });
 
       if (bookingError) {
