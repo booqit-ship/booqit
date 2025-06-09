@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Smartphone } from 'lucide-react';
@@ -9,7 +8,7 @@ import { toast } from 'sonner';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { formatDateInIST } from '@/utils/dateUtils';
 import { useAuth } from '@/contexts/AuthContext';
-import { sendNewBookingNotification } from '@/services/eventNotificationService';
+import { sendNewBookingNotification, sendBookingCompletedNotification } from '@/services/eventNotificationService';
 
 interface BookingResponse {
   success: boolean;
@@ -103,7 +102,6 @@ const PaymentPage: React.FC = () => {
 
       if (blockingError) {
         console.error('Error blocking slots:', blockingError);
-        // Don't fail the booking if slot blocking fails, just log it
         console.warn('Slot blocking failed but booking was created');
       } else {
         console.log('Slot blocking result:', blockingResult);
@@ -120,7 +118,6 @@ const PaymentPage: React.FC = () => {
 
       if (updateError) {
         console.error('Error updating booking with services:', updateError);
-        // Don't fail the booking creation, just log the error
       } else {
         console.log('Successfully updated booking with services and total duration');
       }
@@ -141,7 +138,6 @@ const PaymentPage: React.FC = () => {
       
       if (paymentError) {
         console.error('Error creating payment record:', paymentError);
-        // Update booking payment status even if payment record creation failed
         const { error: updateError } = await supabase
           .from('bookings')
           .update({ payment_status: 'completed' })
@@ -155,7 +151,6 @@ const PaymentPage: React.FC = () => {
       } else {
         console.log('Payment record created successfully:', paymentData);
         
-        // Update booking payment status to completed
         const { error: updateError } = await supabase
           .from('bookings')
           .update({ payment_status: 'completed' })
@@ -168,7 +163,9 @@ const PaymentPage: React.FC = () => {
         }
       }
 
-      // Send new booking notification to merchant
+      // Send notifications to both merchant and customer
+      console.log('⚡ About to send booking notifications...');
+      
       try {
         // Get merchant user ID
         const { data: merchantData } = await supabase
@@ -177,29 +174,44 @@ const PaymentPage: React.FC = () => {
           .eq('id', merchantId)
           .single();
 
+        // Get customer name from profile
+        const { data: customerProfile } = await supabase
+          .from('profiles')
+          .select('name')
+          .eq('id', userId)
+          .single();
+
+        const customerName = customerProfile?.name || 'Customer';
+        const serviceName = selectedServices[0]?.name || 'Service';
+        const formattedTime = formatTimeToAmPm(bookingTime);
+        const formattedDate = formatDateInIST(new Date(bookingDate), 'MMM d, yyyy');
+        const dateTime = `${formattedDate} at ${formattedTime}`;
+
+        // Send new booking notification to merchant
         if (merchantData?.user_id) {
-          // Get customer name from auth context or profile
-          const { data: customerProfile } = await supabase
-            .from('profiles')
-            .select('name')
-            .eq('id', userId)
-            .single();
-
-          const customerName = customerProfile?.name || 'Customer';
-          const serviceName = selectedServices[0]?.name || 'Service';
-          const formattedTime = formatTimeToAmPm(bookingTime);
-
+          console.log('⚡ About to send new booking notification to merchant:', merchantData.user_id);
           await sendNewBookingNotification(
             merchantData.user_id,
             customerName,
             serviceName,
-            formattedTime,
+            dateTime,
             response.booking_id
           );
+          console.log('✅ New booking notification sent to merchant');
         }
+
+        // Send booking confirmation to customer
+        console.log('⚡ About to send booking confirmation to customer:', userId);
+        await sendBookingCompletedNotification(
+          userId,
+          merchant.shop_name || 'Salon',
+          response.booking_id
+        );
+        console.log('✅ Booking confirmation sent to customer');
+
       } catch (notificationError) {
-        console.error('❌ Error sending booking notification:', notificationError);
-        // Don't fail the booking if notification fails
+        console.error('❌ Error sending booking notifications:', notificationError);
+        // Don't fail the booking if notifications fail
       }
       
       toast.success('Payment successful! Your booking is confirmed.');

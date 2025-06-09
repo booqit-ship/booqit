@@ -1,11 +1,7 @@
-
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { UserRole } from '../types';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Session, User } from '@supabase/supabase-js';
-import { toast } from 'sonner';
-import { useQueryClient } from '@tanstack/react-query';
-import { PermanentSession } from '@/utils/permanentSession';
+import { User } from '@supabase/supabase-js';
+import { sendWelcomeNotification } from '@/services/eventNotificationService';
 
 interface AuthContextType {
   isAuthenticated: boolean;
