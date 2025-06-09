@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Smartphone } from 'lucide-react';
@@ -35,53 +36,6 @@ const PaymentPage: React.FC = () => {
   
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Update the createBooking function to use total duration
-  const createBooking = async () => {
-    if (!userId || !merchant || !selectedServices || !selectedStaff || !bookingDate || !bookingTime) {
-      toast.error('Missing booking information');
-      return null;
-    }
-
-    const totalServiceDuration = selectedServices.reduce((total: number, service: any) => total + service.duration, 0);
-    
-    console.log('PAYMENT_BOOKING: Creating booking with total duration:', {
-      services: selectedServices.length,
-      totalDuration: totalServiceDuration,
-      time: bookingTime
-    });
-
-    try {
-      // Use the updated booking creation function with total duration
-      const { data, error } = await supabase.rpc('create_booking_with_services', {
-        p_user_id: userId,
-        p_merchant_id: merchant.id,
-        p_staff_id: selectedStaff,
-        p_date: bookingDate,
-        p_time_slot: bookingTime,
-        p_services: selectedServices,
-        p_total_duration: totalServiceDuration
-      });
-
-      if (error) {
-        console.error('Booking creation error:', error);
-        throw error;
-      }
-
-      const result = data as { success: boolean; booking_id?: string; error?: string };
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to create booking');
-      }
-
-      console.log('PAYMENT_BOOKING: Booking created successfully with ID:', result.booking_id);
-      return result.booking_id;
-    } catch (error) {
-      console.error('Error creating booking:', error);
-      toast.error('Failed to create booking. Please try again.');
-      return null;
-    }
-  };
-
   const handlePayment = async () => {
     if (!userId || !merchantId) {
       toast.error('Authentication required');
@@ -101,7 +55,7 @@ const PaymentPage: React.FC = () => {
       // Simulate payment processing (2 seconds)
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Create booking directly as confirmed
+      // Create booking directly as confirmed using the existing function
       const serviceId = selectedServices[0]?.id;
       console.log('Creating booking with params:', {
         p_user_id: userId,
@@ -110,17 +64,21 @@ const PaymentPage: React.FC = () => {
         p_staff_id: selectedStaff,
         p_date: bookingDate,
         p_time_slot: bookingTime,
-        p_service_duration: totalDuration
+        p_service_duration: totalDuration,
+        p_services: JSON.stringify(selectedServices),
+        p_total_duration: totalDuration
       });
 
-      const { data: bookingResult, error: bookingError } = await supabase.rpc('create_confirmed_booking', {
+      const { data: bookingResult, error: bookingError } = await supabase.rpc('create_confirmed_booking_with_services', {
         p_user_id: userId,
         p_merchant_id: merchantId,
         p_service_id: serviceId,
         p_staff_id: selectedStaff,
         p_date: bookingDate,
         p_time_slot: bookingTime,
-        p_service_duration: totalDuration
+        p_service_duration: totalDuration,
+        p_services: JSON.stringify(selectedServices),
+        p_total_duration: totalDuration
       });
 
       if (bookingError) {
@@ -135,22 +93,6 @@ const PaymentPage: React.FC = () => {
       if (!response.success) {
         toast.error(response.error || 'Failed to create booking');
         return;
-      }
-
-      // Update the booking with services and total_duration information
-      const { error: updateError } = await supabase
-        .from('bookings')
-        .update({
-          services: JSON.stringify(selectedServices),
-          total_duration: totalDuration
-        })
-        .eq('id', response.booking_id);
-
-      if (updateError) {
-        console.error('Error updating booking with services:', updateError);
-        // Don't fail the booking creation, just log the error
-      } else {
-        console.log('Successfully updated booking with services and total duration');
       }
 
       // Create payment record with proper error handling
