@@ -16,7 +16,7 @@ const ServiceSelectionPage: React.FC = () => {
   const { merchant, services: initialServices } = location.state;
 
   const [services, setServices] = useState<Service[]>(initialServices || []);
-  const [selectedService, setSelectedService] = useState<Service | null>(null);
+  const [selectedServices, setSelectedServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -45,23 +45,28 @@ const ServiceSelectionPage: React.FC = () => {
     }
   };
 
-  const selectService = (service: Service) => {
-    setSelectedService(service);
+  // Toggle selection for a service
+  const toggleService = (service: Service) => {
+    setSelectedServices(prev =>
+      prev.find(s => s.id === service.id)
+        ? prev.filter(s => s.id !== service.id)
+        : [...prev, service]
+    );
   };
 
-  const totalPrice = selectedService ? selectedService.price : 0;
-  const totalDuration = selectedService ? selectedService.duration : 0;
+  const totalPrice = selectedServices.reduce((sum, s) => sum + (s.price || 0), 0);
+  const totalDuration = selectedServices.reduce((sum, s) => sum + (s.duration || 0), 0);
 
   const handleContinue = () => {
-    if (!selectedService) {
-      toast.error('Please select a service');
+    if (selectedServices.length === 0) {
+      toast.error('Please select at least one service');
       return;
     }
 
     navigate(`/booking/${merchantId}/staff`, {
       state: {
         merchant,
-        selectedServices: [selectedService],
+        selectedServices,
         totalPrice,
         totalDuration
       }
@@ -88,20 +93,20 @@ const ServiceSelectionPage: React.FC = () => {
           >
             <ChevronLeft className="h-5 w-5" />
           </Button>
-          <h1 className="text-xl font-medium">Select Service</h1>
+          <h1 className="text-xl font-medium">Select Services</h1>
         </div>
       </div>
 
       <div className="p-4">
         <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-2">Choose Your Service</h2>
-          <p className="text-gray-500 text-sm">Select the service you'd like to book</p>
+          <h2 className="text-lg font-semibold mb-2">Choose Your Services</h2>
+          <p className="text-gray-500 text-sm">Select the services you'd like to book</p>
         </div>
 
         {services.length > 0 ? (
           <div className="space-y-4 mb-6">
             {services.map(service => {
-              const isSelected = selectedService?.id === service.id;
+              const isSelected = selectedServices.some(s => s.id === service.id);
 
               return (
                 <Card 
@@ -109,7 +114,7 @@ const ServiceSelectionPage: React.FC = () => {
                   className={`overflow-hidden cursor-pointer transition-all ${
                     isSelected ? 'border-booqit-primary bg-booqit-primary/5' : 'border-gray-200'
                   }`}
-                  onClick={() => selectService(service)}
+                  onClick={() => toggleService(service)}
                 >
                   <CardContent className="p-4">
                     <div className="flex justify-between items-start mb-2">
@@ -142,14 +147,16 @@ const ServiceSelectionPage: React.FC = () => {
           </div>
         )}
 
-        {selectedService && (
+        {selectedServices.length > 0 && (
           <Card className="mb-6">
             <CardContent className="p-4">
-              <h3 className="font-semibold mb-3">Selected Service</h3>
-              <div className="flex justify-between text-sm">
-                <span>{selectedService.name}</span>
-                <span>₹{selectedService.price}</span>
-              </div>
+              <h3 className="font-semibold mb-3">Selected Services</h3>
+              {selectedServices.map(service => (
+                <div key={service.id} className="flex justify-between text-sm mb-1">
+                  <span>{service.name}</span>
+                  <span>₹{service.price}</span>
+                </div>
+              ))}
               <Separator className="my-3" />
               <div className="flex justify-between font-semibold">
                 <span>Total ({totalDuration} mins)</span>
@@ -165,7 +172,7 @@ const ServiceSelectionPage: React.FC = () => {
           className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6"
           size="lg"
           onClick={handleContinue}
-          disabled={!selectedService}
+          disabled={selectedServices.length === 0}
         >
           Continue to Stylist Selection
         </Button>
