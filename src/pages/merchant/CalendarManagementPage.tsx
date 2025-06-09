@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -133,10 +132,11 @@ const CalendarManagementPage: React.FC = () => {
     staleTime: 15 * 60 * 1000, // 15 minutes
   });
 
-  // Generate visible days for appointment counts (5 days from selected date)
+  // Generate visible days for appointment counts (always from today + 4 days)
   const visibleDays = React.useMemo(() => {
-    return Array.from({ length: 5 }, (_, i) => addDays(selectedDate, i));
-  }, [selectedDate]);
+    const today = new Date();
+    return Array.from({ length: 5 }, (_, i) => addDays(today, i));
+  }, []);
 
   // Get appointment counts with caching
   const { data: appointmentCounts = {}, isFetching: isCountsFetching } = useQuery({

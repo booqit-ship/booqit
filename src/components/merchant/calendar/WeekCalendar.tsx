@@ -27,10 +27,11 @@ const WeekCalendar: React.FC<WeekCalendarProps> = ({
   appointmentCounts = {},
   holidays = []
 }) => {
-  // Generate 5 days starting from the selected date (no auto-centering)
+  // Generate 5 days starting from today (like customer calendar)
   const weekDays = React.useMemo(() => {
-    return Array.from({ length: 5 }, (_, i) => addDays(selectedDate, i));
-  }, [selectedDate]);
+    const today = new Date();
+    return Array.from({ length: 5 }, (_, i) => addDays(today, i));
+  }, []);
 
   // Check if a date is a holiday
   const isHoliday = (date: Date) => {
@@ -57,8 +58,8 @@ const WeekCalendar: React.FC<WeekCalendarProps> = ({
         </div>
       </CardHeader>
       
-      <CardContent className="p-2 sm:p-4">
-        <div className="grid grid-cols-5 gap-1 sm:gap-2">
+      <CardContent className="p-4">
+        <div className="grid grid-cols-5 gap-2">
           {weekDays.map((day, index) => {
             const isCurrentDay = isToday(day);
             const isSelectedDay = isSameDay(day, selectedDate);
@@ -69,24 +70,24 @@ const WeekCalendar: React.FC<WeekCalendarProps> = ({
             return (
               <div key={index} className="flex flex-col items-center cursor-pointer" onClick={() => onDateSelect(day)}>
                 <div className={`
-                  w-full h-12 sm:h-16 rounded-lg sm:rounded-xl flex flex-col items-center justify-center transition-all duration-200
+                  w-full h-16 rounded-xl flex flex-col items-center justify-center transition-all duration-200
                   ${isHolidayDay ? 'bg-red-500 text-white shadow-lg border-2 border-red-600' :
                     isSelectedDay ? 'bg-booqit-primary text-white shadow-lg border-2 border-booqit-primary' : 
                     isCurrentDay ? 'bg-booqit-primary/20 text-booqit-primary border-2 border-booqit-primary/30' : 
                     'bg-gray-50 text-gray-700 hover:bg-gray-100 border-2 border-transparent'}
                 `}>
-                  <div className="text-[10px] sm:text-xs font-medium uppercase tracking-wide">
+                  <div className="text-xs font-medium uppercase tracking-wide">
                     {format(day, 'EEE')}
                   </div>
-                  <div className="text-sm sm:text-lg font-bold">
+                  <div className="text-lg font-bold">
                     {format(day, 'd')}
                   </div>
-                  <div className="text-[10px] sm:text-xs">
+                  <div className="text-xs">
                     {format(day, 'MMM')}
                   </div>
                 </div>
                 
-                <div className="mt-1 sm:mt-2 text-[10px] sm:text-xs text-gray-500 text-center">
+                <div className="mt-2 text-xs text-gray-500 text-center">
                   {isHolidayDay ? (
                     <span className="text-red-500 font-medium">Holiday</span>
                   ) : appointmentCount > 0 ? (
