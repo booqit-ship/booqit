@@ -1,85 +1,110 @@
-import { useState, useCallback } from 'react';
+
+import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-
-interface SlotLockResult {
-  success: boolean;
-  error?: string;
-  expires_at?: string;
-}
+import { formatDateInIST } from '@/utils/dateUtils';
 
 export const useSlotLocking = () => {
   const [isLocking, setIsLocking] = useState(false);
-  const [lockedSlot, setLockedSlot] = useState<{
-    staffId: string;
-    date: string;
-    timeSlot: string;
-  } | null>(null);
 
-  const lockSlot = useCallback(async (
+  const lockSlot = async (
     staffId: string,
-    date: string,
+    dateStr: string,
     timeSlot: string,
-    totalDuration: number
+    serviceDuration: number
   ): Promise<boolean> => {
+    if (isLocking) return false;
+    
     setIsLocking(true);
     
     try {
-      console.log('SLOT_LOCKING: Attempting to lock slot with total duration:', { 
-        staffId, 
-        date, 
-        timeSlot, 
-        totalDuration 
+      console.log('🔒 Attempting atomic multi-slot lock:', {
+        staffId,
+        date: dateStr,
+        startTime: timeSlot,
+        duration: serviceDuration
       });
-      
-      // Check if the slot is available using the total duration
-      const { data: slotsData } = await supabase.rpc('get_available_slots_with_ist_buffer', {
-        p_merchant_id: staffId.split('-')[0], // Quick way to get merchant ID from staff ID
-        p_date: date,
-        p_staff_id: staffId,
-        p_service_duration: totalDuration
-      });
-      
-      const availableSlots = Array.isArray(slotsData) ? slotsData : [];
-      const isSlotAvailable = availableSlots.some(slot => 
-        slot.staff_id === staffId && 
-        slot.time_slot === timeSlot && 
-        slot.is_available
+
+      // Use the new atomic multi-slot locking function
+      const { data: lockResult, error: lockError } = await supabase.rpc(
+        'create_atomic_multi_slot_lock',
+        {
+          p_staff_id: staffId,
+          p_date: dateStr,
+          p_start_time: timeSlot,
+          p_service_duration: serviceDuration,
+          p_lock_duration_minutes: 5 // Lock for 5 minutes
+        }
       );
-      
-      if (!isSlotAvailable) {
-        console.log('SLOT_LOCKING: Slot not available for total duration:', { 
-          staffId, 
-          date, 
-          timeSlot, 
-          totalDuration 
-        });
-        toast.error(`This time slot is not available for ${totalDuration} minutes`);
+
+      if (lockError) {
+        console.error('❌ Slot locking error:', lockError);
+        toast.error('Failed to reserve time slot');
         return false;
       }
 
-      // Keep track of the slot locally
-      setLockedSlot({ staffId, date, timeSlot });
-      toast.success(`Slot selected for ${totalDuration} minutes`);
-      return true;
+      const response = lockResult as { success: boolean; error?: string; slots_locked?: number };
       
+      if (!response.success) {
+        console.warn('❌ Slot lock failed:', response.error);
+        toast.error(response.error || 'Time slot is not available');
+        return false;
+      }
+
+      console.log('✅ Successfully locked', response.slots_locked, 'slots');
+      return true;
+
     } catch (error) {
-      console.error('Error in lockSlot:', error);
-      toast.error('Failed to select slot. Please try again.');
+      console.error('❌ Error in lockSlot:', error);
+      toast.error('Failed to reserve time slot');
       return false;
     } finally {
       setIsLocking(false);
     }
-  }, []);
+  };
 
-  const releaseLock = useCallback(() => {
-    setLockedSlot(null);
-  }, []);
+  const releaseSlot = async (
+    staffId: string,
+    dateStr: string,
+    timeSlot: string,
+    serviceDuration: number
+  ): Promise<boolean> => {
+    try {
+      console.log('🔓 Releasing atomic multi-slot lock:', {
+        staffId,
+        date: dateStr,
+        startTime: timeSlot,
+        duration: serviceDuration
+      });
+
+      const { data: releaseResult, error: releaseError } = await supabase.rpc(
+        'release_atomic_multi_slot_lock',
+        {
+          p_staff_id: staffId,
+          p_date: dateStr,
+          p_start_time: timeSlot,
+          p_service_duration: serviceDuration
+        }
+      );
+
+      if (releaseError) {
+        console.error('❌ Slot release error:', releaseError);
+        return false;
+      }
+
+      const response = releaseResult as { success: boolean; slots_released?: number };
+      console.log('✅ Released', response.slots_released, 'slot locks');
+      return response.success;
+
+    } catch (error) {
+      console.error('❌ Error releasing slot:', error);
+      return false;
+    }
+  };
 
   return {
     lockSlot,
-    releaseLock,
-    isLocking,
-    lockedSlot
+    releaseSlot,
+    isLocking
   };
 };

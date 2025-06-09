@@ -30,11 +30,17 @@ const DateTimeSelectionPage: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(getCurrentDateIST());
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [isCheckingSlot, setIsCheckingSlot] = useState(false);
+  const [lockedSlotInfo, setLockedSlotInfo] = useState<{
+    staffId: string;
+    date: string;
+    time: string;
+    duration: number;
+  } | null>(null);
 
   // Calculate total duration for all selected services
   const totalDuration = calculateTotalServiceDuration(selectedServices || []);
 
-  // Use the new available slots hook
+  // Use the improved available slots hook
   const {
     availableSlots,
     loading,
@@ -48,8 +54,8 @@ const DateTimeSelectionPage: React.FC = () => {
     totalDuration
   });
 
-  // Slot locking functionality
-  const { lockSlot, isLocking } = useSlotLocking();
+  // Slot locking functionality with atomic multi-slot support
+  const { lockSlot, releaseSlot, isLocking } = useSlotLocking();
 
   // Real-time slot updates
   useRealtimeSlots({
@@ -60,17 +66,52 @@ const DateTimeSelectionPage: React.FC = () => {
     selectedTime,
     onSelectedTimeInvalidated: () => {
       setSelectedTime('');
+      setLockedSlotInfo(null);
       toast.info('Selected time slot is no longer available');
     }
   });
 
+  // Cleanup: Release locked slots when component unmounts or user navigates away
+  useEffect(() => {
+    return () => {
+      if (lockedSlotInfo) {
+        console.log('🔓 Cleaning up locked slots on unmount');
+        releaseSlot(
+          lockedSlotInfo.staffId,
+          lockedSlotInfo.date,
+          lockedSlotInfo.time,
+          lockedSlotInfo.duration
+        );
+      }
+    };
+  }, [lockedSlotInfo, releaseSlot]);
+
   const handleSlotClick = async (timeSlot: string) => {
     if (isLocking || isCheckingSlot) return;
+    
+    // If user selects a different slot, release the previous lock first
+    if (lockedSlotInfo && lockedSlotInfo.time !== timeSlot) {
+      console.log('🔄 Releasing previous slot lock before selecting new one');
+      await releaseSlot(
+        lockedSlotInfo.staffId,
+        lockedSlotInfo.date,
+        lockedSlotInfo.time,
+        lockedSlotInfo.duration
+      );
+      setLockedSlotInfo(null);
+      setSelectedTime('');
+    }
     
     setIsCheckingSlot(true);
     
     try {
-      // Lock the slot for the full duration
+      console.log('🎯 Attempting to lock slot:', {
+        timeSlot,
+        totalDuration,
+        staff: selectedStaff
+      });
+
+      // Attempt atomic multi-slot lock
       const success = await lockSlot(
         selectedStaff,
         formatDateInIST(selectedDate, 'yyyy-MM-dd'),
@@ -80,14 +121,20 @@ const DateTimeSelectionPage: React.FC = () => {
       
       if (success) {
         setSelectedTime(timeSlot);
-        toast.success(`Time slot selected for ${totalDuration} minutes`);
+        setLockedSlotInfo({
+          staffId: selectedStaff,
+          date: formatDateInIST(selectedDate, 'yyyy-MM-dd'),
+          time: timeSlot,
+          duration: totalDuration
+        });
+        toast.success(`Time slot reserved for ${totalDuration} minutes`);
       } else {
         // Refresh slots to show current availability
         refreshSlots();
         toast.error('This time slot is not available for the selected duration');
       }
     } catch (error) {
-      console.error('Error selecting slot:', error);
+      console.error('❌ Error selecting slot:', error);
       toast.error('Failed to select time slot');
       refreshSlots();
     } finally {
@@ -95,12 +142,14 @@ const DateTimeSelectionPage: React.FC = () => {
     }
   };
 
-  const handleContinue = () => {
-    if (!selectedTime) {
+  const handleContinue = async () => {
+    if (!selectedTime || !lockedSlotInfo) {
       toast.error('Please select a time slot');
       return;
     }
 
+    // Don't release the lock here - it will be released after successful booking
+    // or when the user navigates back
     navigate(`/customer/merchant/${merchantId}/payment`, {
       state: {
         merchant,
@@ -110,12 +159,23 @@ const DateTimeSelectionPage: React.FC = () => {
         selectedStaff,
         selectedStaffDetails,
         bookingDate: formatDateInIST(selectedDate, 'yyyy-MM-dd'),
-        bookingTime: selectedTime
+        bookingTime: selectedTime,
+        lockedSlotInfo // Pass this to payment page for proper cleanup
       }
     });
   };
 
-  const handleGoBack = () => {
+  const handleGoBack = async () => {
+    // Release any locked slots before going back
+    if (lockedSlotInfo) {
+      console.log('🔓 Releasing locked slots before navigation');
+      await releaseSlot(
+        lockedSlotInfo.staffId,
+        lockedSlotInfo.date,
+        lockedSlotInfo.time,
+        lockedSlotInfo.duration
+      );
+    }
     navigate(-1);
   };
 
@@ -203,8 +263,18 @@ const DateTimeSelectionPage: React.FC = () => {
               selected={selectedDate}
               onSelect={(date) => {
                 if (date) {
+                  // Release any current locks when changing date
+                  if (lockedSlotInfo) {
+                    releaseSlot(
+                      lockedSlotInfo.staffId,
+                      lockedSlotInfo.date,
+                      lockedSlotInfo.time,
+                      lockedSlotInfo.duration
+                    );
+                    setLockedSlotInfo(null);
+                  }
                   setSelectedDate(date);
-                  setSelectedTime(''); // Reset time selection when date changes
+                  setSelectedTime('');
                 }
               }}
               disabled={(date) => date < getCurrentDateIST()}
@@ -237,7 +307,18 @@ const DateTimeSelectionPage: React.FC = () => {
           <Card className="bg-blue-50 border-blue-200">
             <CardContent className="p-4">
               <p className="text-blue-800 text-sm font-poppins">
-                ℹ️ Your selected services require {totalDuration} minutes. Only time slots with full availability are shown.
+                ℹ️ Your selected services require {totalDuration} minutes. We reserve all required time slots to ensure availability.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Slot Lock Status */}
+        {lockedSlotInfo && (
+          <Card className="bg-green-50 border-green-200">
+            <CardContent className="p-4">
+              <p className="text-green-800 text-sm font-poppins">
+                ✅ Time slot {formatTimeToAmPm(lockedSlotInfo.time)} is temporarily reserved for you
               </p>
             </CardContent>
           </Card>
@@ -249,10 +330,10 @@ const DateTimeSelectionPage: React.FC = () => {
         <Button
           size="lg"
           onClick={handleContinue}
-          disabled={!selectedTime || isLocking || isCheckingSlot}
+          disabled={!selectedTime || isLocking || isCheckingSlot || !lockedSlotInfo}
           className="w-full bg-booqit-primary hover:bg-booqit-primary/90 py-6 font-poppins font-semibold text-base"
         >
-          {isLocking || isCheckingSlot ? 'Checking availability...' : 
+          {isLocking || isCheckingSlot ? 'Reserving slot...' : 
            selectedTime ? `Continue with ${formatTimeToAmPm(selectedTime)}` : 
            'Select a time slot to continue'}
         </Button>
