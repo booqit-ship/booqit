@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Smartphone } from 'lucide-react';
@@ -49,21 +50,23 @@ const PaymentPage: React.FC = () => {
     setIsProcessing(true);
     
     try {
-      console.log('Processing payment and creating booking...');
+      console.log('Processing payment and creating simple booking...');
 
       // Simulate payment processing (2 seconds)
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Create booking directly as confirmed using the existing function
+      // Create booking directly as confirmed using simple function
       const serviceId = selectedServices[0]?.id;
-      console.log('Creating booking with params:', {
+      const serviceDuration = selectedServices[0]?.duration || 30;
+      
+      console.log('Creating simple booking with params:', {
         p_user_id: userId,
         p_merchant_id: merchantId,
         p_service_id: serviceId,
         p_staff_id: selectedStaff,
         p_date: bookingDate,
         p_time_slot: bookingTime,
-        p_service_duration: totalDuration
+        p_service_duration: serviceDuration
       });
 
       const { data: bookingResult, error: bookingError } = await supabase.rpc('create_confirmed_booking', {
@@ -73,7 +76,7 @@ const PaymentPage: React.FC = () => {
         p_staff_id: selectedStaff,
         p_date: bookingDate,
         p_time_slot: bookingTime,
-        p_service_duration: totalDuration
+        p_service_duration: serviceDuration
       });
 
       if (bookingError) {
@@ -90,12 +93,12 @@ const PaymentPage: React.FC = () => {
         return;
       }
 
-      // Update the booking with services and total_duration information
+      // Update the booking with services information
       const { error: updateError } = await supabase
         .from('bookings')
         .update({
           services: JSON.stringify(selectedServices),
-          total_duration: totalDuration
+          total_duration: serviceDuration
         })
         .eq('id', response.booking_id);
 
@@ -106,7 +109,7 @@ const PaymentPage: React.FC = () => {
         console.log('Successfully updated booking with services and total duration');
       }
 
-      // Create payment record with proper error handling
+      // Create payment record
       console.log('Creating payment record for booking:', response.booking_id);
       
       const { data: paymentData, error: paymentError } = await supabase
@@ -159,7 +162,7 @@ const PaymentPage: React.FC = () => {
           .single();
 
         if (merchantData?.user_id) {
-          // Get customer name from auth context or profile
+          // Get customer name
           const { data: customerProfile } = await supabase
             .from('profiles')
             .select('name')
@@ -191,7 +194,7 @@ const PaymentPage: React.FC = () => {
           merchant,
           selectedServices,
           totalPrice,
-          totalDuration,
+          totalDuration: serviceDuration,
           selectedStaff,
           selectedStaffDetails,
           bookingDate,
@@ -214,13 +217,16 @@ const PaymentPage: React.FC = () => {
   };
   
   if (!merchant || !selectedServices || !bookingDate || !bookingTime) {
-    return <div className="h-screen flex flex-col items-center justify-center p-4">
+    return (
+      <div className="h-screen flex flex-col items-center justify-center p-4">
         <p className="text-gray-500 mb-4">Booking information missing</p>
         <Button onClick={() => navigate(-1)}>Go Back</Button>
-      </div>;
+      </div>
+    );
   }
   
-  return <div className="pb-24 bg-white min-h-screen">
+  return (
+    <div className="pb-24 bg-white min-h-screen">
       <div className="bg-booqit-primary text-white p-4 sticky top-0 z-10">
         <div className="relative flex items-center justify-center">
           <Button variant="ghost" size="icon" className="absolute left-0 text-white hover:bg-white/20" onClick={handleGoBack}>
@@ -245,9 +251,11 @@ const PaymentPage: React.FC = () => {
             <div className="flex justify-between">
               <span className="font-poppins text-gray-600">Services</span>
               <div className="text-right">
-                {selectedServices?.map((service: any, index: number) => <div key={index} className="font-poppins font-medium">
+                {selectedServices?.map((service: any, index: number) => (
+                  <div key={index} className="font-poppins font-medium">
                     {service.name}
-                  </div>)}
+                  </div>
+                ))}
               </div>
             </div>
             
@@ -309,7 +317,8 @@ const PaymentPage: React.FC = () => {
           {isProcessing ? 'Processing...' : `Confirm Booking - Pay ₹${totalPrice} at Shop`}
         </Button>
       </div>
-    </div>;
+    </div>
+  );
 };
 
 export default PaymentPage;

@@ -597,6 +597,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      book_appointment_with_duration_blocking: {
+        Args: {
+          p_booking_id: string
+          p_staff_id: string
+          p_date: string
+          p_time_slot: string
+          p_service_duration?: number
+        }
+        Returns: Json
+      }
       book_stylist_slot: {
         Args: {
           p_staff_id: string
@@ -724,6 +734,21 @@ export type Database = {
         }[]
       }
       get_available_slots_current_time: {
+        Args: {
+          p_merchant_id: string
+          p_date: string
+          p_staff_id?: string
+          p_service_duration?: number
+        }
+        Returns: {
+          staff_id: string
+          staff_name: string
+          time_slot: string
+          is_available: boolean
+          conflict_reason: string
+        }[]
+      }
+      get_available_slots_simple: {
         Args: {
           p_merchant_id: string
           p_date: string
