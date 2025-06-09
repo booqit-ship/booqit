@@ -88,10 +88,18 @@ export const initializeUserNotifications = async (userId: string, userRole: 'cus
       return { success: false, reason: 'permission_not_granted' };
     }
 
-    // Enhanced Service Worker check
+    // Enhanced Service Worker check with longer timeout
     console.log('🔍 Checking Service Worker status...');
     if ('serviceWorker' in navigator) {
       try {
+        // Wait for service worker to be ready with extended timeout
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Service Worker timeout')), 15000)
+        );
+        
+        const readyPromise = navigator.serviceWorker.ready;
+        await Promise.race([readyPromise, timeoutPromise]);
+        
         const registration = await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js');
         if (!registration) {
           console.error('❌ Firebase messaging Service Worker not found');

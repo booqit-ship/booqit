@@ -23,6 +23,7 @@ export const useNotifications = () => {
     setHasPermission(currentPermission === 'granted');
   }, []);
 
+  // Initialize notifications for authenticated users
   useEffect(() => {
     const initializeNotifications = async () => {
       if (!isAuthenticated || !userId || !userRole) {
@@ -49,7 +50,7 @@ export const useNotifications = () => {
           setIsInitialized(true);
           console.log('✅ Notifications initialized successfully');
           
-          // Setup foreground message handling
+          // Setup foreground message handling globally
           setupForegroundMessaging((payload) => {
             console.log('📱 Foreground notification received:', payload);
             toast(payload.notification?.title || 'Notification', {
@@ -67,10 +68,30 @@ export const useNotifications = () => {
       }
     };
 
-    // Only run if we have permission
+    // Only run if we have permission and are authenticated
     if (hasPermission && isAuthenticated && userId && userRole) {
       initializeNotifications();
     }
+  }, [isAuthenticated, userId, userRole, hasPermission, isInitialized]);
+
+  // Refresh token periodically for authenticated users
+  useEffect(() => {
+    if (!isAuthenticated || !userId || !userRole || !hasPermission || !isInitialized) {
+      return;
+    }
+
+    // Refresh token every 30 minutes to handle token expiration
+    const refreshInterval = setInterval(async () => {
+      console.log('🔄 Refreshing FCM token...');
+      try {
+        await initializeUserNotifications(userId, userRole);
+        console.log('✅ Token refreshed successfully');
+      } catch (error) {
+        console.error('❌ Error refreshing token:', error);
+      }
+    }, 30 * 60 * 1000); // 30 minutes
+
+    return () => clearInterval(refreshInterval);
   }, [isAuthenticated, userId, userRole, hasPermission, isInitialized]);
 
   const requestPermissionManually = async () => {

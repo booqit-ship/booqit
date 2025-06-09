@@ -1,3 +1,4 @@
+
 import { StrictMode } from 'react';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -54,7 +55,7 @@ const queryClient = new QueryClient({
 // Component to handle session persistence and notifications - must be inside AuthProvider
 const AppWithProviders = () => {
   useSessionPersistence();
-  useNotifications(); // Initialize Firebase notifications
+  useNotifications(); // Now initializes Firebase notifications globally for all users
   return null;
 };
 

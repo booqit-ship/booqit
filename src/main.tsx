@@ -27,15 +27,25 @@ if (!rootElement) {
   throw new Error('Root element not found');
 }
 
-// Enhanced service worker registration for PWA support
+// Global Service Worker registration for Firebase notifications
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/pwabuilder-sw.js')
+    // Register Firebase messaging service worker first
+    navigator.serviceWorker.register('/firebase-messaging-sw.js')
       .then((registration) => {
-        console.log('✅ SW registered: ', registration);
+        console.log('✅ Firebase SW registered: ', registration);
       })
       .catch((registrationError) => {
-        console.log('❌ SW registration failed: ', registrationError);
+        console.log('❌ Firebase SW registration failed: ', registrationError);
+      });
+
+    // Also register PWA service worker
+    navigator.serviceWorker.register('/pwabuilder-sw.js')
+      .then((registration) => {
+        console.log('✅ PWA SW registered: ', registration);
+      })
+      .catch((registrationError) => {
+        console.log('❌ PWA SW registration failed: ', registrationError);
       });
   });
 }
