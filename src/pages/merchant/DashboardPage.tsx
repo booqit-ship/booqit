@@ -10,14 +10,13 @@ import { Booking } from '@/types';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
-import { User, Scissors, BarChart3, AlertCircle } from 'lucide-react';
+import { User, Scissors, BarChart3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const DashboardPage: React.FC = () => {
   const { userId } = useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [bookingsToday, setBookingsToday] = useState(0);
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [recentBookings, setRecentBookings] = useState<Booking[]>([]);
@@ -39,82 +38,48 @@ const DashboardPage: React.FC = () => {
     visible: { y: 0, opacity: 1 }
   };
 
-  // Retry utility function with exponential backoff
-  const retryWithBackoff = async (fn: () => Promise<any>, retries = 3): Promise<any> => {
-    for (let i = 0; i < retries; i++) {
-      try {
-        return await fn();
-      } catch (error) {
-        console.error(`Attempt ${i + 1} failed:`, error);
-        if (i === retries - 1) throw error;
-        await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
-      }
-    }
-  };
-
-  const fetchMerchantId = async () => {
-    if (!userId) {
-      console.error('No userId available');
-      toast.error('Please log in to continue');
-      navigate('/auth');
-      return null;
-    }
-    
-    try {
-      console.log('🔍 Fetching merchant for userId:', userId);
+  useEffect(() => {
+    const fetchMerchantId = async () => {
+      if (!userId) return;
       
-      const { data: merchantData, error: merchantError } = await supabase
-        .from('merchants')
-        .select('id, image_url, shop_name')
-        .eq('user_id', userId)
-        .single();
+      try {
+        const { data: merchantData, error: merchantError } = await supabase
+          .from('merchants')
+          .select('id, image_url, shop_name')
+          .eq('user_id', userId)
+          .single();
 
-      if (merchantError) {
-        console.error('Error fetching merchant:', merchantError);
-        if (merchantError.code === 'PGRST116') {
-          toast.error('Merchant profile not found. Please complete onboarding.');
-          navigate('/merchant/onboarding');
-          return null;
+        if (merchantError) {
+          console.error('Error fetching merchant ID:', merchantError);
+          return;
         }
-        throw merchantError;
-      }
 
-      if (merchantData) {
-        console.log('✅ Merchant found:', merchantData);
-        setMerchantId(merchantData.id);
-        setShopImage(merchantData.image_url);
-        setShopName(merchantData.shop_name || 'Merchant');
-        return merchantData.id;
+        if (merchantData) {
+          setMerchantId(merchantData.id);
+          setShopImage(merchantData.image_url);
+          setShopName(merchantData.shop_name || 'Merchant');
+          return merchantData.id;
+        }
+      } catch (error) {
+        console.error('Error fetching merchant ID:', error);
       }
-
-      toast.error('Merchant profile not found. Please complete onboarding.');
-      navigate('/merchant/onboarding');
       return null;
-    } catch (error) {
-      console.error('Exception in fetchMerchantId:', error);
-      toast.error('Failed to load merchant profile');
-      throw error;
-    }
-  };
+    };
 
-  const fetchDashboardData = async () => {
-    if (!userId) return;
-    
-    try {
-      setIsLoading(true);
-      setError(null);
+    const fetchDashboardData = async () => {
+      if (!userId) return;
+      
+      try {
+        setIsLoading(true);
 
-      // Get merchant ID first with retries
-      const mId = await retryWithBackoff(fetchMerchantId);
-      if (!mId) return;
+        // Get merchant ID first
+        const mId = await fetchMerchantId();
+        if (!mId) return;
 
-      console.log('📊 Fetching dashboard data for merchant:', mId);
+        // Get today's date in ISO format (YYYY-MM-DD)
+        const today = new Date().toISOString().split('T')[0];
 
-      // Get today's date in ISO format (YYYY-MM-DD)
-      const today = new Date().toISOString().split('T')[0];
-
-      // Fetch bookings count for today with retries
-      const fetchBookingsCount = async () => {
+        // Get bookings count for today
         const { count: todayBookingsCount, error: bookingsCountError } = await supabase
           .from('bookings')
           .select('*', { count: 'exact', head: true })
@@ -123,48 +88,39 @@ const DashboardPage: React.FC = () => {
 
         if (bookingsCountError) {
           console.error('Error fetching bookings count:', bookingsCountError);
-          throw bookingsCountError;
+        } else {
+          setBookingsToday(todayBookingsCount || 0);
         }
 
-        return todayBookingsCount || 0;
-      };
-
-      const todayCount = await retryWithBackoff(fetchBookingsCount);
-      setBookingsToday(todayCount);
-      console.log('📅 Today bookings count:', todayCount);
-
-      // Fetch earnings data with retries
-      const fetchEarningsData = async () => {
+        // Get all bookings with payment status 'completed' to calculate earnings
         const { data: completedBookings, error: earningsError } = await supabase
           .from('bookings')
-          .select(`
-            service_id,
-            services!left(price)
-          `)
+          .select('service_id')
           .eq('merchant_id', mId)
           .eq('payment_status', 'completed');
 
         if (earningsError) {
           console.error('Error fetching earnings data:', earningsError);
-          throw earningsError;
+        } else if (completedBookings && completedBookings.length > 0) {
+          // Get service prices for all completed bookings
+          const serviceIds = completedBookings.map(booking => booking.service_id);
+          const { data: services, error: servicesError } = await supabase
+            .from('services')
+            .select('price')
+            .in('id', serviceIds);
+
+          if (servicesError) {
+            console.error('Error fetching service prices:', servicesError);
+          } else if (services) {
+            // Sum up all service prices
+            const totalEarnings = services.reduce((sum, service) => sum + (service.price || 0), 0);
+            setTotalEarnings(totalEarnings);
+          }
+        } else {
+          setTotalEarnings(0);
         }
 
-        return completedBookings || [];
-      };
-
-      const completedBookings = await retryWithBackoff(fetchEarningsData);
-      
-      // Calculate total earnings with fallback for missing prices
-      const totalEarnings = completedBookings.reduce((sum, booking) => {
-        const price = booking.services?.price || 0;
-        return sum + price;
-      }, 0);
-      
-      setTotalEarnings(totalEarnings);
-      console.log('💰 Total earnings calculated:', totalEarnings);
-
-      // Fetch recent bookings with retries
-      const fetchRecentBookings = async () => {
+        // Fetch recent bookings for today with better customer and stylist name fetching
         const { data: recentBookingsData, error: recentBookingsError } = await supabase
           .from('bookings')
           .select(`
@@ -177,7 +133,7 @@ const DashboardPage: React.FC = () => {
             customer_phone,
             customer_email,
             stylist_name,
-            service:service_id!left (name),
+            service:service_id (name),
             user_id
           `)
           .eq('merchant_id', mId)
@@ -187,70 +143,54 @@ const DashboardPage: React.FC = () => {
 
         if (recentBookingsError) {
           console.error('Error fetching recent bookings:', recentBookingsError);
-          throw recentBookingsError;
+        } else if (recentBookingsData) {
+          // Process bookings and ensure we have customer names
+          const bookingsWithDetails = await Promise.all(
+            recentBookingsData.map(async (booking) => {
+              let customerName = booking.customer_name || 'Unknown Customer';
+
+              // If no customer name in booking, try to fetch from profiles
+              if (!booking.customer_name && booking.user_id) {
+                const { data: userData, error: userError } = await supabase
+                  .from('profiles')
+                  .select('name')
+                  .eq('id', booking.user_id)
+                  .single();
+
+                if (!userError && userData?.name) {
+                  customerName = userData.name;
+                }
+              }
+
+              return {
+                ...booking,
+                customer_name: customerName,
+                stylist_name: booking.stylist_name || 'Unassigned'
+              };
+            })
+          );
+
+          setRecentBookings(bookingsWithDetails as Booking[]);
         }
 
-        return recentBookingsData || [];
-      };
-
-      const recentBookingsData = await retryWithBackoff(fetchRecentBookings);
-
-      // Process bookings and ensure we have customer names
-      const bookingsWithDetails = await Promise.all(
-        recentBookingsData.map(async (booking) => {
-          let customerName = booking.customer_name || 'Unknown Customer';
-
-          // If no customer name in booking, try to fetch from profiles
-          if (!booking.customer_name && booking.user_id) {
-            try {
-              const { data: userData, error: userError } = await supabase
-                .from('profiles')
-                .select('name')
-                .eq('id', booking.user_id)
-                .single();
-
-              if (!userError && userData?.name) {
-                customerName = userData.name;
-              }
-            } catch (error) {
-              console.warn('Could not fetch user profile:', error);
-            }
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        toast('Error loading dashboard', {
+          description: 'Could not fetch dashboard data',
+          style: {
+            backgroundColor: 'red',
+            color: 'white'
           }
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-          return {
-            ...booking,
-            customer_name: customerName,
-            stylist_name: booking.stylist_name || 'Unassigned'
-          };
-        })
-      );
-
-      setRecentBookings(bookingsWithDetails as Booking[]);
-      console.log('📋 Recent bookings loaded:', bookingsWithDetails.length);
-
-    } catch (error) {
-      console.error('❌ Error fetching dashboard data:', error);
-      setError('Failed to load dashboard data');
-      toast.error('Failed to load dashboard data');
-      
-      // Set fallback values
-      setBookingsToday(0);
-      setTotalEarnings(0);
-      setRecentBookings([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
     fetchDashboardData();
 
-    // Set up realtime subscription only if we have a valid merchantId
-    let subscription: any = null;
-    
+    // Set up realtime subscription
     if (merchantId) {
-      console.log('🔄 Setting up realtime subscription for merchant:', merchantId);
-      
       const bookingsChannel = supabase
         .channel('dashboard-bookings-changes')
         .on('postgres_changes', {
@@ -258,30 +198,17 @@ const DashboardPage: React.FC = () => {
           schema: 'public',
           table: 'bookings',
           filter: `merchant_id=eq.${merchantId}`
-        }, (payload) => {
-          console.log('🔔 Realtime booking change detected:', payload);
+        }, () => {
           // Refresh data when bookings change
           fetchDashboardData();
         })
-        .subscribe((status) => {
-          console.log('📡 Realtime subscription status:', status);
-          if (status === 'SUBSCRIBED') {
-            console.log('✅ Successfully subscribed to realtime updates');
-          } else {
-            console.error('❌ Realtime subscription failed with status:', status);
-          }
-        });
+        .subscribe();
 
-      subscription = bookingsChannel;
+      // Cleanup subscription
+      return () => {
+        supabase.removeChannel(bookingsChannel);
+      };
     }
-
-    // Cleanup subscription
-    return () => {
-      if (subscription) {
-        console.log('🧹 Cleaning up realtime subscription');
-        supabase.removeChannel(subscription);
-      }
-    };
   }, [userId, merchantId]);
 
   // Dashboard stats - only bookings today and total earnings
@@ -299,31 +226,6 @@ const DashboardPage: React.FC = () => {
       color: 'bg-green-100 text-green-700'
     }
   ];
-
-  // Error state UI
-  if (error && !isLoading) {
-    return (
-      <div className="p-4 md:p-6 pb-20">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold">Dashboard</h1>
-            <p className="text-gray-500">Welcome back!</p>
-          </div>
-        </div>
-        
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="p-6 text-center">
-            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-red-700 mb-2">Unable to load dashboard data</h3>
-            <p className="text-red-600 mb-4">Please refresh the page or contact support if the problem persists.</p>
-            <Button onClick={fetchDashboardData} variant="outline" className="border-red-300 text-red-700">
-              Try Again
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   if (isLoading) {
     return (
@@ -389,7 +291,7 @@ const DashboardPage: React.FC = () => {
                 <CardContent className="p-4">
                   <div className={`inline-flex rounded-lg p-2 mb-2 ${stat.color}`}>
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
                     </svg>
                   </div>
                   <p className="text-sm text-gray-500">{stat.title}</p>
@@ -451,7 +353,7 @@ const DashboardPage: React.FC = () => {
                       {/* Service and time information */}
                       <div className="grid grid-cols-1 gap-2 text-sm text-gray-600">
                         <div className="flex items-center justify-between">
-                          <span className="font-medium text-gray-800">{booking.service?.name || 'Service'}</span>
+                          <span className="font-medium text-gray-800">{booking.service?.name}</span>
                           <span className="font-semibold text-booqit-primary">
                             {formatTimeToAmPm(booking.time_slot)}
                           </span>
@@ -468,12 +370,8 @@ const DashboardPage: React.FC = () => {
                     </div>
                   ))
                 ) : (
-                  <div className="text-center py-8">
-                    <div className="bg-gray-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                      <User className="h-8 w-8 text-gray-400" />
-                    </div>
-                    <p className="text-gray-500 font-medium">No bookings for today</p>
-                    <p className="text-gray-400 text-sm mt-1">New bookings will appear here</p>
+                  <div className="text-center py-6">
+                    <p className="text-gray-500">No bookings for today</p>
                   </div>
                 )}
               </div>

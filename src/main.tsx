@@ -5,18 +5,18 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App.tsx';
 import './index.css';
 
-// Create a client with balanced caching for proper data fetching
+// Create a client with ULTRA aggressive caching to prevent ANY refetching
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      gcTime: 10 * 60 * 1000, // 10 minutes
-      retry: 2, // Retry failed requests twice
-      refetchOnWindowFocus: true, // Refetch when tab regains focus
-      refetchOnMount: true, // Refetch when component mounts
-      refetchOnReconnect: true, // Refetch on reconnect
-      refetchInterval: false, // No automatic refetching
-      networkMode: 'online', // Use network first
+      staleTime: Infinity, // Data never becomes stale
+      gcTime: Infinity, // Keep in cache forever
+      retry: 0, // Never retry failed requests
+      refetchOnWindowFocus: false, // NEVER refetch when tab regains focus
+      refetchOnMount: false, // NEVER refetch when component mounts
+      refetchOnReconnect: false, // NEVER refetch on reconnect
+      refetchInterval: false, // NO automatic refetching ever
+      networkMode: 'offlineFirst', // Use cache first, network second
     },
   },
 });
@@ -40,7 +40,7 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// Handle page visibility changes - use cached session only
+// Handle page visibility changes - NO session recovery attempts
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
     console.log('📱 Page became visible - using cached session only');
