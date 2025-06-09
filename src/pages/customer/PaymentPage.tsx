@@ -35,6 +35,53 @@ const PaymentPage: React.FC = () => {
   
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // Update the createBooking function to use total duration
+  const createBooking = async () => {
+    if (!userId || !merchant || !selectedServices || !selectedStaff || !bookingDate || !bookingTime) {
+      toast.error('Missing booking information');
+      return null;
+    }
+
+    const totalServiceDuration = selectedServices.reduce((total: number, service: any) => total + service.duration, 0);
+    
+    console.log('PAYMENT_BOOKING: Creating booking with total duration:', {
+      services: selectedServices.length,
+      totalDuration: totalServiceDuration,
+      time: bookingTime
+    });
+
+    try {
+      // Use the updated booking creation function with total duration
+      const { data, error } = await supabase.rpc('create_booking_with_services', {
+        p_user_id: userId,
+        p_merchant_id: merchant.id,
+        p_staff_id: selectedStaff,
+        p_date: bookingDate,
+        p_time_slot: bookingTime,
+        p_services: selectedServices,
+        p_total_duration: totalServiceDuration
+      });
+
+      if (error) {
+        console.error('Booking creation error:', error);
+        throw error;
+      }
+
+      const result = data as { success: boolean; booking_id?: string; error?: string };
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to create booking');
+      }
+
+      console.log('PAYMENT_BOOKING: Booking created successfully with ID:', result.booking_id);
+      return result.booking_id;
+    } catch (error) {
+      console.error('Error creating booking:', error);
+      toast.error('Failed to create booking. Please try again.');
+      return null;
+    }
+  };
+
   const handlePayment = async () => {
     if (!userId || !merchantId) {
       toast.error('Authentication required');

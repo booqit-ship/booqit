@@ -42,10 +42,14 @@ const DateTimeSelectionPage: React.FC = () => {
   const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
   const [nextValidSlotTime, setNextValidSlotTime] = useState<string>('');
 
-  // Calculate actual service duration
+  // CRITICAL FIX: Calculate actual service duration properly
   const actualServiceDuration = selectedServices && selectedServices.length > 0 
     ? selectedServices.reduce((total: number, service: any) => total + service.duration, 0)
     : totalDuration || 30;
+
+  console.log('DURATION_CALCULATION: Services:', selectedServices);
+  console.log('DURATION_CALCULATION: Total duration from state:', totalDuration);
+  console.log('DURATION_CALCULATION: Calculated actual duration:', actualServiceDuration);
 
   // Generate available dates (3 days, excluding holidays)
   const getAvailableDates = () => {
@@ -105,7 +109,7 @@ const DateTimeSelectionPage: React.FC = () => {
     fetchHolidays();
   }, [merchantId, selectedStaff]);
 
-  // Fetch available slots with proper buffer handling
+  // Fetch available slots with TOTAL duration for proper slot blocking
   const fetchAvailableSlots = useCallback(async () => {
     if (!selectedDate || !merchantId) return;
 
@@ -116,20 +120,20 @@ const DateTimeSelectionPage: React.FC = () => {
       const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
       const isToday = isTodayIST(selectedDate);
       
-      console.log('=== FETCHING SLOTS WITH BUFFER LOGIC ===');
+      console.log('=== FETCHING SLOTS WITH TOTAL DURATION ===');
       console.log('Date:', selectedDateStr, '| Is today:', isToday);
-      console.log('Service duration:', actualServiceDuration);
+      console.log('CRITICAL: Using total service duration:', actualServiceDuration, 'minutes');
       if (isToday) {
         console.log('Current IST:', getCurrentTimeIST());
         console.log('Expected start after buffer:', getCurrentTimeISTWithBuffer(40));
       }
       
-      // Use the backend function that enforces IST buffer logic
+      // CRITICAL: Use the actual total service duration for slot checking
       const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_ist_buffer', {
         p_merchant_id: merchantId,
         p_date: selectedDateStr,
         p_staff_id: selectedStaff || null,
-        p_service_duration: actualServiceDuration
+        p_service_duration: actualServiceDuration // Pass the total duration
       });
 
       if (slotsError) {
@@ -140,7 +144,7 @@ const DateTimeSelectionPage: React.FC = () => {
       }
 
       const slots = Array.isArray(slotsData) ? slotsData : [];
-      console.log('Backend returned', slots.length, 'total slots');
+      console.log('Backend returned', slots.length, 'total slots for', actualServiceDuration, 'minute duration');
       
       // Additional frontend filtering for today to ensure no expired slots
       let filteredSlots = slots;
@@ -155,7 +159,7 @@ const DateTimeSelectionPage: React.FC = () => {
         console.log('After frontend filtering:', filteredSlots.length, 'slots remain');
       }
       
-      console.log('Available slots:', filteredSlots.filter(s => s.is_available).length);
+      console.log('Available slots for', actualServiceDuration, 'minutes:', filteredSlots.filter(s => s.is_available).length);
       
       if (filteredSlots.length === 0) {
         const errorMsg = isToday 
@@ -233,36 +237,41 @@ const DateTimeSelectionPage: React.FC = () => {
     }
   });
 
-  // Handle slot selection without creating pending bookings
+  // Handle slot selection with total duration validation
   const handleTimeSlotClick = async (timeSlot: string) => {
     if (!selectedDate || !merchantId || !userId) return;
     
-    // Double-check if slot is still valid for today
+    // Double-check if slot is still valid for today with total duration
     if (isTodayIST(selectedDate)) {
       const currentBufferTime = getCurrentTimeISTWithBuffer(40);
       if (timeSlot < currentBufferTime) {
         toast.error('This time slot is no longer available due to time passing');
-        fetchAvailableSlots(); // Refresh to remove expired slots
+        fetchAvailableSlots();
         return;
       }
     }
     
-    // Find if the slot is available
+    // Find if the slot is available for the total duration
     const availableSlot = availableSlots.find(slot => 
       slot.time_slot === timeSlot && slot.is_available
     );
     
     if (!availableSlot) {
-      toast.error('This time slot is not available');
+      toast.error(`This time slot is not available for ${actualServiceDuration} minutes`);
       return;
     }
 
     setIsCheckingSlot(true);
 
     try {
-      // Simply mark the slot as selected without creating a pending booking
+      console.log('SLOT_SELECTION: Selected slot with total duration:', {
+        timeSlot,
+        duration: actualServiceDuration,
+        services: selectedServices?.length || 0
+      });
+      
       setSelectedTime(timeSlot);
-      toast.success('Time slot selected!');
+      toast.success(`Time slot selected for ${actualServiceDuration} minutes!`);
     } catch (error) {
       console.error('Error selecting slot:', error);
       toast.error('Error selecting time slot. Please try again.');
