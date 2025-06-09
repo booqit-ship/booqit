@@ -14,6 +14,7 @@ import NotFound from '@/pages/NotFound';
 import PrivacyPolicy from '@/pages/PrivacyPolicy';
 import TermsAndConditions from '@/pages/TermsAndConditions';
 import NotificationTestPage from '@/pages/NotificationTestPage';
+import GlobalNotificationBanner from '@/components/GlobalNotificationBanner';
 import { useSessionPersistence } from '@/hooks/useSessionPersistence';
 import { useNotifications } from '@/hooks/useNotifications';
 
@@ -56,7 +57,7 @@ const queryClient = new QueryClient({
 const AppWithProviders = () => {
   useSessionPersistence();
   useNotifications(); // Now initializes Firebase notifications globally for all users
-  return null;
+  return <GlobalNotificationBanner />;
 };
 
 const router = createBrowserRouter([

@@ -150,34 +150,52 @@ export const sendBookingNotification = async (merchantId: string, bookingDetails
   serviceName: string;
   dateTime: string;
 }) => {
-  await sendNotificationToUser(merchantId, {
-    title: 'New Booking! 📅',
-    body: `${bookingDetails.customerName} has booked ${bookingDetails.serviceName} for ${bookingDetails.dateTime}`,
-    data: {
-      type: 'new_booking',
-      merchantId: merchantId
-    }
-  });
+  try {
+    console.log('📤 Sending booking notification to merchant:', merchantId);
+    await sendNotificationToUser(merchantId, {
+      title: 'New Booking! 📅',
+      body: `${bookingDetails.customerName} has booked ${bookingDetails.serviceName} for ${bookingDetails.dateTime}`,
+      data: {
+        type: 'new_booking',
+        merchantId: merchantId
+      }
+    });
+    console.log('✅ Booking notification sent successfully');
+  } catch (error) {
+    console.error('❌ Error sending booking notification:', error);
+  }
 };
 
 export const sendCompletionNotification = async (customerId: string, merchantName: string) => {
-  await sendNotificationToUser(customerId, {
-    title: 'How was your visit? ⭐',
-    body: `Hope you enjoyed your service at ${merchantName}! Tap to leave a review.`,
-    data: {
-      type: 'review_request',
-      customerId: customerId
-    }
-  });
+  try {
+    console.log('📤 Sending completion notification to customer:', customerId);
+    await sendNotificationToUser(customerId, {
+      title: 'How was your visit? ⭐',
+      body: `Hope you enjoyed your service at ${merchantName}! Tap to leave a review.`,
+      data: {
+        type: 'review_request',
+        customerId: customerId
+      }
+    });
+    console.log('✅ Completion notification sent successfully');
+  } catch (error) {
+    console.error('❌ Error sending completion notification:', error);
+  }
 };
 
 export const sendWeeklyReminderNotification = async (customerId: string) => {
-  await sendNotificationToUser(customerId, {
-    title: 'Your salon awaits! 💇‍♀️✨',
-    body: 'Book your next appointment and look fabulous!',
-    data: {
-      type: 'weekly_reminder',
-      customerId: customerId
-    }
-  });
+  try {
+    console.log('📤 Sending weekly reminder to customer:', customerId);
+    await sendNotificationToUser(customerId, {
+      title: 'Your salon awaits! 💇‍♀️✨',
+      body: 'Book your next appointment and look fabulous!',
+      data: {
+        type: 'weekly_reminder',
+        customerId: customerId
+      }
+    });
+    console.log('✅ Weekly reminder sent successfully');
+  } catch (error) {
+    console.error('❌ Error sending weekly reminder:', error);
+  }
 };
