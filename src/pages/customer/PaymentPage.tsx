@@ -65,27 +65,25 @@ const PaymentPage: React.FC = () => {
     setIsProcessingPayment(true);
 
     try {
-      console.log('PAYMENT_PROCESS: Creating booking with services:', {
-        userId,
-        merchantId,
-        staffId: selectedStaff,
-        date: bookingDate,
-        timeSlot: bookingTime,
-        services: selectedServices,
-        totalDuration
-      });
+      console.log('PAYMENT_PROCESS: Creating confirmed booking with total duration:', totalDuration, 'minutes');
 
-      // Use the existing reserve_slot function with the first service as primary
-      const primaryService = selectedServices[0];
-      const { data, error } = await supabase.rpc('reserve_slot', {
-        p_user_id: userId,
-        p_merchant_id: merchantId,
-        p_service_id: primaryService.id,
-        p_staff_id: selectedStaff,
-        p_date: bookingDate,
-        p_time_slot: bookingTime,
-        p_service_duration: totalDuration // Use total duration for proper slot blocking
-      });
+      // Create confirmed booking directly with total duration
+      const { data, error } = await supabase
+        .from('bookings')
+        .insert({
+          user_id: userId,
+          merchant_id: merchantId,
+          service_id: selectedServices[0].id, // Primary service for compatibility
+          staff_id: selectedStaff,
+          date: bookingDate,
+          time_slot: bookingTime,
+          status: 'confirmed', // Direct to confirmed status
+          payment_status: 'completed', // Mark payment as completed
+          services: selectedServices, // Store all services
+          total_duration: totalDuration // Store total duration for proper slot blocking
+        })
+        .select()
+        .single();
 
       if (error) {
         console.error('PAYMENT_PROCESS: Booking creation error:', error);
@@ -93,45 +91,9 @@ const PaymentPage: React.FC = () => {
         return;
       }
 
-      // Type assertion for the response
-      const response = data as { success: boolean; booking_id?: string; error?: string; message?: string };
+      const bookingId = data.id;
+      console.log('PAYMENT_PROCESS: Confirmed booking created successfully:', bookingId, 'with total duration:', totalDuration);
 
-      if (!response?.success) {
-        console.error('PAYMENT_PROCESS: Booking creation failed:', response);
-        toast.error(response?.error || 'Failed to create booking');
-        return;
-      }
-
-      const bookingId = response.booking_id;
-      console.log('PAYMENT_PROCESS: Booking created successfully:', bookingId);
-
-      // Now update the booking with all services and total duration
-      const { error: updateError } = await supabase
-        .from('bookings')
-        .update({
-          services: selectedServices,
-          total_duration: totalDuration
-        })
-        .eq('id', bookingId);
-
-      if (updateError) {
-        console.error('PAYMENT_PROCESS: Failed to update booking with services:', updateError);
-        // Don't fail the whole process, just log the error
-      }
-
-      // Confirm the booking payment
-      const { error: confirmError } = await supabase.rpc('confirm_booking_payment', {
-        p_booking_id: bookingId,
-        p_user_id: userId
-      });
-
-      if (confirmError) {
-        console.error('PAYMENT_PROCESS: Payment confirmation error:', confirmError);
-        toast.error('Failed to confirm payment');
-        return;
-      }
-
-      console.log('PAYMENT_PROCESS: Payment confirmed, redirecting to receipt');
       toast.success('Booking confirmed successfully!');
 
       // Navigate to receipt page with booking details
