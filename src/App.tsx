@@ -1,4 +1,3 @@
-
 import { StrictMode } from 'react';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -14,7 +13,6 @@ import NotFound from '@/pages/NotFound';
 import PrivacyPolicy from '@/pages/PrivacyPolicy';
 import TermsAndConditions from '@/pages/TermsAndConditions';
 import NotificationTestPage from '@/pages/NotificationTestPage';
-import GlobalNotificationBanner from '@/components/GlobalNotificationBanner';
 import { useSessionPersistence } from '@/hooks/useSessionPersistence';
 import { useNotifications } from '@/hooks/useNotifications';
 
@@ -56,8 +54,8 @@ const queryClient = new QueryClient({
 // Component to handle session persistence and notifications - must be inside AuthProvider
 const AppWithProviders = () => {
   useSessionPersistence();
-  useNotifications(); // Now initializes Firebase notifications globally for all users
-  return <GlobalNotificationBanner />;
+  useNotifications(); // Initialize Firebase notifications
+  return null;
 };
 
 const router = createBrowserRouter([

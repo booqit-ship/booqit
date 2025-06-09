@@ -6,8 +6,6 @@ import { sendBookingCompletedNotification } from '@/services/eventNotificationSe
 export const useBookingCompletion = () => {
   const completeBooking = useCallback(async (bookingId: string, merchantUserId: string) => {
     try {
-      console.log('⚡ About to complete booking:', bookingId);
-      
       // Update booking status to completed
       const { data: updateResult, error: updateError } = await supabase.rpc(
         'update_booking_status_with_slot_management',
@@ -22,8 +20,6 @@ export const useBookingCompletion = () => {
         console.error('❌ Error updating booking status:', updateError);
         throw updateError;
       }
-
-      console.log('✅ Booking status updated to completed');
 
       // Get booking details for notification
       const { data: booking, error: bookingError } = await supabase
@@ -44,13 +40,11 @@ export const useBookingCompletion = () => {
 
       // Send completion notification to customer
       if (booking?.user_id && booking?.merchants?.shop_name) {
-        console.log('⚡ About to send booking completion notification to customer:', booking.user_id);
         await sendBookingCompletedNotification(
           booking.user_id,
           booking.merchants.shop_name,
           bookingId
         );
-        console.log('✅ Booking completion notification sent to customer');
       }
 
       return updateResult;

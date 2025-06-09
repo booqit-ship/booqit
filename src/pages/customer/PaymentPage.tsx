@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,8 +8,7 @@ import { toast } from 'sonner';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { formatDateInIST } from '@/utils/dateUtils';
 import { useAuth } from '@/contexts/AuthContext';
-import { useSlotLocking } from '@/hooks/useSlotLocking';
-import { sendNewBookingNotification, sendBookingCompletedNotification } from '@/services/eventNotificationService';
+import { sendNewBookingNotification } from '@/services/eventNotificationService';
 
 interface BookingResponse {
   success: boolean;
@@ -24,8 +22,6 @@ const PaymentPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { userId } = useAuth();
-  const { releaseSlot } = useSlotLocking();
-  
   const {
     merchant,
     selectedServices,
@@ -34,26 +30,10 @@ const PaymentPage: React.FC = () => {
     selectedStaff,
     selectedStaffDetails,
     bookingDate,
-    bookingTime,
-    lockedSlotInfo
+    bookingTime
   } = location.state || {};
   
   const [isProcessing, setIsProcessing] = useState(false);
-
-  // Cleanup locked slots on unmount if booking wasn't completed
-  useEffect(() => {
-    return () => {
-      if (lockedSlotInfo && !isProcessing) {
-        console.log('🔓 Releasing locked slots from payment page cleanup');
-        releaseSlot(
-          lockedSlotInfo.staffId,
-          lockedSlotInfo.date,
-          lockedSlotInfo.time,
-          lockedSlotInfo.duration
-        );
-      }
-    };
-  }, [lockedSlotInfo, releaseSlot, isProcessing]);
 
   const handlePayment = async () => {
     if (!userId || !merchantId) {
@@ -69,72 +49,65 @@ const PaymentPage: React.FC = () => {
     setIsProcessing(true);
     
     try {
-      console.log('💳 Processing payment and creating confirmed booking...');
+      console.log('Processing payment and creating booking...');
 
       // Simulate payment processing (2 seconds)
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Release temporary locks first since we're creating a confirmed booking
-      if (lockedSlotInfo) {
-        console.log('🔓 Releasing temporary locks before creating confirmed booking');
-        await releaseSlot(
-          lockedSlotInfo.staffId,
-          lockedSlotInfo.date,
-          lockedSlotInfo.time,
-          lockedSlotInfo.duration
-        );
-      }
-
-      // Create booking directly as confirmed with services and total duration
+      // Create booking directly as confirmed using the existing function
       const serviceId = selectedServices[0]?.id;
-      const serviceDuration = selectedServices[0]?.duration || 30;
-      
-      console.log('📝 Creating confirmed booking with correct parameter order:', {
+      console.log('Creating booking with params:', {
         p_user_id: userId,
         p_merchant_id: merchantId,
         p_service_id: serviceId,
         p_staff_id: selectedStaff,
         p_date: bookingDate,
         p_time_slot: bookingTime,
-        p_service_duration: serviceDuration,
-        p_services: JSON.stringify(selectedServices),
-        p_total_duration: totalDuration
+        p_service_duration: totalDuration
       });
 
-      // Call the database function with the CORRECT parameter order matching the function definition
-      const { data: bookingResult, error: bookingError } = await supabase.rpc(
-        'create_confirmed_booking_with_services',
-        {
-          p_user_id: userId,
-          p_merchant_id: merchantId,
-          p_service_id: serviceId,
-          p_staff_id: selectedStaff,
-          p_date: bookingDate,
-          p_time_slot: bookingTime,
-          p_service_duration: serviceDuration,
-          p_services: JSON.stringify(selectedServices),
-          p_total_duration: totalDuration
-        }
-      );
+      const { data: bookingResult, error: bookingError } = await supabase.rpc('create_confirmed_booking', {
+        p_user_id: userId,
+        p_merchant_id: merchantId,
+        p_service_id: serviceId,
+        p_staff_id: selectedStaff,
+        p_date: bookingDate,
+        p_time_slot: bookingTime,
+        p_service_duration: totalDuration
+      });
 
       if (bookingError) {
-        console.error('❌ Error creating confirmed booking:', bookingError);
+        console.error('Error creating booking:', bookingError);
         toast.error(`Failed to create booking: ${bookingError.message}`);
         return;
       }
 
       const response = bookingResult as unknown as BookingResponse;
-      console.log('✅ Confirmed booking creation response:', response);
+      console.log('Booking creation response:', response);
       
       if (!response.success) {
         toast.error(response.error || 'Failed to create booking');
         return;
       }
 
-      console.log('✅ Booking created as confirmed with ID:', response.booking_id);
+      // Update the booking with services and total_duration information
+      const { error: updateError } = await supabase
+        .from('bookings')
+        .update({
+          services: JSON.stringify(selectedServices),
+          total_duration: totalDuration
+        })
+        .eq('id', response.booking_id);
 
-      // Create payment record
-      console.log('💰 Creating payment record for booking:', response.booking_id);
+      if (updateError) {
+        console.error('Error updating booking with services:', updateError);
+        // Don't fail the booking creation, just log the error
+      } else {
+        console.log('Successfully updated booking with services and total duration');
+      }
+
+      // Create payment record with proper error handling
+      console.log('Creating payment record for booking:', response.booking_id);
       
       const { data: paymentData, error: paymentError } = await supabase
         .from('payments')
@@ -148,20 +121,20 @@ const PaymentPage: React.FC = () => {
         .single();
       
       if (paymentError) {
-        console.error('⚠️ Error creating payment record:', paymentError);
-        // Still update the booking payment status
+        console.error('Error creating payment record:', paymentError);
+        // Update booking payment status even if payment record creation failed
         const { error: updateError } = await supabase
           .from('bookings')
           .update({ payment_status: 'completed' })
           .eq('id', response.booking_id);
         
         if (updateError) {
-          console.error('❌ Error updating booking payment status:', updateError);
+          console.error('Error updating booking payment status:', updateError);
         }
         
         toast.warning('Booking confirmed but payment record creation encountered an issue');
       } else {
-        console.log('✅ Payment record created successfully:', paymentData);
+        console.log('Payment record created successfully:', paymentData);
         
         // Update booking payment status to completed
         const { error: updateError } = await supabase
@@ -170,15 +143,13 @@ const PaymentPage: React.FC = () => {
           .eq('id', response.booking_id);
         
         if (updateError) {
-          console.error('❌ Error updating booking payment status:', updateError);
+          console.error('Error updating booking payment status:', updateError);
         } else {
-          console.log('✅ Booking payment status updated to completed');
+          console.log('Booking payment status updated to completed');
         }
       }
 
-      // Send notifications
-      console.log('🔔 Sending booking notifications...');
-      
+      // Send new booking notification to merchant
       try {
         // Get merchant user ID
         const { data: merchantData } = await supabase
@@ -187,40 +158,29 @@ const PaymentPage: React.FC = () => {
           .eq('id', merchantId)
           .single();
 
-        // Get customer name from profile
-        const { data: customerProfile } = await supabase
-          .from('profiles')
-          .select('name')
-          .eq('id', userId)
-          .single();
-
-        const customerName = customerProfile?.name || 'Customer';
-        const serviceName = selectedServices[0]?.name || 'Service';
-        const formattedTime = formatTimeToAmPm(bookingTime);
-        const formattedDate = formatDateInIST(new Date(bookingDate), 'MMM d, yyyy');
-        const dateTime = `${formattedDate} at ${formattedTime}`;
-
-        // Send notifications
         if (merchantData?.user_id) {
+          // Get customer name from auth context or profile
+          const { data: customerProfile } = await supabase
+            .from('profiles')
+            .select('name')
+            .eq('id', userId)
+            .single();
+
+          const customerName = customerProfile?.name || 'Customer';
+          const serviceName = selectedServices[0]?.name || 'Service';
+          const formattedTime = formatTimeToAmPm(bookingTime);
+
           await sendNewBookingNotification(
             merchantData.user_id,
             customerName,
             serviceName,
-            dateTime,
+            formattedTime,
             response.booking_id
           );
-          console.log('✅ New booking notification sent to merchant');
         }
-
-        await sendBookingCompletedNotification(
-          userId,
-          merchant.shop_name || 'Salon',
-          response.booking_id
-        );
-        console.log('✅ Booking confirmation sent to customer');
-
       } catch (notificationError) {
-        console.error('⚠️ Error sending booking notifications:', notificationError);
+        console.error('❌ Error sending booking notification:', notificationError);
+        // Don't fail the booking if notification fails
       }
       
       toast.success('Payment successful! Your booking is confirmed.');
@@ -241,37 +201,29 @@ const PaymentPage: React.FC = () => {
         }
       });
     } catch (error) {
-      console.error('❌ Error processing payment:', error);
+      console.error('Error processing payment:', error);
       toast.error('Payment failed. Please try again.');
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleGoBack = async () => {
-    // Don't release locks when going back - let the user return to their reserved slot
+  // Navigate back to datetime selection
+  const handleGoBack = () => {
     navigate(-1);
   };
   
   if (!merchant || !selectedServices || !bookingDate || !bookingTime) {
-    return (
-      <div className="h-screen flex flex-col items-center justify-center p-4">
+    return <div className="h-screen flex flex-col items-center justify-center p-4">
         <p className="text-gray-500 mb-4">Booking information missing</p>
         <Button onClick={() => navigate(-1)}>Go Back</Button>
-      </div>
-    );
+      </div>;
   }
   
-  return (
-    <div className="pb-24 bg-white min-h-screen">
+  return <div className="pb-24 bg-white min-h-screen">
       <div className="bg-booqit-primary text-white p-4 sticky top-0 z-10">
         <div className="relative flex items-center justify-center">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="absolute left-0 text-white hover:bg-white/20" 
-            onClick={handleGoBack}
-          >
+          <Button variant="ghost" size="icon" className="absolute left-0 text-white hover:bg-white/20" onClick={handleGoBack}>
             <ChevronLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-xl font-medium font-righteous">Payment</h1>
@@ -293,11 +245,9 @@ const PaymentPage: React.FC = () => {
             <div className="flex justify-between">
               <span className="font-poppins text-gray-600">Services</span>
               <div className="text-right">
-                {selectedServices?.map((service: any, index: number) => (
-                  <div key={index} className="font-poppins font-medium">
+                {selectedServices?.map((service: any, index: number) => <div key={index} className="font-poppins font-medium">
                     {service.name}
-                  </div>
-                ))}
+                  </div>)}
               </div>
             </div>
             
@@ -344,39 +294,22 @@ const PaymentPage: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Slot Reserved Status */}
-        {lockedSlotInfo && (
-          <Card className="bg-green-50 border-green-200">
-            <CardContent className="p-4">
-              <p className="text-green-800 text-sm font-poppins">
-                ✅ Your time slot is reserved and will be confirmed after payment
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
         {/* Status Message */}
         <Card className="bg-blue-50 border-blue-200">
           <CardContent className="p-4">
             <p className="text-blue-800 text-sm font-poppins">
-              ℹ️ Complete payment to confirm your booking. Your selected time slot is temporarily reserved.
+              ℹ️ Complete payment to confirm your booking. Payment is done at the shop.
             </p>
           </CardContent>
         </Card>
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
-        <Button 
-          size="lg" 
-          onClick={handlePayment} 
-          disabled={isProcessing} 
-          className="w-full bg-booqit-primary hover:bg-booqit-primary/90 py-6 font-poppins font-semibold text-base text-center"
-        >
+        <Button size="lg" onClick={handlePayment} disabled={isProcessing} className="w-full bg-booqit-primary hover:bg-booqit-primary/90 py-6 font-poppins font-semibold text-base text-center">
           {isProcessing ? 'Processing...' : `Confirm Booking - Pay ₹${totalPrice} at Shop`}
         </Button>
       </div>
-    </div>
-  );
+    </div>;
 };
 
 export default PaymentPage;

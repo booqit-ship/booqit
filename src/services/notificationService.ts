@@ -88,37 +88,7 @@ export const initializeUserNotifications = async (userId: string, userRole: 'cus
       return { success: false, reason: 'permission_not_granted' };
     }
 
-    // Enhanced Service Worker check with longer timeout
-    console.log('🔍 Checking Service Worker status...');
-    if ('serviceWorker' in navigator) {
-      try {
-        // Wait for service worker to be ready with extended timeout
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Service Worker timeout')), 15000)
-        );
-        
-        const readyPromise = navigator.serviceWorker.ready;
-        await Promise.race([readyPromise, timeoutPromise]);
-        
-        const registration = await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js');
-        if (!registration) {
-          console.error('❌ Firebase messaging Service Worker not found');
-          return { success: false, reason: 'service_worker_not_found' };
-        }
-        
-        if (!registration.active) {
-          console.error('❌ Service Worker is not active');
-          return { success: false, reason: 'service_worker_not_active' };
-        }
-        
-        console.log('✅ Service Worker is ready and active');
-      } catch (swError) {
-        console.error('❌ Error checking Service Worker:', swError);
-        return { success: false, reason: 'service_worker_error', error: swError.message };
-      }
-    }
-
-    // Get FCM token with improved error handling
+    // Get FCM token
     console.log('🔑 Getting FCM token...');
     const token = await getFCMToken();
     if (!token) {
@@ -150,52 +120,34 @@ export const sendBookingNotification = async (merchantId: string, bookingDetails
   serviceName: string;
   dateTime: string;
 }) => {
-  try {
-    console.log('📤 Sending booking notification to merchant:', merchantId);
-    await sendNotificationToUser(merchantId, {
-      title: 'New Booking! 📅',
-      body: `${bookingDetails.customerName} has booked ${bookingDetails.serviceName} for ${bookingDetails.dateTime}`,
-      data: {
-        type: 'new_booking',
-        merchantId: merchantId
-      }
-    });
-    console.log('✅ Booking notification sent successfully');
-  } catch (error) {
-    console.error('❌ Error sending booking notification:', error);
-  }
+  await sendNotificationToUser(merchantId, {
+    title: 'New Booking! 📅',
+    body: `${bookingDetails.customerName} has booked ${bookingDetails.serviceName} for ${bookingDetails.dateTime}`,
+    data: {
+      type: 'new_booking',
+      merchantId: merchantId
+    }
+  });
 };
 
 export const sendCompletionNotification = async (customerId: string, merchantName: string) => {
-  try {
-    console.log('📤 Sending completion notification to customer:', customerId);
-    await sendNotificationToUser(customerId, {
-      title: 'How was your visit? ⭐',
-      body: `Hope you enjoyed your service at ${merchantName}! Tap to leave a review.`,
-      data: {
-        type: 'review_request',
-        customerId: customerId
-      }
-    });
-    console.log('✅ Completion notification sent successfully');
-  } catch (error) {
-    console.error('❌ Error sending completion notification:', error);
-  }
+  await sendNotificationToUser(customerId, {
+    title: 'How was your visit? ⭐',
+    body: `Hope you enjoyed your service at ${merchantName}! Tap to leave a review.`,
+    data: {
+      type: 'review_request',
+      customerId: customerId
+    }
+  });
 };
 
 export const sendWeeklyReminderNotification = async (customerId: string) => {
-  try {
-    console.log('📤 Sending weekly reminder to customer:', customerId);
-    await sendNotificationToUser(customerId, {
-      title: 'Your salon awaits! 💇‍♀️✨',
-      body: 'Book your next appointment and look fabulous!',
-      data: {
-        type: 'weekly_reminder',
-        customerId: customerId
-      }
-    });
-    console.log('✅ Weekly reminder sent successfully');
-  } catch (error) {
-    console.error('❌ Error sending weekly reminder:', error);
-  }
+  await sendNotificationToUser(customerId, {
+    title: 'Your salon awaits! 💇‍♀️✨',
+    body: 'Book your next appointment and look fabulous!',
+    data: {
+      type: 'weekly_reminder',
+      customerId: customerId
+    }
+  });
 };

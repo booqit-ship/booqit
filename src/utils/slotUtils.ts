@@ -59,15 +59,15 @@ export const getBestStaffForTimeSlot = (
     slot => slot.time_slot === timeSlot && slot.is_available
   );
   
+  // Return first available staff (could be enhanced with load balancing logic)
   return availableStaffForSlot[0];
 };
 
-// Validate if selected time slot is still available for the given total duration
+// Validate if selected time slot is still available
 export const validateTimeSlotSelection = (
   timeSlot: string,
   selectedDate: Date,
   availableSlots: AvailableSlot[],
-  totalDuration: number,
   bufferMinutes: number = 40
 ): { isValid: boolean; reason?: string } => {
   // Check if slot exists in available slots
@@ -76,11 +76,6 @@ export const validateTimeSlotSelection = (
     return { isValid: false, reason: 'Selected time slot is not available' };
   }
 
-  // Check if the total duration would extend past closing time or conflict with other bookings
-  const slotTime = new Date(`1970-01-01T${timeSlot}:00`);
-  const endTime = new Date(slotTime.getTime() + totalDuration * 60000);
-  const endTimeString = endTime.toTimeString().substring(0, 5);
-  
   // Additional check for today's slots
   if (isTodayIST(selectedDate)) {
     const currentTimeWithBuffer = getCurrentTimeISTWithBuffer(bufferMinutes);

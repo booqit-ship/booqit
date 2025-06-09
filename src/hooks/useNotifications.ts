@@ -1,7 +1,8 @@
+
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { requestNotificationPermission, setupForegroundMessaging, getFCMToken } from '@/firebase';
-import { initializeUserNotifications, saveUserFCMToken } from '@/services/notificationService';
+import { requestNotificationPermission, setupForegroundMessaging } from '@/firebase';
+import { initializeUserNotifications } from '@/services/notificationService';
 import { toast } from 'sonner';
 
 export const useNotifications = () => {
@@ -10,29 +11,18 @@ export const useNotifications = () => {
   const [hasPermission, setHasPermission] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
 
-  // Check current permission status on mount and keep it synced
+  // Check current permission status on mount
   useEffect(() => {
-    const checkPermission = () => {
-      if (!('Notification' in window)) {
-        setIsSupported(false);
-        return;
-      }
+    if (!('Notification' in window)) {
+      setIsSupported(false);
+      return;
+    }
 
-      const currentPermission = Notification.permission;
-      console.log('🔔 Current permission status:', currentPermission);
-      setHasPermission(currentPermission === 'granted');
-    };
-
-    // Check permission on mount
-    checkPermission();
-    
-    // Keep permission state synced when window regains focus
-    window.addEventListener('focus', checkPermission);
-    
-    return () => window.removeEventListener('focus', checkPermission);
+    const currentPermission = Notification.permission;
+    console.log('🔔 Current permission status:', currentPermission);
+    setHasPermission(currentPermission === 'granted');
   }, []);
 
-  // Initialize notifications for authenticated users
   useEffect(() => {
     const initializeNotifications = async () => {
       if (!isAuthenticated || !userId || !userRole) {
@@ -59,7 +49,7 @@ export const useNotifications = () => {
           setIsInitialized(true);
           console.log('✅ Notifications initialized successfully');
           
-          // Setup foreground message handling globally
+          // Setup foreground message handling
           setupForegroundMessaging((payload) => {
             console.log('📱 Foreground notification received:', payload);
             toast(payload.notification?.title || 'Notification', {
@@ -77,51 +67,11 @@ export const useNotifications = () => {
       }
     };
 
+    // Only run if we have permission
     if (hasPermission && isAuthenticated && userId && userRole) {
       initializeNotifications();
     }
   }, [isAuthenticated, userId, userRole, hasPermission, isInitialized]);
-
-  // FCM Token refresh logic - runs every 30 minutes for authenticated users
-  useEffect(() => {
-    if (!isAuthenticated || !userId || !userRole || !hasPermission) {
-      return;
-    }
-
-    let refreshInterval: NodeJS.Timeout;
-
-    const refreshFCMToken = async () => {
-      try {
-        console.log('🔄 Refreshing FCM token...');
-        const token = await getFCMToken();
-        
-        if (token) {
-          const saved = await saveUserFCMToken(userId, token, userRole);
-          if (saved) {
-            console.log('✅ FCM token refreshed and saved successfully');
-          } else {
-            console.error('❌ Failed to save refreshed FCM token');
-          }
-        } else {
-          console.error('❌ Failed to get FCM token during refresh');
-        }
-      } catch (error) {
-        console.error('❌ Error refreshing FCM token:', error);
-      }
-    };
-
-    // Initial refresh
-    refreshFCMToken();
-    
-    // Set up interval for token refresh every 30 minutes
-    refreshInterval = setInterval(refreshFCMToken, 30 * 60 * 1000);
-
-    return () => {
-      if (refreshInterval) {
-        clearInterval(refreshInterval);
-      }
-    };
-  }, [isAuthenticated, userId, userRole, hasPermission]);
 
   const requestPermissionManually = async () => {
     try {
@@ -132,8 +82,6 @@ export const useNotifications = () => {
 
       console.log('🔔 Requesting notification permission manually...');
       const permission = await requestNotificationPermission();
-      
-      // Update permission state immediately after request
       setHasPermission(permission);
       
       if (permission && userId && userRole) {
