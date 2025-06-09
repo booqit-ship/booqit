@@ -7,13 +7,23 @@ import { Button } from '@/components/ui/button';
 const TermsAndConditions: React.FC = () => {
   const navigate = useNavigate();
 
+  const handleBackClick = () => {
+    // Check if there's history to go back to
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      // Fallback to home page if no history
+      navigate('/');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-booqit-primary/10 to-white">
       <div className="container mx-auto px-4 py-6 max-w-4xl">
         <div className="mb-6">
           <Button
             variant="ghost"
-            onClick={() => navigate(-1)}
+            onClick={handleBackClick}
             className="mb-4 font-poppins"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
