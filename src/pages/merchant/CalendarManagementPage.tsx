@@ -1,8 +1,9 @@
+
 import React, { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { addDays, subDays, isSameDay, addWeeks, subWeeks } from 'date-fns';
+import { addDays, subDays, isSameDay } from 'date-fns';
 import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import BookingsList from '@/components/merchant/calendar/BookingsList';
@@ -218,9 +219,9 @@ const CalendarManagementPage: React.FC = () => {
 
   const navigateDay = (direction: 'prev' | 'next') => {
     if (direction === 'next') {
-      setSelectedDate(addWeeks(selectedDate, 1));
+      setSelectedDate(addDays(selectedDate, 1));
     } else {
-      setSelectedDate(subWeeks(selectedDate, 1));
+      setSelectedDate(subDays(selectedDate, 1));
     }
   };
 
