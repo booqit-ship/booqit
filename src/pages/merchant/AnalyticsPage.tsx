@@ -8,7 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { format, startOfWeek, startOfMonth, endOfWeek, endOfMonth, addMonths, subMonths } from 'date-fns';
-import { ArrowLeft, TrendingUp, Calendar as CalendarIcon, Users, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { ArrowLeft, TrendingUp, Calendar as CalendarIcon, Users, ChevronLeft, ChevronRight, X, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import type { DateRange } from 'react-day-picker';
@@ -40,6 +40,7 @@ const AnalyticsPage: React.FC = () => {
   const { userId } = useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [merchantId, setMerchantId] = useState<string | null>(null);
   const [earnings, setEarnings] = useState<EarningsData>({
     total: 0,
@@ -88,28 +89,62 @@ const AnalyticsPage: React.FC = () => {
   const [shouldFetchBookingsData, setShouldFetchBookingsData] = useState(false);
   const [shouldFetchStaffData, setShouldFetchStaffData] = useState(false);
 
+  // Retry utility function with exponential backoff
+  const retryWithBackoff = async (fn: () => Promise<any>, retries = 3): Promise<any> => {
+    for (let i = 0; i < retries; i++) {
+      try {
+        return await fn();
+      } catch (error) {
+        console.error(`Attempt ${i + 1} failed:`, error);
+        if (i === retries - 1) throw error;
+        await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+      }
+    }
+  };
+
   // Initial data fetch (without custom ranges)
   useEffect(() => {
     const fetchInitialData = async () => {
-      if (!userId) return;
+      if (!userId) {
+        console.error('No userId available');
+        toast.error('Please log in to continue');
+        navigate('/auth');
+        return;
+      }
       
       try {
         setIsLoading(true);
+        setError(null);
 
-        // Get merchant ID
-        const { data: merchantData, error: merchantError } = await supabase
-          .from('merchants')
-          .select('id')
-          .eq('user_id', userId)
-          .single();
+        console.log('🔍 Fetching merchant for analytics, userId:', userId);
 
-        if (merchantError || !merchantData) {
-          console.error('Error fetching merchant ID:', merchantError);
-          return;
-        }
+        // Get merchant ID with retries
+        const fetchMerchantId = async () => {
+          const { data: merchantData, error: merchantError } = await supabase
+            .from('merchants')
+            .select('id')
+            .eq('user_id', userId)
+            .single();
+
+          if (merchantError) {
+            console.error('Error fetching merchant ID:', merchantError);
+            if (merchantError.code === 'PGRST116') {
+              toast.error('Merchant profile not found. Please complete onboarding.');
+              navigate('/merchant/onboarding');
+              return null;
+            }
+            throw merchantError;
+          }
+
+          return merchantData;
+        };
+
+        const merchantData = await retryWithBackoff(fetchMerchantId);
+        if (!merchantData) return;
 
         const mId = merchantData.id;
         setMerchantId(mId);
+        console.log('✅ Merchant ID found for analytics:', mId);
 
         // Date calculations
         const today = new Date().toISOString().split('T')[0];
@@ -118,26 +153,33 @@ const AnalyticsPage: React.FC = () => {
         const monthStart = format(startOfMonth(new Date()), 'yyyy-MM-dd');
         const monthEnd = format(endOfMonth(new Date()), 'yyyy-MM-dd');
 
-        // Fetch all completed bookings with service data
-        const { data: completedBookings, error: bookingsError } = await supabase
-          .from('bookings')
-          .select(`
-            id,
-            date,
-            service_id,
-            staff_id,
-            services!inner(price)
-          `)
-          .eq('merchant_id', mId)
-          .eq('payment_status', 'completed');
+        // Fetch all completed bookings with service data using left join
+        const fetchCompletedBookings = async () => {
+          const { data: completedBookings, error: bookingsError } = await supabase
+            .from('bookings')
+            .select(`
+              id,
+              date,
+              service_id,
+              staff_id,
+              services!left(price)
+            `)
+            .eq('merchant_id', mId)
+            .eq('payment_status', 'completed');
 
-        if (bookingsError) {
-          console.error('Error fetching bookings:', bookingsError);
-          return;
-        }
+          if (bookingsError) {
+            console.error('Error fetching bookings:', bookingsError);
+            throw bookingsError;
+          }
+
+          return completedBookings || [];
+        };
+
+        const completedBookings = await retryWithBackoff(fetchCompletedBookings);
+        console.log('📊 Completed bookings loaded:', completedBookings.length);
 
         if (completedBookings) {
-          // Calculate earnings (without custom range)
+          // Calculate earnings (without custom range) - handle missing prices
           const totalEarnings = completedBookings.reduce((sum, booking) => 
             sum + (booking.services?.price || 0), 0
           );
@@ -162,6 +204,8 @@ const AnalyticsPage: React.FC = () => {
             customRange: 0,
           });
 
+          console.log('💰 Earnings calculated:', { totalEarnings, todayEarnings, weekEarnings, monthEarnings });
+
           // Calculate bookings counts (without custom range)
           const totalBookingsCount = completedBookings.length;
           const todayBookingsCount = completedBookings.filter(b => b.date === today).length;
@@ -175,18 +219,27 @@ const AnalyticsPage: React.FC = () => {
             thisMonth: monthBookingsCount,
             customRange: 0,
           });
+
+          console.log('📋 Bookings calculated:', { totalBookingsCount, todayBookingsCount, weekBookingsCount, monthBookingsCount });
         }
 
         // Fetch staff data (without custom range initially)
-        const { data: staffList, error: staffError } = await supabase
-          .from('staff')
-          .select('id, name')
-          .eq('merchant_id', mId);
+        const fetchStaffData = async () => {
+          const { data: staffList, error: staffError } = await supabase
+            .from('staff')
+            .select('id, name')
+            .eq('merchant_id', mId);
 
-        if (staffError) {
-          console.error('Error fetching staff:', staffError);
-          return;
-        }
+          if (staffError) {
+            console.error('Error fetching staff:', staffError);
+            throw staffError;
+          }
+
+          return staffList || [];
+        };
+
+        const staffList = await retryWithBackoff(fetchStaffData);
+        console.log('👥 Staff list loaded:', staffList.length);
 
         if (staffList && completedBookings) {
           const staffEarningsData = staffList.map(staff => {
@@ -204,13 +257,30 @@ const AnalyticsPage: React.FC = () => {
           });
 
           setStaffData(staffEarningsData);
+          console.log('👥 Staff earnings calculated:', staffEarningsData);
         }
 
       } catch (error) {
-        console.error('Error fetching analytics data:', error);
-        toast('Error loading analytics', {
-          description: 'Could not fetch analytics data',
+        console.error('❌ Error fetching analytics data:', error);
+        setError('Failed to load analytics data');
+        toast.error('Failed to load analytics data');
+        
+        // Set fallback values
+        setEarnings({
+          total: 0,
+          today: 0,
+          thisWeek: 0,
+          thisMonth: 0,
+          customRange: 0,
         });
+        setBookings({
+          total: 0,
+          today: 0,
+          thisWeek: 0,
+          thisMonth: 0,
+          customRange: 0,
+        });
+        setStaffData([]);
       } finally {
         setIsLoading(false);
       }
@@ -230,19 +300,33 @@ const AnalyticsPage: React.FC = () => {
           const fromDate = format(earningsDateRange.from, 'yyyy-MM-dd');
           const toDate = format(earningsDateRange.to, 'yyyy-MM-dd');
           
-          const { data: earningsBookings } = await supabase
-            .from('bookings')
-            .select(`services!inner(price)`)
-            .eq('merchant_id', merchantId)
-            .eq('payment_status', 'completed')
-            .gte('date', fromDate)
-            .lte('date', toDate);
+          console.log('💰 Fetching custom earnings range:', fromDate, 'to', toDate);
+          
+          const fetchCustomEarnings = async () => {
+            const { data: earningsBookings, error } = await supabase
+              .from('bookings')
+              .select(`services!left(price)`)
+              .eq('merchant_id', merchantId)
+              .eq('payment_status', 'completed')
+              .gte('date', fromDate)
+              .lte('date', toDate);
 
+            if (error) {
+              console.error('Error fetching custom earnings:', error);
+              throw error;
+            }
+
+            return earningsBookings || [];
+          };
+
+          const earningsBookings = await retryWithBackoff(fetchCustomEarnings);
+          
           if (earningsBookings) {
             const customEarnings = earningsBookings.reduce((sum, booking) => 
               sum + (booking.services?.price || 0), 0
             );
             setEarnings(prev => ({ ...prev, customRange: customEarnings }));
+            console.log('💰 Custom earnings calculated:', customEarnings);
           }
           setShouldFetchEarningsData(false);
         }
@@ -252,16 +336,30 @@ const AnalyticsPage: React.FC = () => {
           const fromDate = format(bookingsDateRange.from, 'yyyy-MM-dd');
           const toDate = format(bookingsDateRange.to, 'yyyy-MM-dd');
           
-          const { data: bookingsData } = await supabase
-            .from('bookings')
-            .select('id')
-            .eq('merchant_id', merchantId)
-            .eq('payment_status', 'completed')
-            .gte('date', fromDate)
-            .lte('date', toDate);
+          console.log('📋 Fetching custom bookings range:', fromDate, 'to', toDate);
+          
+          const fetchCustomBookings = async () => {
+            const { data: bookingsData, error } = await supabase
+              .from('bookings')
+              .select('id')
+              .eq('merchant_id', merchantId)
+              .eq('payment_status', 'completed')
+              .gte('date', fromDate)
+              .lte('date', toDate);
 
+            if (error) {
+              console.error('Error fetching custom bookings:', error);
+              throw error;
+            }
+
+            return bookingsData || [];
+          };
+
+          const bookingsData = await retryWithBackoff(fetchCustomBookings);
+          
           if (bookingsData) {
             setBookings(prev => ({ ...prev, customRange: bookingsData.length }));
+            console.log('📋 Custom bookings calculated:', bookingsData.length);
           }
           setShouldFetchBookingsData(false);
         }
@@ -271,22 +369,40 @@ const AnalyticsPage: React.FC = () => {
           const fromDate = format(staffDateRange.from, 'yyyy-MM-dd');
           const toDate = format(staffDateRange.to, 'yyyy-MM-dd');
           
-          const { data: staffList } = await supabase
-            .from('staff')
-            .select('id, name')
-            .eq('merchant_id', merchantId);
+          console.log('👥 Fetching custom staff range:', fromDate, 'to', toDate);
+          
+          const fetchCustomStaffData = async () => {
+            const { data: staffList, error: staffError } = await supabase
+              .from('staff')
+              .select('id, name')
+              .eq('merchant_id', merchantId);
 
-          const { data: staffBookings } = await supabase
-            .from('bookings')
-            .select(`
-              staff_id,
-              services!inner(price)
-            `)
-            .eq('merchant_id', merchantId)
-            .eq('payment_status', 'completed')
-            .gte('date', fromDate)
-            .lte('date', toDate);
+            if (staffError) {
+              console.error('Error fetching staff list:', staffError);
+              throw staffError;
+            }
 
+            const { data: staffBookings, error: bookingsError } = await supabase
+              .from('bookings')
+              .select(`
+                staff_id,
+                services!left(price)
+              `)
+              .eq('merchant_id', merchantId)
+              .eq('payment_status', 'completed')
+              .gte('date', fromDate)
+              .lte('date', toDate);
+
+            if (bookingsError) {
+              console.error('Error fetching staff bookings:', bookingsError);
+              throw bookingsError;
+            }
+
+            return { staffList: staffList || [], staffBookings: staffBookings || [] };
+          };
+
+          const { staffList, staffBookings } = await retryWithBackoff(fetchCustomStaffData);
+          
           if (staffList && staffBookings) {
             const staffEarningsData = staffList.map(staff => {
               const staffBookingsFiltered = staffBookings.filter(b => b.staff_id === staff.id);
@@ -303,12 +419,28 @@ const AnalyticsPage: React.FC = () => {
             });
 
             setStaffData(staffEarningsData);
+            console.log('👥 Custom staff earnings calculated:', staffEarningsData);
           }
           setShouldFetchStaffData(false);
         }
 
       } catch (error) {
-        console.error('Error fetching custom range data:', error);
+        console.error('❌ Error fetching custom range data:', error);
+        toast.error('Failed to load custom date range data');
+        
+        // Set fallback values
+        if (shouldFetchEarningsData) {
+          setEarnings(prev => ({ ...prev, customRange: 0 }));
+          setShouldFetchEarningsData(false);
+        }
+        if (shouldFetchBookingsData) {
+          setBookings(prev => ({ ...prev, customRange: 0 }));
+          setShouldFetchBookingsData(false);
+        }
+        if (shouldFetchStaffData) {
+          setStaffData([]);
+          setShouldFetchStaffData(false);
+        }
       }
     };
 
@@ -467,6 +599,31 @@ const AnalyticsPage: React.FC = () => {
       </Popover>
     );
   };
+
+  // Error state UI
+  if (error && !isLoading) {
+    return (
+      <div className="p-4 md:p-6 pb-20">
+        <div className="flex items-center mb-6">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/merchant')}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
+        </div>
+        
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="p-6 text-center">
+            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-red-700 mb-2">Unable to load analytics data</h3>
+            <p className="text-red-600 mb-4">Please refresh the page or contact support if the problem persists.</p>
+            <Button onClick={() => window.location.reload()} variant="outline" className="border-red-300 text-red-700">
+              Refresh Page
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -666,7 +823,13 @@ const AnalyticsPage: React.FC = () => {
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500 text-center py-4">No staff data available</p>
+              <div className="text-center py-8">
+                <div className="bg-gray-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                  <Users className="h-8 w-8 text-gray-400" />
+                </div>
+                <p className="text-gray-500 font-medium">No staff data available</p>
+                <p className="text-gray-400 text-sm mt-1">Staff performance will appear here when data is available</p>
+              </div>
             )}
           </CardContent>
         </Card>
