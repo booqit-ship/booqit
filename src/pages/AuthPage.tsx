@@ -162,6 +162,21 @@ const AuthPage: React.FC = () => {
     }
   };
 
+  // Handle keyboard events for mobile form submission
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleLogin(e as any);
+    }
+  };
+
+  // Handle forgot password navigation with explicit prevention
+  const handleForgotPasswordClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigate('/forgot-password');
+  };
+
   // Enhanced registration with immediate session validation
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -313,6 +328,7 @@ const AuthPage: React.FC = () => {
                       placeholder="you@example.com" 
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
+                      onKeyDown={handleKeyDown}
                       className="font-poppins"
                       required
                     />
@@ -320,21 +336,18 @@ const AuthPage: React.FC = () => {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Label htmlFor="password" className="font-poppins">Password</Label>
-                      <Link to="/forgot-password">
-                        <Button 
-                          variant="link" 
-                          size="sm" 
-                          className="text-xs p-0 h-auto font-poppins text-booqit-primary hover:text-booqit-primary/80"
-                        >
+                      <div onClick={handleForgotPasswordClick}>
+                        <span className="text-xs p-0 h-auto font-poppins text-booqit-primary hover:text-booqit-primary/80 cursor-pointer hover:underline">
                           Forgot password?
-                        </Button>
-                      </Link>
+                        </span>
+                      </div>
                     </div>
                     <Input 
                       id="password" 
                       type="password" 
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
+                      onKeyDown={handleKeyDown}
                       className="font-poppins"
                       required
                     />
