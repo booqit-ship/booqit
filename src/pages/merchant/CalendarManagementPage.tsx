@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -173,51 +172,22 @@ const CalendarManagementPage: React.FC = () => {
     try {
       console.log('Updating booking status:', bookingId, 'to:', newStatus);
       
+      let updateData: any = { status: newStatus };
+      
+      // If completing, also set payment status to completed for earnings calculation
       if (newStatus === 'completed') {
-        // For completion, update both status and payment_status
-        const { error } = await supabase
-          .from('bookings')
-          .update({ 
-            status: 'completed',
-            payment_status: 'completed'
-          })
-          .eq('id', bookingId);
+        updateData.payment_status = 'completed';
+      }
 
-        if (error) {
-          console.error('Error updating booking status:', error);
-          toast.error(`Failed to complete booking: ${error.message}`);
-          return;
-        }
-      } else if (newStatus === 'cancelled') {
-        // For cancellation, use the proper function
-        const { data, error } = await supabase.rpc('cancel_booking_properly', {
-          p_booking_id: bookingId,
-          p_user_id: userId
-        });
+      const { error } = await supabase
+        .from('bookings')
+        .update(updateData)
+        .eq('id', bookingId);
 
-        if (error) {
-          console.error('Error cancelling booking:', error);
-          toast.error(`Failed to cancel booking: ${error.message}`);
-          return;
-        }
-
-        const result = data as any;
-        if (result && !result.success) {
-          toast.error(result.error || 'Failed to cancel booking');
-          return;
-        }
-      } else {
-        // For other status updates (pending, confirmed)
-        const { error } = await supabase
-          .from('bookings')
-          .update({ status: newStatus })
-          .eq('id', bookingId);
-
-        if (error) {
-          console.error('Error updating booking status:', error);
-          toast.error(`Failed to update booking status: ${error.message}`);
-          return;
-        }
+      if (error) {
+        console.error('Error updating booking status:', error);
+        toast.error(`Failed to update booking status: ${error.message}`);
+        return;
       }
 
       toast.success(`Booking ${newStatus} successfully`);
@@ -257,11 +227,11 @@ const CalendarManagementPage: React.FC = () => {
     return false;
   };
 
-  const refetchBookings = () => {
+  const refetchData = () => {
     queryClient.invalidateQueries({ queryKey: ['bookings', merchantId] });
   };
 
-  const refetchHolidays = () => {
+  const refetchHolidaysData = () => {
     queryClient.invalidateQueries({ queryKey: ['shop_holidays', merchantId] });
   };
 
@@ -313,15 +283,15 @@ const CalendarManagementPage: React.FC = () => {
             holidays={holidays} 
             isLoading={false} // Always show cached data
             onDeleteHoliday={handleDeleteHoliday} 
-            onHolidayAdded={refetchHolidays} 
+            onHolidayAdded={refetchHolidaysData} 
           />
 
           <StylistAvailabilityWidget 
             merchantId={merchantId} 
             selectedDate={selectedDate} 
             onAvailabilityChange={() => {
-              refetchBookings();
-              refetchHolidays();
+              refetchData();
+              refetchHolidaysData();
             }} 
           />
         </div>

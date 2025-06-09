@@ -45,11 +45,12 @@ const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
         return;
       }
 
-      // Call the updated cancellation function
-      const { data, error } = await supabase.rpc('cancel_booking_properly', {
-        p_booking_id: bookingId,
-        p_user_id: user.id
-      });
+      // Update booking status to cancelled
+      const { error } = await supabase
+        .from('bookings')
+        .update({ status: 'cancelled' })
+        .eq('id', bookingId)
+        .eq('user_id', user.id);
 
       if (error) {
         console.error('Error cancelling booking:', error);
@@ -57,15 +58,7 @@ const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
         return;
       }
 
-      // Type assert the response data
-      const result = data as { success: boolean; error?: string; message?: string };
-
-      if (!result.success) {
-        toast.error(result.error || 'Failed to cancel booking');
-        return;
-      }
-
-      toast.success(result.message || 'Booking cancelled successfully');
+      toast.success('Booking cancelled successfully');
       
       // Call the onCancelled callback if provided
       if (onCancelled) {

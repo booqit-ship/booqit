@@ -59,50 +59,26 @@ const BookingCard: React.FC<BookingCardProps> = ({
 
   const handleStatusUpdate = async (newStatus: 'confirmed' | 'completed' | 'cancelled') => {
     try {
-      if (newStatus === 'cancelled') {
-        // Use the proper cancellation function for merchant cancellation
-        const { data, error } = await supabase.rpc('cancel_booking_properly', {
-          p_booking_id: booking.id,
-          p_user_id: null // Merchant cancellation - no user restriction
-        });
-
-        if (error) {
-          console.error('Error cancelling booking:', error);
-          toast.error('Failed to cancel booking');
-          return;
-        }
-
-        const result = data as { success: boolean; error?: string; message?: string };
-        if (!result.success) {
-          toast.error(result.error || 'Failed to cancel booking');
-          return;
-        }
-
-        toast.success('Booking cancelled successfully');
-        await onStatusChange(booking.id, 'cancelled');
-      } else {
-        // For confirm/complete, update directly with payment status logic
-        let updateData: any = { status: newStatus };
-        
-        // If completing, also set payment status to completed for earnings calculation
-        if (newStatus === 'completed') {
-          updateData.payment_status = 'completed';
-        }
-
-        const { error } = await supabase
-          .from('bookings')
-          .update(updateData)
-          .eq('id', booking.id);
-
-        if (error) {
-          console.error('Error updating booking status:', error);
-          toast.error('Failed to update booking status');
-          return;
-        }
-
-        toast.success(`Booking ${newStatus} successfully`);
-        await onStatusChange(booking.id, newStatus);
+      let updateData: any = { status: newStatus };
+      
+      // If completing, also set payment status to completed for earnings calculation
+      if (newStatus === 'completed') {
+        updateData.payment_status = 'completed';
       }
+
+      const { error } = await supabase
+        .from('bookings')
+        .update(updateData)
+        .eq('id', booking.id);
+
+      if (error) {
+        console.error('Error updating booking status:', error);
+        toast.error('Failed to update booking status');
+        return;
+      }
+
+      toast.success(`Booking ${newStatus} successfully`);
+      await onStatusChange(booking.id, newStatus);
     } catch (error) {
       console.error('Error updating booking status:', error);
       toast.error('Failed to update booking status');
@@ -173,7 +149,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
         </div>
 
         {/* Action buttons - only show if not cancelled or completed */}
-        {booking.status !== 'cancelled' && booking.status !== 'completed' && (
+        {booking.status === 'pending' || booking.status === 'confirmed' ? (
           <div className="flex flex-wrap gap-2">
             {booking.status === 'pending' && (
               <Button 
@@ -206,7 +182,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
               Cancel
             </Button>
           </div>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   );

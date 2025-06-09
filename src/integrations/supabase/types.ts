@@ -770,6 +770,19 @@ export type Database = {
           duration: number
         }[]
       }
+      get_booking_services: {
+        Args: { p_booking_id: string }
+        Returns: {
+          service_id: string
+          service_name: string
+          service_duration: number
+          service_price: number
+        }[]
+      }
+      get_booking_total_duration: {
+        Args: { p_booking_id: string }
+        Returns: number
+      }
       get_fresh_available_slots: {
         Args: { p_merchant_id: string; p_date: string; p_staff_id?: string }
         Returns: {
