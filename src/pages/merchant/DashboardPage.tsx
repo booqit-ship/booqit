@@ -85,7 +85,7 @@ const DashboardPage: React.FC = () => {
           setBookingsToday(todayBookings?.length || 0);
         }
 
-        // Get total earnings from all completed bookings
+        // Get total earnings from all completed bookings with proper status
         const { data: completedBookings, error: earningsError } = await supabase
           .from('bookings')
           .select(`
@@ -93,6 +93,7 @@ const DashboardPage: React.FC = () => {
             services!inner(price)
           `)
           .eq('merchant_id', mId)
+          .eq('status', 'completed')
           .eq('payment_status', 'completed');
 
         if (earningsError) {
@@ -113,6 +114,8 @@ const DashboardPage: React.FC = () => {
           .from('bookings')
           .select(`
             id,
+            merchant_id,
+            service_id,
             date,
             time_slot,
             status,
@@ -121,8 +124,9 @@ const DashboardPage: React.FC = () => {
             customer_phone,
             customer_email,
             stylist_name,
-            services!inner(name),
-            user_id
+            user_id,
+            created_at,
+            services!inner(name)
           `)
           .eq('merchant_id', mId)
           .eq('date', today)
@@ -153,15 +157,25 @@ const DashboardPage: React.FC = () => {
               }
 
               return {
-                ...booking,
+                id: booking.id,
+                merchant_id: booking.merchant_id,
+                service_id: booking.service_id,
+                user_id: booking.user_id,
+                date: booking.date,
+                time_slot: booking.time_slot,
+                status: booking.status,
+                payment_status: booking.payment_status,
                 customer_name: customerName,
+                customer_phone: booking.customer_phone,
+                customer_email: booking.customer_email,
                 stylist_name: booking.stylist_name || 'Unassigned',
+                created_at: booking.created_at,
                 service: booking.services
-              };
+              } as Booking;
             })
           );
 
-          setRecentBookings(bookingsWithDetails as Booking[]);
+          setRecentBookings(bookingsWithDetails);
         }
 
       } catch (error) {
