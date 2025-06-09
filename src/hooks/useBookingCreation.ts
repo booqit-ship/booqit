@@ -30,10 +30,10 @@ export const useBookingCreation = () => {
     try {
       console.log('📝 Creating booking with data:', bookingData);
 
-      // Get service names for notification
+      // Get service names and ids for notification
       const { data: services } = await supabase
         .from('services')
-        .select('name')
+        .select('id, name')
         .in('id', bookingData.serviceIds);
 
       const serviceName = services?.map(s => s.name).join(', ') || 'Service';
