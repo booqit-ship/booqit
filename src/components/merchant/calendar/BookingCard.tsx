@@ -14,6 +14,8 @@ interface BookingWithCustomerDetails {
     name: string;
     duration?: number;
   };
+  services?: string | any; // JSON string or parsed object
+  total_duration?: number;
   time_slot: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   customer_name?: string;
@@ -45,13 +47,39 @@ const BookingCard: React.FC<BookingCardProps> = ({
     }
   };
 
-  const getTimeRange = () => {
-    if (!booking.service?.duration) {
-      return formatTimeToAmPm(booking.time_slot);
+  // Helper function to get service names and duration from services JSON or fallback to single service
+  const getServiceInfo = () => {
+    // First try to get from services JSON field
+    if (booking.services) {
+      try {
+        const services = typeof booking.services === 'string' 
+          ? JSON.parse(booking.services) 
+          : booking.services;
+        
+        if (Array.isArray(services)) {
+          const serviceNames = services.map(service => service.name).join(', ');
+          return {
+            names: serviceNames,
+            duration: booking.total_duration || services.reduce((total, service) => total + (service.duration || 0), 0)
+          };
+        }
+      } catch (error) {
+        console.error('Error parsing services JSON:', error);
+      }
     }
     
+    // Fallback to single service
+    return {
+      names: booking.service?.name || 'Service',
+      duration: booking.service?.duration || 30
+    };
+  };
+
+  const serviceInfo = getServiceInfo();
+
+  const getTimeRange = () => {
     const startMinutes = timeToMinutes(booking.time_slot);
-    const endMinutes = startMinutes + booking.service.duration;
+    const endMinutes = startMinutes + serviceInfo.duration;
     const endTime = minutesToTime(endMinutes);
     
     return `${formatTimeToAmPm(booking.time_slot)} - ${formatTimeToAmPm(endTime)}`;
@@ -112,23 +140,19 @@ const BookingCard: React.FC<BookingCardProps> = ({
           </Badge>
         </div>
 
-        {/* Service name and duration */}
-        {booking.service && (
-          <div className="space-y-2 mb-3">
-            <div className="flex items-center space-x-2">
-              <div className={`w-2 h-2 rounded-full ${booking.status === 'cancelled' ? 'bg-red-400' : 'bg-booqit-primary'}`}></div>
-              <span className={`font-medium ${booking.status === 'cancelled' ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
-                {booking.service.name}
-              </span>
-            </div>
-            {booking.service.duration && (
-              <div className="flex items-center space-x-2 text-gray-600">
-                <Timer className="h-4 w-4 text-gray-500" />
-                <span className="text-sm">{booking.service.duration} min</span>
-              </div>
-            )}
+        {/* Service names and duration */}
+        <div className="space-y-2 mb-3">
+          <div className="flex items-center space-x-2">
+            <div className={`w-2 h-2 rounded-full ${booking.status === 'cancelled' ? 'bg-red-400' : 'bg-booqit-primary'}`}></div>
+            <span className={`font-medium ${booking.status === 'cancelled' ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
+              {serviceInfo.names}
+            </span>
           </div>
-        )}
+          <div className="flex items-center space-x-2 text-gray-600">
+            <Timer className="h-4 w-4 text-gray-500" />
+            <span className="text-sm">{serviceInfo.duration} min</span>
+          </div>
+        </div>
 
         {/* Customer and stylist information */}
         <div className="space-y-2 mb-4">

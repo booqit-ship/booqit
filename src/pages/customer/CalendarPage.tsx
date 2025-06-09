@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -28,6 +27,27 @@ const CalendarPage: React.FC = () => {
     const today = new Date();
     return Array.from({ length: 5 }, (_, i) => addDays(today, i));
   }, []);
+
+  // Helper function to get service names from services JSON
+  const getServiceNames = (booking: Booking): string => {
+    // First try to get from services JSON field
+    if (booking.services) {
+      try {
+        const services = typeof booking.services === 'string' 
+          ? JSON.parse(booking.services) 
+          : booking.services;
+        
+        if (Array.isArray(services)) {
+          return services.map(service => service.name).join(', ');
+        }
+      } catch (error) {
+        console.error('Error parsing services JSON:', error);
+      }
+    }
+    
+    // Fallback to single service name
+    return booking.service?.name || 'Service';
+  };
 
   // Fetch bookings with optimized caching
   const { data: bookings = [], isFetching: isBookingsFetching } = useQuery({
@@ -273,7 +293,7 @@ const CalendarPage: React.FC = () => {
                           <Clock className="h-4 w-4 text-booqit-primary" />
                         </div>
                         <div className="flex-1">
-                          <h3 className="text-gray-900 mb-1 text-lg font-light">{booking.service?.name}</h3>
+                          <h3 className="text-gray-900 mb-1 text-lg font-light">{getServiceNames(booking)}</h3>
                           <p className="text-sm text-booqit-primary font-medium">
                             {formatTimeToAmPm(booking.time_slot)}
                           </p>
