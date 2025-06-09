@@ -63,7 +63,7 @@ function App() {
 
             {/* Customer routes */}
             <Route path="/customer" element={
-              <ProtectedRoute allowedRoles={['customer']}>
+              <ProtectedRoute requiredRole="customer">
                 <CustomerLayout />
               </ProtectedRoute>
             }>
@@ -83,7 +83,7 @@ function App() {
 
             {/* Merchant routes */}
             <Route path="/merchant" element={
-              <ProtectedRoute allowedRoles={['merchant']}>
+              <ProtectedRoute requiredRole="merchant">
                 <MerchantLayout />
               </ProtectedRoute>
             }>
