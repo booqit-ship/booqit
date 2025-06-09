@@ -1,7 +1,8 @@
 
 import React, { useEffect, useState } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Bell, X, ExternalLink } from 'lucide-react';
+import { Bell, X } from 'lucide-react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -43,48 +44,6 @@ const GlobalNotificationBanner = () => {
     }
   };
 
-  // If permission is denied, show help message with Chrome settings link
-  if (permission === 'denied') {
-    return (
-      <div className="bg-red-50 border-b border-red-200">
-        <div className="max-w-7xl mx-auto px-4 py-2">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <Bell className="h-4 w-4 text-red-600" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-red-900">
-                  Notifications are blocked for this site
-                </p>
-                <p className="text-xs text-red-700 mt-1">
-                  Please enable them manually in your browser settings to receive booking updates
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                onClick={() => window.open('https://support.google.com/chrome/answer/3220216', '_blank')}
-                className="bg-red-600 hover:bg-red-700 text-white text-xs px-3 py-1"
-              >
-                <ExternalLink className="h-3 w-3 mr-1" />
-                Learn How
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setIsDismissed(true)}
-                className="text-red-600 hover:text-red-700 p-1 h-7 w-7"
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Default permission state - show enable button
   return (
     <div className="bg-orange-50 border-b border-orange-200">
       <div className="max-w-7xl mx-auto px-4 py-2">
