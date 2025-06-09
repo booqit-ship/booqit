@@ -7,11 +7,13 @@ import { AlertTriangle } from 'lucide-react';
 interface CancelBookingButtonProps {
   bookingId: string;
   onCancelled: () => void;
+  className?: string;
 }
 
 const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
   bookingId,
-  onCancelled
+  onCancelled,
+  className = ""
 }) => {
   const { cancelBooking, isCancelling } = useCancelBooking();
 
@@ -27,7 +29,7 @@ const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
       onClick={handleCancel}
       disabled={isCancelling}
       variant="destructive"
-      className="w-full"
+      className={`w-full ${className}`}
       size="lg"
     >
       {isCancelling ? (

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -45,7 +46,7 @@ const CalendarManagementPage: React.FC = () => {
   const merchantId = merchant?.id;
 
   // Get bookings with services using the updated structure
-  const { data: bookings = [], isFetching: isBookingsFetching, refetch: refetchBookings } = useQuery({
+  const { data: bookings = [], isFetching: isBookingsFetching, refetch: refetchBookingsQuery } = useQuery({
     queryKey: ['bookings-with-services', merchantId, formatDateInIST(selectedDate, 'yyyy-MM-dd')],
     queryFn: async (): Promise<BookingWithServices[]> => {
       if (!merchantId || !merchant) return [];
@@ -245,7 +246,7 @@ const CalendarManagementPage: React.FC = () => {
       toast.success(`Booking ${newStatus} successfully`);
       
       // Force refetch of bookings
-      await refetchBookings();
+      await refetchBookingsQuery();
       queryClient.invalidateQueries({ queryKey: ['appointment-counts', merchantId] });
     } catch (error) {
       console.error('Error updating booking status:', error);
