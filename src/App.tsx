@@ -10,7 +10,6 @@ import NotificationBanner from "@/components/NotificationBanner";
 import AuthPage from "@/pages/AuthPage";
 import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
-import VerifyEmailPage from "@/pages/VerifyEmailPage";
 import NotificationTestPage from "@/pages/NotificationTestPage";
 import Index from "@/pages/Index";
 
@@ -47,7 +46,6 @@ const App = () => {
                 <Route path="/register" element={<AuthPage />} />
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
-                <Route path="/verify-email" element={<VerifyEmailPage />} />
                 
                 <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
                 
