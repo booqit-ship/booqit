@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { requestNotificationPermission, setupForegroundMessaging, getFCMToken } from '@/firebase';
@@ -156,8 +157,18 @@ export const useNotifications = () => {
           console.error('❌ Failed to initialize after permission grant:', result.reason);
           toast.error('Failed to initialize notifications: ' + result.reason);
         }
+      } else if (Notification.permission === 'denied') {
+        toast('Notifications are blocked. Please enable them in your browser settings.', {
+          duration: 7000,
+          action: {
+            label: 'Learn How',
+            onClick: () => {
+              window.open('https://support.google.com/chrome/answer/3220216', '_blank');
+            }
+          }
+        });
       } else {
-        toast('To get booking updates, please enable notifications in your browser settings', {
+        toast('To get booking updates, please try again or check your browser settings', {
           duration: 7000,
           action: {
             label: 'Learn How',
