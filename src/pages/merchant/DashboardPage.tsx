@@ -39,10 +39,13 @@ const DashboardPage: React.FC = () => {
   };
 
   useEffect(() => {
-    const fetchMerchantId = async () => {
+    const fetchDashboardData = async () => {
       if (!userId) return;
       
       try {
+        setIsLoading(true);
+
+        // Get merchant ID first
         const { data: merchantData, error: merchantError } = await supabase
           .from('merchants')
           .select('id, image_url, shop_name')
@@ -54,73 +57,58 @@ const DashboardPage: React.FC = () => {
           return;
         }
 
-        if (merchantData) {
-          setMerchantId(merchantData.id);
-          setShopImage(merchantData.image_url);
-          setShopName(merchantData.shop_name || 'Merchant');
-          return merchantData.id;
+        if (!merchantData) {
+          console.error('No merchant found for user');
+          return;
         }
-      } catch (error) {
-        console.error('Error fetching merchant ID:', error);
-      }
-      return null;
-    };
 
-    const fetchDashboardData = async () => {
-      if (!userId) return;
-      
-      try {
-        setIsLoading(true);
-
-        // Get merchant ID first
-        const mId = await fetchMerchantId();
-        if (!mId) return;
+        const mId = merchantData.id;
+        setMerchantId(mId);
+        setShopImage(merchantData.image_url);
+        setShopName(merchantData.shop_name || 'Merchant');
 
         // Get today's date in ISO format (YYYY-MM-DD)
         const today = new Date().toISOString().split('T')[0];
 
-        // Get bookings count for today
-        const { count: todayBookingsCount, error: bookingsCountError } = await supabase
+        // Get bookings count for today - all statuses except cancelled
+        const { data: todayBookings, error: bookingsCountError } = await supabase
           .from('bookings')
-          .select('*', { count: 'exact', head: true })
+          .select('id')
           .eq('merchant_id', mId)
-          .eq('date', today);
+          .eq('date', today)
+          .in('status', ['pending', 'confirmed', 'completed']);
 
         if (bookingsCountError) {
           console.error('Error fetching bookings count:', bookingsCountError);
+          setBookingsToday(0);
         } else {
-          setBookingsToday(todayBookingsCount || 0);
+          setBookingsToday(todayBookings?.length || 0);
         }
 
-        // Get all bookings with payment status 'completed' to calculate earnings
+        // Get total earnings from all completed bookings
         const { data: completedBookings, error: earningsError } = await supabase
           .from('bookings')
-          .select('service_id')
+          .select(`
+            id,
+            services!inner(price)
+          `)
           .eq('merchant_id', mId)
           .eq('payment_status', 'completed');
 
         if (earningsError) {
           console.error('Error fetching earnings data:', earningsError);
+          setTotalEarnings(0);
         } else if (completedBookings && completedBookings.length > 0) {
-          // Get service prices for all completed bookings
-          const serviceIds = completedBookings.map(booking => booking.service_id);
-          const { data: services, error: servicesError } = await supabase
-            .from('services')
-            .select('price')
-            .in('id', serviceIds);
-
-          if (servicesError) {
-            console.error('Error fetching service prices:', servicesError);
-          } else if (services) {
-            // Sum up all service prices
-            const totalEarnings = services.reduce((sum, service) => sum + (service.price || 0), 0);
-            setTotalEarnings(totalEarnings);
-          }
+          // Sum up all service prices
+          const totalEarnings = completedBookings.reduce((sum, booking) => {
+            return sum + (booking.services?.price || 0);
+          }, 0);
+          setTotalEarnings(totalEarnings);
         } else {
           setTotalEarnings(0);
         }
 
-        // Fetch recent bookings for today with better customer and stylist name fetching
+        // Fetch recent bookings for today with customer and stylist details
         const { data: recentBookingsData, error: recentBookingsError } = await supabase
           .from('bookings')
           .select(`
@@ -133,16 +121,18 @@ const DashboardPage: React.FC = () => {
             customer_phone,
             customer_email,
             stylist_name,
-            service:service_id (name),
+            services!inner(name),
             user_id
           `)
           .eq('merchant_id', mId)
           .eq('date', today)
+          .in('status', ['pending', 'confirmed', 'completed'])
           .order('time_slot', { ascending: true })
           .limit(5);
 
         if (recentBookingsError) {
           console.error('Error fetching recent bookings:', recentBookingsError);
+          setRecentBookings([]);
         } else if (recentBookingsData) {
           // Process bookings and ensure we have customer names
           const bookingsWithDetails = await Promise.all(
@@ -165,7 +155,8 @@ const DashboardPage: React.FC = () => {
               return {
                 ...booking,
                 customer_name: customerName,
-                stylist_name: booking.stylist_name || 'Unassigned'
+                stylist_name: booking.stylist_name || 'Unassigned',
+                service: booking.services
               };
             })
           );
@@ -190,8 +181,10 @@ const DashboardPage: React.FC = () => {
     fetchDashboardData();
 
     // Set up realtime subscription
+    let subscription: any = null;
+    
     if (merchantId) {
-      const bookingsChannel = supabase
+      subscription = supabase
         .channel('dashboard-bookings-changes')
         .on('postgres_changes', {
           event: '*',
@@ -203,12 +196,14 @@ const DashboardPage: React.FC = () => {
           fetchDashboardData();
         })
         .subscribe();
-
-      // Cleanup subscription
-      return () => {
-        supabase.removeChannel(bookingsChannel);
-      };
     }
+
+    // Cleanup subscription
+    return () => {
+      if (subscription) {
+        supabase.removeChannel(subscription);
+      }
+    };
   }, [userId, merchantId]);
 
   // Dashboard stats - only bookings today and total earnings
