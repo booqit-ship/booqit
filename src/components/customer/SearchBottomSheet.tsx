@@ -25,7 +25,7 @@ interface SearchBottomSheetProps {
 
 const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
   merchants,
-  filters,
+  filters: parentFilters,
   onFiltersChange,
   isLoading,
   onMerchantSelect,
@@ -33,37 +33,46 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  
+  // Independent filters for the bottom sheet - not synchronized with parent
+  const [localFilters, setLocalFilters] = useState({
+    sortBy: 'rating',
+    priceRange: 'all',
+    category: 'all',
+    rating: 'all',
+    genderFocus: 'all'
+  });
 
-  // Filter merchants locally in the bottom sheet
+  // Filter merchants locally in the bottom sheet using local filters
   const filteredMerchants = useMemo(() => {
     let filtered = [...merchants];
 
     // Apply category filter
-    if (filters.category !== 'all') {
-      filtered = filtered.filter(merchant => merchant.category === filters.category);
+    if (localFilters.category !== 'all') {
+      filtered = filtered.filter(merchant => merchant.category === localFilters.category);
     }
 
     // Apply gender focus filter
-    if (filters.genderFocus !== 'all') {
+    if (localFilters.genderFocus !== 'all') {
       filtered = filtered.filter(merchant => 
-        merchant.gender_focus === filters.genderFocus || merchant.gender_focus === 'unisex'
+        merchant.gender_focus === localFilters.genderFocus || merchant.gender_focus === 'unisex'
       );
     }
 
     // Apply rating filter
-    if (filters.rating !== 'all') {
-      const minRating = parseFloat(filters.rating);
+    if (localFilters.rating !== 'all') {
+      const minRating = parseFloat(localFilters.rating);
       filtered = filtered.filter(merchant => (merchant.rating || 0) >= minRating);
     }
 
     // Apply price range filter based on services
-    if (filters.priceRange !== 'all') {
+    if (localFilters.priceRange !== 'all') {
       filtered = filtered.filter(merchant => {
         if (!merchant.services || merchant.services.length === 0) return false;
         
         const minPrice = Math.min(...merchant.services.map(s => s.price));
         
-        switch (filters.priceRange) {
+        switch (localFilters.priceRange) {
           case 'low':
             return minPrice <= 500;
           case 'medium':
@@ -77,28 +86,28 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
     }
 
     // Apply sorting
-    if (filters.sortBy === 'rating') {
+    if (localFilters.sortBy === 'rating') {
       filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-    } else if (filters.sortBy === 'name') {
+    } else if (localFilters.sortBy === 'name') {
       filtered.sort((a, b) => a.shop_name.localeCompare(b.shop_name));
-    } else if (filters.sortBy === 'distance' && filtered.some(m => m.distanceValue)) {
+    } else if (localFilters.sortBy === 'distance' && filtered.some(m => m.distanceValue)) {
       filtered.sort((a, b) => (a.distanceValue || 0) - (b.distanceValue || 0));
     }
 
     return filtered;
-  }, [merchants, filters]);
+  }, [merchants, localFilters]);
 
-  const handleFilterChange = (key: string, value: string) => {
-    console.log(`Filter changed: ${key} = ${value}`);
-    onFiltersChange(prev => ({
+  const handleLocalFilterChange = (key: string, value: string) => {
+    console.log(`Local filter changed: ${key} = ${value}`);
+    setLocalFilters(prev => ({
       ...prev,
       [key]: value
     }));
   };
 
-  const resetFilters = () => {
-    console.log('Resetting all filters');
-    onFiltersChange({
+  const resetLocalFilters = () => {
+    console.log('Resetting local filters');
+    setLocalFilters({
       sortBy: 'rating',
       priceRange: 'all',
       category: 'all',
@@ -125,7 +134,14 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
   };
 
   const renderStars = (rating: number | null | undefined) => {
-    if (!rating) return null;
+    if (!rating) return (
+      <div className="flex items-center gap-1 mt-1">
+        {[...Array(5)].map((_, i) => (
+          <Star key={i} className="w-3 h-3 text-gray-300" />
+        ))}
+        <span className="text-xs text-gray-500 ml-1 font-poppins">No rating</span>
+      </div>
+    );
     
     const stars = [];
     const fullStars = Math.floor(rating);
@@ -182,7 +198,7 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
             </Button>
             
             {/* Category Filter */}
-            <Select value={filters.category} onValueChange={value => handleFilterChange('category', value)}>
+            <Select value={localFilters.category} onValueChange={value => handleLocalFilterChange('category', value)}>
               <SelectTrigger className="flex-1 h-9 rounded-full text-sm border-gray-300 font-poppins" onClick={e => e.stopPropagation()}>
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
@@ -195,7 +211,7 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
             </Select>
 
             {/* Type (Gender Focus) */}
-            <Select value={filters.genderFocus} onValueChange={value => handleFilterChange('genderFocus', value)}>
+            <Select value={localFilters.genderFocus} onValueChange={value => handleLocalFilterChange('genderFocus', value)}>
               <SelectTrigger className="flex-1 h-9 rounded-full text-sm border-gray-300 font-poppins" onClick={e => e.stopPropagation()}>
                 <SelectValue placeholder="Type" />
               </SelectTrigger>
@@ -229,7 +245,7 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
         <div className="px-4 py-4 border-t border-gray-100 bg-gray-50 flex-shrink-0">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-gray-900 font-righteous font-medium">More Filters</h3>
-            <Button variant="ghost" size="sm" onClick={resetFilters} className="text-booqit-primary font-poppins">
+            <Button variant="ghost" size="sm" onClick={resetLocalFilters} className="text-booqit-primary font-poppins">
               Reset
             </Button>
           </div>
@@ -246,9 +262,9 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
                 ].map(price => (
                   <Button 
                     key={price.value} 
-                    variant={filters.priceRange === price.value ? "default" : "outline"} 
+                    variant={localFilters.priceRange === price.value ? "default" : "outline"} 
                     size="sm" 
-                    onClick={() => handleFilterChange('priceRange', price.value)} 
+                    onClick={() => handleLocalFilterChange('priceRange', price.value)} 
                     className="rounded-full h-9 font-poppins"
                   >
                     {price.label}
@@ -263,9 +279,9 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
                 {['all', '3', '4', '4.5'].map(rating => (
                   <Button 
                     key={rating} 
-                    variant={filters.rating === rating ? "default" : "outline"} 
+                    variant={localFilters.rating === rating ? "default" : "outline"} 
                     size="sm" 
-                    onClick={() => handleFilterChange('rating', rating)} 
+                    onClick={() => handleLocalFilterChange('rating', rating)} 
                     className="rounded-full h-9 font-poppins"
                   >
                     {rating === 'all' ? 'Any' : `${rating}+ ⭐`}
@@ -318,12 +334,15 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
                     </div>
                     
                     <CardContent className="p-4">
-                      {/* Shop Name and Rating */}
-                      <div className="mb-3">
-                        <h3 className="font-bold text-gray-900 mb-1 font-righteous font-medium text-xl">
+                      {/* Shop Name */}
+                      <div className="mb-2">
+                        <h3 className="font-bold text-gray-900 font-righteous font-medium text-xl">
                           {merchant.shop_name}
                         </h3>
-                        {/* Rating Stars */}
+                      </div>
+
+                      {/* Rating Stars - Always shown below shop name */}
+                      <div className="mb-3">
                         {renderStars(merchant.rating)}
                       </div>
 
