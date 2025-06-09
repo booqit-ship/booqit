@@ -29,7 +29,7 @@ const Index = () => {
         return;
       } else if (permanentData.userRole === "customer") {
         console.log('👤 Navigating to customer home (permanent)');
-        navigate("/home", { replace: true });
+        navigate("/customer", { replace: true });
         return;
       }
     }
@@ -43,7 +43,7 @@ const Index = () => {
         navigate("/merchant", { replace: true });
       } else if (userRole === "customer") {
         console.log('👤 Navigating to customer home');
-        navigate("/home", { replace: true });
+        navigate("/customer", { replace: true });
       }
     }
   }, [isAuthenticated, userRole, loading, navigate]);
@@ -74,7 +74,7 @@ const Index = () => {
   // If authenticated but no clear role, default redirect
   if (isAuthenticated && !userRole) {
     console.log('⚠️ Authenticated but no role, defaulting to customer');
-    navigate("/home", { replace: true });
+    navigate("/customer", { replace: true });
     return null;
   }
 
