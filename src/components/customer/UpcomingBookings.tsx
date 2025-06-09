@@ -3,45 +3,27 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { CalendarIcon, Clock, Package, Timer } from 'lucide-react';
-import { formatTimeToAmPm } from '@/utils/timeUtils';
+import { formatTimeToAmPm, timeToMinutes, minutesToTime } from '@/utils/timeUtils';
 import { formatDateInIST } from '@/utils/dateUtils';
 import { useNavigate } from 'react-router-dom';
-
-interface BookingService {
-  service_id: string;
-  service_name: string;
-  service_duration: number;
-  service_price: number;
-}
-
-interface BookingWithServicesDetails {
-  id: string;
-  user_id: string;
-  merchant_id: string;
-  date: string;
-  time_slot: string;
-  status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
-  payment_status: string;
-  created_at: string;
-  staff_id?: string | null;
-  stylist_name?: string | null;
-  customer_name?: string;
-  customer_phone?: string;
-  customer_email?: string;
-  merchant: {
-    shop_name: string;
-    address: string;
-    image_url?: string;
-  };
-  services: BookingService[];
-  total_duration: number;
-  total_price: number;
-}
+import { BookingWithServices } from '@/types/booking';
 
 const UpcomingBookings: React.FC = () => {
-  const [nextBooking, setNextBooking] = useState<BookingWithServicesDetails | null>(null);
+  const [nextBooking, setNextBooking] = useState<BookingWithServices | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+
+  const getTimeRange = (booking: BookingWithServices) => {
+    if (!booking.total_duration || booking.total_duration === 0) {
+      return formatTimeToAmPm(booking.time_slot);
+    }
+    
+    const startMinutes = timeToMinutes(booking.time_slot);
+    const endMinutes = startMinutes + booking.total_duration;
+    const endTime = minutesToTime(endMinutes);
+    
+    return `${formatTimeToAmPm(booking.time_slot)} - ${formatTimeToAmPm(endTime)}`;
+  };
 
   const fetchNextUpcomingBooking = async () => {
     try {
@@ -80,7 +62,7 @@ const UpcomingBookings: React.FC = () => {
         const total_duration = services.reduce((sum: number, s: any) => sum + (s.service_duration || 0), 0);
         const total_price = services.reduce((sum: number, s: any) => sum + (s.service_price || 0), 0);
 
-        const typedBooking: BookingWithServicesDetails = {
+        const typedBooking: BookingWithServices = {
           ...data,
           status: data.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
           services: services.map((s: any) => ({
@@ -112,7 +94,7 @@ const UpcomingBookings: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const getShopImage = (merchant: BookingWithServicesDetails['merchant']) => {
+  const getShopImage = (merchant: BookingWithServices['merchant']) => {
     if (merchant.image_url && merchant.image_url.trim() !== '') {
       if (merchant.image_url.startsWith('http')) {
         return merchant.image_url;
@@ -202,13 +184,13 @@ const UpcomingBookings: React.FC = () => {
                   <div className="flex items-center space-x-2">
                     <Package className="h-4 w-4 text-booqit-primary" />
                     <span className="text-sm font-medium text-gray-700">
-                      {nextBooking.services.length === 1 ? 'Service' : `${nextBooking.services.length} Services`}
+                      {nextBooking.services.length === 1 ? '1 Service' : `${nextBooking.services.length} Services`}
                     </span>
                   </div>
                   
                   {nextBooking.services.slice(0, 2).map((service) => (
                     <div key={service.service_id} className="ml-6 text-sm text-gray-600">
-                      {service.service_name}
+                      {service.service_name} ({service.service_duration} min)
                     </div>
                   ))}
                   
@@ -231,7 +213,7 @@ const UpcomingBookings: React.FC = () => {
                 <div className="flex items-center text-sm text-gray-700">
                   <Clock className="h-4 w-4 mr-1.5 text-booqit-primary" />
                   <span className="font-medium">
-                    {formatTimeToAmPm(nextBooking.time_slot)}
+                    {getTimeRange(nextBooking)}
                   </span>
                 </div>
               </div>

@@ -4,30 +4,11 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { CalendarIcon, CalendarCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import BookingCard from './BookingCard';
-
-interface BookingService {
-  service_id: string;
-  service_name: string;
-  service_duration: number;
-  service_price: number;
-}
-
-interface BookingWithServicesDetails {
-  id: string;
-  time_slot: string;
-  status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
-  customer_name?: string;
-  customer_phone?: string;
-  customer_email?: string;
-  stylist_name?: string;
-  services: BookingService[];
-  total_duration: number;
-  total_price: number;
-}
+import { BookingWithServices } from '@/types/booking';
 
 interface BookingsListProps {
   date: Date;
-  bookings: BookingWithServicesDetails[];
+  bookings: BookingWithServices[];
   isLoading: boolean;
   onStatusChange: (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => Promise<void>;
 }

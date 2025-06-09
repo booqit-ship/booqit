@@ -7,29 +7,10 @@ import { Clock, User, Phone, CheckCircle, XCircle, Scissors, Timer, Package } fr
 import { formatTimeToAmPm, timeToMinutes, minutesToTime } from '@/utils/timeUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-
-interface BookingService {
-  service_id: string;
-  service_name: string;
-  service_duration: number;
-  service_price: number;
-}
-
-interface BookingWithServicesDetails {
-  id: string;
-  time_slot: string;
-  status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
-  customer_name?: string;
-  customer_phone?: string;
-  customer_email?: string;
-  stylist_name?: string;
-  services: BookingService[];
-  total_duration: number;
-  total_price: number;
-}
+import { BookingWithServices } from '@/types/booking';
 
 interface BookingCardProps {
-  booking: BookingWithServicesDetails;
+  booking: BookingWithServices;
   onStatusChange: (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => Promise<void>;
 }
 
@@ -52,7 +33,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
   };
 
   const getTimeRange = () => {
-    if (!booking.total_duration) {
+    if (!booking.total_duration || booking.total_duration === 0) {
       return formatTimeToAmPm(booking.time_slot);
     }
     
@@ -131,12 +112,12 @@ const BookingCard: React.FC<BookingCardProps> = ({
         </div>
 
         {/* Services list */}
-        {booking.services && booking.services.length > 0 && (
+        {booking.services && booking.services.length > 0 ? (
           <div className="space-y-2 mb-3">
             <div className="flex items-center space-x-2 mb-2">
               <Package className="h-4 w-4 text-booqit-primary" />
               <span className="font-medium text-gray-900">
-                {booking.services.length === 1 ? 'Service' : `${booking.services.length} Services`}
+                {booking.services.length === 1 ? '1 Service' : `${booking.services.length} Services`}
               </span>
             </div>
             
@@ -162,6 +143,13 @@ const BookingCard: React.FC<BookingCardProps> = ({
                 </div>
                 <span className="text-booqit-primary font-semibold">₹{booking.total_price}</span>
               </div>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2 mb-3">
+            <div className="flex items-center space-x-2 mb-2">
+              <Package className="h-4 w-4 text-gray-500" />
+              <span className="font-medium text-gray-500">No services found</span>
             </div>
           </div>
         )}

@@ -10,26 +10,7 @@ import HolidayManager from '@/components/merchant/calendar/HolidayManager';
 import WeekCalendar from '@/components/merchant/calendar/WeekCalendar';
 import StylistAvailabilityWidget from '@/components/merchant/StylistAvailabilityWidget';
 import { formatDateInIST, getCurrentDateIST } from '@/utils/dateUtils';
-
-interface BookingService {
-  service_id: string;
-  service_name: string;
-  service_duration: number;
-  service_price: number;
-}
-
-interface BookingWithServicesDetails {
-  id: string;
-  time_slot: string;
-  status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
-  customer_name?: string;
-  customer_phone?: string;
-  customer_email?: string;
-  stylist_name?: string;
-  services: BookingService[];
-  total_duration: number;
-  total_price: number;
-}
+import { BookingWithServices } from '@/types/booking';
 
 const CalendarManagementPage: React.FC = () => {
   const { userId } = useAuth();
@@ -66,7 +47,7 @@ const CalendarManagementPage: React.FC = () => {
   // Get bookings with services using the new structure
   const { data: bookings = [], isFetching: isBookingsFetching } = useQuery({
     queryKey: ['bookings-with-services', merchantId, formatDateInIST(selectedDate, 'yyyy-MM-dd')],
-    queryFn: async (): Promise<BookingWithServicesDetails[]> => {
+    queryFn: async (): Promise<BookingWithServices[]> => {
       if (!merchantId) return [];
       
       const dateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
@@ -83,7 +64,12 @@ const CalendarManagementPage: React.FC = () => {
           customer_name,
           customer_phone,
           customer_email,
-          stylist_name
+          stylist_name,
+          user_id,
+          merchant_id,
+          staff_id,
+          date,
+          created_at
         `)
         .eq('merchant_id', merchantId)
         .eq('date', dateStr)

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -5,25 +6,12 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Booking } from '@/types';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { formatTimeToAmPm } from '@/utils/timeUtils';
+import { formatTimeToAmPm, timeToMinutes, minutesToTime } from '@/utils/timeUtils';
 import { User, Scissors, BarChart3, Package, Timer } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-
-interface BookingService {
-  service_id: string;
-  service_name: string;
-  service_duration: number;
-  service_price: number;
-}
-
-interface BookingWithServices extends Omit<Booking, 'service'> {
-  services: BookingService[];
-  total_duration: number;
-  total_price: number;
-}
+import { BookingWithServices } from '@/types/booking';
 
 const DashboardPage: React.FC = () => {
   const { userId } = useAuth();
@@ -48,6 +36,18 @@ const DashboardPage: React.FC = () => {
   const itemVariants = {
     hidden: { y: 20, opacity: 0 },
     visible: { y: 0, opacity: 1 }
+  };
+
+  const getTimeRange = (booking: BookingWithServices) => {
+    if (!booking.total_duration || booking.total_duration === 0) {
+      return formatTimeToAmPm(booking.time_slot);
+    }
+    
+    const startMinutes = timeToMinutes(booking.time_slot);
+    const endMinutes = startMinutes + booking.total_duration;
+    const endTime = minutesToTime(endMinutes);
+    
+    return `${formatTimeToAmPm(booking.time_slot)} - ${formatTimeToAmPm(endTime)}`;
   };
 
   useEffect(() => {
@@ -142,7 +142,8 @@ const DashboardPage: React.FC = () => {
             customer_email,
             stylist_name,
             user_id,
-            created_at
+            created_at,
+            staff_id
           `)
           .eq('merchant_id', mId)
           .eq('date', today)
@@ -183,18 +184,17 @@ const DashboardPage: React.FC = () => {
               return {
                 id: booking.id,
                 merchant_id: booking.merchant_id,
-                service_id: null, // No longer used
                 user_id: booking.user_id,
                 date: booking.date,
                 time_slot: booking.time_slot,
-                status: booking.status,
+                status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
                 payment_status: booking.payment_status,
                 customer_name: customerName,
                 customer_phone: booking.customer_phone,
                 customer_email: booking.customer_email,
                 stylist_name: booking.stylist_name || 'Unassigned',
                 created_at: booking.created_at,
-                staff_id: null,
+                staff_id: booking.staff_id,
                 services,
                 total_duration,
                 total_price
@@ -393,7 +393,7 @@ const DashboardPage: React.FC = () => {
                             <div className="flex items-center space-x-2">
                               <Package className="h-4 w-4 text-gray-500" />
                               <span className="text-sm font-medium text-gray-700">
-                                {booking.services.length === 1 ? 'Service' : `${booking.services.length} Services`}
+                                {booking.services.length === 1 ? '1 Service' : `${booking.services.length} Services`}
                               </span>
                             </div>
                             
@@ -415,7 +415,7 @@ const DashboardPage: React.FC = () => {
                                   ₹{booking.total_price}
                                 </span>
                                 <span className="font-semibold text-booqit-primary text-sm">
-                                  {formatTimeToAmPm(booking.time_slot)}
+                                  {getTimeRange(booking)}
                                 </span>
                               </div>
                             </div>
