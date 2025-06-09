@@ -45,53 +45,13 @@ const BookingCard: React.FC<BookingCardProps> = ({
   };
 
   const handleStatusUpdate = async (newStatus: 'confirmed' | 'completed' | 'cancelled') => {
-    try {
-      if (newStatus === 'cancelled') {
-        const { data, error } = await supabase.rpc('cancel_booking_properly', {
-          p_booking_id: booking.id,
-          p_user_id: null
-        });
-
-        if (error) {
-          console.error('Error cancelling booking:', error);
-          toast.error('Failed to cancel booking');
-          return;
-        }
-
-        const result = data as { success: boolean; error?: string; message?: string };
-        if (!result.success) {
-          toast.error(result.error || 'Failed to cancel booking');
-          return;
-        }
-
-        toast.success('Booking cancelled successfully');
-        await onStatusChange(booking.id, 'cancelled');
-      } else {
-        let updateData: any = { status: newStatus };
-        
-        if (newStatus === 'completed') {
-          updateData.payment_status = 'completed';
-        }
-
-        const { error } = await supabase
-          .from('bookings')
-          .update(updateData)
-          .eq('id', booking.id);
-
-        if (error) {
-          console.error('Error updating booking status:', error);
-          toast.error('Failed to update booking status');
-          return;
-        }
-
-        toast.success(`Booking ${newStatus} successfully`);
-        await onStatusChange(booking.id, newStatus);
-      }
-    } catch (error) {
-      console.error('Error updating booking status:', error);
-      toast.error('Failed to update booking status');
-    }
+    await onStatusChange(booking.id, newStatus);
   };
+
+  // Don't render cancelled bookings in the calendar view
+  if (booking.status === 'cancelled') {
+    return null;
+  }
 
   return (
     <Card className={`hover:shadow-lg transition-shadow duration-200 border-l-4 ${
@@ -149,7 +109,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
           <div className="space-y-2 mb-3">
             <div className="flex items-center space-x-2 mb-2">
               <Package className="h-4 w-4 text-gray-500" />
-              <span className="font-medium text-gray-500">No services found</span>
+              <span className="font-medium text-gray-500">Loading services...</span>
             </div>
           </div>
         )}

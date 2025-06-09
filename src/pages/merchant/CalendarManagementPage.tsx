@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -44,8 +44,8 @@ const CalendarManagementPage: React.FC = () => {
 
   const merchantId = merchant?.id;
 
-  // Get bookings with services using the new structure
-  const { data: bookings = [], isFetching: isBookingsFetching } = useQuery({
+  // Get bookings with services using the updated structure
+  const { data: bookings = [], isFetching: isBookingsFetching, refetch: refetchBookings } = useQuery({
     queryKey: ['bookings-with-services', merchantId, formatDateInIST(selectedDate, 'yyyy-MM-dd')],
     queryFn: async (): Promise<BookingWithServices[]> => {
       if (!merchantId || !merchant) return [];
@@ -53,7 +53,7 @@ const CalendarManagementPage: React.FC = () => {
       const dateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
       console.log('Fetching bookings with services for date:', dateStr, 'merchant:', merchantId);
       
-      // First get all bookings for the date
+      // Get all bookings for the date (including cancelled for audit purposes)
       const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
         .select(`
@@ -135,7 +135,7 @@ const CalendarManagementPage: React.FC = () => {
       return bookingsWithServices;
     },
     enabled: !!merchantId && !!merchant,
-    staleTime: 2 * 60 * 1000,
+    staleTime: 1 * 60 * 1000, // Reduce stale time to 1 minute for more frequent updates
     refetchOnWindowFocus: true,
   });
 
@@ -198,21 +198,7 @@ const CalendarManagementPage: React.FC = () => {
     try {
       console.log('Updating booking status:', bookingId, 'to:', newStatus);
       
-      if (newStatus === 'completed') {
-        const { error } = await supabase
-          .from('bookings')
-          .update({ 
-            status: 'completed',
-            payment_status: 'completed'
-          })
-          .eq('id', bookingId);
-
-        if (error) {
-          console.error('Error updating booking status:', error);
-          toast.error(`Failed to complete booking: ${error.message}`);
-          return;
-        }
-      } else if (newStatus === 'cancelled') {
+      if (newStatus === 'cancelled') {
         const { data, error } = await supabase.rpc('cancel_booking_properly', {
           p_booking_id: bookingId,
           p_user_id: userId
@@ -227,6 +213,20 @@ const CalendarManagementPage: React.FC = () => {
         const result = data as any;
         if (result && !result.success) {
           toast.error(result.error || 'Failed to cancel booking');
+          return;
+        }
+      } else if (newStatus === 'completed') {
+        const { error } = await supabase
+          .from('bookings')
+          .update({ 
+            status: 'completed',
+            payment_status: 'completed'
+          })
+          .eq('id', bookingId);
+
+        if (error) {
+          console.error('Error updating booking status:', error);
+          toast.error(`Failed to complete booking: ${error.message}`);
           return;
         }
       } else {
@@ -244,7 +244,8 @@ const CalendarManagementPage: React.FC = () => {
 
       toast.success(`Booking ${newStatus} successfully`);
       
-      queryClient.invalidateQueries({ queryKey: ['bookings-with-services', merchantId] });
+      // Force refetch of bookings
+      await refetchBookings();
       queryClient.invalidateQueries({ queryKey: ['appointment-counts', merchantId] });
     } catch (error) {
       console.error('Error updating booking status:', error);
@@ -285,6 +286,29 @@ const CalendarManagementPage: React.FC = () => {
   const refetchHolidays = () => {
     queryClient.invalidateQueries({ queryKey: ['shop_holidays', merchantId] });
   };
+
+  // Set up realtime subscription for booking changes
+  useEffect(() => {
+    if (!merchantId) return;
+
+    const subscription = supabase
+      .channel('calendar-bookings-changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'bookings',
+        filter: `merchant_id=eq.${merchantId}`
+      }, () => {
+        console.log('Booking change detected, refreshing data');
+        refetchBookings();
+        queryClient.invalidateQueries({ queryKey: ['appointment-counts', merchantId] });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }, [merchantId, refetchBookings, queryClient]);
 
   if (!merchantId) {
     return (

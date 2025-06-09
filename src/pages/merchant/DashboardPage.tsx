@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -81,7 +80,7 @@ const DashboardPage: React.FC = () => {
 
         const today = new Date().toISOString().split('T')[0];
 
-        // Get bookings count for today - all statuses except cancelled
+        // Get bookings count for today - exclude cancelled bookings
         const { data: todayBookings, error: bookingsCountError } = await supabase
           .from('bookings')
           .select('id')
@@ -127,7 +126,7 @@ const DashboardPage: React.FC = () => {
           setTotalEarnings(0);
         }
 
-        // Fetch recent bookings for today with services
+        // Fetch recent bookings for today with services - exclude cancelled
         const { data: recentBookingsData, error: recentBookingsError } = await supabase
           .from('bookings')
           .select(`
@@ -195,9 +194,19 @@ const DashboardPage: React.FC = () => {
                 stylist_name: booking.stylist_name || 'Unassigned',
                 created_at: booking.created_at,
                 staff_id: booking.staff_id,
-                services,
+                services: services.map((s: any) => ({
+                  service_id: s.service_id,
+                  service_name: s.service_name,
+                  service_duration: s.service_duration,
+                  service_price: s.service_price
+                })),
                 total_duration,
-                total_price
+                total_price,
+                merchant: {
+                  shop_name: merchantData.shop_name,
+                  address: '',
+                  image_url: merchantData.image_url
+                }
               } as BookingWithServices;
             })
           );
@@ -221,7 +230,7 @@ const DashboardPage: React.FC = () => {
 
     fetchDashboardData();
 
-    // Set up realtime subscription
+    // Set up realtime subscription for booking changes
     let subscription: any = null;
     
     if (merchantId) {
@@ -421,7 +430,7 @@ const DashboardPage: React.FC = () => {
                             </div>
                           </>
                         ) : (
-                          <div className="text-sm text-gray-500">No services found</div>
+                          <div className="text-sm text-gray-500">Loading services...</div>
                         )}
                         
                         {/* Stylist information */}
