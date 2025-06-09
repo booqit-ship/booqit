@@ -1,9 +1,10 @@
 
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { CalendarIcon, CalendarCheck } from 'lucide-react';
+import { CalendarIcon, CalendarCheck, Filter } from 'lucide-react';
 import { format } from 'date-fns';
 import BookingCard from './BookingCard';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface BookingWithCustomerDetails {
   id: string;
@@ -32,13 +33,38 @@ const BookingsList: React.FC<BookingsListProps> = ({
   isLoading,
   onStatusChange,
 }) => {
-  // Show all bookings including cancelled ones
-  const visibleBookings = bookings.sort((a, b) => {
-    // Sort by time slot, but put cancelled bookings at the end
-    if (a.status === 'cancelled' && b.status !== 'cancelled') return 1;
-    if (a.status !== 'cancelled' && b.status === 'cancelled') return -1;
-    return a.time_slot.localeCompare(b.time_slot);
-  });
+  const [selectedStylist, setSelectedStylist] = useState<string>('all');
+
+  // Get unique stylists from bookings
+  const stylists = useMemo(() => {
+    const uniqueStylists = Array.from(
+      new Set(bookings.map(booking => booking.stylist_name).filter(Boolean))
+    );
+    return uniqueStylists.sort();
+  }, [bookings]);
+
+  // Filter and sort bookings
+  const filteredAndSortedBookings = useMemo(() => {
+    let filtered = bookings;
+
+    // Filter by stylist
+    if (selectedStylist !== 'all') {
+      filtered = filtered.filter(booking => booking.stylist_name === selectedStylist);
+    }
+
+    // Sort bookings: active bookings first (by time), then completed/cancelled at bottom
+    return filtered.sort((a, b) => {
+      // First, separate active vs inactive bookings
+      const aIsInactive = a.status === 'completed' || a.status === 'cancelled';
+      const bIsInactive = b.status === 'completed' || b.status === 'cancelled';
+
+      if (aIsInactive && !bIsInactive) return 1; // a goes to bottom
+      if (!aIsInactive && bIsInactive) return -1; // b goes to bottom
+
+      // If both are same type (active or inactive), sort by time
+      return a.time_slot.localeCompare(b.time_slot);
+    });
+  }, [bookings, selectedStylist]);
 
   return (
     <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-gray-50/30">
@@ -49,19 +75,46 @@ const BookingsList: React.FC<BookingsListProps> = ({
         </div>
       </CardHeader>
       <CardContent className="p-6">
+        {/* Stylist Filter */}
+        {stylists.length > 0 && (
+          <div className="mb-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Filter className="h-4 w-4 text-gray-500" />
+              <span className="text-sm font-medium text-gray-700">Filter by Stylist:</span>
+            </div>
+            <Select value={selectedStylist} onValueChange={setSelectedStylist}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Select stylist" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Stylists</SelectItem>
+                {stylists.map(stylist => (
+                  <SelectItem key={stylist} value={stylist}>
+                    {stylist}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="flex justify-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-3 border-booqit-primary border-t-transparent"></div>
           </div>
-        ) : visibleBookings.length === 0 ? (
+        ) : filteredAndSortedBookings.length === 0 ? (
           <div className="text-center py-12 bg-gray-50 rounded-xl border border-gray-200">
             <CalendarIcon className="h-16 w-16 mx-auto text-gray-400 mb-4" />
-            <p className="text-gray-600 text-xl font-medium">No bookings for this date</p>
-            <p className="text-gray-500 text-base mt-2">Your schedule is free today</p>
+            <p className="text-gray-600 text-xl font-medium">
+              {selectedStylist === 'all' ? 'No bookings for this date' : `No bookings for ${selectedStylist} on this date`}
+            </p>
+            <p className="text-gray-500 text-base mt-2">
+              {selectedStylist === 'all' ? 'Your schedule is free today' : 'This stylist is free today'}
+            </p>
           </div>
         ) : (
           <div className="space-y-4">
-            {visibleBookings.map(booking => (
+            {filteredAndSortedBookings.map(booking => (
               <BookingCard
                 key={booking.id}
                 booking={booking}
