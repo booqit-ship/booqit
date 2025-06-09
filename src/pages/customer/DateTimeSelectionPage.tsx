@@ -15,6 +15,7 @@ import {
 } from '@/utils/dateUtils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRealtimeSlots } from '@/hooks/useRealtimeSlots';
+import { useSlotLocking } from '@/hooks/useSlotLocking';
 
 interface AvailableSlot {
   staff_id: string;
@@ -29,6 +30,8 @@ const DateTimeSelectionPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { userId } = useAuth();
+  const { lockSlot, releaseLock, isLocking: isSlotLocking } = useSlotLocking();
+  
   const { merchant, selectedServices, totalPrice, totalDuration, selectedStaff, selectedStaffDetails } = location.state || {};
 
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -38,7 +41,6 @@ const DateTimeSelectionPage: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [holidays, setHolidays] = useState<string[]>([]);
   const [stylistHolidays, setStylistHolidays] = useState<string[]>([]);
-  const [isCheckingSlot, setIsCheckingSlot] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
   const [nextValidSlotTime, setNextValidSlotTime] = useState<string>('');
 
@@ -237,7 +239,7 @@ const DateTimeSelectionPage: React.FC = () => {
     }
   });
 
-  // Handle slot selection with total duration validation
+  // CRITICAL FIX: Handle slot selection with correct total duration
   const handleTimeSlotClick = async (timeSlot: string) => {
     if (!selectedDate || !merchantId || !userId) return;
     
@@ -261,22 +263,26 @@ const DateTimeSelectionPage: React.FC = () => {
       return;
     }
 
-    setIsCheckingSlot(true);
+    const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
+    const finalStaffId = selectedStaff || availableSlot.staff_id;
 
-    try {
-      console.log('SLOT_SELECTION: Selected slot with total duration:', {
-        timeSlot,
-        duration: actualServiceDuration,
-        services: selectedServices?.length || 0
-      });
-      
+    console.log('SLOT_SELECTION: Calling lockSlot with total duration:', {
+      staffId: finalStaffId,
+      date: selectedDateStr,
+      timeSlot,
+      totalDuration: actualServiceDuration
+    });
+
+    // CRITICAL: Pass the actual total service duration to lockSlot
+    const success = await lockSlot(
+      finalStaffId,
+      selectedDateStr,
+      timeSlot,
+      actualServiceDuration // Pass total duration here
+    );
+
+    if (success) {
       setSelectedTime(timeSlot);
-      toast.success(`Time slot selected for ${actualServiceDuration} minutes!`);
-    } catch (error) {
-      console.error('Error selecting slot:', error);
-      toast.error('Error selecting time slot. Please try again.');
-    } finally {
-      setIsCheckingSlot(false);
     }
   };
 
@@ -465,7 +471,7 @@ const DateTimeSelectionPage: React.FC = () => {
                         selectedTime === slot.time_slot ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
                       }`}
                       onClick={() => handleTimeSlotClick(slot.time_slot)}
-                      disabled={isCheckingSlot}
+                      disabled={isSlotLocking}
                     >
                       <span className="font-medium">{formatTimeToAmPm(slot.time_slot)}</span>
                     </Button>
@@ -512,9 +518,9 @@ const DateTimeSelectionPage: React.FC = () => {
           className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6 font-poppins"
           size="lg"
           onClick={handleContinue}
-          disabled={!selectedDate || !selectedTime || loading || isCheckingSlot}
+          disabled={!selectedDate || !selectedTime || loading || isSlotLocking}
         >
-          {isCheckingSlot ? 'Checking Availability...' : 'Continue to Payment'}
+          {isSlotLocking ? 'Checking Availability...' : 'Continue to Payment'}
         </Button>
       </div>
     </div>
