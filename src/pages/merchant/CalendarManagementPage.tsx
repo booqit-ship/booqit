@@ -133,19 +133,10 @@ const CalendarManagementPage: React.FC = () => {
     staleTime: 15 * 60 * 1000, // 15 minutes
   });
 
-  // Generate visible days based on selected date
-  const getVisibleDays = (baseDate: Date) => {
-    const today = new Date();
-    const isBaseToday = isSameDay(baseDate, today);
-    
-    if (isBaseToday) {
-      return Array.from({ length: 5 }, (_, i) => addDays(today, i));
-    } else {
-      return Array.from({ length: 5 }, (_, i) => addDays(baseDate, i - 2));
-    }
-  };
-
-  const visibleDays = React.useMemo(() => getVisibleDays(selectedDate), [selectedDate]);
+  // Generate visible days for appointment counts (5 days from selected date)
+  const visibleDays = React.useMemo(() => {
+    return Array.from({ length: 5 }, (_, i) => addDays(selectedDate, i));
+  }, [selectedDate]);
 
   // Get appointment counts with caching
   const { data: appointmentCounts = {}, isFetching: isCountsFetching } = useQuery({
@@ -217,6 +208,7 @@ const CalendarManagementPage: React.FC = () => {
     }
   };
 
+  // Navigate by single day (like customer calendar)
   const navigateDay = (direction: 'prev' | 'next') => {
     if (direction === 'next') {
       setSelectedDate(addDays(selectedDate, 1));
