@@ -32,8 +32,13 @@ const BookingsList: React.FC<BookingsListProps> = ({
   isLoading,
   onStatusChange,
 }) => {
-  // Show all bookings except cancelled ones
-  const visibleBookings = bookings.filter(booking => booking.status !== 'cancelled');
+  // Show all bookings including cancelled ones
+  const visibleBookings = bookings.sort((a, b) => {
+    // Sort by time slot, but put cancelled bookings at the end
+    if (a.status === 'cancelled' && b.status !== 'cancelled') return 1;
+    if (a.status !== 'cancelled' && b.status === 'cancelled') return -1;
+    return a.time_slot.localeCompare(b.time_slot);
+  });
 
   return (
     <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-gray-50/30">

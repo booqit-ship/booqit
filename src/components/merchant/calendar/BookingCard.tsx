@@ -85,16 +85,25 @@ const BookingCard: React.FC<BookingCardProps> = ({
     }
   };
 
+  // Get card styling based on status
+  const getCardStyling = () => {
+    if (booking.status === 'cancelled') {
+      return 'opacity-60 border-l-red-500 bg-red-50/30';
+    }
+    if (booking.status === 'completed') {
+      return 'border-l-blue-500 bg-blue-50/30';
+    }
+    return 'border-l-booqit-primary';
+  };
+
   return (
-    <Card className={`hover:shadow-lg transition-shadow duration-200 border-l-4 ${
-      booking.status === 'completed' ? 'border-l-blue-500 bg-blue-50/30' : 'border-l-booqit-primary'
-    }`}>
+    <Card className={`hover:shadow-lg transition-shadow duration-200 border-l-4 ${getCardStyling()}`}>
       <CardContent className="p-4">
         {/* Header with time range and status */}
         <div className="flex justify-between items-start mb-4">
           <div className="flex items-center space-x-2">
             <Clock className="h-4 w-4 text-gray-500" />
-            <span className="font-semibold text-sm">
+            <span className={`font-semibold text-sm ${booking.status === 'cancelled' ? 'line-through text-gray-500' : ''}`}>
               {getTimeRange()}
             </span>
           </div>
@@ -107,8 +116,10 @@ const BookingCard: React.FC<BookingCardProps> = ({
         {booking.service && (
           <div className="space-y-2 mb-3">
             <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-booqit-primary rounded-full"></div>
-              <span className="font-medium text-gray-900">{booking.service.name}</span>
+              <div className={`w-2 h-2 rounded-full ${booking.status === 'cancelled' ? 'bg-red-400' : 'bg-booqit-primary'}`}></div>
+              <span className={`font-medium ${booking.status === 'cancelled' ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
+                {booking.service.name}
+              </span>
             </div>
             {booking.service.duration && (
               <div className="flex items-center space-x-2 text-gray-600">
@@ -124,7 +135,9 @@ const BookingCard: React.FC<BookingCardProps> = ({
           {booking.customer_name && (
             <div className="flex items-center space-x-2 text-gray-700">
               <User className="h-4 w-4 text-gray-500" />
-              <span className="font-medium">{booking.customer_name}</span>
+              <span className={`font-medium ${booking.status === 'cancelled' ? 'text-gray-500' : ''}`}>
+                {booking.customer_name}
+              </span>
             </div>
           )}
           
@@ -133,7 +146,8 @@ const BookingCard: React.FC<BookingCardProps> = ({
               <Phone className="h-4 w-4 text-gray-500" />
               <a 
                 href={`tel:${booking.customer_phone}`} 
-                className="text-booqit-primary hover:underline cursor-pointer"
+                className={`${booking.status === 'cancelled' ? 'text-gray-500 cursor-default' : 'text-booqit-primary hover:underline cursor-pointer'}`}
+                onClick={booking.status === 'cancelled' ? (e) => e.preventDefault() : undefined}
               >
                 {booking.customer_phone}
               </a>
@@ -143,7 +157,9 @@ const BookingCard: React.FC<BookingCardProps> = ({
           {booking.stylist_name && (
             <div className="flex items-center space-x-2 text-gray-700">
               <Scissors className="h-4 w-4 text-gray-500" />
-              <span>Stylist: <span className="font-medium">{booking.stylist_name}</span></span>
+              <span className={booking.status === 'cancelled' ? 'text-gray-500' : ''}>
+                Stylist: <span className="font-medium">{booking.stylist_name}</span>
+              </span>
             </div>
           )}
         </div>
@@ -181,6 +197,10 @@ const BookingCard: React.FC<BookingCardProps> = ({
               <XCircle className="h-4 w-4 mr-1" />
               Cancel
             </Button>
+          </div>
+        ) : booking.status === 'cancelled' ? (
+          <div className="text-sm text-red-600 font-medium">
+            This booking has been cancelled
           </div>
         ) : null}
       </CardContent>
