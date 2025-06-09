@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -60,24 +59,29 @@ const BookingCard: React.FC<BookingCardProps> = ({
         
         // Parse services if it's a string
         if (typeof booking.services === 'string') {
+          console.log('BookingCard - Parsing string services');
           services = JSON.parse(booking.services);
         } else {
+          console.log('BookingCard - Services already parsed');
           services = booking.services;
         }
         
         console.log('BookingCard - Parsed services:', services);
         
         if (Array.isArray(services) && services.length > 0) {
-          const serviceNames = services.map(service => service.name).join(', ');
+          const serviceNames = services.map(service => service.name?.trim()).filter(Boolean).join(', ');
+          // Use total_duration from booking first, then calculate from services
           const totalDuration = booking.total_duration || services.reduce((total, service) => total + (service.duration || 0), 0);
           
           console.log('BookingCard - Service names:', serviceNames);
           console.log('BookingCard - Total duration:', totalDuration);
           
-          return {
-            names: serviceNames,
-            duration: totalDuration
-          };
+          if (serviceNames) {
+            return {
+              names: serviceNames,
+              duration: totalDuration
+            };
+          }
         }
       } catch (error) {
         console.error('BookingCard - Error parsing services JSON:', error);
@@ -90,7 +94,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
       duration: booking.service?.duration || 30
     };
     
-    console.log('BookingCard - Fallback data:', fallbackData);
+    console.log('BookingCard - Using fallback data:', fallbackData);
     return fallbackData;
   };
 
