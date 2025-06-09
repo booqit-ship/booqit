@@ -86,7 +86,7 @@ const PaymentPage: React.FC = () => {
 
       // Create booking directly as confirmed with services and total duration
       const serviceId = selectedServices[0]?.id;
-      console.log('📝 Creating confirmed booking with services:', {
+      console.log('📝 Creating confirmed booking with correct parameter order:', {
         p_user_id: userId,
         p_merchant_id: merchantId,
         p_service_id: serviceId,
@@ -97,9 +97,9 @@ const PaymentPage: React.FC = () => {
         p_total_duration: totalDuration
       });
 
-      // Call the database function to create confirmed booking
+      // Call the database function with the CORRECT parameter order matching the function definition
       const { data: bookingResult, error: bookingError } = await supabase.rpc(
-        'create_confirmed_booking_with_services' as any,
+        'create_confirmed_booking_with_services',
         {
           p_user_id: userId,
           p_merchant_id: merchantId,
