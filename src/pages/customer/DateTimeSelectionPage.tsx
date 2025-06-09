@@ -1,126 +1,350 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { Calendar as CalendarIcon, ChevronLeft, User } from 'lucide-react';
+import { ChevronLeft, Clock, CalendarIcon, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { format } from 'date-fns';
-import { cn } from "@/lib/utils"
-import { Input } from "@/components/ui/input"
-import { Separator } from "@/components/ui/separator"
-import { List, ListItem } from "@/components/ui/list"
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
-import { Staff } from '@/types';
 import { toast } from 'sonner';
+import { addDays } from 'date-fns';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
+import { 
+  formatDateInIST, 
+  getCurrentDateIST, 
+  getCurrentTimeIST,
+  getCurrentTimeISTWithBuffer,
+  isTodayIST
+} from '@/utils/dateUtils';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRealtimeSlots } from '@/hooks/useRealtimeSlots';
 
 interface AvailableSlot {
   staff_id: string;
   staff_name: string;
   time_slot: string;
   is_available: boolean;
-  conflict_reason: string;
+  conflict_reason: string | null;
 }
 
 const DateTimeSelectionPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { merchant, selectedServices, totalPrice, totalDuration } = location.state;
-
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
-  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [staffList, setStaffList] = useState<Staff[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
   const { userId } = useAuth();
+  const { merchant, selectedServices, totalPrice, totalDuration, selectedStaff, selectedStaffDetails } = location.state || {};
 
-  useEffect(() => {
-    fetchStaffList();
-  }, [merchantId]);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [selectedTime, setSelectedTime] = useState<string>('');
+  const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>('');
+  const [holidays, setHolidays] = useState<string[]>([]);
+  const [stylistHolidays, setStylistHolidays] = useState<string[]>([]);
+  const [isCheckingSlot, setIsCheckingSlot] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
+  const [nextValidSlotTime, setNextValidSlotTime] = useState<string>('');
 
-  useEffect(() => {
-    fetchAvailableSlots();
-  }, [selectedDate, selectedStaff, merchantId, totalDuration]);
+  // Calculate actual service duration
+  const actualServiceDuration = selectedServices && selectedServices.length > 0 
+    ? selectedServices.reduce((total: number, service: any) => total + service.duration, 0)
+    : totalDuration || 30;
 
-  const fetchStaffList = async () => {
-    if (!merchantId) return;
-
-    try {
-      setIsLoading(true);
-      const { data, error } = await supabase
-        .from('staff')
-        .select('*')
-        .eq('merchant_id', merchantId);
-
-      if (error) throw error;
-      setStaffList(data || []);
-    } catch (error) {
-      console.error('Error fetching staff list:', error);
-      toast.error('Could not load staff list');
-    } finally {
-      setIsLoading(false);
+  // Generate available dates (3 days, excluding holidays)
+  const getAvailableDates = () => {
+    const dates: Date[] = [];
+    const todayIST = getCurrentDateIST();
+    
+    for (let i = 0; i < 3; i++) {
+      const date = addDays(todayIST, i);
+      const dateStr = formatDateInIST(date, 'yyyy-MM-dd');
+      
+      if (!holidays.includes(dateStr) && !stylistHolidays.includes(dateStr)) {
+        dates.push(date);
+      }
     }
+    return dates;
   };
 
-  const fetchAvailableSlots = async () => {
-    if (!merchantId || !selectedDate || !selectedStaff) return;
+  const availableDates = getAvailableDates();
 
+  // Set today as default
+  useEffect(() => {
+    if (availableDates.length > 0 && !selectedDate) {
+      setSelectedDate(availableDates[0]);
+    }
+  }, [availableDates]);
+
+  // Fetch holidays
+  useEffect(() => {
+    const fetchHolidays = async () => {
+      if (!merchantId) return;
+
+      try {
+        const { data: shopHolidays } = await supabase
+          .from('shop_holidays')
+          .select('holiday_date')
+          .eq('merchant_id', merchantId);
+
+        const shopHolidayDates = (shopHolidays || []).map(h => h.holiday_date);
+        setHolidays(shopHolidayDates);
+
+        let staffHolidayDates: string[] = [];
+        if (selectedStaff) {
+          const { data: staffHolidays } = await supabase
+            .from('stylist_holidays')
+            .select('holiday_date')
+            .eq('staff_id', selectedStaff);
+
+          staffHolidayDates = (staffHolidays || []).map(h => h.holiday_date);
+        }
+        setStylistHolidays(staffHolidayDates);
+
+      } catch (error) {
+        console.error('Error fetching holidays:', error);
+      }
+    };
+
+    fetchHolidays();
+  }, [merchantId, selectedStaff]);
+
+  // Fetch available slots with proper buffer handling
+  const fetchAvailableSlots = useCallback(async () => {
+    if (!selectedDate || !merchantId) return;
+
+    setLoading(true);
+    setError('');
+    
     try {
-      setIsLoading(true);
-      console.log('Fetching slots with total duration:', totalDuration);
+      const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
+      const isToday = isTodayIST(selectedDate);
       
-      const { data, error } = await supabase.rpc('get_available_slots_with_ist_buffer', {
+      console.log('=== FETCHING SLOTS WITH BUFFER LOGIC ===');
+      console.log('Date:', selectedDateStr, '| Is today:', isToday);
+      console.log('Service duration:', actualServiceDuration);
+      if (isToday) {
+        console.log('Current IST:', getCurrentTimeIST());
+        console.log('Expected start after buffer:', getCurrentTimeISTWithBuffer(40));
+      }
+      
+      // Use the backend function that enforces IST buffer logic
+      const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_ist_buffer', {
         p_merchant_id: merchantId,
-        p_date: format(selectedDate, 'yyyy-MM-dd'),
-        p_staff_id: selectedStaff.id,
-        p_service_duration: totalDuration || 30 // Use total duration
+        p_date: selectedDateStr,
+        p_staff_id: selectedStaff || null,
+        p_service_duration: actualServiceDuration
       });
 
-      if (error) {
-        console.error('Error fetching available slots:', error);
-        toast.error('Failed to load available time slots');
+      if (slotsError) {
+        console.error('Error from slot function:', slotsError);
+        setError('Unable to load time slots. Please try again.');
+        setAvailableSlots([]);
         return;
       }
 
-      console.log('Available slots:', data);
+      const slots = Array.isArray(slotsData) ? slotsData : [];
+      console.log('Backend returned', slots.length, 'total slots');
       
-      // Extract only available time slots
-      const availableTimeSlots = (data as AvailableSlot[])
-        ?.filter(slot => slot.is_available)
-        ?.map(slot => slot.time_slot) || [];
+      // Additional frontend filtering for today to ensure no expired slots
+      let filteredSlots = slots;
+      if (isToday) {
+        const currentBufferTime = getCurrentTimeISTWithBuffer(40);
+        filteredSlots = slots.filter(slot => {
+          const slotTime = typeof slot.time_slot === 'string' 
+            ? slot.time_slot.substring(0, 5) 
+            : formatDateInIST(new Date(`2000-01-01T${slot.time_slot}`), 'HH:mm');
+          return slotTime >= currentBufferTime;
+        });
+        console.log('After frontend filtering:', filteredSlots.length, 'slots remain');
+      }
       
-      setAvailableSlots(availableTimeSlots);
-    } catch (error) {
-      console.error('Error:', error);
-      toast.error('Failed to load available time slots');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      console.log('Available slots:', filteredSlots.filter(s => s.is_available).length);
+      
+      if (filteredSlots.length === 0) {
+        const errorMsg = isToday 
+          ? `No slots available today after ${getCurrentTimeISTWithBuffer(40)}` 
+          : 'No slots available for this date';
+        setError(errorMsg);
+        setAvailableSlots([]);
+        return;
+      }
 
-  const handleContinue = () => {
-    if (!selectedTime) {
-      toast.error('Please select a time slot');
+      // Process slots with improved time formatting
+      const processedSlots = filteredSlots.map((slot: any) => ({
+        staff_id: slot.staff_id,
+        staff_name: slot.staff_name,
+        time_slot: typeof slot.time_slot === 'string' 
+          ? slot.time_slot.substring(0, 5) 
+          : formatDateInIST(new Date(`2000-01-01T${slot.time_slot}`), 'HH:mm'),
+        is_available: slot.is_available,
+        conflict_reason: slot.conflict_reason
+      }));
+      
+      // Find next valid slot for today
+      if (isToday) {
+        const availableSlots = processedSlots.filter(s => s.is_available);
+        if (availableSlots.length > 0) {
+          setNextValidSlotTime(availableSlots[0].time_slot);
+        } else {
+          setNextValidSlotTime('');
+        }
+      } else {
+        setNextValidSlotTime('');
+      }
+      
+      console.log('Final processed slots:', processedSlots.length);
+      console.log('=== END SLOT FETCH ===');
+      
+      setAvailableSlots(processedSlots);
+      setLastRefreshTime(new Date());
+
+    } catch (error) {
+      console.error('Error fetching slots:', error);
+      setError('Unable to load time slots. Please try again.');
+      setAvailableSlots([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedDate, merchantId, selectedStaff, actualServiceDuration]);
+
+  // Initial fetch and setup periodic refresh for today's slots
+  useEffect(() => {
+    fetchAvailableSlots();
+    setSelectedTime('');
+
+    // Set up periodic refresh for today's slots (every minute)
+    const isToday = selectedDate && isTodayIST(selectedDate);
+    if (isToday) {
+      const interval = setInterval(() => {
+        console.log('Auto-refreshing today slots to update buffer time');
+        fetchAvailableSlots();
+      }, 60000); // Refresh every minute
+
+      return () => clearInterval(interval);
+    }
+  }, [fetchAvailableSlots]);
+
+  // Set up real-time subscriptions
+  useRealtimeSlots({
+    selectedDate,
+    selectedStaff,
+    merchantId: merchantId || '',
+    onSlotChange: fetchAvailableSlots,
+    selectedTime,
+    onSelectedTimeInvalidated: () => {
+      setSelectedTime('');
+    }
+  });
+
+  // Handle slot selection without creating pending bookings
+  const handleTimeSlotClick = async (timeSlot: string) => {
+    if (!selectedDate || !merchantId || !userId) return;
+    
+    // Double-check if slot is still valid for today
+    if (isTodayIST(selectedDate)) {
+      const currentBufferTime = getCurrentTimeISTWithBuffer(40);
+      if (timeSlot < currentBufferTime) {
+        toast.error('This time slot is no longer available due to time passing');
+        fetchAvailableSlots(); // Refresh to remove expired slots
+        return;
+      }
+    }
+    
+    // Find if the slot is available
+    const availableSlot = availableSlots.find(slot => 
+      slot.time_slot === timeSlot && slot.is_available
+    );
+    
+    if (!availableSlot) {
+      toast.error('This time slot is not available');
       return;
     }
 
-    navigate(`/booking/${merchantId}/payment`, {
-      state: {
-        merchant,
-        selectedServices,
-        selectedStaff,
-        selectedDate: format(selectedDate, 'yyyy-MM-dd'),
-        selectedTime,
-        totalPrice,
-        totalDuration
-      }
-    });
+    setIsCheckingSlot(true);
+
+    try {
+      // Simply mark the slot as selected without creating a pending booking
+      setSelectedTime(timeSlot);
+      toast.success('Time slot selected!');
+    } catch (error) {
+      console.error('Error selecting slot:', error);
+      toast.error('Error selecting time slot. Please try again.');
+    } finally {
+      setIsCheckingSlot(false);
+    }
   };
+
+  const handleContinue = async () => {
+    if (!selectedDate || !selectedTime || !userId) {
+      toast.error('Please select a time slot first');
+      return;
+    }
+
+    const selectedSlot = availableSlots.find(slot => 
+      slot.time_slot === selectedTime
+    );
+    
+    if (!selectedSlot) {
+      toast.error('Selected time slot information not found');
+      return;
+    }
+
+    try {
+      const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
+      const finalStaffId = selectedStaff || selectedSlot.staff_id;
+      const finalStaffDetails = selectedStaffDetails || { name: selectedSlot.staff_name };
+
+      // Navigate to payment
+      navigate(`/payment/${merchantId}`, {
+        state: {
+          merchant,
+          selectedServices,
+          totalPrice,
+          totalDuration: actualServiceDuration,
+          selectedStaff: finalStaffId,
+          selectedStaffDetails: finalStaffDetails,
+          bookingDate: selectedDateStr,
+          bookingTime: selectedTime
+        }
+      });
+
+    } catch (error) {
+      console.error('Error proceeding to payment:', error);
+      toast.error('Error proceeding to payment. Please try again.');
+    }
+  };
+
+  const formatDateDisplay = (date: Date) => {
+    const todayIST = getCurrentDateIST();
+    const tomorrowIST = addDays(todayIST, 1);
+    
+    if (formatDateInIST(date, 'yyyy-MM-dd') === formatDateInIST(todayIST, 'yyyy-MM-dd')) {
+      return 'Today';
+    } else if (formatDateInIST(date, 'yyyy-MM-dd') === formatDateInIST(tomorrowIST, 'yyyy-MM-dd')) {
+      return 'Tomorrow';
+    } else {
+      return formatDateInIST(date, 'EEE, MMM d');
+    }
+  };
+
+  const availableTimeSlots = availableSlots.filter(slot => slot.is_available);
+  const unavailableSlots = availableSlots.filter(slot => !slot.is_available);
+  
+  const uniqueAvailableSlots = Array.from(new Map(
+    availableTimeSlots.map(slot => [slot.time_slot, slot])
+  ).values()).sort((a, b) => a.time_slot.localeCompare(b.time_slot));
+  
+  const uniqueUnavailableSlots = Array.from(new Map(
+    unavailableSlots.map(slot => [slot.time_slot, slot])
+  ).values()).sort((a, b) => a.time_slot.localeCompare(b.time_slot));
+
+  if (!merchant) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center p-4">
+        <p className="text-gray-500 mb-4">Merchant information missing</p>
+        <Button onClick={() => navigate(-1)}>Go Back</Button>
+      </div>
+    );
+  }
+
+  const isToday = selectedDate && isTodayIST(selectedDate);
 
   return (
     <div className="pb-24 bg-white min-h-screen">
@@ -134,112 +358,154 @@ const DateTimeSelectionPage: React.FC = () => {
           >
             <ChevronLeft className="h-5 w-5" />
           </Button>
-          <h1 className="text-xl font-medium">Select Date & Time</h1>
+          <h1 className="text-xl font-medium font-righteous">Select Date & Time</h1>
         </div>
       </div>
 
       <div className="p-4">
         <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-2">Choose Date & Time</h2>
-          <p className="text-gray-500 text-sm">Select the date and time for your appointment</p>
+          <h2 className="text-lg font-semibold mb-2 font-righteous">Choose Your Appointment</h2>
+          <p className="text-gray-500 text-sm font-poppins">
+            Select your preferred date and time slot. Service duration: {actualServiceDuration} minutes
+          </p>
+          {isToday && nextValidSlotTime && (
+            <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
+              <p className="text-blue-700 text-sm font-poppins">
+                Next available slot: {formatTimeToAmPm(nextValidSlotTime)}
+              </p>
+            </div>
+          )}
         </div>
 
-        {/* Calendar and Date Selection */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Select Date</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <Popover>
-              <PopoverTrigger asChild>
+        <div className="mb-6">
+          <h3 className="font-medium mb-3 flex items-center font-righteous">
+            <CalendarIcon className="h-4 w-4 mr-2" />
+            Select Date
+          </h3>
+          <div className="grid grid-cols-3 gap-2">
+            {availableDates.map((date) => {
+              const isSelected = selectedDate && formatDateInIST(selectedDate, 'yyyy-MM-dd') === formatDateInIST(date, 'yyyy-MM-dd');
+              
+              return (
                 <Button
-                  variant={"outline"}
-                  className={cn(
-                    "w-[240px] justify-start text-left font-normal",
-                    !selectedDate && "text-muted-foreground"
-                  )}
+                  key={formatDateInIST(date, 'yyyy-MM-dd')}
+                  variant={isSelected ? "default" : "outline"}
+                  className={`h-auto p-3 flex flex-col items-center space-y-1 font-poppins ${
+                    isSelected ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
+                  }`}
+                  onClick={() => setSelectedDate(date)}
                 >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
+                  <div className="text-xs font-medium">
+                    {formatDateDisplay(date)}
+                  </div>
+                  <div className="text-lg font-bold">
+                    {formatDateInIST(date, 'd')}
+                  </div>
+                  <div className="text-xs opacity-70">
+                    {formatDateInIST(date, 'MMM')}
+                  </div>
                 </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="center" side="bottom">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={setSelectedDate}
-                  disabled={(date) => date < new Date()}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
-          </CardContent>
-        </Card>
+              );
+            })}
+          </div>
+        </div>
 
-        {/* Staff Selection */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Select Staff</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="text-center py-4">Loading staff...</div>
-            ) : staffList.length > 0 ? (
-              <List className="divide-y divide-gray-200">
-                {staffList.map(staff => (
-                  <ListItem
-                    key={staff.id}
-                    className={`cursor-pointer hover:bg-gray-50 p-3 ${selectedStaff?.id === staff.id ? 'bg-gray-100' : ''}`}
-                    onClick={() => setSelectedStaff(staff)}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <User className="h-4 w-4 text-gray-500" />
-                      <span className="font-medium">{staff.name}</span>
-                    </div>
-                  </ListItem>
-                ))}
-              </List>
-            ) : (
-              <div className="text-center py-4">No staff available</div>
+        {selectedDate && (
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-medium flex items-center font-righteous">
+                <Clock className="h-4 w-4 mr-2" />
+                Available Time Slots
+              </h3>
+              {isToday && (
+                <div className="flex items-center text-sm text-gray-500">
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  <span className="font-poppins">
+                    Updated {formatDateInIST(lastRefreshTime, 'HH:mm')}
+                  </span>
+                </div>
+              )}
+            </div>
+            
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-red-600 text-sm font-poppins">{error}</p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="mt-2 font-poppins"
+                  onClick={fetchAvailableSlots}
+                >
+                  Try Again
+                </Button>
+              </div>
             )}
-          </CardContent>
-        </Card>
-
-        {/* Time Slot Selection */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Select Time</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="text-center py-4">Loading available times...</div>
-            ) : availableSlots.length > 0 ? (
-              <div className="grid grid-cols-3 gap-3">
-                {availableSlots.map(slot => (
-                  <Button
-                    key={slot}
-                    variant={selectedTime === slot ? 'default' : 'outline'}
-                    onClick={() => setSelectedTime(slot)}
-                  >
-                    {formatTimeToAmPm(slot)}
-                  </Button>
-                ))}
+            
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
+              </div>
+            ) : uniqueAvailableSlots.length > 0 ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-2">
+                  {uniqueAvailableSlots.map((slot) => (
+                    <Button
+                      key={slot.time_slot}
+                      variant={selectedTime === slot.time_slot ? "default" : "outline"}
+                      className={`p-3 font-poppins ${
+                        selectedTime === slot.time_slot ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
+                      }`}
+                      onClick={() => handleTimeSlotClick(slot.time_slot)}
+                      disabled={isCheckingSlot}
+                    >
+                      <span className="font-medium">{formatTimeToAmPm(slot.time_slot)}</span>
+                    </Button>
+                  ))}
+                </div>
+                
+                {uniqueUnavailableSlots.length > 0 && (
+                  <div className="mt-4">
+                    <p className="text-sm text-gray-600 mb-2 font-poppins">Unavailable slots:</p>
+                    <div className="grid grid-cols-1 gap-2">
+                      {uniqueUnavailableSlots.slice(0, 5).map((slot) => (
+                        <div
+                          key={slot.time_slot}
+                          className="p-2 bg-gray-100 rounded text-sm text-gray-600 border border-gray-200 font-poppins"
+                        >
+                          <span className="font-medium">{formatTimeToAmPm(slot.time_slot)}</span>
+                          <span className="ml-2 text-xs">- {slot.conflict_reason || 'Unavailable'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
-              <div className="text-center py-4">No time slots available for the selected date and staff.</div>
+              <div className="text-center py-8 bg-gray-50 rounded-lg">
+                <Clock className="h-12 w-12 mx-auto text-gray-400 mb-2" />
+                <p className="text-gray-500 font-poppins">No available time slots</p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="mt-3 font-poppins"
+                  onClick={fetchAvailableSlots}
+                >
+                  Refresh Slots
+                </Button>
+              </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        )}
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
         <Button 
-          className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6"
+          className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6 font-poppins"
           size="lg"
           onClick={handleContinue}
-          disabled={!selectedDate || !selectedStaff || !selectedTime}
+          disabled={!selectedDate || !selectedTime || loading || isCheckingSlot}
         >
-          Continue to Payment
+          {isCheckingSlot ? 'Checking Availability...' : 'Continue to Payment'}
         </Button>
       </div>
     </div>

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -6,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Booking, BookingService } from '@/types';
+import { Booking } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { format, parseISO, addDays, isSameDay, isToday } from 'date-fns';
 import { Calendar as CalendarIcon, Clock, Store, CalendarX, Scissors, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
@@ -72,14 +73,7 @@ const CalendarPage: React.FC = () => {
       
       if (error) throw error;
       console.log('Customer bookings fetched:', data);
-      
-      // Process the data to handle services properly
-      const processedBookings = data?.map(booking => ({
-        ...booking,
-        services: Array.isArray(booking.services) ? (booking.services as unknown) as BookingService[] : undefined
-      })) as Booking[] || [];
-
-      return processedBookings;
+      return data as Booking[];
     },
     enabled: !!userId,
     staleTime: 2 * 60 * 1000, // 2 minutes
@@ -189,7 +183,7 @@ const CalendarPage: React.FC = () => {
         <div className="flex items-center gap-2 mb-2">
           <CalendarIcon className="h-6 w-6 text-booqit-primary" />
           <h1 className="text-2xl md:text-3xl font-light">Your Calendar</h1>
-          {(isBookingsFetching) && (
+          {(isBookingsFetching || isCountsFetching) && (
             <Loader2 className="h-4 w-4 animate-spin text-booqit-primary ml-2" />
           )}
         </div>
@@ -220,6 +214,8 @@ const CalendarPage: React.FC = () => {
             {weekDays.map((day, index) => {
               const isCurrentDay = isToday(day);
               const isSelectedDay = isSameDay(day, date);
+              const dateKey = format(day, 'yyyy-MM-dd');
+              const appointmentCount = appointmentCounts[dateKey] || 0;
               
               return (
                 <div key={index} className="flex flex-col items-center cursor-pointer" onClick={() => setDate(day)}>
@@ -316,6 +312,7 @@ const CalendarPage: React.FC = () => {
                           bookingId={booking.id} 
                           onCancelled={() => {
                             queryClient.invalidateQueries({ queryKey: ['customer-bookings', userId] });
+                            queryClient.invalidateQueries({ queryKey: ['appointment-counts', userId] });
                           }} 
                         />
                       </div>

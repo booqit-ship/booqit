@@ -61,12 +61,10 @@ export type Database = {
           merchant_id: string
           payment_status: string
           service_id: string
-          services: Json | null
           staff_id: string | null
           status: string
           stylist_name: string | null
           time_slot: string
-          total_duration: number | null
           user_id: string
         }
         Insert: {
@@ -79,12 +77,10 @@ export type Database = {
           merchant_id: string
           payment_status: string
           service_id: string
-          services?: Json | null
           staff_id?: string | null
           status: string
           stylist_name?: string | null
           time_slot: string
-          total_duration?: number | null
           user_id: string
         }
         Update: {
@@ -97,12 +93,10 @@ export type Database = {
           merchant_id?: string
           payment_status?: string
           service_id?: string
-          services?: Json | null
           staff_id?: string | null
           status?: string
           stylist_name?: string | null
           time_slot?: string
-          total_duration?: number | null
           user_id?: string
         }
         Relationships: [
