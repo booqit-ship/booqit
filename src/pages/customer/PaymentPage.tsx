@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Smartphone } from 'lucide-react';
@@ -94,14 +93,13 @@ const PaymentPage: React.FC = () => {
         p_staff_id: selectedStaff,
         p_date: bookingDate,
         p_time_slot: bookingTime,
-        p_service_duration: totalDuration,
         p_services: JSON.stringify(selectedServices),
         p_total_duration: totalDuration
       });
 
-      // Call the database function with correct parameter order
+      // Call the database function to create confirmed booking
       const { data: bookingResult, error: bookingError } = await supabase.rpc(
-        'create_confirmed_booking_with_services',
+        'create_confirmed_booking_with_services' as any,
         {
           p_user_id: userId,
           p_merchant_id: merchantId,
@@ -109,7 +107,6 @@ const PaymentPage: React.FC = () => {
           p_staff_id: selectedStaff,
           p_date: bookingDate,
           p_time_slot: bookingTime,
-          p_service_duration: totalDuration,
           p_services: JSON.stringify(selectedServices),
           p_total_duration: totalDuration
         }
@@ -129,8 +126,7 @@ const PaymentPage: React.FC = () => {
         return;
       }
 
-      // The trigger will automatically block the slots based on total_duration
-      console.log('✅ Booking created as confirmed, slots will be blocked by trigger');
+      console.log('✅ Booking created as confirmed with ID:', response.booking_id);
 
       // Create payment record
       console.log('💰 Creating payment record for booking:', response.booking_id);

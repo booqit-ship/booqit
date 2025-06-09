@@ -6,7 +6,6 @@ CREATE OR REPLACE FUNCTION public.create_confirmed_booking_with_services(
   p_staff_id uuid, 
   p_date date, 
   p_time_slot time without time zone, 
-  p_service_duration integer,
   p_services text,
   p_total_duration integer
 )
@@ -21,20 +20,19 @@ DECLARE
   service_end_time time;
   overlapping_count integer;
 BEGIN
-  -- Calculate service end time
-  service_end_time := p_time_slot + (p_service_duration || ' minutes')::interval;
+  -- Calculate service end time based on total duration
+  service_end_time := p_time_slot + (p_total_duration || ' minutes')::interval;
   
-  -- Check for overlapping confirmed bookings using range overlap
+  -- Check for overlapping confirmed bookings using the total duration
   SELECT COUNT(*) INTO overlapping_count
   FROM public.bookings b
-  JOIN public.services s ON b.service_id = s.id
   WHERE b.staff_id = p_staff_id
   AND b.date = p_date
-  AND b.status = 'confirmed'
+  AND b.status IN ('confirmed', 'pending')
   AND NOT (
     -- No overlap: new booking ends before existing starts OR new booking starts after existing ends
     service_end_time <= b.time_slot::time OR 
-    p_time_slot >= (b.time_slot::time + (s.duration || ' minutes')::interval)
+    p_time_slot >= (b.time_slot::time + (COALESCE(b.total_duration, 30) || ' minutes')::interval)
   );
   
   IF overlapping_count > 0 THEN

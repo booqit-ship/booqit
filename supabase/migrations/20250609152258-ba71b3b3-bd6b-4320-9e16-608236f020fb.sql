@@ -1,5 +1,5 @@
 
--- Fix: Use total_duration for slot blocking instead of only the first service duration
+-- Updated trigger function to use total_duration for proper slot blocking
 -- This ensures all slots for the combined duration of multiple services are properly blocked
 
 CREATE OR REPLACE FUNCTION public.handle_booking_slot_allocation()
@@ -11,19 +11,13 @@ DECLARE
   service_duration integer;
   booking_result json;
 BEGIN
-  -- Only process confirmed or pending bookings
-  IF NEW.status NOT IN ('confirmed', 'pending') THEN
+  -- Only process confirmed bookings (skip pending to avoid conflicts during reservation)
+  IF NEW.status != 'confirmed' THEN
     RETURN NEW;
   END IF;
   
-  -- Get the total duration from the booking record (sum of all selected services)
-  -- This replaces the old logic that only used the first service duration
-  SELECT total_duration INTO service_duration
-  FROM public.bookings
-  WHERE id = NEW.id;
-  
-  -- Default to 30 minutes if no total duration found
-  service_duration := COALESCE(service_duration, 30);
+  -- Get the total duration from the booking record (this is the sum of all selected services)
+  service_duration := COALESCE(NEW.total_duration, 30);
   
   -- Book the slots using the total duration of all services
   SELECT public.book_appointment_with_duration_blocking(
