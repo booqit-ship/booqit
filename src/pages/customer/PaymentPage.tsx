@@ -50,33 +50,32 @@ const PaymentPage: React.FC = () => {
     setIsProcessing(true);
     
     try {
-      console.log('Processing payment and creating simple booking...');
+      console.log('Processing payment and creating booking with services...');
+
+      // Calculate total duration from all selected services
+      const calculatedTotalDuration = selectedServices.reduce((sum: number, service: any) => sum + service.duration, 0);
+      
+      console.log('MULTIPLE_SERVICES_BOOKING: Creating booking with:', {
+        services: selectedServices.length,
+        totalDuration: calculatedTotalDuration,
+        totalPrice,
+        selectedStaff,
+        bookingDate,
+        bookingTime
+      });
 
       // Simulate payment processing (2 seconds)
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Create booking directly as confirmed using simple function
-      const serviceId = selectedServices[0]?.id;
-      const serviceDuration = selectedServices[0]?.duration || 30;
-      
-      console.log('Creating simple booking with params:', {
+      // Create booking with multiple services using the new function
+      const { data: bookingResult, error: bookingError } = await supabase.rpc('create_booking_with_services', {
         p_user_id: userId,
         p_merchant_id: merchantId,
-        p_service_id: serviceId,
         p_staff_id: selectedStaff,
         p_date: bookingDate,
         p_time_slot: bookingTime,
-        p_service_duration: serviceDuration
-      });
-
-      const { data: bookingResult, error: bookingError } = await supabase.rpc('create_confirmed_booking', {
-        p_user_id: userId,
-        p_merchant_id: merchantId,
-        p_service_id: serviceId,
-        p_staff_id: selectedStaff,
-        p_date: bookingDate,
-        p_time_slot: bookingTime,
-        p_service_duration: serviceDuration
+        p_services: JSON.stringify(selectedServices),
+        p_total_duration: calculatedTotalDuration
       });
 
       if (bookingError) {
@@ -91,22 +90,6 @@ const PaymentPage: React.FC = () => {
       if (!response.success) {
         toast.error(response.error || 'Failed to create booking');
         return;
-      }
-
-      // Update the booking with services information
-      const { error: updateError } = await supabase
-        .from('bookings')
-        .update({
-          services: JSON.stringify(selectedServices),
-          total_duration: serviceDuration
-        })
-        .eq('id', response.booking_id);
-
-      if (updateError) {
-        console.error('Error updating booking with services:', updateError);
-        // Don't fail the booking creation, just log the error
-      } else {
-        console.log('Successfully updated booking with services and total duration');
       }
 
       // Create payment record
@@ -170,13 +153,13 @@ const PaymentPage: React.FC = () => {
             .single();
 
           const customerName = customerProfile?.name || 'Customer';
-          const serviceName = selectedServices[0]?.name || 'Service';
+          const serviceNames = selectedServices.map((s: any) => s.name).join(', ');
           const formattedTime = formatTimeToAmPm(bookingTime);
 
           await sendNewBookingNotification(
             merchantData.user_id,
             customerName,
-            serviceName,
+            serviceNames,
             formattedTime,
             response.booking_id
           );
@@ -194,7 +177,7 @@ const PaymentPage: React.FC = () => {
           merchant,
           selectedServices,
           totalPrice,
-          totalDuration: serviceDuration,
+          totalDuration: calculatedTotalDuration,
           selectedStaff,
           selectedStaffDetails,
           bookingDate,
@@ -224,6 +207,9 @@ const PaymentPage: React.FC = () => {
       </div>
     );
   }
+
+  // Calculate total duration from selected services
+  const calculatedTotalDuration = selectedServices.reduce((sum: number, service: any) => sum + service.duration, 0);
   
   return (
     <div className="pb-24 bg-white min-h-screen">
@@ -253,7 +239,7 @@ const PaymentPage: React.FC = () => {
               <div className="text-right">
                 {selectedServices?.map((service: any, index: number) => (
                   <div key={index} className="font-poppins font-medium">
-                    {service.name}
+                    {service.name} ({service.duration}min)
                   </div>
                 ))}
               </div>
@@ -273,8 +259,8 @@ const PaymentPage: React.FC = () => {
             </div>
             
             <div className="flex justify-between">
-              <span className="font-poppins text-gray-600">Duration</span>
-              <span className="font-poppins font-medium">{totalDuration} minutes</span>
+              <span className="font-poppins text-gray-600">Total Duration</span>
+              <span className="font-poppins font-medium">{calculatedTotalDuration} minutes</span>
             </div>
             
             <hr />
