@@ -115,88 +115,10 @@ const AnalyticsPage: React.FC = () => {
 
         console.log('🔍 Analytics Data Fetch:', { mId, today, weekStart, weekEnd, monthStart, monthEnd });
 
-        // Fetch earnings data using raw SQL for accuracy
-        const { data: earningsData, error: earningsError } = await supabase
-          .rpc('get_merchant_earnings', {
-            p_merchant_id: mId,
-            p_today: today,
-            p_week_start: weekStart,
-            p_week_end: weekEnd,
-            p_month_start: monthStart,
-            p_month_end: monthEnd
-          });
-
-        if (earningsError) {
-          console.error('❌ Error fetching earnings:', earningsError);
-          // Fallback to manual calculation
-          await fetchEarningsManually(mId, today, weekStart, weekEnd, monthStart, monthEnd);
-        } else if (earningsData && earningsData.length > 0) {
-          const earnings = earningsData[0];
-          console.log('✅ Earnings data received:', earnings);
-          setEarnings({
-            total: earnings.total_earnings || 0,
-            today: earnings.today_earnings || 0,
-            thisWeek: earnings.week_earnings || 0,
-            thisMonth: earnings.month_earnings || 0,
-            customRange: 0,
-          });
-        } else {
-          // Fallback to manual calculation
-          await fetchEarningsManually(mId, today, weekStart, weekEnd, monthStart, monthEnd);
-        }
-
-        // Fetch bookings data
-        const { data: bookingsData, error: bookingsError } = await supabase
-          .rpc('get_merchant_bookings_count', {
-            p_merchant_id: mId,
-            p_today: today,
-            p_week_start: weekStart,
-            p_week_end: weekEnd,
-            p_month_start: monthStart,
-            p_month_end: monthEnd
-          });
-
-        if (bookingsError) {
-          console.error('❌ Error fetching bookings count:', bookingsError);
-          // Fallback to manual calculation
-          await fetchBookingsManually(mId, today, weekStart, weekEnd, monthStart, monthEnd);
-        } else if (bookingsData && bookingsData.length > 0) {
-          const bookings = bookingsData[0];
-          console.log('✅ Bookings data received:', bookings);
-          setBookings({
-            total: bookings.total_bookings || 0,
-            today: bookings.today_bookings || 0,
-            thisWeek: bookings.week_bookings || 0,
-            thisMonth: bookings.month_bookings || 0,
-            customRange: 0,
-          });
-        } else {
-          // Fallback to manual calculation
-          await fetchBookingsManually(mId, today, weekStart, weekEnd, monthStart, monthEnd);
-        }
-
-        // Fetch staff performance data
-        const { data: staffPerformanceData, error: staffError } = await supabase
-          .rpc('get_staff_performance', {
-            p_merchant_id: mId
-          });
-
-        if (staffError) {
-          console.error('❌ Error fetching staff performance:', staffError);
-          // Fallback to manual calculation
-          await fetchStaffPerformanceManually(mId);
-        } else if (staffPerformanceData) {
-          console.log('✅ Staff performance data received:', staffPerformanceData);
-          setStaffData(staffPerformanceData.map((staff: any) => ({
-            id: staff.staff_id,
-            name: staff.staff_name,
-            earnings: staff.total_earnings || 0,
-            bookings: staff.total_bookings || 0,
-          })));
-        } else {
-          // Fallback to manual calculation
-          await fetchStaffPerformanceManually(mId);
-        }
+        // Fetch earnings data using direct SQL queries
+        await fetchEarningsData(mId, today, weekStart, weekEnd, monthStart, monthEnd);
+        await fetchBookingsData(mId, today, weekStart, weekEnd, monthStart, monthEnd);
+        await fetchStaffPerformanceData(mId);
 
       } catch (error) {
         console.error('❌ Error fetching analytics data:', error);
@@ -209,10 +131,10 @@ const AnalyticsPage: React.FC = () => {
     fetchAnalyticsData();
   }, [userId]);
 
-  // Fallback manual earnings calculation
-  const fetchEarningsManually = async (mId: string, today: string, weekStart: string, weekEnd: string, monthStart: string, monthEnd: string) => {
+  // Fetch earnings data
+  const fetchEarningsData = async (mId: string, today: string, weekStart: string, weekEnd: string, monthStart: string, monthEnd: string) => {
     try {
-      console.log('🔄 Fetching earnings manually...');
+      console.log('🔄 Fetching earnings data...');
       
       const { data: completedBookings, error } = await supabase
         .from('bookings')
@@ -227,11 +149,11 @@ const AnalyticsPage: React.FC = () => {
         .eq('payment_status', 'completed');
 
       if (error) {
-        console.error('❌ Manual earnings fetch error:', error);
+        console.error('❌ Earnings fetch error:', error);
         return;
       }
 
-      console.log('📊 Manual earnings - completed bookings:', completedBookings);
+      console.log('📊 Completed bookings:', completedBookings);
 
       if (completedBookings && completedBookings.length > 0) {
         const totalEarnings = completedBookings.reduce((sum, booking) => 
@@ -250,7 +172,7 @@ const AnalyticsPage: React.FC = () => {
           .filter(booking => booking.date >= monthStart && booking.date <= monthEnd)
           .reduce((sum, booking) => sum + (booking.services?.price || 0), 0);
 
-        console.log('💰 Manual earnings calculated:', { totalEarnings, todayEarnings, weekEarnings, monthEarnings });
+        console.log('💰 Earnings calculated:', { totalEarnings, todayEarnings, weekEarnings, monthEarnings });
 
         setEarnings({
           total: totalEarnings,
@@ -261,14 +183,14 @@ const AnalyticsPage: React.FC = () => {
         });
       }
     } catch (error) {
-      console.error('❌ Manual earnings calculation error:', error);
+      console.error('❌ Earnings calculation error:', error);
     }
   };
 
-  // Fallback manual bookings calculation
-  const fetchBookingsManually = async (mId: string, today: string, weekStart: string, weekEnd: string, monthStart: string, monthEnd: string) => {
+  // Fetch bookings data
+  const fetchBookingsData = async (mId: string, today: string, weekStart: string, weekEnd: string, monthStart: string, monthEnd: string) => {
     try {
-      console.log('🔄 Fetching bookings manually...');
+      console.log('🔄 Fetching bookings data...');
       
       const { data: allBookings, error } = await supabase
         .from('bookings')
@@ -277,11 +199,11 @@ const AnalyticsPage: React.FC = () => {
         .neq('status', 'cancelled');
 
       if (error) {
-        console.error('❌ Manual bookings fetch error:', error);
+        console.error('❌ Bookings fetch error:', error);
         return;
       }
 
-      console.log('📊 Manual bookings - all bookings:', allBookings);
+      console.log('📊 All bookings:', allBookings);
 
       if (allBookings) {
         const totalBookingsCount = allBookings.length;
@@ -289,7 +211,7 @@ const AnalyticsPage: React.FC = () => {
         const weekBookingsCount = allBookings.filter(b => b.date >= weekStart && b.date <= weekEnd).length;
         const monthBookingsCount = allBookings.filter(b => b.date >= monthStart && b.date <= monthEnd).length;
 
-        console.log('📈 Manual bookings calculated:', { totalBookingsCount, todayBookingsCount, weekBookingsCount, monthBookingsCount });
+        console.log('📈 Bookings calculated:', { totalBookingsCount, todayBookingsCount, weekBookingsCount, monthBookingsCount });
 
         setBookings({
           total: totalBookingsCount,
@@ -300,14 +222,14 @@ const AnalyticsPage: React.FC = () => {
         });
       }
     } catch (error) {
-      console.error('❌ Manual bookings calculation error:', error);
+      console.error('❌ Bookings calculation error:', error);
     }
   };
 
-  // Fallback manual staff performance calculation
-  const fetchStaffPerformanceManually = async (mId: string) => {
+  // Fetch staff performance data
+  const fetchStaffPerformanceData = async (mId: string) => {
     try {
-      console.log('🔄 Fetching staff performance manually...');
+      console.log('🔄 Fetching staff performance data...');
       
       const { data: staffList, error: staffError } = await supabase
         .from('staff')
@@ -334,8 +256,8 @@ const AnalyticsPage: React.FC = () => {
         return;
       }
 
-      console.log('👥 Manual staff performance - staff list:', staffList);
-      console.log('👥 Manual staff performance - staff bookings:', staffBookings);
+      console.log('👥 Staff list:', staffList);
+      console.log('👥 Staff bookings:', staffBookings);
 
       if (staffList && staffBookings) {
         const staffEarningsData = staffList.map(staff => {
@@ -352,11 +274,11 @@ const AnalyticsPage: React.FC = () => {
           };
         });
 
-        console.log('💼 Manual staff performance calculated:', staffEarningsData);
+        console.log('💼 Staff performance calculated:', staffEarningsData);
         setStaffData(staffEarningsData);
       }
     } catch (error) {
-      console.error('❌ Manual staff performance calculation error:', error);
+      console.error('❌ Staff performance calculation error:', error);
     }
   };
 
