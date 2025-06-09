@@ -233,7 +233,7 @@ const ReceiptPage: React.FC = () => {
         {booking.status === 'pending' && (
           <CancelBookingButton 
             bookingId={booking.id} 
-            onCancel={() => {
+            onCancelled={() => {
               setBooking(prev => ({ ...prev, status: 'cancelled' }));
             }}
           />
