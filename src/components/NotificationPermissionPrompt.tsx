@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Bell, X } from 'lucide-react';
@@ -11,10 +10,31 @@ interface NotificationPermissionPromptProps {
 
 const NotificationPermissionPrompt: React.FC<NotificationPermissionPromptProps> = ({ onDismiss }) => {
   const { requestPermissionManually } = useNotifications();
+  const [permission, setPermission] = useState(Notification.permission);
+
+  // Keep permission state synced with actual browser state
+  useEffect(() => {
+    const checkPermission = () => {
+      if ('Notification' in window) {
+        setPermission(Notification.permission);
+      }
+    };
+
+    checkPermission();
+    window.addEventListener('focus', checkPermission);
+    
+    return () => window.removeEventListener('focus', checkPermission);
+  }, []);
+
+  // Don't show if permission is already granted
+  if (permission === 'granted') {
+    return null;
+  }
 
   const handleEnableNotifications = async () => {
     const granted = await requestPermissionManually();
     if (granted) {
+      setPermission('granted');
       onDismiss();
     }
   };

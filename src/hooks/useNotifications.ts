@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { requestNotificationPermission, setupForegroundMessaging, getFCMToken } from '@/firebase';
@@ -11,16 +10,26 @@ export const useNotifications = () => {
   const [hasPermission, setHasPermission] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
 
-  // Check current permission status on mount
+  // Check current permission status on mount and keep it synced
   useEffect(() => {
-    if (!('Notification' in window)) {
-      setIsSupported(false);
-      return;
-    }
+    const checkPermission = () => {
+      if (!('Notification' in window)) {
+        setIsSupported(false);
+        return;
+      }
 
-    const currentPermission = Notification.permission;
-    console.log('🔔 Current permission status:', currentPermission);
-    setHasPermission(currentPermission === 'granted');
+      const currentPermission = Notification.permission;
+      console.log('🔔 Current permission status:', currentPermission);
+      setHasPermission(currentPermission === 'granted');
+    };
+
+    // Check permission on mount
+    checkPermission();
+    
+    // Keep permission state synced when window regains focus
+    window.addEventListener('focus', checkPermission);
+    
+    return () => window.removeEventListener('focus', checkPermission);
   }, []);
 
   // Initialize notifications for authenticated users
@@ -123,6 +132,8 @@ export const useNotifications = () => {
 
       console.log('🔔 Requesting notification permission manually...');
       const permission = await requestNotificationPermission();
+      
+      // Update permission state immediately after request
       setHasPermission(permission);
       
       if (permission && userId && userRole) {
