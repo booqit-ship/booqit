@@ -5,7 +5,7 @@ import { Calendar, DollarSign, Users, Clock, Star, TrendingUp } from 'lucide-rea
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
-import { Booking, BookingService } from '@/types';
+import { BookingService } from '@/types';
 
 interface DashboardStats {
   totalBookings: number;
@@ -14,6 +14,20 @@ interface DashboardStats {
   monthlyRevenue: number;
   averageRating: number;
   totalCustomers: number;
+}
+
+interface DashboardBooking {
+  id: string;
+  customer_name: string | null;
+  date: string;
+  time_slot: string;
+  status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
+  service?: {
+    name: string;
+    price: number;
+    duration: number;
+  };
+  services?: BookingService[];
 }
 
 const DashboardPage: React.FC = () => {
@@ -25,7 +39,7 @@ const DashboardPage: React.FC = () => {
     averageRating: 0,
     totalCustomers: 0
   });
-  const [recentBookings, setRecentBookings] = useState<Booking[]>([]);
+  const [recentBookings, setRecentBookings] = useState<DashboardBooking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { userId } = useAuth();
 
@@ -69,11 +83,15 @@ const DashboardPage: React.FC = () => {
 
       if (bookingsError) throw bookingsError;
 
-      // Process recent bookings
-      const processedBookings: Booking[] = bookingsData?.slice(0, 5).map(booking => ({
-        ...booking,
-        services: Array.isArray(booking.services) ? booking.services as BookingService[] : undefined,
-        service: booking.service
+      // Process recent bookings with proper type casting
+      const processedBookings: DashboardBooking[] = bookingsData?.slice(0, 5).map(booking => ({
+        id: booking.id,
+        customer_name: booking.customer_name,
+        date: booking.date,
+        time_slot: booking.time_slot,
+        status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
+        service: booking.service,
+        services: Array.isArray(booking.services) ? booking.services as BookingService[] : undefined
       })) || [];
 
       setRecentBookings(processedBookings);
@@ -135,7 +153,7 @@ const DashboardPage: React.FC = () => {
     return booking.service?.price || 0;
   };
 
-  const getBookingDisplayText = (booking: Booking) => {
+  const getBookingDisplayText = (booking: DashboardBooking) => {
     if (booking.services && booking.services.length > 1) {
       return `${booking.services.length} services`;
     }

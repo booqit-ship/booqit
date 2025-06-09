@@ -77,6 +77,7 @@ const CalendarManagementPage: React.FC = () => {
       // Process the data to handle services properly
       const processedBookings = data?.map(booking => ({
         ...booking,
+        status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
         services: Array.isArray(booking.services) ? booking.services as BookingService[] : undefined
       })) || [];
 
@@ -107,11 +108,23 @@ const CalendarManagementPage: React.FC = () => {
       </div>
 
       <CalendarNavigation 
-        selectedDate={selectedDate}
+        date={selectedDate}
         onDateChange={setSelectedDate}
+        isMobile={false}
+        isHoliday={() => false}
+        holidayDialogOpen={false}
+        setHolidayDialogOpen={() => {}}
+        holidayDescription=""
+        setHolidayDescription={() => {}}
+        onAddHoliday={() => {}}
+        onRemoveHoliday={() => {}}
       />
 
-      <BookingStats stats={stats} />
+      <BookingStats 
+        bookingCounts={stats}
+        loading={isLoading}
+        date={selectedDate}
+      />
 
       <Card>
         <CardHeader>

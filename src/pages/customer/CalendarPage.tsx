@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -7,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Booking } from '@/types';
+import { Booking, BookingService } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { format, parseISO, addDays, isSameDay, isToday } from 'date-fns';
 import { Calendar as CalendarIcon, Clock, Store, CalendarX, Scissors, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
@@ -73,7 +72,14 @@ const CalendarPage: React.FC = () => {
       
       if (error) throw error;
       console.log('Customer bookings fetched:', data);
-      return data as Booking[];
+      
+      // Process the data to handle services properly
+      const processedBookings = data?.map(booking => ({
+        ...booking,
+        services: Array.isArray(booking.services) ? booking.services as BookingService[] : undefined
+      })) as Booking[] || [];
+
+      return processedBookings;
     },
     enabled: !!userId,
     staleTime: 2 * 60 * 1000, // 2 minutes
