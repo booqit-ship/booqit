@@ -221,7 +221,7 @@ export const useSlotLocking = () => {
 
       // Store the slot locally with correct total duration
       setLockedSlot({ merchantId, staffId, date, timeSlot: normalizedTimeSlot, totalDuration });
-      console.log('SLOT_LOCK: Successfully locked slot:', {
+      console.log('SLOT_LOCK: Successfully locked slot for', totalDuration, 'minutes:', {
         merchantId,
         staffId,
         date,
