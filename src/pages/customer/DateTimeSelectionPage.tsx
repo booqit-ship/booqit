@@ -44,14 +44,22 @@ const DateTimeSelectionPage: React.FC = () => {
   const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
   const [nextValidSlotTime, setNextValidSlotTime] = useState<string>('');
 
-  // CRITICAL FIX: Calculate actual service duration properly
-  const actualServiceDuration = selectedServices && selectedServices.length > 0 
-    ? selectedServices.reduce((total: number, service: any) => total + service.duration, 0)
-    : totalDuration || 30;
+  // CRITICAL FIX: Properly calculate the actual total duration
+  const actualServiceDuration = React.useMemo(() => {
+    if (selectedServices && Array.isArray(selectedServices) && selectedServices.length > 0) {
+      const calculated = selectedServices.reduce((total: number, service: any) => {
+        const serviceDuration = typeof service.duration === 'number' ? service.duration : parseInt(service.duration) || 0;
+        return total + serviceDuration;
+      }, 0);
+      console.log('DURATION_CALC: Calculated from services:', calculated, selectedServices);
+      return calculated;
+    }
+    const fallback = totalDuration || 30;
+    console.log('DURATION_CALC: Using fallback:', fallback);
+    return fallback;
+  }, [selectedServices, totalDuration]);
 
-  console.log('DURATION_CALCULATION: Services:', selectedServices);
-  console.log('DURATION_CALCULATION: Total duration from state:', totalDuration);
-  console.log('DURATION_CALCULATION: Calculated actual duration:', actualServiceDuration);
+  console.log('DURATION_DEBUG: Final duration being used:', actualServiceDuration);
 
   // Generate available dates (3 days, excluding holidays)
   const getAvailableDates = () => {
@@ -111,7 +119,7 @@ const DateTimeSelectionPage: React.FC = () => {
     fetchHolidays();
   }, [merchantId, selectedStaff]);
 
-  // Fetch available slots with TOTAL duration for proper slot blocking
+  // CRITICAL FIX: Fetch available slots with correct total duration
   const fetchAvailableSlots = useCallback(async () => {
     if (!selectedDate || !merchantId) return;
 
@@ -122,33 +130,28 @@ const DateTimeSelectionPage: React.FC = () => {
       const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
       const isToday = isTodayIST(selectedDate);
       
-      console.log('=== FETCHING SLOTS WITH TOTAL DURATION ===');
-      console.log('Date:', selectedDateStr, '| Is today:', isToday);
-      console.log('CRITICAL: Using total service duration:', actualServiceDuration, 'minutes');
-      if (isToday) {
-        console.log('Current IST:', getCurrentTimeIST());
-        console.log('Expected start after buffer:', getCurrentTimeISTWithBuffer(40));
-      }
+      console.log('SLOT_FETCH: Starting fetch with duration:', actualServiceDuration);
+      console.log('SLOT_FETCH: Date:', selectedDateStr, 'Today:', isToday);
       
-      // CRITICAL: Use the actual total service duration for slot checking
+      // Use the actual total service duration for slot checking
       const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_ist_buffer', {
         p_merchant_id: merchantId,
         p_date: selectedDateStr,
         p_staff_id: selectedStaff || null,
-        p_service_duration: actualServiceDuration // Pass the total duration
+        p_service_duration: actualServiceDuration
       });
 
       if (slotsError) {
-        console.error('Error from slot function:', slotsError);
+        console.error('SLOT_FETCH: RPC Error:', slotsError);
         setError('Unable to load time slots. Please try again.');
         setAvailableSlots([]);
         return;
       }
 
       const slots = Array.isArray(slotsData) ? slotsData : [];
-      console.log('Backend returned', slots.length, 'total slots for', actualServiceDuration, 'minute duration');
+      console.log('SLOT_FETCH: Received', slots.length, 'slots for', actualServiceDuration, 'minutes');
       
-      // Additional frontend filtering for today to ensure no expired slots
+      // Filter for today to ensure no expired slots
       let filteredSlots = slots;
       if (isToday) {
         const currentBufferTime = getCurrentTimeISTWithBuffer(40);
@@ -158,10 +161,8 @@ const DateTimeSelectionPage: React.FC = () => {
             : formatDateInIST(new Date(`2000-01-01T${slot.time_slot}`), 'HH:mm');
           return slotTime >= currentBufferTime;
         });
-        console.log('After frontend filtering:', filteredSlots.length, 'slots remain');
+        console.log('SLOT_FETCH: After time filtering:', filteredSlots.length, 'slots');
       }
-      
-      console.log('Available slots for', actualServiceDuration, 'minutes:', filteredSlots.filter(s => s.is_available).length);
       
       if (filteredSlots.length === 0) {
         const errorMsg = isToday 
@@ -195,14 +196,13 @@ const DateTimeSelectionPage: React.FC = () => {
         setNextValidSlotTime('');
       }
       
-      console.log('Final processed slots:', processedSlots.length);
-      console.log('=== END SLOT FETCH ===');
+      console.log('SLOT_FETCH: Final processed slots:', processedSlots.length, 'available:', processedSlots.filter(s => s.is_available).length);
       
       setAvailableSlots(processedSlots);
       setLastRefreshTime(new Date());
 
     } catch (error) {
-      console.error('Error fetching slots:', error);
+      console.error('SLOT_FETCH: Catch error:', error);
       setError('Unable to load time slots. Please try again.');
       setAvailableSlots([]);
     } finally {
@@ -243,7 +243,9 @@ const DateTimeSelectionPage: React.FC = () => {
   const handleTimeSlotClick = async (timeSlot: string) => {
     if (!selectedDate || !merchantId || !userId) return;
     
-    // Double-check if slot is still valid for today with total duration
+    console.log('SLOT_CLICK: Starting selection with duration:', actualServiceDuration);
+    
+    // Double-check if slot is still valid for today
     if (isTodayIST(selectedDate)) {
       const currentBufferTime = getCurrentTimeISTWithBuffer(40);
       if (timeSlot < currentBufferTime) {
@@ -266,23 +268,26 @@ const DateTimeSelectionPage: React.FC = () => {
     const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
     const finalStaffId = selectedStaff || availableSlot.staff_id;
 
-    console.log('SLOT_SELECTION: Calling lockSlot with total duration:', {
+    console.log('SLOT_CLICK: Calling lockSlot with correct duration:', {
       staffId: finalStaffId,
       date: selectedDateStr,
       timeSlot,
       totalDuration: actualServiceDuration
     });
 
-    // CRITICAL: Pass the actual total service duration to lockSlot
+    // Pass the actual total service duration to lockSlot
     const success = await lockSlot(
       finalStaffId,
       selectedDateStr,
       timeSlot,
-      actualServiceDuration // Pass total duration here
+      actualServiceDuration
     );
 
     if (success) {
       setSelectedTime(timeSlot);
+      console.log('SLOT_CLICK: Successfully selected slot for', actualServiceDuration, 'minutes');
+    } else {
+      console.log('SLOT_CLICK: Failed to select slot for', actualServiceDuration, 'minutes');
     }
   };
 
@@ -306,13 +311,15 @@ const DateTimeSelectionPage: React.FC = () => {
       const finalStaffId = selectedStaff || selectedSlot.staff_id;
       const finalStaffDetails = selectedStaffDetails || { name: selectedSlot.staff_name };
 
-      // Navigate to payment
+      console.log('CONTINUE: Navigating with duration:', actualServiceDuration);
+
+      // Navigate to payment with the correct total duration
       navigate(`/payment/${merchantId}`, {
         state: {
           merchant,
           selectedServices,
           totalPrice,
-          totalDuration: actualServiceDuration,
+          totalDuration: actualServiceDuration, // Use the calculated duration
           selectedStaff: finalStaffId,
           selectedStaffDetails: finalStaffDetails,
           bookingDate: selectedDateStr,

@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -26,22 +27,30 @@ export const useSlotLocking = () => {
     setIsLocking(true);
     
     try {
-      console.log('SLOT_LOCKING: Attempting to lock slot with total duration:', { 
+      console.log('SLOT_LOCK: Attempting to lock slot with total duration:', { 
         staffId, 
         date, 
         timeSlot, 
         totalDuration 
       });
       
-      // Check if the slot is available using the total duration
-      const { data: slotsData } = await supabase.rpc('get_available_slots_with_ist_buffer', {
-        p_merchant_id: staffId.split('-')[0], // Quick way to get merchant ID from staff ID
+      // CRITICAL FIX: Use the correct total duration for slot checking
+      const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_ist_buffer', {
+        p_merchant_id: staffId.split('-')[0], // Extract merchant ID from staff ID
         p_date: date,
         p_staff_id: staffId,
-        p_service_duration: totalDuration // Use total duration for slot checking
+        p_service_duration: totalDuration // Use the passed total duration
       });
       
+      if (slotsError) {
+        console.error('SLOT_LOCK: RPC Error:', slotsError);
+        toast.error('Failed to check slot availability. Please try again.');
+        return false;
+      }
+      
       const availableSlots = Array.isArray(slotsData) ? slotsData : [];
+      console.log('SLOT_LOCK: Got', availableSlots.length, 'slots for duration check');
+      
       const isSlotAvailable = availableSlots.some(slot => 
         slot.staff_id === staffId && 
         slot.time_slot === timeSlot && 
@@ -49,7 +58,7 @@ export const useSlotLocking = () => {
       );
       
       if (!isSlotAvailable) {
-        console.log('SLOT_LOCKING: Slot not available for total duration:', { 
+        console.log('SLOT_LOCK: Slot not available for total duration:', { 
           staffId, 
           date, 
           timeSlot, 
@@ -59,13 +68,14 @@ export const useSlotLocking = () => {
         return false;
       }
 
-      // Keep track of the slot locally with total duration
+      // Store the slot locally with correct total duration
       setLockedSlot({ staffId, date, timeSlot, totalDuration });
+      console.log('SLOT_LOCK: Successfully locked slot for', totalDuration, 'minutes');
       toast.success(`Slot selected for ${totalDuration} minutes`);
       return true;
       
     } catch (error) {
-      console.error('Error in lockSlot:', error);
+      console.error('SLOT_LOCK: Catch error:', error);
       toast.error('Failed to select slot. Please try again.');
       return false;
     } finally {
@@ -74,9 +84,9 @@ export const useSlotLocking = () => {
   }, []);
 
   const releaseLock = useCallback(() => {
-    // Clear the local state
+    console.log('SLOT_LOCK: Releasing lock for slot:', lockedSlot);
     setLockedSlot(null);
-  }, []);
+  }, [lockedSlot]);
 
   return {
     lockSlot,
