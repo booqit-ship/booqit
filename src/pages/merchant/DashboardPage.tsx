@@ -265,8 +265,10 @@ const DashboardPage: React.FC = () => {
         })
         .subscribe((status) => {
           console.log('📡 Realtime subscription status:', status);
-          if (status === 'SUBSCRIPTION_ERROR') {
-            console.error('Realtime subscription failed');
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ Successfully subscribed to realtime updates');
+          } else {
+            console.error('❌ Realtime subscription failed with status:', status);
           }
         });
 
