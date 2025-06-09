@@ -49,30 +49,49 @@ const BookingCard: React.FC<BookingCardProps> = ({
 
   // Helper function to get service names and duration from services JSON or fallback to single service
   const getServiceInfo = () => {
+    console.log('BookingCard - Raw booking data:', booking);
+    console.log('BookingCard - Services field:', booking.services);
+    console.log('BookingCard - Total duration field:', booking.total_duration);
+    
     // First try to get from services JSON field
     if (booking.services) {
       try {
-        const services = typeof booking.services === 'string' 
-          ? JSON.parse(booking.services) 
-          : booking.services;
+        let services;
         
-        if (Array.isArray(services)) {
+        // Parse services if it's a string
+        if (typeof booking.services === 'string') {
+          services = JSON.parse(booking.services);
+        } else {
+          services = booking.services;
+        }
+        
+        console.log('BookingCard - Parsed services:', services);
+        
+        if (Array.isArray(services) && services.length > 0) {
           const serviceNames = services.map(service => service.name).join(', ');
+          const totalDuration = booking.total_duration || services.reduce((total, service) => total + (service.duration || 0), 0);
+          
+          console.log('BookingCard - Service names:', serviceNames);
+          console.log('BookingCard - Total duration:', totalDuration);
+          
           return {
             names: serviceNames,
-            duration: booking.total_duration || services.reduce((total, service) => total + (service.duration || 0), 0)
+            duration: totalDuration
           };
         }
       } catch (error) {
-        console.error('Error parsing services JSON:', error);
+        console.error('BookingCard - Error parsing services JSON:', error);
       }
     }
     
     // Fallback to single service
-    return {
+    const fallbackData = {
       names: booking.service?.name || 'Service',
       duration: booking.service?.duration || 30
     };
+    
+    console.log('BookingCard - Fallback data:', fallbackData);
+    return fallbackData;
   };
 
   const serviceInfo = getServiceInfo();
