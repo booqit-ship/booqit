@@ -96,6 +96,10 @@ export const useSlotLocking = () => {
         return false;
       }
 
+      // Normalize timeSlot to HH:mm format if needed
+      const normalizedTimeSlot = timeSlot.includes(':') ? timeSlot.substring(0, 5) : timeSlot;
+      console.log('SLOT_LOCK: Normalized timeSlot:', normalizedTimeSlot);
+
       console.log('SLOT_LOCK: Calling RPC with validated parameters:', {
         p_merchant_id: merchantId,
         p_date: date,
@@ -117,7 +121,13 @@ export const useSlotLocking = () => {
           message: slotsError.message,
           details: slotsError.details,
           hint: slotsError.hint,
-          code: slotsError.code
+          code: slotsError.code,
+          parameters: {
+            p_merchant_id: merchantId,
+            p_date: date,
+            p_staff_id: staffId,
+            p_service_duration: totalDuration
+          }
         });
         
         // More specific error messages based on error type
@@ -133,45 +143,89 @@ export const useSlotLocking = () => {
         return false;
       }
       
-      console.log('SLOT_LOCK: RPC Success - Raw data:', slotsData);
+      console.log('SLOT_LOCK: RPC Success - Raw data:', {
+        slotsData,
+        slotsCount: Array.isArray(slotsData) ? slotsData.length : 0,
+        duration: totalDuration
+      });
       
       const availableSlots = Array.isArray(slotsData) ? slotsData : [];
-      console.log('SLOT_LOCK: Processed slots:', availableSlots.length, 'slots available');
+      console.log('SLOT_LOCK: Processed slots:', availableSlots.length, 'slots available for', totalDuration, 'minutes');
       
       // Find the specific slot for this time and staff
-      const targetSlot = availableSlots.find(slot => 
-        slot.staff_id === staffId && 
-        slot.time_slot === timeSlot && 
-        slot.is_available === true
-      );
+      const targetSlot = availableSlots.find(slot => {
+        const slotTimeSlot = typeof slot.time_slot === 'string' 
+          ? slot.time_slot.substring(0, 5) 
+          : slot.time_slot;
+        
+        return slot.staff_id === staffId && 
+               slotTimeSlot === normalizedTimeSlot && 
+               slot.is_available === true;
+      });
       
       console.log('SLOT_LOCK: Target slot search:', {
-        timeSlot,
+        normalizedTimeSlot,
         staffId,
+        totalDuration,
         targetSlot,
-        availableSlots: availableSlots.filter(s => s.staff_id === staffId)
+        availableSlotsForStaff: availableSlots
+          .filter(s => s.staff_id === staffId)
+          .map(s => ({ 
+            time_slot: typeof s.time_slot === 'string' ? s.time_slot.substring(0, 5) : s.time_slot,
+            is_available: s.is_available, 
+            conflict_reason: s.conflict_reason 
+          }))
       });
       
       if (!targetSlot) {
         console.log('SLOT_LOCK: Slot not available:', { 
           requestedStaffId: staffId, 
-          requestedTimeSlot: timeSlot, 
+          requestedTimeSlot: normalizedTimeSlot, 
           totalDuration,
           availableSlotsForStaff: availableSlots
             .filter(s => s.staff_id === staffId)
-            .map(s => ({ time_slot: s.time_slot, is_available: s.is_available, conflict_reason: s.conflict_reason }))
+            .map(s => ({ 
+              time_slot: typeof s.time_slot === 'string' ? s.time_slot.substring(0, 5) : s.time_slot,
+              is_available: s.is_available, 
+              conflict_reason: s.conflict_reason 
+            })),
+          allSlotsForTime: availableSlots
+            .filter(s => {
+              const slotTimeSlot = typeof s.time_slot === 'string' 
+                ? s.time_slot.substring(0, 5) 
+                : s.time_slot;
+              return slotTimeSlot === normalizedTimeSlot;
+            })
+            .map(s => ({
+              staff_id: s.staff_id,
+              is_available: s.is_available,
+              conflict_reason: s.conflict_reason
+            }))
         });
-        toast.error(`This time slot is not available for ${totalDuration} minutes`);
+        
+        // Find any slot for this time to get specific error
+        const conflictSlot = availableSlots.find(slot => {
+          const slotTimeSlot = typeof slot.time_slot === 'string' 
+            ? slot.time_slot.substring(0, 5) 
+            : slot.time_slot;
+          return slotTimeSlot === normalizedTimeSlot && slot.staff_id === staffId;
+        });
+        
+        const errorMsg = conflictSlot?.conflict_reason 
+          ? `This time slot is not available: ${conflictSlot.conflict_reason}`
+          : `This time slot is not available for ${totalDuration} minutes`;
+        
+        toast.error(errorMsg);
         return false;
       }
 
       // Store the slot locally with correct total duration
-      setLockedSlot({ merchantId, staffId, date, timeSlot, totalDuration });
+      setLockedSlot({ merchantId, staffId, date, timeSlot: normalizedTimeSlot, totalDuration });
       console.log('SLOT_LOCK: Successfully locked slot:', {
         merchantId,
         staffId,
         date,
-        timeSlot,
+        timeSlot: normalizedTimeSlot,
         totalDuration
       });
       toast.success(`Slot selected for ${totalDuration} minutes`);

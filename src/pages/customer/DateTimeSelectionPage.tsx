@@ -34,6 +34,103 @@ const DateTimeSelectionPage: React.FC = () => {
   
   const { merchant, selectedServices, totalPrice, totalDuration, selectedStaff, selectedStaffDetails } = location.state || {};
 
+  // Log location state for debugging
+  useEffect(() => {
+    console.log('DATETIME_PAGE: Location state on mount:', {
+      merchant,
+      selectedServices,
+      totalPrice,
+      totalDuration,
+      selectedStaff,
+      selectedStaffDetails,
+      hasLocationState: !!location.state
+    });
+  }, [location.state]);
+
+  // CRITICAL FIX: Validate and calculate actual service duration with better error handling
+  const actualServiceDuration = React.useMemo(() => {
+    console.log('DURATION_CALC: Starting calculation with:', { 
+      selectedServices, 
+      totalDuration,
+      selectedServicesType: typeof selectedServices,
+      selectedServicesArray: Array.isArray(selectedServices),
+      selectedServicesLength: selectedServices?.length,
+      totalDurationType: typeof totalDuration
+    });
+    
+    // Validate location state exists
+    if (!location.state) {
+      console.error('DURATION_CALC: No location state found');
+      toast.error('Missing booking information. Please start over.');
+      navigate(-1);
+      return 30; // temporary fallback
+    }
+    
+    // First priority: Use pre-calculated totalDuration if valid
+    if (totalDuration && typeof totalDuration === 'number' && totalDuration > 0) {
+      console.log('DURATION_CALC: Using pre-calculated totalDuration:', totalDuration);
+      return totalDuration;
+    }
+    
+    // Second priority: Calculate from selectedServices if available and valid
+    if (selectedServices && Array.isArray(selectedServices) && selectedServices.length > 0) {
+      let calculated = 0;
+      let hasValidDurations = true;
+      
+      selectedServices.forEach((service: any, index: number) => {
+        console.log(`DURATION_CALC: Processing service ${index}:`, service);
+        
+        if (service && typeof service === 'object') {
+          let serviceDuration = 0;
+          
+          // Try different property names for duration
+          if (typeof service.duration === 'number' && service.duration > 0) {
+            serviceDuration = service.duration;
+          } else if (typeof service.duration === 'string' && service.duration.trim()) {
+            const parsed = parseInt(service.duration, 10);
+            serviceDuration = isNaN(parsed) ? 0 : parsed;
+          } else if (typeof service.service_duration === 'number' && service.service_duration > 0) {
+            serviceDuration = service.service_duration;
+          } else if (typeof service.service_duration === 'string' && service.service_duration.trim()) {
+            const parsed = parseInt(service.service_duration, 10);
+            serviceDuration = isNaN(parsed) ? 0 : parsed;
+          }
+          
+          console.log(`DURATION_CALC: Service ${index} duration:`, serviceDuration);
+          
+          if (serviceDuration <= 0) {
+            console.error(`DURATION_CALC: Invalid duration for service ${index}:`, service);
+            hasValidDurations = false;
+          }
+          
+          calculated += serviceDuration;
+        } else {
+          console.error(`DURATION_CALC: Invalid service object at index ${index}:`, service);
+          hasValidDurations = false;
+        }
+      });
+      
+      console.log('DURATION_CALC: Calculated total from services:', calculated, 'Valid durations:', hasValidDurations);
+      
+      if (calculated > 0 && hasValidDurations) {
+        return calculated;
+      } else {
+        console.error('DURATION_CALC: Invalid services data, redirecting back');
+        toast.error('Invalid service selection. Please select services again.');
+        navigate(-1);
+        return 30; // temporary fallback
+      }
+    }
+    
+    // If we reach here, there's no valid duration data
+    console.error('DURATION_CALC: No valid duration data found');
+    toast.error('Missing service duration information. Please select services again.');
+    navigate(-1);
+    return 30; // temporary fallback
+  }, [selectedServices, totalDuration, location.state, navigate]);
+
+  console.log('DURATION_DEBUG: Final actualServiceDuration:', actualServiceDuration);
+
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
@@ -44,58 +141,22 @@ const DateTimeSelectionPage: React.FC = () => {
   const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
   const [nextValidSlotTime, setNextValidSlotTime] = useState<string>('');
 
-  // CRITICAL FIX: Properly calculate and validate the actual total duration
-  const actualServiceDuration = React.useMemo(() => {
-    console.log('DURATION_CALC: Starting calculation with:', { selectedServices, totalDuration });
-    
-    // First check if we have a pre-calculated totalDuration
-    if (totalDuration && typeof totalDuration === 'number' && totalDuration > 0) {
-      console.log('DURATION_CALC: Using pre-calculated totalDuration:', totalDuration);
-      return totalDuration;
+  // Validate required data exists
+  useEffect(() => {
+    if (!merchantId) {
+      console.error('DATETIME_PAGE: Missing merchantId');
+      toast.error('Missing merchant information');
+      navigate('/');
+      return;
     }
-    
-    // Calculate from selectedServices if available
-    if (selectedServices && Array.isArray(selectedServices) && selectedServices.length > 0) {
-      let calculated = 0;
-      
-      selectedServices.forEach((service: any, index: number) => {
-        console.log(`DURATION_CALC: Service ${index}:`, service);
-        
-        if (service && typeof service === 'object') {
-          let serviceDuration = 0;
-          
-          // Try different property names for duration
-          if (typeof service.duration === 'number') {
-            serviceDuration = service.duration;
-          } else if (typeof service.duration === 'string') {
-            serviceDuration = parseInt(service.duration, 10) || 0;
-          } else if (typeof service.service_duration === 'number') {
-            serviceDuration = service.service_duration;
-          } else if (typeof service.service_duration === 'string') {
-            serviceDuration = parseInt(service.service_duration, 10) || 0;
-          }
-          
-          console.log(`DURATION_CALC: Service ${index} duration:`, serviceDuration);
-          calculated += serviceDuration;
-        }
-      });
-      
-      console.log('DURATION_CALC: Calculated total from services:', calculated);
-      
-      if (calculated > 0) {
-        return calculated;
-      }
-    }
-    
-    // Fallback to a reasonable default
-    const fallback = 30;
-    console.log('DURATION_CALC: Using fallback duration:', fallback);
-    console.warn('DURATION_CALC: Could not calculate duration from services, using fallback');
-    return fallback;
-  }, [selectedServices, totalDuration]);
 
-  console.log('DURATION_DEBUG: Final actualServiceDuration:', actualServiceDuration);
-  console.log('DURATION_DEBUG: Location state:', { selectedServices, totalDuration });
+    if (!merchant || !selectedServices || !Array.isArray(selectedServices) || selectedServices.length === 0) {
+      console.error('DATETIME_PAGE: Missing required booking data:', { merchant, selectedServices });
+      toast.error('Missing booking information. Please start over.');
+      navigate(-1);
+      return;
+    }
+  }, [merchantId, merchant, selectedServices, navigate]);
 
   // Generate available dates (3 days, excluding holidays)
   const getAvailableDates = () => {
@@ -155,7 +216,7 @@ const DateTimeSelectionPage: React.FC = () => {
     fetchHolidays();
   }, [merchantId, selectedStaff]);
 
-  // CRITICAL FIX: Fetch available slots with correct total duration and better error handling
+  // CRITICAL FIX: Enhanced slot fetching with better error handling and logging
   const fetchAvailableSlots = useCallback(async () => {
     if (!selectedDate || !merchantId) {
       console.log('SLOT_FETCH: Missing required data:', { selectedDate, merchantId });
@@ -174,16 +235,24 @@ const DateTimeSelectionPage: React.FC = () => {
         selectedDateStr,
         selectedStaff,
         actualServiceDuration,
-        isToday
+        isToday,
+        merchantIdType: typeof merchantId,
+        actualServiceDurationType: typeof actualServiceDuration
       });
 
       // Validate inputs before making RPC call
       if (!merchantId || typeof merchantId !== 'string') {
-        throw new Error('Invalid merchant ID');
+        throw new Error('Invalid merchant ID format');
       }
 
-      if (actualServiceDuration <= 0) {
-        throw new Error('Invalid service duration');
+      if (!actualServiceDuration || actualServiceDuration <= 0) {
+        throw new Error(`Invalid service duration: ${actualServiceDuration}`);
+      }
+
+      // Validate UUID format for merchantId
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidPattern.test(merchantId)) {
+        throw new Error('Invalid merchant ID UUID format');
       }
       
       // Use the actual total service duration for slot checking
@@ -214,6 +283,8 @@ const DateTimeSelectionPage: React.FC = () => {
           errorMessage = 'Permission denied. Please refresh and try again.';
         } else if (slotsError.message?.includes('function') && slotsError.message?.includes('does not exist')) {
           errorMessage = 'Booking system is temporarily unavailable.';
+        } else if (slotsError.message?.includes('invalid input')) {
+          errorMessage = 'Invalid booking parameters. Please try again.';
         }
         
         setError(errorMessage);
@@ -222,7 +293,12 @@ const DateTimeSelectionPage: React.FC = () => {
       }
 
       const slots = Array.isArray(slotsData) ? slotsData : [];
-      console.log('SLOT_FETCH: Received slots:', slots.length, 'for duration:', actualServiceDuration, 'minutes');
+      console.log('SLOT_FETCH: Raw slots received:', {
+        slotsCount: slots.length,
+        duration: actualServiceDuration,
+        firstFewSlots: slots.slice(0, 3),
+        slotsData
+      });
       
       // Filter for today to ensure no expired slots
       let filteredSlots = slots;
@@ -234,13 +310,17 @@ const DateTimeSelectionPage: React.FC = () => {
             : formatDateInIST(new Date(`2000-01-01T${slot.time_slot}`), 'HH:mm');
           return slotTime >= currentBufferTime;
         });
-        console.log('SLOT_FETCH: After time filtering:', filteredSlots.length, 'slots');
+        console.log('SLOT_FETCH: After time filtering:', {
+          originalCount: slots.length,
+          filteredCount: filteredSlots.length,
+          currentBufferTime
+        });
       }
       
       if (filteredSlots.length === 0) {
         const errorMsg = isToday 
-          ? `No slots available today after ${getCurrentTimeISTWithBuffer(40)}` 
-          : 'No slots available for this date';
+          ? `No slots available today after ${getCurrentTimeISTWithBuffer(40)} for ${actualServiceDuration} minutes` 
+          : `No slots available for this date with ${actualServiceDuration} minutes duration`;
         setError(errorMsg);
         setAvailableSlots([]);
         return;
@@ -257,6 +337,13 @@ const DateTimeSelectionPage: React.FC = () => {
         conflict_reason: slot.conflict_reason
       }));
       
+      console.log('SLOT_FETCH: Processed slots:', {
+        totalSlots: processedSlots.length,
+        availableSlots: processedSlots.filter(s => s.is_available).length,
+        unavailableSlots: processedSlots.filter(s => !s.is_available).length,
+        duration: actualServiceDuration
+      });
+      
       // Find next valid slot for today
       if (isToday) {
         const availableSlots = processedSlots.filter(s => s.is_available);
@@ -268,8 +355,6 @@ const DateTimeSelectionPage: React.FC = () => {
       } else {
         setNextValidSlotTime('');
       }
-      
-      console.log('SLOT_FETCH: Final processed slots:', processedSlots.length, 'available:', processedSlots.filter(s => s.is_available).length);
       
       setAvailableSlots(processedSlots);
       setLastRefreshTime(new Date());
@@ -316,7 +401,7 @@ const DateTimeSelectionPage: React.FC = () => {
     }
   });
 
-  // CRITICAL FIX: Handle slot selection with correct total duration and better validation
+  // CRITICAL FIX: Enhanced slot selection with better validation and error handling
   const handleTimeSlotClick = async (timeSlot: string) => {
     if (!selectedDate || !merchantId || !userId) {
       console.error('SLOT_CLICK: Missing required data:', { selectedDate, merchantId, userId });
@@ -329,7 +414,8 @@ const DateTimeSelectionPage: React.FC = () => {
       actualServiceDuration,
       selectedDate,
       merchantId,
-      userId
+      userId,
+      availableSlotsCount: availableSlots.length
     });
     
     // Double-check if slot is still valid for today
@@ -349,14 +435,23 @@ const DateTimeSelectionPage: React.FC = () => {
     
     if (!availableSlot) {
       console.log('SLOT_CLICK: Slot not found in available slots:', {
-        timeSlot,
+        requestedTimeSlot: timeSlot,
+        actualServiceDuration,
         availableSlots: availableSlots.map(s => ({ 
           time_slot: s.time_slot, 
           is_available: s.is_available,
-          conflict_reason: s.conflict_reason 
-        }))
+          conflict_reason: s.conflict_reason,
+          staff_id: s.staff_id
+        })),
+        availableSlotsForTime: availableSlots.filter(s => s.time_slot === timeSlot)
       });
-      toast.error(`This time slot is not available for ${actualServiceDuration} minutes`);
+      
+      const conflictingSlot = availableSlots.find(slot => slot.time_slot === timeSlot);
+      const errorMsg = conflictingSlot?.conflict_reason 
+        ? `This time slot is not available: ${conflictingSlot.conflict_reason}`
+        : `This time slot is not available for ${actualServiceDuration} minutes`;
+      
+      toast.error(errorMsg);
       return;
     }
 
