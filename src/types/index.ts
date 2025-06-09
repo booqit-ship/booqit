@@ -70,6 +70,8 @@ export interface Booking {
   customer_name?: string;
   customer_phone?: string;
   customer_email?: string;
+  services?: string | any; // Added services property for JSON string or parsed object
+  total_duration?: number; // Added total_duration property
 }
 
 export interface Payment {
