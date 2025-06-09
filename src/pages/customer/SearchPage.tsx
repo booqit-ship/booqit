@@ -108,7 +108,7 @@ const SearchPage: React.FC = () => {
     }
   };
 
-  // Fetch merchants from database with services and apply filters
+  // Fetch merchants from database with services and ratings
   const fetchMerchants = async () => {
     setIsLoading(true);
     try {
@@ -156,8 +156,41 @@ const SearchPage: React.FC = () => {
       console.log(`Fetched ${data?.length || 0} merchants from database`);
       
       if (data) {
+        // Fetch ratings for each merchant
+        const merchantsWithRatings = await Promise.all(
+          data.map(async (merchant) => {
+            try {
+              // Fetch reviews for this merchant
+              const { data: reviews, error: reviewError } = await supabase
+                .from('reviews')
+                .select('rating')
+                .eq('merchant_id', merchant.id);
+              
+              if (reviewError) {
+                console.error('Error fetching reviews for merchant:', merchant.id, reviewError);
+                return { ...merchant, rating: null };
+              }
+              
+              // Calculate average rating
+              let averageRating = null;
+              if (reviews && reviews.length > 0) {
+                const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
+                averageRating = totalRating / reviews.length;
+                console.log(`Merchant ${merchant.shop_name}: ${reviews.length} reviews, average rating: ${averageRating.toFixed(1)}`);
+              } else {
+                console.log(`Merchant ${merchant.shop_name}: No reviews found`);
+              }
+              
+              return { ...merchant, rating: averageRating };
+            } catch (error) {
+              console.error('Error processing merchant rating:', error);
+              return { ...merchant, rating: null };
+            }
+          })
+        );
+        
         // Apply price range filter client-side based on services
-        let filteredData = data as Merchant[];
+        let filteredData = merchantsWithRatings as Merchant[];
         
         if (filters.priceRange !== 'all') {
           console.log(`Applying price range filter: ${filters.priceRange}`);
