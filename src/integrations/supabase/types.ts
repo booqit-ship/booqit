@@ -671,6 +671,16 @@ export type Database = {
         Args: { p_booking_id: string; p_user_id: string }
         Returns: Json
       }
+      create_atomic_multi_slot_lock: {
+        Args: {
+          p_staff_id: string
+          p_date: string
+          p_start_time: string
+          p_service_duration: number
+          p_lock_duration_minutes?: number
+        }
+        Returns: Json
+      }
       create_booking_from_payment: {
         Args: {
           p_user_id: string
@@ -837,6 +847,15 @@ export type Database = {
           p_is_full_day: boolean
           p_blocked_ranges?: Json
           p_description?: string
+        }
+        Returns: Json
+      }
+      release_atomic_multi_slot_lock: {
+        Args: {
+          p_staff_id: string
+          p_date: string
+          p_start_time: string
+          p_service_duration: number
         }
         Returns: Json
       }

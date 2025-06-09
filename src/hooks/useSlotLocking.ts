@@ -27,7 +27,7 @@ export const useSlotLocking = () => {
 
       // Use the new atomic multi-slot locking function
       const { data: lockResult, error: lockError } = await supabase.rpc(
-        'create_atomic_multi_slot_lock',
+        'create_atomic_multi_slot_lock' as any,
         {
           p_staff_id: staffId,
           p_date: dateStr,
@@ -78,7 +78,7 @@ export const useSlotLocking = () => {
       });
 
       const { data: releaseResult, error: releaseError } = await supabase.rpc(
-        'release_atomic_multi_slot_lock',
+        'release_atomic_multi_slot_lock' as any,
         {
           p_staff_id: staffId,
           p_date: dateStr,
