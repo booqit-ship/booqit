@@ -91,7 +91,7 @@ const DashboardPage: React.FC = () => {
         time_slot: booking.time_slot,
         status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
         service: booking.service,
-        services: Array.isArray(booking.services) ? booking.services as BookingService[] : undefined
+        services: Array.isArray(booking.services) ? (booking.services as unknown) as BookingService[] : undefined
       })) || [];
 
       setRecentBookings(processedBookings);

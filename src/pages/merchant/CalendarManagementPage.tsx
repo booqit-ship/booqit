@@ -78,7 +78,7 @@ const CalendarManagementPage: React.FC = () => {
       const processedBookings = data?.map(booking => ({
         ...booking,
         status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
-        services: Array.isArray(booking.services) ? booking.services as BookingService[] : undefined
+        services: Array.isArray(booking.services) ? (booking.services as unknown) as BookingService[] : undefined
       })) || [];
 
       setBookings(processedBookings);
@@ -121,9 +121,10 @@ const CalendarManagementPage: React.FC = () => {
       />
 
       <BookingStats 
-        bookingCounts={stats}
-        loading={isLoading}
-        date={selectedDate}
+        total={stats.total}
+        pending={stats.pending}
+        confirmed={stats.confirmed}
+        completed={stats.completed}
       />
 
       <Card>

@@ -76,7 +76,7 @@ const CalendarPage: React.FC = () => {
       // Process the data to handle services properly
       const processedBookings = data?.map(booking => ({
         ...booking,
-        services: Array.isArray(booking.services) ? booking.services as BookingService[] : undefined
+        services: Array.isArray(booking.services) ? (booking.services as unknown) as BookingService[] : undefined
       })) as Booking[] || [];
 
       return processedBookings;
@@ -189,7 +189,7 @@ const CalendarPage: React.FC = () => {
         <div className="flex items-center gap-2 mb-2">
           <CalendarIcon className="h-6 w-6 text-booqit-primary" />
           <h1 className="text-2xl md:text-3xl font-light">Your Calendar</h1>
-          {(isBookingsFetching || isCountsFetching) && (
+          {(isBookingsFetching) && (
             <Loader2 className="h-4 w-4 animate-spin text-booqit-primary ml-2" />
           )}
         </div>
@@ -220,8 +220,6 @@ const CalendarPage: React.FC = () => {
             {weekDays.map((day, index) => {
               const isCurrentDay = isToday(day);
               const isSelectedDay = isSameDay(day, date);
-              const dateKey = format(day, 'yyyy-MM-dd');
-              const appointmentCount = appointmentCounts[dateKey] || 0;
               
               return (
                 <div key={index} className="flex flex-col items-center cursor-pointer" onClick={() => setDate(day)}>
@@ -318,7 +316,6 @@ const CalendarPage: React.FC = () => {
                           bookingId={booking.id} 
                           onCancelled={() => {
                             queryClient.invalidateQueries({ queryKey: ['customer-bookings', userId] });
-                            queryClient.invalidateQueries({ queryKey: ['appointment-counts', userId] });
                           }} 
                         />
                       </div>
