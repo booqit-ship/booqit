@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -113,17 +112,24 @@ const AnalyticsPage: React.FC = () => {
         const monthStart = format(startOfMonth(new Date()), 'yyyy-MM-dd');
         const monthEnd = format(endOfMonth(new Date()), 'yyyy-MM-dd');
 
-        // Fetch all completed bookings with service data for earnings
+        console.log('Date ranges:', { today, weekStart, weekEnd, monthStart, monthEnd });
+
+        // Fetch all completed bookings with payment status completed for earnings
         const { data: completedBookingsForEarnings, error: earningsError } = await supabase
           .from('bookings')
           .select(`
             id,
             date,
             staff_id,
+            status,
+            payment_status,
             services!inner(price)
           `)
           .eq('merchant_id', mId)
+          .eq('status', 'completed')
           .eq('payment_status', 'completed');
+
+        console.log('Completed bookings for earnings:', completedBookingsForEarnings);
 
         if (earningsError) {
           console.error('Error fetching earnings data:', earningsError);
@@ -145,6 +151,8 @@ const AnalyticsPage: React.FC = () => {
             .filter(booking => booking.date >= monthStart && booking.date <= monthEnd)
             .reduce((sum, booking) => sum + (booking.services?.price || 0), 0);
 
+          console.log('Calculated earnings:', { totalEarnings, todayEarnings, weekEarnings, monthEarnings });
+
           setEarnings({
             total: totalEarnings,
             today: todayEarnings,
@@ -161,6 +169,8 @@ const AnalyticsPage: React.FC = () => {
           .eq('merchant_id', mId)
           .in('status', ['pending', 'confirmed', 'completed']);
 
+        console.log('All bookings for counts:', allBookings);
+
         if (bookingsError) {
           console.error('Error fetching bookings data:', bookingsError);
         } else if (allBookings) {
@@ -169,6 +179,8 @@ const AnalyticsPage: React.FC = () => {
           const todayBookingsCount = allBookings.filter(b => b.date === today).length;
           const weekBookingsCount = allBookings.filter(b => b.date >= weekStart && b.date <= weekEnd).length;
           const monthBookingsCount = allBookings.filter(b => b.date >= monthStart && b.date <= monthEnd).length;
+
+          console.log('Calculated booking counts:', { totalBookingsCount, todayBookingsCount, weekBookingsCount, monthBookingsCount });
 
           setBookings({
             total: totalBookingsCount,
@@ -185,6 +197,8 @@ const AnalyticsPage: React.FC = () => {
           .select('id, name')
           .eq('merchant_id', mId);
 
+        console.log('Staff list:', staffList);
+
         if (staffError) {
           console.error('Error fetching staff:', staffError);
         } else if (staffList && completedBookingsForEarnings) {
@@ -193,6 +207,8 @@ const AnalyticsPage: React.FC = () => {
             const staffEarnings = staffBookings.reduce((sum, booking) => 
               sum + (booking.services?.price || 0), 0
             );
+            
+            console.log(`Staff ${staff.name}: ${staffBookings.length} bookings, ₹${staffEarnings} earnings`);
             
             return {
               id: staff.id,
@@ -226,23 +242,32 @@ const AnalyticsPage: React.FC = () => {
       const fromDate = format(dateRange.from, 'yyyy-MM-dd');
       const toDate = format(dateRange.to, 'yyyy-MM-dd');
 
+      console.log(`Fetching custom range data for ${type}:`, { fromDate, toDate });
+
       if (type === 'earnings') {
-        const { data: earningsBookings } = await supabase
+        const { data: earningsBookings, error } = await supabase
           .from('bookings')
-          .select(`services!inner(price)`)
+          .select(`
+            id,
+            services!inner(price)
+          `)
           .eq('merchant_id', merchantId)
+          .eq('status', 'completed')
           .eq('payment_status', 'completed')
           .gte('date', fromDate)
           .lte('date', toDate);
 
-        if (earningsBookings) {
+        console.log('Custom range earnings bookings:', earningsBookings);
+
+        if (!error && earningsBookings) {
           const customEarnings = earningsBookings.reduce((sum, booking) => 
             sum + (booking.services?.price || 0), 0
           );
+          console.log('Custom range earnings:', customEarnings);
           setEarnings(prev => ({ ...prev, customRange: customEarnings }));
         }
       } else if (type === 'bookings') {
-        const { data: bookingsData } = await supabase
+        const { data: bookingsData, error } = await supabase
           .from('bookings')
           .select('id')
           .eq('merchant_id', merchantId)
@@ -250,27 +275,33 @@ const AnalyticsPage: React.FC = () => {
           .gte('date', fromDate)
           .lte('date', toDate);
 
-        if (bookingsData) {
+        console.log('Custom range bookings:', bookingsData);
+
+        if (!error && bookingsData) {
+          console.log('Custom range bookings count:', bookingsData.length);
           setBookings(prev => ({ ...prev, customRange: bookingsData.length }));
         }
       } else if (type === 'staff') {
-        const { data: staffList } = await supabase
+        const { data: staffList, error: staffError } = await supabase
           .from('staff')
           .select('id, name')
           .eq('merchant_id', merchantId);
 
-        const { data: staffBookings } = await supabase
+        const { data: staffBookings, error: bookingsError } = await supabase
           .from('bookings')
           .select(`
             staff_id,
             services!inner(price)
           `)
           .eq('merchant_id', merchantId)
+          .eq('status', 'completed')
           .eq('payment_status', 'completed')
           .gte('date', fromDate)
           .lte('date', toDate);
 
-        if (staffList && staffBookings) {
+        console.log('Custom range staff bookings:', staffBookings);
+
+        if (!staffError && !bookingsError && staffList && staffBookings) {
           const staffEarningsData = staffList.map(staff => {
             const staffBookingsFiltered = staffBookings.filter(b => b.staff_id === staff.id);
             const staffEarnings = staffBookingsFiltered.reduce((sum, booking) => 
