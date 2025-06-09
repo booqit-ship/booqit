@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Smartphone } from 'lucide-react';
@@ -86,6 +87,8 @@ const PaymentPage: React.FC = () => {
 
       // Create booking directly as confirmed with services and total duration
       const serviceId = selectedServices[0]?.id;
+      const serviceDuration = selectedServices[0]?.duration || 30;
+      
       console.log('📝 Creating confirmed booking with correct parameter order:', {
         p_user_id: userId,
         p_merchant_id: merchantId,
@@ -93,6 +96,7 @@ const PaymentPage: React.FC = () => {
         p_staff_id: selectedStaff,
         p_date: bookingDate,
         p_time_slot: bookingTime,
+        p_service_duration: serviceDuration,
         p_services: JSON.stringify(selectedServices),
         p_total_duration: totalDuration
       });
@@ -107,6 +111,7 @@ const PaymentPage: React.FC = () => {
           p_staff_id: selectedStaff,
           p_date: bookingDate,
           p_time_slot: bookingTime,
+          p_service_duration: serviceDuration,
           p_services: JSON.stringify(selectedServices),
           p_total_duration: totalDuration
         }
