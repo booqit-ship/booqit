@@ -172,8 +172,11 @@ export const setupBookingStatusListener = () => {
             return;
           }
 
-          // Extract service names from services JSON
-          const serviceNames = bookingDetails.services?.map((s: any) => s.name).join(', ') || 'Service';
+          // Extract service names from services JSON with proper type checking
+          const services = bookingDetails.services as any[];
+          const serviceNames = Array.isArray(services) 
+            ? services.map((s: any) => s.name).join(', ') 
+            : 'Service';
 
           await handleNewBookingNotification({
             booking_id: bookingDetails.id,

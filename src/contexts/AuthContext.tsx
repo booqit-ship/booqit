@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User, Session } from '@supabase/supabase-js';
@@ -12,8 +13,11 @@ interface AuthContextType {
   userRole: 'customer' | 'merchant' | null;
   userEmail: string | null;
   userName: string | null;
+  loading: boolean;
   signOut: () => Promise<void>;
+  logout: () => Promise<void>;
   refreshAuth: () => Promise<void>;
+  setAuth: (authenticated: boolean, role: 'customer' | 'merchant', userId: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -52,19 +56,50 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       if (profile) {
-        setUserRole(profile.role);
+        setUserRole(profile.role as 'customer' | 'merchant');
         setUserName(profile.name);
         
         // Trigger welcome notification for real users (not during testing)
         if (profile.role && profile.name) {
           // Small delay to ensure FCM token is ready
           setTimeout(() => {
-            handleUserLoginNotification(userId, profile.role, profile.name);
+            handleUserLoginNotification(userId, profile.role as 'customer' | 'merchant', profile.name);
           }, 2000);
         }
       }
     } catch (error) {
       console.error('Error in fetchUserProfile:', error);
+    }
+  };
+
+  const setAuth = (authenticated: boolean, role: 'customer' | 'merchant', userId: string) => {
+    setUserRole(role);
+    // Additional auth state updates can be added here if needed
+  };
+
+  const logout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Error signing out:', error);
+        toast.error('Error signing out');
+      } else {
+        setSession(null);
+        setUser(null);
+        setUserRole(null);
+        setUserName(null);
+        
+        // Clean up booking listener
+        if (bookingListener) {
+          bookingListener.unsubscribe();
+          setBookingListener(null);
+        }
+        
+        toast.success('Signed out successfully');
+      }
+    } catch (error) {
+      console.error('Error in signOut:', error);
+      toast.error('Error signing out');
     }
   };
 
@@ -135,31 +170,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [isAuthenticated, userRole, bookingListener]);
 
-  const signOut = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error('Error signing out:', error);
-        toast.error('Error signing out');
-      } else {
-        setSession(null);
-        setUser(null);
-        setUserRole(null);
-        setUserName(null);
-        
-        // Clean up booking listener
-        if (bookingListener) {
-          bookingListener.unsubscribe();
-          setBookingListener(null);
-        }
-        
-        toast.success('Signed out successfully');
-      }
-    } catch (error) {
-      console.error('Error in signOut:', error);
-      toast.error('Error signing out');
-    }
-  };
+  const signOut = logout; // Alias for backward compatibility
 
   const refreshAuth = async () => {
     try {
@@ -197,8 +208,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       userRole,
       userEmail,
       userName,
+      loading: isLoading,
       signOut,
+      logout,
       refreshAuth,
+      setAuth,
     }}>
       {children}
     </AuthContext.Provider>
