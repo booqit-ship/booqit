@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -21,7 +20,7 @@ export const useSlotLocking = () => {
     staffId: string,
     date: string,
     timeSlot: string,
-    totalDuration: number = 30 // Add total duration parameter
+    totalDuration: number
   ): Promise<boolean> => {
     setIsLocking(true);
     
@@ -38,7 +37,7 @@ export const useSlotLocking = () => {
         p_merchant_id: staffId.split('-')[0], // Quick way to get merchant ID from staff ID
         p_date: date,
         p_staff_id: staffId,
-        p_service_duration: totalDuration // Use total duration instead of default 30
+        p_service_duration: totalDuration
       });
       
       const availableSlots = Array.isArray(slotsData) ? slotsData : [];
@@ -59,7 +58,7 @@ export const useSlotLocking = () => {
         return false;
       }
 
-      // Just keep track of the slot locally without creating a pending booking
+      // Keep track of the slot locally
       setLockedSlot({ staffId, date, timeSlot });
       toast.success(`Slot selected for ${totalDuration} minutes`);
       return true;
@@ -74,7 +73,6 @@ export const useSlotLocking = () => {
   }, []);
 
   const releaseLock = useCallback(() => {
-    // Clear the local state
     setLockedSlot(null);
   }, []);
 

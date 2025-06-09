@@ -5,17 +5,17 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App.tsx';
 import './index.css';
 
-// Create a client with ULTRA aggressive caching to prevent ANY refetching
+// Create a client with enhanced caching but allow refetching for slot availability
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: Infinity, // Data never becomes stale
-      gcTime: Infinity, // Keep in cache forever
-      retry: 0, // Never retry failed requests
-      refetchOnWindowFocus: false, // NEVER refetch when tab regains focus
-      refetchOnMount: false, // NEVER refetch when component mounts
-      refetchOnReconnect: false, // NEVER refetch on reconnect
-      refetchInterval: false, // NO automatic refetching ever
+      staleTime: 5 * 60 * 1000, // 5 minutes for most data
+      gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+      retry: 1, // Retry once on failure
+      refetchOnWindowFocus: false, // Don't refetch when tab regains focus
+      refetchOnMount: true, // Refetch when component mounts (important for slot availability)
+      refetchOnReconnect: false, // Don't refetch on reconnect
+      refetchInterval: false, // No automatic refetching
       networkMode: 'offlineFirst', // Use cache first, network second
     },
   },
@@ -50,10 +50,12 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// Handle page visibility changes - NO session recovery attempts
+// Handle page visibility changes
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
-    console.log('📱 Page became visible - using cached session only');
+    console.log('📱 Page became visible - refreshing slot availability');
+    // Invalidate slot-related queries when page becomes visible
+    queryClient.invalidateQueries({ queryKey: ['available-slots'] });
   }
 });
 
