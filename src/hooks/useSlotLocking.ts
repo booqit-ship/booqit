@@ -12,6 +12,7 @@ interface SlotLockResult {
 export const useSlotLocking = () => {
   const [isLocking, setIsLocking] = useState(false);
   const [lockedSlot, setLockedSlot] = useState<{
+    merchantId: string;
     staffId: string;
     date: string;
     timeSlot: string;
@@ -19,6 +20,7 @@ export const useSlotLocking = () => {
   } | null>(null);
 
   const lockSlot = useCallback(async (
+    merchantId: string,
     staffId: string,
     date: string,
     timeSlot: string,
@@ -28,10 +30,12 @@ export const useSlotLocking = () => {
     
     try {
       console.log('SLOT_LOCK: Starting slot lock with parameters:', { 
+        merchantId,
         staffId, 
         date, 
         timeSlot, 
         totalDuration,
+        merchantIdType: typeof merchantId,
         staffIdType: typeof staffId,
         dateType: typeof date,
         timeSlotType: typeof timeSlot,
@@ -39,6 +43,12 @@ export const useSlotLocking = () => {
       });
 
       // Validate inputs
+      if (!merchantId || typeof merchantId !== 'string') {
+        console.error('SLOT_LOCK: Invalid merchantId:', merchantId);
+        toast.error('Invalid merchant selection. Please try again.');
+        return false;
+      }
+
       if (!staffId || typeof staffId !== 'string') {
         console.error('SLOT_LOCK: Invalid staffId:', staffId);
         toast.error('Invalid staff selection. Please try again.');
@@ -63,13 +73,9 @@ export const useSlotLocking = () => {
         return false;
       }
 
-      // Extract merchant ID from staff ID (assuming format: merchantId-staffId)
-      const merchantId = staffId.includes('-') ? staffId.split('-')[0] : staffId.split('-')[0];
-      
-      console.log('SLOT_LOCK: Extracted merchant ID:', merchantId);
-
-      // Validate merchant ID format (should be UUID)
+      // Validate UUID formats
       const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      
       if (!uuidPattern.test(merchantId)) {
         console.error('SLOT_LOCK: Invalid merchant ID format:', merchantId);
         toast.error('Invalid merchant information. Please try again.');
@@ -160,8 +166,9 @@ export const useSlotLocking = () => {
       }
 
       // Store the slot locally with correct total duration
-      setLockedSlot({ staffId, date, timeSlot, totalDuration });
+      setLockedSlot({ merchantId, staffId, date, timeSlot, totalDuration });
       console.log('SLOT_LOCK: Successfully locked slot:', {
+        merchantId,
         staffId,
         date,
         timeSlot,

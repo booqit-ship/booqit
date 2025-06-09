@@ -364,14 +364,16 @@ const DateTimeSelectionPage: React.FC = () => {
     const finalStaffId = selectedStaff || availableSlot.staff_id;
 
     console.log('SLOT_CLICK: Calling lockSlot with parameters:', {
+      merchantId,
       staffId: finalStaffId,
       date: selectedDateStr,
       timeSlot,
       totalDuration: actualServiceDuration
     });
 
-    // Pass the actual total service duration to lockSlot
+    // Pass merchantId directly to lockSlot along with the actual total service duration
     const success = await lockSlot(
+      merchantId,
       finalStaffId,
       selectedDateStr,
       timeSlot,
