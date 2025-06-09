@@ -1,200 +1,159 @@
 
-import React, { useEffect } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, CalendarIcon, Clock, User, MapPin } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { CalendarIcon, Clock, MapPin, User, Package } from 'lucide-react';
+import { formatTimeToAmPm } from '@/utils/timeUtils';
+
+interface ServiceSelection {
+  id: string;
+  name: string;
+  price: number;
+  duration: number;
+}
+
+interface BookingData {
+  merchantId: string;
+  merchantName: string;
+  merchantAddress: string;
+  staffId: string;
+  staffName: string;
+  services: ServiceSelection[];
+  date: string;
+  timeSlot: string;
+}
 
 const BookingSummaryPage: React.FC = () => {
-  const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { 
-    merchant, 
-    selectedServices, 
-    totalPrice, 
-    totalDuration, 
-    selectedStaff, 
-    selectedDate, 
-    selectedTime 
-  } = location.state;
+  const [bookingData, setBookingData] = useState<BookingData | null>(null);
+
+  useEffect(() => {
+    const data = location.state?.bookingData;
+    if (!data || !data.services || data.services.length === 0) {
+      console.error('Invalid booking data:', data);
+      navigate('/');
+      return;
+    }
+    setBookingData(data);
+  }, [location.state, navigate]);
 
   const handleProceedToPayment = () => {
-    navigate(`/payment/${merchantId}`, {
-      state: {
-        merchant,
-        selectedServices,
-        totalPrice,
-        totalDuration,
-        selectedStaff,
-        selectedDate,
-        selectedTime
-      }
-    });
+    if (bookingData) {
+      navigate('/payment', { state: { bookingData } });
+    }
   };
 
-  // Auto-navigate to payment after 3 seconds
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      handleProceedToPayment();
-    }, 3000);
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    });
-  };
-
-  if (!merchant || !selectedServices) {
+  if (!bookingData) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center p-4">
-        <p className="text-gray-500 mb-4">Booking information missing</p>
-        <Button onClick={() => navigate(-1)}>Go Back</Button>
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-booqit-primary"></div>
       </div>
     );
   }
 
+  const totalPrice = bookingData.services.reduce((sum, service) => sum + service.price, 0);
+  const totalDuration = bookingData.services.reduce((sum, service) => sum + service.duration, 0);
+
   return (
-    <div className="pb-24 bg-white min-h-screen">
-      <div className="bg-booqit-primary text-white p-4 sticky top-0 z-10">
-        <div className="relative flex items-center justify-center">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="absolute left-0 text-white hover:bg-white/20"
-            onClick={() => navigate(-1)}
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </Button>
-          <h1 className="text-xl font-medium">Booking Summary</h1>
-        </div>
+    <div className="container mx-auto px-4 py-6 max-w-md">
+      <div className="mb-6">
+        <h1 className="text-2xl font-light mb-2">Booking Summary</h1>
+        <p className="text-gray-600">Review your appointment details</p>
       </div>
 
-      <div className="p-4 space-y-6">
-        {/* Auto-redirect notice */}
-        <Card className="border-blue-200 bg-blue-50">
-          <CardContent className="p-4">
-            <p className="text-blue-800 text-sm text-center">
-              Redirecting to payment in 3 seconds...
-            </p>
-          </CardContent>
-        </Card>
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MapPin className="h-5 w-5" />
+            {bookingData.merchantName}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-2 text-gray-600">
+            <MapPin className="h-4 w-4" />
+            <span className="text-sm">{bookingData.merchantAddress}</span>
+          </div>
+          
+          <div className="flex items-center gap-2 text-gray-600">
+            <User className="h-4 w-4" />
+            <span className="text-sm">Stylist: {bookingData.staffName}</span>
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Merchant Info */}
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 bg-booqit-primary/10 rounded-lg flex items-center justify-center">
-                <span className="font-semibold text-booqit-primary">
-                  {merchant.shop_name.charAt(0)}
-                </span>
-              </div>
-              <div>
-                <h3 className="font-semibold">{merchant.shop_name}</h3>
-                <div className="flex items-center text-gray-500 text-sm">
-                  <MapPin className="h-3 w-3 mr-1" />
-                  <span>{merchant.address}</span>
-                </div>
-              </div>
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CalendarIcon className="h-5 w-5" />
+            Appointment Details
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-gray-600">Date:</span>
+              <span className="font-medium">{new Date(bookingData.date).toLocaleDateString()}</span>
             </div>
-          </CardContent>
-        </Card>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Time:</span>
+              <span className="font-medium">{formatTimeToAmPm(bookingData.timeSlot)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Total Duration:</span>
+              <span className="font-medium">{totalDuration} minutes</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Services */}
-        <Card>
-          <CardContent className="p-4">
-            <h3 className="font-semibold mb-3">Selected Services</h3>
-            <div className="space-y-3">
-              {selectedServices.map((service: any) => (
-                <div key={service.id} className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <div className="font-medium">{service.name}</div>
-                    <div className="text-sm text-gray-500">{service.description}</div>
-                    <div className="flex items-center text-sm text-gray-500 mt-1">
-                      <Clock className="h-3 w-3 mr-1" />
-                      <span>{service.duration} mins</span>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-medium">₹{service.price}</div>
-                  </div>
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Package className="h-5 w-5" />
+            Selected Services ({bookingData.services.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {bookingData.services.map((service, index) => (
+              <div key={service.id} className="flex justify-between items-center">
+                <div>
+                  <p className="font-medium">{service.name}</p>
+                  <p className="text-sm text-gray-600">{service.duration} minutes</p>
                 </div>
-              ))}
-            </div>
-            <Separator className="my-3" />
-            <div className="flex justify-between font-semibold">
+                <p className="font-semibold">₹{service.price}</p>
+              </div>
+            ))}
+            
+            <Separator className="my-4" />
+            
+            <div className="flex justify-between items-center font-semibold text-lg">
               <span>Total</span>
-              <span>₹{totalPrice}</span>
+              <span className="text-booqit-primary">₹{totalPrice}</span>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Date & Time */}
-        <Card>
-          <CardContent className="p-4">
-            <h3 className="font-semibold mb-3">Date & Time</h3>
-            <div className="space-y-2">
-              <div className="flex items-center">
-                <CalendarIcon className="h-4 w-4 mr-3 text-gray-500" />
-                <span>{formatDate(selectedDate)}</span>
-              </div>
-              <div className="flex items-center">
-                <Clock className="h-4 w-4 mr-3 text-gray-500" />
-                <span>{selectedTime} ({totalDuration} minutes)</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Stylist */}
-        <Card>
-          <CardContent className="p-4">
-            <h3 className="font-semibold mb-3">Stylist</h3>
-            <div className="flex items-center">
-              <Avatar className="h-10 w-10 mr-3">
-                <AvatarFallback className="bg-gray-200 text-gray-700">
-                  {selectedStaff ? 'S' : 'A'}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <div className="font-medium">
-                  {selectedStaff ? 'Selected Stylist' : 'Any Available Stylist'}
-                </div>
-                <div className="text-sm text-gray-500">
-                  {selectedStaff ? 'Your preferred choice' : 'We\'ll assign the best available stylist'}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Payment Method Info */}
-        <Card className="border-amber-200 bg-amber-50">
-          <CardContent className="p-4">
-            <h3 className="font-semibold mb-2 text-amber-800">Payment Method</h3>
-            <p className="text-sm text-amber-700">
-              You will pay ₹{totalPrice} in cash when you arrive for your appointment.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
-        <Button 
-          className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6"
-          size="lg"
+      <div className="space-y-3">
+        <Button
           onClick={handleProceedToPayment}
+          className="w-full bg-booqit-primary hover:bg-booqit-primary/90"
+          size="lg"
         >
-          Confirm Booking - ₹{totalPrice}
+          Proceed to Payment
+        </Button>
+        
+        <Button
+          onClick={() => navigate(-1)}
+          variant="outline"
+          className="w-full"
+          size="lg"
+        >
+          Go Back
         </Button>
       </div>
     </div>
