@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -6,21 +7,21 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import SplashScreen from "@/components/SplashScreen";
 import NotificationBanner from "@/components/NotificationBanner";
-import LoginPage from "@/pages/LoginPage";
-import RegisterPage from "@/pages/RegisterPage";
+import LoginPage from "@/pages/AuthPage";
+import RegisterPage from "@/pages/AuthPage";
 import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
-import ProfilePage from "@/pages/ProfilePage";
-import BookingPage from "@/pages/BookingPage";
-import CustomerDashboardPage from "@/pages/CustomerDashboardPage";
-import MerchantDashboardPage from "@/pages/MerchantDashboardPage";
-import MerchantAvailabilityPage from "@/pages/MerchantAvailabilityPage";
-import MerchantServicesPage from "@/pages/MerchantServicesPage";
-import MerchantBookingsPage from "@/pages/MerchantBookingsPage";
-import MerchantProfilePage from "@/pages/MerchantProfilePage";
-import ServiceDetailsPage from "@/pages/ServiceDetailsPage";
-import CategoryPage from "@/pages/CategoryPage";
-import SearchResultsPage from "@/pages/SearchResultsPage";
+import ProfilePage from "@/pages/customer/ProfilePage";
+import BookingPage from "@/pages/customer/MerchantDetailPage";
+import CustomerDashboardPage from "@/pages/customer/HomePage";
+import MerchantDashboardPage from "@/pages/merchant/DashboardPage";
+import MerchantAvailabilityPage from "@/pages/merchant/CalendarManagementPage";
+import MerchantServicesPage from "@/pages/merchant/ServicesPage";
+import MerchantBookingsPage from "@/pages/merchant/CalendarManagementPage";
+import MerchantProfilePage from "@/pages/merchant/ProfilePage";
+import ServiceDetailsPage from "@/pages/customer/ServiceSelectionPage";
+import CategoryPage from "@/pages/customer/SearchPage";
+import SearchResultsPage from "@/pages/customer/SearchPage";
 import VerifyEmailPage from "@/pages/VerifyEmailPage";
 import NotificationTestPage from "@/pages/NotificationTestPage";
 import { useEffect, useState } from "react";
@@ -54,11 +55,11 @@ const App = () => {
                 <Route path="/search" element={<ProtectedRoute><SearchResultsPage /></ProtectedRoute>} />
                 
                 {/* Merchant Routes */}
-                <Route path="/merchant/dashboard" element={<ProtectedRoute requireRole="merchant"><MerchantDashboardPage /></ProtectedRoute>} />
-                <Route path="/merchant/availability" element={<ProtectedRoute requireRole="merchant"><MerchantAvailabilityPage /></ProtectedRoute>} />
-                <Route path="/merchant/services" element={<ProtectedRoute requireRole="merchant"><MerchantServicesPage /></ProtectedRoute>} />
-                <Route path="/merchant/bookings" element={<ProtectedRoute requireRole="merchant"><MerchantBookingsPage /></ProtectedRoute>} />
-                <Route path="/merchant/profile" element={<ProtectedRoute requireRole="merchant"><MerchantProfilePage /></ProtectedRoute>} />
+                <Route path="/merchant/dashboard" element={<ProtectedRoute requiredRole="merchant"><MerchantDashboardPage /></ProtectedRoute>} />
+                <Route path="/merchant/availability" element={<ProtectedRoute requiredRole="merchant"><MerchantAvailabilityPage /></ProtectedRoute>} />
+                <Route path="/merchant/services" element={<ProtectedRoute requiredRole="merchant"><MerchantServicesPage /></ProtectedRoute>} />
+                <Route path="/merchant/bookings" element={<ProtectedRoute requiredRole="merchant"><MerchantBookingsPage /></ProtectedRoute>} />
+                <Route path="/merchant/profile" element={<ProtectedRoute requiredRole="merchant"><MerchantProfilePage /></ProtectedRoute>} />
 
                 {/* Testing Route - remove in production */}
                 <Route path="/notification-test" element={<ProtectedRoute><NotificationTestPage /></ProtectedRoute>} />
