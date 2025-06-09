@@ -27,11 +27,10 @@ const WeekCalendar: React.FC<WeekCalendarProps> = ({
   appointmentCounts = {},
   holidays = []
 }) => {
-  // Generate 5 days starting from today (like customer calendar)
+  // Generate 5 days starting from the selected date for proper navigation
   const weekDays = React.useMemo(() => {
-    const today = new Date();
-    return Array.from({ length: 5 }, (_, i) => addDays(today, i));
-  }, []);
+    return Array.from({ length: 5 }, (_, i) => addDays(selectedDate, i));
+  }, [selectedDate]);
 
   // Check if a date is a holiday
   const isHoliday = (date: Date) => {
