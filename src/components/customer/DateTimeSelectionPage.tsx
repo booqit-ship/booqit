@@ -123,10 +123,10 @@ const DateTimeSelectionPage: React.FC = () => {
   const getNextValidSlotTime = () => {
     if (!isTodayIST(selectedDate)) return null;
     
-    const availableSlots = availableSlots.filter(slot => slot.is_available);
-    if (availableSlots.length === 0) return null;
+    const availableSlotsForToday = availableSlots.filter(slot => slot.is_available);
+    if (availableSlotsForToday.length === 0) return null;
     
-    const sortedSlots = availableSlots.sort((a, b) => a.time_slot.localeCompare(b.time_slot));
+    const sortedSlots = availableSlotsForToday.sort((a, b) => a.time_slot.localeCompare(b.time_slot));
     return sortedSlots[0]?.time_slot || null;
   };
 
@@ -227,6 +227,7 @@ const DateTimeSelectionPage: React.FC = () => {
               isCheckingSlot={isCheckingSlot}
               onSlotClick={handleSlotClick}
               onRefresh={refreshSlots}
+              totalDuration={totalDuration}
             />
           </CardContent>
         </Card>
