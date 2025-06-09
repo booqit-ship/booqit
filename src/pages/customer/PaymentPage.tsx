@@ -99,8 +99,9 @@ const PaymentPage: React.FC = () => {
         p_total_duration: totalDuration
       });
 
+      // Call the database function with correct parameter order
       const { data: bookingResult, error: bookingError } = await supabase.rpc(
-        'create_confirmed_booking_with_services' as any,
+        'create_confirmed_booking_with_services',
         {
           p_user_id: userId,
           p_merchant_id: merchantId,
@@ -147,6 +148,7 @@ const PaymentPage: React.FC = () => {
       
       if (paymentError) {
         console.error('⚠️ Error creating payment record:', paymentError);
+        // Still update the booking payment status
         const { error: updateError } = await supabase
           .from('bookings')
           .update({ payment_status: 'completed' })
@@ -160,6 +162,7 @@ const PaymentPage: React.FC = () => {
       } else {
         console.log('✅ Payment record created successfully:', paymentData);
         
+        // Update booking payment status to completed
         const { error: updateError } = await supabase
           .from('bookings')
           .update({ payment_status: 'completed' })
@@ -289,9 +292,11 @@ const PaymentPage: React.FC = () => {
             <div className="flex justify-between">
               <span className="font-poppins text-gray-600">Services</span>
               <div className="text-right">
-                {selectedServices?.map((service: any, index: number) => <div key={index} className="font-poppins font-medium">
+                {selectedServices?.map((service: any, index: number) => (
+                  <div key={index} className="font-poppins font-medium">
                     {service.name}
-                  </div>)}
+                  </div>
+                ))}
               </div>
             </div>
             
