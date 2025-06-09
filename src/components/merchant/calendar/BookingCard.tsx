@@ -3,27 +3,33 @@ import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Clock, User, Phone, CheckCircle, XCircle, Scissors, Timer } from 'lucide-react';
+import { Clock, User, Phone, CheckCircle, XCircle, Scissors, Timer, Package } from 'lucide-react';
 import { formatTimeToAmPm, timeToMinutes, minutesToTime } from '@/utils/timeUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-interface BookingWithCustomerDetails {
+interface BookingService {
+  service_id: string;
+  service_name: string;
+  service_duration: number;
+  service_price: number;
+}
+
+interface BookingWithServicesDetails {
   id: string;
-  service?: {
-    name: string;
-    duration?: number;
-  };
   time_slot: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   customer_name?: string;
   customer_phone?: string;
   customer_email?: string;
   stylist_name?: string;
+  services: BookingService[];
+  total_duration: number;
+  total_price: number;
 }
 
 interface BookingCardProps {
-  booking: BookingWithCustomerDetails;
+  booking: BookingWithServicesDetails;
   onStatusChange: (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => Promise<void>;
 }
 
@@ -46,12 +52,12 @@ const BookingCard: React.FC<BookingCardProps> = ({
   };
 
   const getTimeRange = () => {
-    if (!booking.service?.duration) {
+    if (!booking.total_duration) {
       return formatTimeToAmPm(booking.time_slot);
     }
     
     const startMinutes = timeToMinutes(booking.time_slot);
-    const endMinutes = startMinutes + booking.service.duration;
+    const endMinutes = startMinutes + booking.total_duration;
     const endTime = minutesToTime(endMinutes);
     
     return `${formatTimeToAmPm(booking.time_slot)} - ${formatTimeToAmPm(endTime)}`;
@@ -60,10 +66,9 @@ const BookingCard: React.FC<BookingCardProps> = ({
   const handleStatusUpdate = async (newStatus: 'confirmed' | 'completed' | 'cancelled') => {
     try {
       if (newStatus === 'cancelled') {
-        // Use the proper cancellation function for merchant cancellation
         const { data, error } = await supabase.rpc('cancel_booking_properly', {
           p_booking_id: booking.id,
-          p_user_id: null // Merchant cancellation - no user restriction
+          p_user_id: null
         });
 
         if (error) {
@@ -81,10 +86,8 @@ const BookingCard: React.FC<BookingCardProps> = ({
         toast.success('Booking cancelled successfully');
         await onStatusChange(booking.id, 'cancelled');
       } else {
-        // For confirm/complete, update directly with payment status logic
         let updateData: any = { status: newStatus };
         
-        // If completing, also set payment status to completed for earnings calculation
         if (newStatus === 'completed') {
           updateData.payment_status = 'completed';
         }
@@ -127,19 +130,39 @@ const BookingCard: React.FC<BookingCardProps> = ({
           </Badge>
         </div>
 
-        {/* Service name and duration */}
-        {booking.service && (
+        {/* Services list */}
+        {booking.services && booking.services.length > 0 && (
           <div className="space-y-2 mb-3">
-            <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-booqit-primary rounded-full"></div>
-              <span className="font-medium text-gray-900">{booking.service.name}</span>
+            <div className="flex items-center space-x-2 mb-2">
+              <Package className="h-4 w-4 text-booqit-primary" />
+              <span className="font-medium text-gray-900">
+                {booking.services.length === 1 ? 'Service' : `${booking.services.length} Services`}
+              </span>
             </div>
-            {booking.service.duration && (
-              <div className="flex items-center space-x-2 text-gray-600">
-                <Timer className="h-4 w-4 text-gray-500" />
-                <span className="text-sm">{booking.service.duration} min</span>
+            
+            {booking.services.map((service, index) => (
+              <div key={service.service_id} className="ml-6 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-800">{service.service_name}</span>
+                  <div className="flex items-center space-x-2 text-gray-600">
+                    <Timer className="h-3 w-3" />
+                    <span>{service.service_duration} min</span>
+                    <span className="text-booqit-primary font-medium">₹{service.service_price}</span>
+                  </div>
+                </div>
               </div>
-            )}
+            ))}
+            
+            {/* Total duration and price */}
+            <div className="ml-6 pt-2 border-t border-gray-200">
+              <div className="flex items-center justify-between text-sm font-medium">
+                <div className="flex items-center space-x-2 text-gray-700">
+                  <Timer className="h-4 w-4 text-booqit-primary" />
+                  <span>Total: {booking.total_duration} min</span>
+                </div>
+                <span className="text-booqit-primary font-semibold">₹{booking.total_price}</span>
+              </div>
+            </div>
           </div>
         )}
 
@@ -172,7 +195,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
           )}
         </div>
 
-        {/* Action buttons - only show if not cancelled or completed */}
+        {/* Action buttons */}
         {booking.status !== 'cancelled' && booking.status !== 'completed' && (
           <div className="flex flex-wrap gap-2">
             {booking.status === 'pending' && (

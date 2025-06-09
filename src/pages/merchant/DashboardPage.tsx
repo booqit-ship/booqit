@@ -9,8 +9,21 @@ import { Booking } from '@/types';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
-import { User, Scissors, BarChart3 } from 'lucide-react';
+import { User, Scissors, BarChart3, Package, Timer } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+
+interface BookingService {
+  service_id: string;
+  service_name: string;
+  service_duration: number;
+  service_price: number;
+}
+
+interface BookingWithServices extends Omit<Booking, 'service'> {
+  services: BookingService[];
+  total_duration: number;
+  total_price: number;
+}
 
 const DashboardPage: React.FC = () => {
   const { userId } = useAuth();
@@ -18,7 +31,7 @@ const DashboardPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [bookingsToday, setBookingsToday] = useState(0);
   const [totalEarnings, setTotalEarnings] = useState(0);
-  const [recentBookings, setRecentBookings] = useState<Booking[]>([]);
+  const [recentBookings, setRecentBookings] = useState<BookingWithServices[]>([]);
   const [merchantId, setMerchantId] = useState<string | null>(null);
   const [shopImage, setShopImage] = useState<string | null>(null);
   const [shopName, setShopName] = useState<string>('');
@@ -66,7 +79,6 @@ const DashboardPage: React.FC = () => {
         setShopImage(merchantData.image_url);
         setShopName(merchantData.shop_name || 'Merchant');
 
-        // Get today's date in ISO format (YYYY-MM-DD)
         const today = new Date().toISOString().split('T')[0];
 
         // Get bookings count for today - all statuses except cancelled
@@ -84,13 +96,10 @@ const DashboardPage: React.FC = () => {
           setBookingsToday(todayBookings?.length || 0);
         }
 
-        // Get total earnings ONLY from completed bookings with completed payment status
+        // Get total earnings using the new booking_services structure
         const { data: completedBookings, error: earningsError } = await supabase
           .from('bookings')
-          .select(`
-            id,
-            services!inner(price)
-          `)
+          .select('id')
           .eq('merchant_id', mId)
           .eq('status', 'completed')
           .eq('payment_status', 'completed');
@@ -99,22 +108,31 @@ const DashboardPage: React.FC = () => {
           console.error('Error fetching earnings data:', earningsError);
           setTotalEarnings(0);
         } else if (completedBookings && completedBookings.length > 0) {
-          // Sum up all service prices
-          const totalEarnings = completedBookings.reduce((sum, booking) => {
-            return sum + (booking.services?.price || 0);
-          }, 0);
+          let totalEarnings = 0;
+          
+          // For each completed booking, get its services total price
+          for (const booking of completedBookings) {
+            const { data: servicesData, error: servicesError } = await supabase
+              .rpc('get_booking_services', { p_booking_id: booking.id });
+            
+            if (!servicesError && servicesData) {
+              const bookingTotal = servicesData.reduce((sum: number, service: any) => 
+                sum + (service.service_price || 0), 0);
+              totalEarnings += bookingTotal;
+            }
+          }
+          
           setTotalEarnings(totalEarnings);
         } else {
           setTotalEarnings(0);
         }
 
-        // Fetch recent bookings for today with customer and stylist details
+        // Fetch recent bookings for today with services
         const { data: recentBookingsData, error: recentBookingsError } = await supabase
           .from('bookings')
           .select(`
             id,
             merchant_id,
-            service_id,
             date,
             time_slot,
             status,
@@ -124,8 +142,7 @@ const DashboardPage: React.FC = () => {
             customer_email,
             stylist_name,
             user_id,
-            created_at,
-            services!inner(name)
+            created_at
           `)
           .eq('merchant_id', mId)
           .eq('date', today)
@@ -137,8 +154,8 @@ const DashboardPage: React.FC = () => {
           console.error('Error fetching recent bookings:', recentBookingsError);
           setRecentBookings([]);
         } else if (recentBookingsData) {
-          // Process bookings and ensure we have customer names
-          const bookingsWithDetails = await Promise.all(
+          // For each booking, fetch its services
+          const bookingsWithServices = await Promise.all(
             recentBookingsData.map(async (booking) => {
               let customerName = booking.customer_name || 'Unknown Customer';
 
@@ -155,10 +172,18 @@ const DashboardPage: React.FC = () => {
                 }
               }
 
+              // Get services for this booking
+              const { data: servicesData, error: servicesError } = await supabase
+                .rpc('get_booking_services', { p_booking_id: booking.id });
+
+              const services = servicesData || [];
+              const total_duration = services.reduce((sum: number, s: any) => sum + (s.service_duration || 0), 0);
+              const total_price = services.reduce((sum: number, s: any) => sum + (s.service_price || 0), 0);
+
               return {
                 id: booking.id,
                 merchant_id: booking.merchant_id,
-                service_id: booking.service_id,
+                service_id: null, // No longer used
                 user_id: booking.user_id,
                 date: booking.date,
                 time_slot: booking.time_slot,
@@ -169,12 +194,15 @@ const DashboardPage: React.FC = () => {
                 customer_email: booking.customer_email,
                 stylist_name: booking.stylist_name || 'Unassigned',
                 created_at: booking.created_at,
-                service: booking.services
-              } as Booking;
+                staff_id: null,
+                services,
+                total_duration,
+                total_price
+              } as BookingWithServices;
             })
           );
 
-          setRecentBookings(bookingsWithDetails);
+          setRecentBookings(bookingsWithServices);
         }
 
       } catch (error) {
@@ -358,18 +386,47 @@ const DashboardPage: React.FC = () => {
                         </span>
                       </div>
 
-                      {/* Service and time information */}
-                      <div className="grid grid-cols-1 gap-2 text-sm text-gray-600">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-gray-800">{booking.service?.name}</span>
-                          <span className="font-semibold text-booqit-primary">
-                            {formatTimeToAmPm(booking.time_slot)}
-                          </span>
-                        </div>
+                      {/* Services information */}
+                      <div className="space-y-2">
+                        {booking.services && booking.services.length > 0 ? (
+                          <>
+                            <div className="flex items-center space-x-2">
+                              <Package className="h-4 w-4 text-gray-500" />
+                              <span className="text-sm font-medium text-gray-700">
+                                {booking.services.length === 1 ? 'Service' : `${booking.services.length} Services`}
+                              </span>
+                            </div>
+                            
+                            {booking.services.map((service, index) => (
+                              <div key={service.service_id} className="ml-6 text-sm text-gray-600">
+                                <span className="font-medium">{service.service_name}</span>
+                                <span className="ml-2">({service.service_duration} min - ₹{service.service_price})</span>
+                              </div>
+                            ))}
+                            
+                            {/* Total duration and time */}
+                            <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200">
+                              <div className="flex items-center space-x-2 text-sm text-gray-700">
+                                <Timer className="h-4 w-4 text-gray-500" />
+                                <span>Total: {booking.total_duration} min</span>
+                              </div>
+                              <div className="flex items-center space-x-4">
+                                <span className="font-semibold text-booqit-primary text-sm">
+                                  ₹{booking.total_price}
+                                </span>
+                                <span className="font-semibold text-booqit-primary text-sm">
+                                  {formatTimeToAmPm(booking.time_slot)}
+                                </span>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-sm text-gray-500">No services found</div>
+                        )}
                         
                         {/* Stylist information */}
                         {booking.stylist_name && (
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-2 text-sm text-gray-600">
                             <Scissors className="h-4 w-4 text-gray-500" />
                             <span>Stylist: {booking.stylist_name}</span>
                           </div>

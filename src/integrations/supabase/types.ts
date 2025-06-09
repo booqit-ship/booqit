@@ -50,6 +50,42 @@ export type Database = {
           },
         ]
       }
+      booking_services: {
+        Row: {
+          booking_id: string
+          created_at: string
+          id: string
+          service_id: string
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          id?: string
+          service_id: string
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          id?: string
+          service_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_services_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bookings: {
         Row: {
           created_at: string
@@ -769,6 +805,19 @@ export type Database = {
           start_time: string
           duration: number
         }[]
+      }
+      get_booking_services: {
+        Args: { p_booking_id: string }
+        Returns: {
+          service_id: string
+          service_name: string
+          service_duration: number
+          service_price: number
+        }[]
+      }
+      get_booking_total_duration: {
+        Args: { p_booking_id: string }
+        Returns: number
       }
       get_fresh_available_slots: {
         Args: { p_merchant_id: string; p_date: string; p_staff_id?: string }
