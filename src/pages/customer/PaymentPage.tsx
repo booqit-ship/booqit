@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Smartphone } from 'lucide-react';
@@ -64,21 +63,17 @@ const PaymentPage: React.FC = () => {
         p_staff_id: selectedStaff,
         p_date: bookingDate,
         p_time_slot: bookingTime,
-        p_service_duration: totalDuration,
-        p_services: JSON.stringify(selectedServices),
-        p_total_duration: totalDuration
+        p_service_duration: totalDuration
       });
 
-      const { data: bookingResult, error: bookingError } = await supabase.rpc('create_confirmed_booking_with_services', {
+      const { data: bookingResult, error: bookingError } = await supabase.rpc('create_confirmed_booking', {
         p_user_id: userId,
         p_merchant_id: merchantId,
         p_service_id: serviceId,
         p_staff_id: selectedStaff,
         p_date: bookingDate,
         p_time_slot: bookingTime,
-        p_service_duration: totalDuration,
-        p_services: JSON.stringify(selectedServices),
-        p_total_duration: totalDuration
+        p_service_duration: totalDuration
       });
 
       if (bookingError) {
@@ -93,6 +88,22 @@ const PaymentPage: React.FC = () => {
       if (!response.success) {
         toast.error(response.error || 'Failed to create booking');
         return;
+      }
+
+      // Update the booking with services and total_duration information
+      const { error: updateError } = await supabase
+        .from('bookings')
+        .update({
+          services: JSON.stringify(selectedServices),
+          total_duration: totalDuration
+        })
+        .eq('id', response.booking_id);
+
+      if (updateError) {
+        console.error('Error updating booking with services:', updateError);
+        // Don't fail the booking creation, just log the error
+      } else {
+        console.log('Successfully updated booking with services and total duration');
       }
 
       // Create payment record with proper error handling
