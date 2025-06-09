@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Smartphone } from 'lucide-react';
@@ -15,6 +16,7 @@ interface BookingResponse {
   booking_id?: string;
   error?: string;
   message?: string;
+  slots_blocked?: number;
 }
 
 const PaymentPage: React.FC = () => {
@@ -88,6 +90,23 @@ const PaymentPage: React.FC = () => {
       if (!response.success) {
         toast.error(response.error || 'Failed to create booking');
         return;
+      }
+
+      // Now call the duration blocking function to properly block slots
+      const { data: blockingResult, error: blockingError } = await supabase.rpc('book_appointment_with_duration_blocking', {
+        p_booking_id: response.booking_id,
+        p_staff_id: selectedStaff,
+        p_date: bookingDate,
+        p_time_slot: bookingTime,
+        p_service_duration: totalDuration
+      });
+
+      if (blockingError) {
+        console.error('Error blocking slots:', blockingError);
+        // Don't fail the booking if slot blocking fails, just log it
+        console.warn('Slot blocking failed but booking was created');
+      } else {
+        console.log('Slot blocking result:', blockingResult);
       }
 
       // Update the booking with services and total_duration information

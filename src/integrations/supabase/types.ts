@@ -597,6 +597,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      book_appointment_with_duration_blocking: {
+        Args: {
+          p_booking_id: string
+          p_staff_id: string
+          p_date: string
+          p_time_slot: string
+          p_service_duration?: number
+        }
+        Returns: Json
+      }
       book_stylist_slot: {
         Args: {
           p_staff_id: string
