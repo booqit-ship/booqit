@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Star, Edit2, Trash2, User, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,11 +10,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
-interface ReviewProfile {
-  name: string;
-  avatar_url?: string;
-}
-
 interface Review {
   id: string;
   user_id: string;
@@ -21,7 +17,8 @@ interface Review {
   rating: number;
   review: string | null;
   created_at: string;
-  profiles?: ReviewProfile | null;
+  customer_name: string;
+  customer_avatar: string | null;
 }
 
 interface ReviewsSectionProps {
@@ -83,10 +80,10 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
         return;
       }
 
-      // Fetch reviews
+      // Fetch reviews with customer_name and customer_avatar directly from reviews table
       const { data: reviewsData, error: reviewsError } = await supabase
         .from('reviews')
-        .select('*')
+        .select('id, user_id, booking_id, rating, review, created_at, customer_name, customer_avatar')
         .in('booking_id', bookingIds)
         .order('created_at', { ascending: false });
 
@@ -99,48 +96,11 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
         return;
       }
 
-      // Extract unique user IDs for batched profile fetching
-      const uniqueUserIds = [...new Set(reviewsData.map(review => review.user_id))];
-      console.log('Fetching profiles for user IDs:', uniqueUserIds);
-
-      // Batch fetch all profiles at once
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, name, avatar_url')
-        .in('id', uniqueUserIds);
-
-      if (profilesError) {
-        console.error('Error fetching profiles:', profilesError);
-        // Continue with empty profiles data
-      }
-
-      console.log('Fetched profiles:', profilesData?.length || 0, profilesData);
-
-      // Create a map of user_id to profile for easy lookup
-      const profilesMap = new Map();
-      profilesData?.forEach(profile => {
-        profilesMap.set(profile.id, {
-          name: profile.name || 'Anonymous',
-          avatar_url: profile.avatar_url
-        });
-      });
-
-      // Map reviews with their corresponding profiles
-      const reviewsWithProfiles: Review[] = reviewsData.map(review => {
-        const profile = profilesMap.get(review.user_id);
-        console.log(`Review ${review.id} - User ${review.user_id} - Profile:`, profile);
-        
-        return {
-          ...review,
-          profiles: profile || { name: 'Anonymous', avatar_url: null }
-        };
-      });
-
-      setReviews(reviewsWithProfiles);
+      setReviews(reviewsData);
 
       // Find user's review if they're logged in
       if (userId) {
-        const userReviewData = reviewsWithProfiles.find(review => review.user_id === userId);
+        const userReviewData = reviewsData.find(review => review.user_id === userId);
         setUserReview(userReviewData || null);
         console.log('User review found:', userReviewData ? 'yes' : 'no');
       }
@@ -176,11 +136,27 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
     }
 
     try {
+      // Get customer info from profiles
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('name, avatar_url')
+        .eq('id', userId)
+        .single();
+
+      if (profileError) {
+        console.error('Error fetching profile:', profileError);
+      }
+
+      const customerName = profileData?.name || 'Anonymous';
+      const customerAvatar = profileData?.avatar_url || null;
+
       const reviewData = {
         user_id: userId,
         booking_id: userBookings[0], // Use the first completed booking
         rating: editingRating,
-        review: editingReview.trim() || null
+        review: editingReview.trim() || null,
+        customer_name: customerName,
+        customer_avatar: customerAvatar
       };
 
       console.log('Submitting review:', reviewData);
@@ -369,10 +345,10 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
                 <CardContent className="p-4">
                   <div className="flex items-start space-x-3">
                     <div className="flex-shrink-0">
-                      {review.profiles?.avatar_url ? (
+                      {review.customer_avatar ? (
                         <img
-                          src={review.profiles.avatar_url}
-                          alt={review.profiles?.name || 'User'}
+                          src={review.customer_avatar}
+                          alt={review.customer_name || 'User'}
                           className="w-10 h-10 rounded-full"
                         />
                       ) : (
@@ -385,7 +361,7 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ merchantId }) => {
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-medium font-poppins">
-                          {review.profiles?.name || 'Anonymous'}
+                          {review.customer_name || 'Anonymous'}
                         </span>
                         <span className="text-xs text-gray-400 font-poppins">
                           {format(new Date(review.created_at), 'MMM d, yyyy')}

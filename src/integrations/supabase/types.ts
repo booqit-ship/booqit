@@ -297,6 +297,8 @@ export type Database = {
         Row: {
           booking_id: string
           created_at: string
+          customer_avatar: string | null
+          customer_name: string | null
           id: string
           rating: number
           review: string | null
@@ -305,6 +307,8 @@ export type Database = {
         Insert: {
           booking_id: string
           created_at?: string
+          customer_avatar?: string | null
+          customer_name?: string | null
           id?: string
           rating: number
           review?: string | null
@@ -313,6 +317,8 @@ export type Database = {
         Update: {
           booking_id?: string
           created_at?: string
+          customer_avatar?: string | null
+          customer_name?: string | null
           id?: string
           rating?: number
           review?: string | null
