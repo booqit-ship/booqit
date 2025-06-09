@@ -88,62 +88,21 @@ export const initializeUserNotifications = async (userId: string, userRole: 'cus
       return { success: false, reason: 'permission_not_granted' };
     }
 
-    // Get FCM token with retries
+    // Get FCM token
     console.log('🔑 Getting FCM token...');
-    let token = null;
-    let attempts = 0;
-    const maxAttempts = 3;
-    
-    while (!token && attempts < maxAttempts) {
-      attempts++;
-      console.log(`🔑 FCM token attempt ${attempts}/${maxAttempts}...`);
-      
-      try {
-        token = await getFCMToken();
-        if (token) {
-          console.log('🔑 FCM Token obtained successfully on attempt', attempts);
-          break;
-        }
-      } catch (error) {
-        console.error(`❌ FCM token attempt ${attempts} failed:`, error);
-      }
-      
-      // Wait before retry
-      if (attempts < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-    }
-    
+    const token = await getFCMToken();
     if (!token) {
-      console.log('❌ Could not get FCM token after', maxAttempts, 'attempts');
+      console.log('❌ Could not get FCM token');
       return { success: false, reason: 'token_failed' };
     }
 
     console.log('🔑 FCM Token obtained:', token.substring(0, 20) + '...');
 
-    // Save token to user profile with retries
+    // Save token to user profile
     console.log('💾 Saving FCM token to profile...');
-    let saved = false;
-    attempts = 0;
-    
-    while (!saved && attempts < maxAttempts) {
-      attempts++;
-      console.log(`💾 Save attempt ${attempts}/${maxAttempts}...`);
-      
-      saved = await saveUserFCMToken(userId, token, userRole);
-      if (saved) {
-        console.log('💾 FCM token saved successfully on attempt', attempts);
-        break;
-      }
-      
-      // Wait before retry
-      if (attempts < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-    }
-    
+    const saved = await saveUserFCMToken(userId, token, userRole);
     if (!saved) {
-      console.log('❌ Could not save FCM token after', maxAttempts, 'attempts');
+      console.log('❌ Could not save FCM token');
       return { success: false, reason: 'save_failed' };
     }
 

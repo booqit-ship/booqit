@@ -220,31 +220,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               console.log('👤 User signed in, updating permanent session');
               await updateAuthStateFromSupabase(session);
               
-              // Send welcome notification after successful login with proper timing
-              setTimeout(async () => {
-                try {
-                  const { sendWelcomeNotification } = await import('@/services/eventNotificationService');
-                  
-                  // Get user profile to extract name and role
-                  const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('name, role')
-                    .eq('id', session.user.id)
-                    .single();
-                  
-                  if (profile) {
-                    const firstName = profile.name?.split(' ')[0] || 'there';
-                    console.log('🔔 Sending welcome notification to:', firstName, profile.role);
-                    await sendWelcomeNotification(
-                      session.user.id,
-                      profile.role as 'customer' | 'merchant',
-                      firstName
-                    );
-                  }
-                } catch (error) {
-                  console.error('❌ Error sending welcome notification:', error);
+              // Send welcome notification after successful login
+              try {
+                const { sendWelcomeNotification } = await import('@/services/eventNotificationService');
+                
+                // Get user profile to extract name and role
+                const { data: profile } = await supabase
+                  .from('profiles')
+                  .select('name, role')
+                  .eq('id', session.user.id)
+                  .single();
+                
+                if (profile) {
+                  const firstName = profile.name?.split(' ')[0] || 'there';
+                  await sendWelcomeNotification(
+                    session.user.id,
+                    profile.role as 'customer' | 'merchant',
+                    firstName
+                  );
                 }
-              }, 3000); // Wait 3 seconds for FCM token to be properly initialized
+              } catch (error) {
+                console.error('❌ Error sending welcome notification:', error);
+              }
             } else if (event === 'SIGNED_OUT') {
               console.log('👋 User signed out');
               clearAuthState();

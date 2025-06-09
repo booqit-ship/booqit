@@ -5,15 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Bell, X } from 'lucide-react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 
 const NotificationBanner = () => {
   const { hasPermission, isSupported, requestPermissionManually } = useNotifications();
-  const { isAuthenticated } = useAuth();
   const [isDismissed, setIsDismissed] = useState(false);
 
-  // Show banner if user is logged in, notifications are supported, permission not granted, and not dismissed
-  if (!isAuthenticated || !isSupported || hasPermission || isDismissed) {
+  // Don't show banner if notifications are supported and permission is granted, or if dismissed
+  if (!isSupported || hasPermission || isDismissed) {
     return null;
   }
 
