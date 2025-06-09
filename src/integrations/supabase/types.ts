@@ -659,10 +659,6 @@ export type Database = {
         }
         Returns: Json
       }
-      cleanup_expired_locks: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
       clear_stylist_availability: {
         Args: { p_staff_id: string; p_date: string }
         Returns: Json

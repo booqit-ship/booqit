@@ -9,13 +9,22 @@ import { toast } from 'sonner';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { formatDateInIST } from '@/utils/dateUtils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSlotLocking } from '@/hooks/useSlotLocking';
 import { sendNewBookingNotification, sendBookingCompletedNotification } from '@/services/eventNotificationService';
+
+interface BookingResponse {
+  success: boolean;
+  booking_id?: string;
+  error?: string;
+  message?: string;
+}
 
 const PaymentPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const { userId } = useAuth();
+  const { releaseSlot } = useSlotLocking();
   
   const {
     merchant,
@@ -26,32 +35,111 @@ const PaymentPage: React.FC = () => {
     selectedStaffDetails,
     bookingDate,
     bookingTime,
-    bookingId
+    lockedSlotInfo
   } = location.state || {};
   
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // Cleanup locked slots on unmount if booking wasn't completed
+  useEffect(() => {
+    return () => {
+      if (lockedSlotInfo && !isProcessing) {
+        console.log('🔓 Releasing locked slots from payment page cleanup');
+        releaseSlot(
+          lockedSlotInfo.staffId,
+          lockedSlotInfo.date,
+          lockedSlotInfo.time,
+          lockedSlotInfo.duration
+        );
+      }
+    };
+  }, [lockedSlotInfo, releaseSlot, isProcessing]);
+
   const handlePayment = async () => {
-    if (!userId || !merchantId || !bookingId) {
-      toast.error('Missing booking information');
+    if (!userId || !merchantId) {
+      toast.error('Authentication required');
+      return;
+    }
+    
+    if (!selectedServices || !selectedStaff || !bookingDate || !bookingTime) {
+      toast.error('Booking information is missing');
       return;
     }
     
     setIsProcessing(true);
     
     try {
-      console.log('💳 Processing payment for confirmed booking:', bookingId);
+      console.log('💳 Processing payment and creating confirmed booking...');
 
       // Simulate payment processing (2 seconds)
       await new Promise(resolve => setTimeout(resolve, 2000));
 
+      // Release temporary locks first since we're creating a confirmed booking
+      if (lockedSlotInfo) {
+        console.log('🔓 Releasing temporary locks before creating confirmed booking');
+        await releaseSlot(
+          lockedSlotInfo.staffId,
+          lockedSlotInfo.date,
+          lockedSlotInfo.time,
+          lockedSlotInfo.duration
+        );
+      }
+
+      // Create booking directly as confirmed with services and total duration
+      const serviceId = selectedServices[0]?.id;
+      const serviceDuration = selectedServices[0]?.duration || 30;
+      
+      console.log('📝 Creating confirmed booking with correct parameter order:', {
+        p_user_id: userId,
+        p_merchant_id: merchantId,
+        p_service_id: serviceId,
+        p_staff_id: selectedStaff,
+        p_date: bookingDate,
+        p_time_slot: bookingTime,
+        p_service_duration: serviceDuration,
+        p_services: JSON.stringify(selectedServices),
+        p_total_duration: totalDuration
+      });
+
+      // Call the database function with the CORRECT parameter order matching the function definition
+      const { data: bookingResult, error: bookingError } = await supabase.rpc(
+        'create_confirmed_booking_with_services',
+        {
+          p_user_id: userId,
+          p_merchant_id: merchantId,
+          p_service_id: serviceId,
+          p_staff_id: selectedStaff,
+          p_date: bookingDate,
+          p_time_slot: bookingTime,
+          p_service_duration: serviceDuration,
+          p_services: JSON.stringify(selectedServices),
+          p_total_duration: totalDuration
+        }
+      );
+
+      if (bookingError) {
+        console.error('❌ Error creating confirmed booking:', bookingError);
+        toast.error(`Failed to create booking: ${bookingError.message}`);
+        return;
+      }
+
+      const response = bookingResult as unknown as BookingResponse;
+      console.log('✅ Confirmed booking creation response:', response);
+      
+      if (!response.success) {
+        toast.error(response.error || 'Failed to create booking');
+        return;
+      }
+
+      console.log('✅ Booking created as confirmed with ID:', response.booking_id);
+
       // Create payment record
-      console.log('💰 Creating payment record for booking:', bookingId);
+      console.log('💰 Creating payment record for booking:', response.booking_id);
       
       const { data: paymentData, error: paymentError } = await supabase
         .from('payments')
         .insert({
-          booking_id: bookingId,
+          booking_id: response.booking_id,
           method: 'pay_on_shop',
           amount: totalPrice,
           status: 'completed'
@@ -65,7 +153,7 @@ const PaymentPage: React.FC = () => {
         const { error: updateError } = await supabase
           .from('bookings')
           .update({ payment_status: 'completed' })
-          .eq('id', bookingId);
+          .eq('id', response.booking_id);
         
         if (updateError) {
           console.error('❌ Error updating booking payment status:', updateError);
@@ -79,7 +167,7 @@ const PaymentPage: React.FC = () => {
         const { error: updateError } = await supabase
           .from('bookings')
           .update({ payment_status: 'completed' })
-          .eq('id', bookingId);
+          .eq('id', response.booking_id);
         
         if (updateError) {
           console.error('❌ Error updating booking payment status:', updateError);
@@ -119,7 +207,7 @@ const PaymentPage: React.FC = () => {
             customerName,
             serviceName,
             dateTime,
-            bookingId
+            response.booking_id
           );
           console.log('✅ New booking notification sent to merchant');
         }
@@ -127,7 +215,7 @@ const PaymentPage: React.FC = () => {
         await sendBookingCompletedNotification(
           userId,
           merchant.shop_name || 'Salon',
-          bookingId
+          response.booking_id
         );
         console.log('✅ Booking confirmation sent to customer');
 
@@ -138,7 +226,7 @@ const PaymentPage: React.FC = () => {
       toast.success('Payment successful! Your booking is confirmed.');
 
       // Navigate to receipt page
-      navigate(`/receipt/${bookingId}`, {
+      navigate(`/receipt/${response.booking_id}`, {
         state: {
           merchant,
           selectedServices,
@@ -148,7 +236,7 @@ const PaymentPage: React.FC = () => {
           selectedStaffDetails,
           bookingDate,
           bookingTime,
-          bookingId,
+          bookingId: response.booking_id,
           paymentMethod: 'pay_on_shop'
         }
       });
@@ -161,10 +249,11 @@ const PaymentPage: React.FC = () => {
   };
 
   const handleGoBack = async () => {
+    // Don't release locks when going back - let the user return to their reserved slot
     navigate(-1);
   };
   
-  if (!merchant || !selectedServices || !bookingDate || !bookingTime || !bookingId) {
+  if (!merchant || !selectedServices || !bookingDate || !bookingTime) {
     return (
       <div className="h-screen flex flex-col items-center justify-center p-4">
         <p className="text-gray-500 mb-4">Booking information missing</p>
@@ -255,20 +344,22 @@ const PaymentPage: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Booking Confirmed Status */}
-        <Card className="bg-green-50 border-green-200">
-          <CardContent className="p-4">
-            <p className="text-green-800 text-sm font-poppins">
-              ✅ Your booking is confirmed! Booking ID: {bookingId}
-            </p>
-          </CardContent>
-        </Card>
+        {/* Slot Reserved Status */}
+        {lockedSlotInfo && (
+          <Card className="bg-green-50 border-green-200">
+            <CardContent className="p-4">
+              <p className="text-green-800 text-sm font-poppins">
+                ✅ Your time slot is reserved and will be confirmed after payment
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Status Message */}
         <Card className="bg-blue-50 border-blue-200">
           <CardContent className="p-4">
             <p className="text-blue-800 text-sm font-poppins">
-              ℹ️ Complete payment to finalize your booking. Your slots are confirmed and blocked.
+              ℹ️ Complete payment to confirm your booking. Your selected time slot is temporarily reserved.
             </p>
           </CardContent>
         </Card>
@@ -281,7 +372,7 @@ const PaymentPage: React.FC = () => {
           disabled={isProcessing} 
           className="w-full bg-booqit-primary hover:bg-booqit-primary/90 py-6 font-poppins font-semibold text-base text-center"
         >
-          {isProcessing ? 'Processing...' : `Complete Payment - Pay ₹${totalPrice} at Shop`}
+          {isProcessing ? 'Processing...' : `Confirm Booking - Pay ₹${totalPrice} at Shop`}
         </Button>
       </div>
     </div>
