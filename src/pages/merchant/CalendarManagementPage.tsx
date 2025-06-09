@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -59,7 +60,7 @@ const CalendarManagementPage: React.FC = () => {
 
   const merchantId = merchant?.id;
 
-  // Get bookings with enhanced caching and proper typing
+  // Get bookings with enhanced caching and proper typing - FIXED QUERY
   const { data: bookings = [], isFetching: isBookingsFetching } = useQuery({
     queryKey: ['bookings', merchantId, formatDateInIST(selectedDate, 'yyyy-MM-dd')],
     queryFn: async (): Promise<BookingWithCustomerDetails[]> => {
@@ -81,7 +82,7 @@ const CalendarManagementPage: React.FC = () => {
           stylist_name,
           services,
           total_duration,
-          services:service_id (
+          serviceDetails:service_id (
             name,
             duration
           )
@@ -100,9 +101,9 @@ const CalendarManagementPage: React.FC = () => {
       // Transform and type the data properly
       return (data || []).map(booking => ({
         id: booking.id,
-        service: booking.services ? {
-          name: booking.services.name,
-          duration: booking.services.duration
+        service: booking.serviceDetails ? {
+          name: booking.serviceDetails.name,
+          duration: booking.serviceDetails.duration
         } : undefined,
         services: booking.services, // Include the JSON services field
         total_duration: booking.total_duration,

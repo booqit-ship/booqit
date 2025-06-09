@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -46,13 +47,16 @@ const BookingCard: React.FC<BookingCardProps> = ({
     }
   };
 
-  // Helper function to get service names and duration from services JSON or fallback to single service
+  // COMPLETELY REWRITTEN getServiceInfo function to handle multiple services properly
   const getServiceInfo = () => {
     console.log('BookingCard - Raw booking data:', booking);
     console.log('BookingCard - Services field:', booking.services);
     console.log('BookingCard - Total duration field:', booking.total_duration);
     
-    // First try to get from services JSON field
+    let serviceNames = 'Unknown Service';
+    let totalDuration = booking.total_duration || 30;
+    
+    // First priority: Try to parse the services JSON field
     if (booking.services) {
       try {
         let services;
@@ -68,33 +72,50 @@ const BookingCard: React.FC<BookingCardProps> = ({
         
         console.log('BookingCard - Parsed services:', services);
         
+        // Handle array of services (multiple services)
         if (Array.isArray(services) && services.length > 0) {
-          const serviceNames = services.map(service => service.name?.trim()).filter(Boolean).join(', ');
-          // Use total_duration from booking first, then calculate from services
-          const totalDuration = booking.total_duration || services.reduce((total, service) => total + (service.duration || 0), 0);
+          const serviceNamesList = services
+            .map(service => service.name?.trim())
+            .filter(Boolean);
           
-          console.log('BookingCard - Service names:', serviceNames);
-          console.log('BookingCard - Total duration:', totalDuration);
-          
-          if (serviceNames) {
-            return {
-              names: serviceNames,
-              duration: totalDuration
-            };
+          if (serviceNamesList.length > 0) {
+            serviceNames = serviceNamesList.join(', ');
+            // Use total_duration from booking first, then calculate from services
+            totalDuration = booking.total_duration || services.reduce((sum, service) => sum + (service.duration || 0), 0);
+            
+            console.log('BookingCard - Multiple services found:', { names: serviceNames, duration: totalDuration });
+            return { names: serviceNames, duration: totalDuration };
           }
+        }
+        // Handle single service object
+        else if (services && services.name) {
+          serviceNames = services.name.trim();
+          totalDuration = booking.total_duration || services.duration || 30;
+          
+          console.log('BookingCard - Single service object found:', { names: serviceNames, duration: totalDuration });
+          return { names: serviceNames, duration: totalDuration };
         }
       } catch (error) {
         console.error('BookingCard - Error parsing services JSON:', error);
       }
     }
     
-    // Fallback to single service
+    // Second priority: Fallback to single service relation
+    if (booking.service?.name) {
+      serviceNames = booking.service.name.trim();
+      totalDuration = booking.total_duration || booking.service.duration || 30;
+      
+      console.log('BookingCard - Using single service fallback:', { names: serviceNames, duration: totalDuration });
+      return { names: serviceNames, duration: totalDuration };
+    }
+    
+    // Final fallback
     const fallbackData = {
-      names: booking.service?.name || 'Service',
-      duration: booking.service?.duration || 30
+      names: serviceNames, // Will be 'Unknown Service'
+      duration: totalDuration // Will be booking.total_duration or 30
     };
     
-    console.log('BookingCard - Using fallback data:', fallbackData);
+    console.log('BookingCard - Using final fallback:', fallbackData);
     return fallbackData;
   };
 
