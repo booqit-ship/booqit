@@ -88,7 +88,29 @@ export const initializeUserNotifications = async (userId: string, userRole: 'cus
       return { success: false, reason: 'permission_not_granted' };
     }
 
-    // Get FCM token
+    // Enhanced Service Worker check
+    console.log('🔍 Checking Service Worker status...');
+    if ('serviceWorker' in navigator) {
+      try {
+        const registration = await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js');
+        if (!registration) {
+          console.error('❌ Firebase messaging Service Worker not found');
+          return { success: false, reason: 'service_worker_not_found' };
+        }
+        
+        if (!registration.active) {
+          console.error('❌ Service Worker is not active');
+          return { success: false, reason: 'service_worker_not_active' };
+        }
+        
+        console.log('✅ Service Worker is ready and active');
+      } catch (swError) {
+        console.error('❌ Error checking Service Worker:', swError);
+        return { success: false, reason: 'service_worker_error', error: swError.message };
+      }
+    }
+
+    // Get FCM token with improved error handling
     console.log('🔑 Getting FCM token...');
     const token = await getFCMToken();
     if (!token) {
