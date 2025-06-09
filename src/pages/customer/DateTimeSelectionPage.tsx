@@ -16,6 +16,14 @@ import { Staff } from '@/types';
 import { toast } from 'sonner';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 
+interface AvailableSlot {
+  staff_id: string;
+  staff_name: string;
+  time_slot: string;
+  is_available: boolean;
+  conflict_reason: string;
+}
+
 const DateTimeSelectionPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
@@ -80,7 +88,13 @@ const DateTimeSelectionPage: React.FC = () => {
       }
 
       console.log('Available slots:', data);
-      setAvailableSlots(data || []);
+      
+      // Extract only available time slots
+      const availableTimeSlots = (data as AvailableSlot[])
+        ?.filter(slot => slot.is_available)
+        ?.map(slot => slot.time_slot) || [];
+      
+      setAvailableSlots(availableTimeSlots);
     } catch (error) {
       console.error('Error:', error);
       toast.error('Failed to load available time slots');

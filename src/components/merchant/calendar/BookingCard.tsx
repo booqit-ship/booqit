@@ -7,6 +7,7 @@ import { Clock, User, Phone, CheckCircle, XCircle, Scissors, Timer } from 'lucid
 import { formatTimeToAmPm, timeToMinutes, minutesToTime } from '@/utils/timeUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { BookingService } from '@/types';
 
 interface BookingWithCustomerDetails {
   id: string;
@@ -14,6 +15,8 @@ interface BookingWithCustomerDetails {
     name: string;
     duration?: number;
   };
+  services?: BookingService[];
+  total_duration?: number;
   time_slot: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   customer_name?: string;
@@ -43,18 +46,6 @@ const BookingCard: React.FC<BookingCardProps> = ({
       default:
         return 'bg-yellow-100 text-yellow-800 border-yellow-200';
     }
-  };
-
-  const getTimeRange = () => {
-    if (!booking.service?.duration) {
-      return formatTimeToAmPm(booking.time_slot);
-    }
-    
-    const startMinutes = timeToMinutes(booking.time_slot);
-    const endMinutes = startMinutes + booking.service.duration;
-    const endTime = minutesToTime(endMinutes);
-    
-    return `${formatTimeToAmPm(booking.time_slot)} - ${formatTimeToAmPm(endTime)}`;
   };
 
   const handleStatusUpdate = async (newStatus: 'confirmed' | 'completed' | 'cancelled') => {
