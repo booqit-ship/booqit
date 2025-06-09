@@ -50,12 +50,12 @@ const PaymentPage: React.FC = () => {
     setIsProcessing(true);
     
     try {
-      console.log('Processing payment and creating booking with services...');
+      console.log('Processing payment and creating booking...');
 
       // Calculate total duration from all selected services
       const calculatedTotalDuration = selectedServices.reduce((sum: number, service: any) => sum + service.duration, 0);
       
-      console.log('MULTIPLE_SERVICES_BOOKING: Creating booking with:', {
+      console.log('Creating booking with:', {
         services: selectedServices.length,
         totalDuration: calculatedTotalDuration,
         totalPrice,
@@ -67,15 +67,18 @@ const PaymentPage: React.FC = () => {
       // Simulate payment processing (2 seconds)
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Create booking with multiple services using the new function
-      const { data: bookingResult, error: bookingError } = await supabase.rpc('create_booking_with_services', {
+      // For multiple services, we'll create a booking with the first service but store all services in the services field
+      const primaryService = selectedServices[0];
+      
+      // Create booking using the existing function
+      const { data: bookingResult, error: bookingError } = await supabase.rpc('create_confirmed_booking', {
         p_user_id: userId,
         p_merchant_id: merchantId,
+        p_service_id: primaryService.id,
         p_staff_id: selectedStaff,
         p_date: bookingDate,
         p_time_slot: bookingTime,
-        p_services: JSON.stringify(selectedServices),
-        p_total_duration: calculatedTotalDuration
+        p_service_duration: calculatedTotalDuration // Use total duration for slot blocking
       });
 
       if (bookingError) {
@@ -90,6 +93,19 @@ const PaymentPage: React.FC = () => {
       if (!response.success) {
         toast.error(response.error || 'Failed to create booking');
         return;
+      }
+
+      // Update the booking to include all services and total duration
+      const { error: updateError } = await supabase
+        .from('bookings')
+        .update({
+          services: JSON.stringify(selectedServices),
+          total_duration: calculatedTotalDuration
+        })
+        .eq('id', response.booking_id);
+
+      if (updateError) {
+        console.error('Error updating booking with services:', updateError);
       }
 
       // Create payment record
