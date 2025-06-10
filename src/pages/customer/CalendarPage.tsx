@@ -76,8 +76,8 @@ const CalendarPage: React.FC = () => {
     return [];
   };
 
-  // Fetch bookings with optimized caching
-  const { data: bookings = [], isFetching: isBookingsFetching } = useQuery({
+  // Fetch bookings with optimized caching and real-time updates
+  const { data: bookings = [], isFetching: isBookingsFetching, refetch: refetchBookings } = useQuery({
     queryKey: ['customer-bookings', userId],
     queryFn: async (): Promise<Booking[]> => {
       if (!userId) return [];
@@ -123,12 +123,12 @@ const CalendarPage: React.FC = () => {
       return data as Booking[];
     },
     enabled: !!userId,
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 30 * 1000, // Reduce stale time to 30 seconds for more frequent updates
+    gcTime: 5 * 60 * 1000, // Reduce garbage collection time to 5 minutes
   });
 
   // Fetch appointment counts with caching
-  const { data: appointmentCounts = {}, isFetching: isCountsFetching } = useQuery({
+  const { data: appointmentCounts = {}, isFetching: isCountsFetching, refetch: refetchCounts } = useQuery({
     queryKey: ['appointment-counts', userId, weekDays.map(d => format(d, 'yyyy-MM-dd'))],
     queryFn: async (): Promise<{ [date: string]: number }> => {
       if (!userId || !bookings) return {};
@@ -144,35 +144,63 @@ const CalendarPage: React.FC = () => {
       return counts;
     },
     enabled: !!userId && !!bookings,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 30 * 1000, // Reduce stale time for faster updates
   });
 
-  // Set up real-time subscription for bookings
+  // Enhanced real-time subscription for instant booking updates
   useEffect(() => {
     if (!userId) return;
 
+    console.log('Customer: Setting up enhanced real-time subscription for bookings');
+
     const channel = supabase
-      .channel('customer-bookings-realtime')
+      .channel('customer-bookings-realtime-enhanced')
       .on('postgres_changes', {
-        event: '*',
+        event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
         schema: 'public',
         table: 'bookings',
         filter: `user_id=eq.${userId}`
       }, (payload) => {
-        console.log('Real-time booking update received by customer:', payload);
-        // Invalidate and refetch bookings data
+        console.log('Customer: Real-time booking update received:', payload);
+        
+        // Immediately invalidate and refetch both queries for instant updates
         queryClient.invalidateQueries({ queryKey: ['customer-bookings', userId] });
         queryClient.invalidateQueries({ queryKey: ['appointment-counts', userId] });
+        
+        // Also trigger immediate refetch for faster updates
+        refetchBookings();
+        refetchCounts();
+        
+        // Show toast notification for new bookings
+        if (payload.eventType === 'INSERT') {
+          toast({
+            title: "New Booking Created",
+            description: "Your booking has been confirmed!",
+          });
+        } else if (payload.eventType === 'UPDATE') {
+          toast({
+            title: "Booking Updated", 
+            description: "Your booking status has been updated.",
+          });
+        }
       })
       .subscribe((status) => {
-        console.log('Customer real-time subscription status:', status);
+        console.log('Customer: Enhanced real-time subscription status:', status);
       });
 
     return () => {
-      console.log('Cleaning up customer real-time subscription');
+      console.log('Customer: Cleaning up enhanced real-time subscription');
       supabase.removeChannel(channel);
     };
-  }, [userId, queryClient]);
+  }, [userId, queryClient, refetchBookings, refetchCounts, toast]);
+
+  // Additional effect to handle bookings array changes and update counts
+  useEffect(() => {
+    if (bookings.length > 0) {
+      // Invalidate appointment counts when bookings change
+      queryClient.invalidateQueries({ queryKey: ['appointment-counts', userId] });
+    }
+  }, [bookings, userId, queryClient]);
 
   // Navigate to search page
   const handleExploreServices = () => {
@@ -192,6 +220,14 @@ const CalendarPage: React.FC = () => {
         merchant: booking.merchant
       }
     });
+  };
+
+  // Enhanced booking refresh handler
+  const handleBookingRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ['customer-bookings', userId] });
+    queryClient.invalidateQueries({ queryKey: ['appointment-counts', userId] });
+    refetchBookings();
+    refetchCounts();
   };
 
   // Filter bookings for the selected date
@@ -367,10 +403,7 @@ const CalendarPage: React.FC = () => {
                         </Button>
                         <CancelBookingButton 
                           bookingId={booking.id} 
-                          onCancelled={() => {
-                            queryClient.invalidateQueries({ queryKey: ['customer-bookings', userId] });
-                            queryClient.invalidateQueries({ queryKey: ['appointment-counts', userId] });
-                          }} 
+                          onCancelled={handleBookingRefresh}
                         />
                       </div>
                     )}
