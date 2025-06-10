@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Smartphone } from 'lucide-react';
@@ -57,8 +58,7 @@ const PaymentPage: React.FC = () => {
       // Simulate payment processing (2 seconds)
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Create booking directly with confirmed status using total duration
-      const serviceId = selectedServices[0]?.id; // Primary service for compatibility
+      const serviceId = selectedServices[0]?.id;
       
       console.log('Creating booking with total duration params:', {
         p_user_id: userId,
@@ -113,52 +113,78 @@ const PaymentPage: React.FC = () => {
         return;
       }
 
-      // Create payment record
+      // Create payment record with improved error handling
       console.log('Creating payment record for booking:', bookingId);
       
-      const { data: paymentData, error: paymentError } = await supabase
-        .from('payments')
-        .insert({
-          booking_id: bookingId,
-          method: 'pay_on_shop',
-          amount: totalPrice,
-          status: 'completed'
-        })
-        .select()
-        .single();
-      
-      if (paymentError) {
-        console.error('Error creating payment record:', paymentError);
-        // Update booking payment status even if payment record creation failed
-        const { error: updateError } = await supabase
-          .from('bookings')
-          .update({ payment_status: 'completed' })
-          .eq('id', bookingId);
+      try {
+        const { data: paymentData, error: paymentError } = await supabase
+          .from('payments')
+          .insert({
+            booking_id: bookingId,
+            method: 'pay_on_shop',
+            amount: totalPrice,
+            status: 'completed'
+          })
+          .select()
+          .single();
         
-        if (updateError) {
-          console.error('Error updating booking payment status:', updateError);
-        }
-        
-        toast.warning('Booking confirmed but payment record creation encountered an issue');
-      } else {
-        console.log('Payment record created successfully:', paymentData);
-        
-        // Update booking payment status to completed
-        const { error: updateError } = await supabase
-          .from('bookings')
-          .update({ payment_status: 'completed' })
-          .eq('id', bookingId);
-        
-        if (updateError) {
-          console.error('Error updating booking payment status:', updateError);
+        if (paymentError) {
+          console.error('Payment record creation error:', paymentError);
+          
+          // Try to update booking payment status even if payment record fails
+          const { error: paymentStatusError } = await supabase
+            .from('bookings')
+            .update({ payment_status: 'completed' })
+            .eq('id', bookingId);
+          
+          if (paymentStatusError) {
+            console.error('Error updating booking payment status:', paymentStatusError);
+            toast.warning('Booking confirmed but payment status update failed');
+          } else {
+            console.log('Payment status updated despite payment record failure');
+            toast.warning('Booking confirmed but payment record had an issue');
+          }
         } else {
-          console.log('Booking payment status updated to completed');
+          console.log('Payment record created successfully:', paymentData);
+          
+          // Update booking payment status
+          const { error: paymentStatusError } = await supabase
+            .from('bookings')
+            .update({ payment_status: 'completed' })
+            .eq('id', bookingId);
+          
+          if (paymentStatusError) {
+            console.error('Error updating booking payment status:', paymentStatusError);
+            toast.warning('Payment recorded but status update failed');
+          } else {
+            console.log('Booking payment status updated to completed');
+          }
+        }
+      } catch (paymentCreationError) {
+        console.error('Payment creation caught error:', paymentCreationError);
+        
+        // Ensure booking payment status is updated regardless
+        try {
+          const { error: fallbackError } = await supabase
+            .from('bookings')
+            .update({ payment_status: 'completed' })
+            .eq('id', bookingId);
+          
+          if (fallbackError) {
+            console.error('Fallback payment status update failed:', fallbackError);
+            toast.warning('Booking confirmed but payment processing had issues');
+          } else {
+            console.log('Fallback payment status update successful');
+            toast.warning('Booking confirmed but payment record creation had an issue');
+          }
+        } catch (fallbackError) {
+          console.error('Fallback operation failed completely:', fallbackError);
+          toast.warning('Booking confirmed but payment processing encountered multiple issues');
         }
       }
 
-      // Send new booking notification to merchant
+      // Send notification to merchant
       try {
-        // Get merchant user ID
         const { data: merchantData } = await supabase
           .from('merchants')
           .select('user_id')
@@ -166,7 +192,6 @@ const PaymentPage: React.FC = () => {
           .single();
 
         if (merchantData?.user_id) {
-          // Get customer name
           const { data: customerProfile } = await supabase
             .from('profiles')
             .select('name')
