@@ -98,7 +98,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             isLoggedIn: true
           });
           
-          // Send welcome notification
+          // Send welcome notification with all 3 required arguments
           console.log('🔔 Triggering welcome notification for:', profile.name, profile.role);
           await sendWelcomeNotification(session.user.id, profile.role as UserRole, profile.name || 'User');
         }

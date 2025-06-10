@@ -62,11 +62,24 @@ const PaymentPage: React.FC = () => {
 
       console.log('✅ Booking created successfully:', result);
 
-      // Type the result properly
-      const bookingResult = result as BookingResult;
+      // Safely handle the result - it might be a string (booking ID) or object
+      let bookingId: string;
+      let bookingData: any;
+
+      if (typeof result === 'string') {
+        bookingId = result;
+        bookingData = result;
+      } else if (result && typeof result === 'object' && 'booking_id' in result) {
+        bookingId = (result as any).booking_id;
+        bookingData = (result as any).booking_data || result;
+      } else {
+        // Fallback - use result as both ID and data
+        bookingId = String(result);
+        bookingData = result;
+      }
 
       // Send notification to merchant
-      if (merchant.user_id) {
+      if (merchant.user_id && bookingId) {
         const timeRange = `${formatTimeToAmPm(timeSlot)} - ${formatTimeToAmPm(minutesToTime(timeToMinutes(timeSlot) + totalDuration))}`;
         const serviceNames = selectedServices.map(s => s.name).join(', ');
         
@@ -76,14 +89,14 @@ const PaymentPage: React.FC = () => {
           customerName,
           serviceNames,
           `${format(new Date(date), 'MMM d')} at ${timeRange}`,
-          bookingResult.booking_id
+          bookingId
         );
       }
 
       // Navigate to receipt page with booking data
-      navigate(`/receipt/${bookingResult.booking_id}`, {
+      navigate(`/receipt/${bookingId}`, {
         state: {
-          booking: bookingResult.booking_data || result,
+          booking: bookingData,
           merchant,
           selectedServices,
           selectedStaffDetails,
