@@ -224,7 +224,7 @@ const ServicesPage: React.FC = () => {
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Your First Service
               </Button>
             </div>
-          ) : !isLoading && services.length > 0 && !isMobile && (
+          ) : !isLoading && services.length > 0 && !isMobile ? (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -266,13 +266,13 @@ const ServicesPage: React.FC = () => {
                 </TableBody>
               </Table>
             </div>
-          ) : !isLoading && services.length > 0 && isMobile && (
+          ) : !isLoading && services.length > 0 && isMobile ? (
             <div className="p-5 grid grid-cols-1 gap-5">
               {services.map(service => (
                 <MobileServiceCard key={service.id} service={service} />
               ))}
             </div>
-          )}
+          ) : null}
         </CardContent>
       </Card>
 
