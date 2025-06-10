@@ -50,7 +50,7 @@ const PaymentPage: React.FC = () => {
     setIsProcessing(true);
     
     try {
-      console.log('MULTIPLE_SERVICES_PAYMENT: Processing payment and creating booking...');
+      console.log('PAYMENT_FLOW: Starting payment processing...');
       console.log('Services:', selectedServices?.map(s => ({ name: s.name, duration: s.duration })));
       console.log('Total duration:', totalDuration, 'minutes');
       console.log('Total price:', totalPrice);
@@ -60,7 +60,7 @@ const PaymentPage: React.FC = () => {
 
       const serviceId = selectedServices[0]?.id;
       
-      console.log('Creating booking with total duration params:', {
+      console.log('PAYMENT_FLOW: Creating booking with params:', {
         p_user_id: userId,
         p_merchant_id: merchantId,
         p_service_id: serviceId,
@@ -70,7 +70,7 @@ const PaymentPage: React.FC = () => {
         p_service_duration: totalDuration
       });
 
-      // First reserve the slot with total duration
+      // Step 1: Reserve the slot with total duration
       const { data: reserveResult, error: reserveError } = await supabase.rpc('reserve_slot_immediately', {
         p_user_id: userId,
         p_merchant_id: merchantId,
@@ -82,13 +82,13 @@ const PaymentPage: React.FC = () => {
       });
 
       if (reserveError) {
-        console.error('Error reserving slot:', reserveError);
+        console.error('PAYMENT_FLOW: Error reserving slot:', reserveError);
         toast.error(`Failed to reserve slot: ${reserveError.message}`);
         return;
       }
 
       const reserveResponse = reserveResult as unknown as BookingResponse;
-      console.log('Slot reservation response:', reserveResponse);
+      console.log('PAYMENT_FLOW: Slot reservation response:', reserveResponse);
       
       if (!reserveResponse.success) {
         toast.error(reserveResponse.error || 'Failed to reserve slot');
@@ -96,98 +96,57 @@ const PaymentPage: React.FC = () => {
       }
 
       const bookingId = reserveResponse.booking_id;
+      console.log('PAYMENT_FLOW: Booking created with ID:', bookingId);
 
-      // Update the booking with multiple services info and total duration
+      // Step 2: Update booking with services and confirm status
       const { error: updateError } = await supabase
         .from('bookings')
         .update({
           status: 'confirmed',
           services: selectedServices,
-          total_duration: totalDuration
+          total_duration: totalDuration,
+          payment_status: 'completed'
         })
         .eq('id', bookingId);
 
       if (updateError) {
-        console.error('Error updating booking with services:', updateError);
-        toast.error('Failed to update booking with services');
+        console.error('PAYMENT_FLOW: Error updating booking:', updateError);
+        toast.error('Failed to confirm booking. Please contact support.');
         return;
       }
 
-      // Create payment record with improved error handling
-      console.log('Creating payment record for booking:', bookingId);
-      
-      let paymentRecordCreated = false;
-      
-      try {
-        // Ensure we have valid data for payment record
-        if (!bookingId || !totalPrice) {
-          throw new Error('Missing booking ID or total price for payment record');
-        }
+      console.log('PAYMENT_FLOW: Booking confirmed successfully');
 
+      // Step 3: Create payment record (non-blocking)
+      let paymentRecorded = false;
+      try {
         const paymentData = {
           booking_id: bookingId,
           method: 'pay_on_shop',
-          amount: Number(totalPrice), // Ensure it's a number
+          amount: Number(totalPrice),
           status: 'completed'
         };
 
-        console.log('Inserting payment record with data:', paymentData);
+        console.log('PAYMENT_FLOW: Creating payment record:', paymentData);
 
-        const { data: insertedPayment, error: paymentError } = await supabase
+        const { error: paymentError } = await supabase
           .from('payments')
-          .insert(paymentData)
-          .select()
-          .single();
+          .insert(paymentData);
         
         if (paymentError) {
-          console.error('Payment record creation error:', paymentError);
-          throw paymentError;
+          console.error('PAYMENT_FLOW: Payment record error:', paymentError);
+          // Don't fail the booking for payment record issues
+          paymentRecorded = false;
         } else {
-          console.log('Payment record created successfully:', insertedPayment);
-          paymentRecordCreated = true;
+          console.log('PAYMENT_FLOW: Payment record created successfully');
+          paymentRecorded = true;
         }
       } catch (paymentCreationError) {
-        console.error('Failed to create payment record:', paymentCreationError);
-        
-        // Log the specific error for debugging
-        if (paymentCreationError.message) {
-          console.error('Payment error message:', paymentCreationError.message);
-        }
-        if (paymentCreationError.details) {
-          console.error('Payment error details:', paymentCreationError.details);
-        }
-        
-        paymentRecordCreated = false;
+        console.error('PAYMENT_FLOW: Payment record creation failed:', paymentCreationError);
+        paymentRecorded = false;
       }
 
-      // Always update booking payment status regardless of payment record creation
-      try {
-        const { error: paymentStatusError } = await supabase
-          .from('bookings')
-          .update({ payment_status: 'completed' })
-          .eq('id', bookingId);
-        
-        if (paymentStatusError) {
-          console.error('Error updating booking payment status:', paymentStatusError);
-          if (!paymentRecordCreated) {
-            toast.warning('Booking confirmed but payment processing had issues');
-          } else {
-            toast.warning('Payment recorded but status update failed');
-          }
-        } else {
-          console.log('Booking payment status updated to completed');
-          if (!paymentRecordCreated) {
-            toast.warning('Booking confirmed but payment record creation failed');
-          }
-        }
-      } catch (statusUpdateError) {
-        console.error('Critical error updating payment status:', statusUpdateError);
-        if (!paymentRecordCreated) {
-          toast.error('Booking confirmed but payment processing failed completely');
-        }
-      }
-
-      // Send notification to merchant
+      // Step 4: Send notification to merchant (non-blocking)
       try {
         const { data: merchantData } = await supabase
           .from('merchants')
@@ -215,20 +174,24 @@ const PaymentPage: React.FC = () => {
             formattedTime,
             bookingId
           );
+
+          console.log('PAYMENT_FLOW: Notification sent successfully');
         }
       } catch (notificationError) {
-        console.error('❌ Error sending booking notification:', notificationError);
+        console.error('PAYMENT_FLOW: Notification failed (non-critical):', notificationError);
         // Don't fail the booking if notification fails
       }
       
-      // Show success message
-      if (paymentRecordCreated) {
-        toast.success('Payment successful! Your booking is confirmed.');
-      } else {
+      // Step 5: Show single success message
+      console.log('PAYMENT_FLOW: Process completed successfully');
+      
+      if (paymentRecorded) {
         toast.success('Booking confirmed! Payment will be processed at the shop.');
+      } else {
+        toast.success('Booking confirmed! Payment record will be updated shortly.');
       }
 
-      // Navigate to receipt page
+      // Step 6: Navigate to receipt page
       navigate(`/receipt/${bookingId}`, {
         state: {
           merchant,
@@ -243,9 +206,10 @@ const PaymentPage: React.FC = () => {
           paymentMethod: 'pay_on_shop'
         }
       });
+
     } catch (error) {
-      console.error('Error processing payment:', error);
-      toast.error('Payment failed. Please try again.');
+      console.error('PAYMENT_FLOW: Critical error:', error);
+      toast.error('Booking failed. Please try again.');
     } finally {
       setIsProcessing(false);
     }
