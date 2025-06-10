@@ -81,7 +81,7 @@ const ReceiptPage: React.FC = () => {
     console.log('Booking data:', booking);
     console.log('State data:', stateData);
     
-    // Try to get services from state data first (most reliable)
+    // Try to get services from state data first (most reliable for multiple services)
     if (stateData?.selectedServices && Array.isArray(stateData.selectedServices)) {
       services = stateData.selectedServices;
       totalDuration = services.reduce((sum: number, service: any) => sum + (service.duration || 0), 0);
@@ -89,19 +89,24 @@ const ReceiptPage: React.FC = () => {
     } 
     // Otherwise try to parse from booking data
     else if (booking) {
-      // Check if booking has services JSONB field
-      if (booking.services) {
+      // Check if booking has services JSONB field (this should contain multiple services)
+      if (booking.services && booking.services !== null) {
         try {
           // If it's already an object/array
           if (typeof booking.services === 'object') {
-            services = Array.isArray(booking.services) ? booking.services : [booking.services];
+            if (Array.isArray(booking.services)) {
+              services = booking.services;
+            } else {
+              // Single service object, wrap in array
+              services = [booking.services];
+            }
           } 
           // If it's a JSON string, parse it
           else if (typeof booking.services === 'string') {
             const parsedServices = JSON.parse(booking.services);
             services = Array.isArray(parsedServices) ? parsedServices : [parsedServices];
           }
-          console.log('Parsed services from booking.services:', services);
+          console.log('Parsed services from booking.services JSONB:', services);
         } catch (error) {
           console.error('Error parsing services JSON:', error);
           services = [];
@@ -122,7 +127,7 @@ const ReceiptPage: React.FC = () => {
       }
     }
     
-    console.log('Final services:', services);
+    console.log('Final services array:', services);
     console.log('Total duration:', totalDuration);
     
     return { services, totalDuration };
@@ -140,6 +145,12 @@ const ReceiptPage: React.FC = () => {
     const endTime = minutesToTime(endTimeMinutes);
     
     return `${formatTimeToAmPm(booking.time_slot)} - ${formatTimeToAmPm(endTime)}`;
+  };
+
+  // Calculate total price from services
+  const getTotalPrice = () => {
+    const { services } = getServicesAndDuration();
+    return services.reduce((sum: number, service: any) => sum + (service.price || 0), 0);
   };
 
   if (loading) {
@@ -164,7 +175,7 @@ const ReceiptPage: React.FC = () => {
   const selectedStaffDetails = stateData?.selectedStaffDetails || {
     name: booking.staff?.name || booking.stylist_name
   };
-  const payment = stateData?.payment;
+  const totalPrice = getTotalPrice();
 
   return (
     <div className="pb-24 bg-gray-50 min-h-screen">
@@ -255,13 +266,15 @@ const ReceiptPage: React.FC = () => {
                     <div className="space-y-1">
                       {services.map((service: any, index: number) => (
                         <div key={service.id || index} className="font-medium">
-                          {service.name}
-                          {service.duration && (
-                            <span className="text-sm text-gray-500 ml-1">({service.duration}min)</span>
-                          )}
-                          {service.price && (
-                            <span className="text-sm text-booqit-primary ml-2">₹{service.price}</span>
-                          )}
+                          <div className="flex items-center justify-end gap-2">
+                            <span>{service.name}</span>
+                            {service.duration && (
+                              <span className="text-sm text-gray-500">({service.duration}min)</span>
+                            )}
+                            {service.price && (
+                              <span className="text-sm text-booqit-primary">₹{service.price}</span>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -282,9 +295,7 @@ const ReceiptPage: React.FC = () => {
               <div className="border-t pt-3 mt-3">
                 <div className="flex justify-between items-center font-semibold text-lg">
                   <span>Total Amount:</span>
-                  <span className="text-booqit-primary">
-                    ₹{services.reduce((sum: number, service: any) => sum + (service.price || 0), 0)}
-                  </span>
+                  <span className="text-booqit-primary">₹{totalPrice}</span>
                 </div>
               </div>
             </div>
