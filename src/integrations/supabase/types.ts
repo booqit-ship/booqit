@@ -470,6 +470,36 @@ export type Database = {
         }
         Relationships: []
       }
+      slot_locks: {
+        Row: {
+          created_at: string
+          date: string
+          expires_at: string
+          id: string
+          locked_by: string | null
+          staff_id: string
+          time_slot: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          expires_at: string
+          id?: string
+          locked_by?: string | null
+          staff_id: string
+          time_slot: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          expires_at?: string
+          id?: string
+          locked_by?: string | null
+          staff_id?: string
+          time_slot?: string
+        }
+        Relationships: []
+      }
       staff: {
         Row: {
           created_at: string
@@ -659,6 +689,10 @@ export type Database = {
         }
         Returns: Json
       }
+      cleanup_expired_locks: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       clear_stylist_availability: {
         Args: { p_staff_id: string; p_date: string }
         Returns: Json
@@ -692,6 +726,15 @@ export type Database = {
           p_date: string
           p_time_slot: string
           p_service_duration: number
+        }
+        Returns: Json
+      }
+      create_slot_lock: {
+        Args: {
+          p_staff_id: string
+          p_date: string
+          p_time_slot: string
+          p_lock_duration_minutes?: number
         }
         Returns: Json
       }
@@ -853,6 +896,10 @@ export type Database = {
           p_blocked_ranges?: Json
           p_description?: string
         }
+        Returns: Json
+      }
+      release_slot_lock: {
+        Args: { p_staff_id: string; p_date: string; p_time_slot: string }
         Returns: Json
       }
       release_stylist_slots: {
