@@ -252,14 +252,19 @@ const ReceiptPage: React.FC = () => {
                 <span className="text-gray-600">Services:</span>
                 <div className="text-right">
                   {services.length > 0 ? (
-                    services.map((service: any, index: number) => (
-                      <div key={service.id || index} className="font-medium mb-1">
-                        {service.name}
-                        {service.duration && (
-                          <span className="text-sm text-gray-500 ml-1">({service.duration}min)</span>
-                        )}
-                      </div>
-                    ))
+                    <div className="space-y-1">
+                      {services.map((service: any, index: number) => (
+                        <div key={service.id || index} className="font-medium">
+                          {service.name}
+                          {service.duration && (
+                            <span className="text-sm text-gray-500 ml-1">({service.duration}min)</span>
+                          )}
+                          {service.price && (
+                            <span className="text-sm text-booqit-primary ml-2">₹{service.price}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   ) : (
                     <div className="font-medium">No services found</div>
                   )}
