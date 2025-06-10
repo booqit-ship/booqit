@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -47,6 +48,32 @@ const CalendarPage: React.FC = () => {
     
     // Fallback to single service name
     return booking.service?.name || 'Service';
+  };
+
+  // Helper function to parse services for navigation
+  const parseServicesForNavigation = (booking: Booking) => {
+    if (booking.services) {
+      try {
+        const services = typeof booking.services === 'string' 
+          ? JSON.parse(booking.services) 
+          : booking.services;
+        
+        if (Array.isArray(services)) {
+          return services;
+        } else if (services && typeof services === 'object') {
+          return [services];
+        }
+      } catch (error) {
+        console.error('Error parsing services JSON:', error);
+      }
+    }
+    
+    // Fallback to single service
+    if (booking.service) {
+      return [booking.service];
+    }
+    
+    return [];
   };
 
   // Fetch bookings with optimized caching
@@ -152,9 +179,19 @@ const CalendarPage: React.FC = () => {
     navigate('/search');
   };
 
-  // Navigate to receipt page
-  const handleViewReceipt = (bookingId: string) => {
-    navigate(`/receipt/${bookingId}`);
+  // Navigate to receipt page with proper services data
+  const handleViewReceipt = (booking: Booking) => {
+    const services = parseServicesForNavigation(booking);
+    navigate(`/receipt/${booking.id}`, {
+      state: {
+        booking: {
+          ...booking,
+          services: services
+        },
+        selectedServices: services,
+        merchant: booking.merchant
+      }
+    });
   };
 
   // Filter bookings for the selected date
@@ -323,7 +360,7 @@ const CalendarPage: React.FC = () => {
                         <Button 
                           size="sm" 
                           variant="outline" 
-                          onClick={() => navigate(`/receipt/${booking.id}`)} 
+                          onClick={() => handleViewReceipt(booking)} 
                           className="h-8 text-base font-medium px-[23px] mx-[20px]"
                         >
                           Receipt
