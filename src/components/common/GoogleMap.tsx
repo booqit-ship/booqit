@@ -1,4 +1,3 @@
-
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { GoogleMap, Marker, useJsApiLoader } from '@react-google-maps/api';
 import { Button } from '@/components/ui/button';
@@ -6,6 +5,14 @@ import { Locate } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 const googleMapsApiKey = 'AIzaSyB28nWHDBaEoMGIEoqfWDh6L2VRkM5AMwc';
+
+// Define India bounds to restrict map view
+const indiaBounds = {
+  north: 37.0,   // Approximate northern boundary
+  south: 6.0,    // Approximate southern boundary
+  west: 68.0,    // Approximate western boundary
+  east: 98.0     // Approximate eastern boundary
+};
 
 interface MapProps {
   center?: { lat: number; lng: number };
@@ -56,6 +63,12 @@ const GoogleMapComponent: React.FC<MapProps> = ({
       disableDefaultUI: isMobile,
       zoomControlOptions: {
         position: google.maps.ControlPosition.RIGHT_TOP,
+      },
+      minZoom: 5, // Prevent zooming out too much
+      maxZoom: 18, // Maximum zoom level
+      restriction: {
+        latLngBounds: indiaBounds,
+        strictBounds: true,
       },
     };
   }, [isLoaded, isMobile]);
