@@ -1,12 +1,12 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Clock, User, CheckCircle, XCircle, MoreVertical } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { format } from 'date-fns';
-import BookingConfirmationDialog from '@/components/merchant/BookingConfirmationDialog';
+import { Clock, User, Phone, CheckCircle, XCircle, Scissors, Timer } from 'lucide-react';
+import { formatTimeToAmPm, timeToMinutes, minutesToTime } from '@/utils/timeUtils';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface BookingWithCustomerDetails {
   id: string;
@@ -14,7 +14,7 @@ interface BookingWithCustomerDetails {
     name: string;
     duration?: number;
   };
-  services?: string | any;
+  services?: string | any; // JSON string or parsed object
   total_duration?: number;
   time_slot: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
@@ -29,161 +29,250 @@ interface BookingCardProps {
   onStatusChange: (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => Promise<void>;
 }
 
-const BookingCard: React.FC<BookingCardProps> = ({ booking, onStatusChange }) => {
-  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<'complete' | 'cancel'>('complete');
-  const [isUpdating, setIsUpdating] = useState(false);
-
+const BookingCard: React.FC<BookingCardProps> = ({
+  booking,
+  onStatusChange
+}) => {
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'confirmed': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'completed': return 'bg-green-100 text-green-800 border-green-200';
-      case 'cancelled': return 'bg-gray-100 text-gray-800 border-gray-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'confirmed':
+        return 'bg-green-100 text-green-800 border-green-200';
+      case 'completed':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'pending':
+      default:
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
     }
   };
 
+  // COMPLETELY REWRITTEN getServiceInfo function to handle multiple services properly
   const getServiceInfo = () => {
-    if (booking.service) {
-      return {
-        name: booking.service.name,
-        duration: booking.service.duration || booking.total_duration || 30
-      };
-    }
-
-    // Handle multiple services
+    console.log('BookingCard - Raw booking data:', booking);
+    console.log('BookingCard - Services field:', booking.services);
+    console.log('BookingCard - Total duration field:', booking.total_duration);
+    
+    let serviceNames = 'Unknown Service';
+    let totalDuration = booking.total_duration || 30;
+    
+    // First priority: Try to parse the services JSON field
     if (booking.services) {
-      let services = booking.services;
-      if (typeof services === 'string') {
-        try {
-          services = JSON.parse(services);
-        } catch {
-          return { name: 'Service', duration: booking.total_duration || 30 };
+      try {
+        let services;
+        
+        // Parse services if it's a string
+        if (typeof booking.services === 'string') {
+          console.log('BookingCard - Parsing string services');
+          services = JSON.parse(booking.services);
+        } else {
+          console.log('BookingCard - Services already parsed');
+          services = booking.services;
         }
+        
+        console.log('BookingCard - Parsed services:', services);
+        
+        // Handle array of services (multiple services)
+        if (Array.isArray(services) && services.length > 0) {
+          const serviceNamesList = services
+            .map(service => service.name?.trim())
+            .filter(Boolean);
+          
+          if (serviceNamesList.length > 0) {
+            serviceNames = serviceNamesList.join(', ');
+            // Use total_duration from booking first, then calculate from services
+            totalDuration = booking.total_duration || services.reduce((sum, service) => sum + (service.duration || 0), 0);
+            
+            console.log('BookingCard - Multiple services found:', { names: serviceNames, duration: totalDuration });
+            return { names: serviceNames, duration: totalDuration };
+          }
+        }
+        // Handle single service object
+        else if (services && services.name) {
+          serviceNames = services.name.trim();
+          totalDuration = booking.total_duration || services.duration || 30;
+          
+          console.log('BookingCard - Single service object found:', { names: serviceNames, duration: totalDuration });
+          return { names: serviceNames, duration: totalDuration };
+        }
+      } catch (error) {
+        console.error('BookingCard - Error parsing services JSON:', error);
       }
+    }
+    
+    // Second priority: Fallback to single service relation
+    if (booking.service?.name) {
+      serviceNames = booking.service.name.trim();
+      totalDuration = booking.total_duration || booking.service.duration || 30;
       
-      if (Array.isArray(services) && services.length > 0) {
-        const serviceNames = services.map(s => s.name || 'Service').join(', ');
-        return {
-          name: serviceNames,
-          duration: booking.total_duration || 30
-        };
-      }
+      console.log('BookingCard - Using single service fallback:', { names: serviceNames, duration: totalDuration });
+      return { names: serviceNames, duration: totalDuration };
     }
-
-    return { name: 'Service', duration: booking.total_duration || 30 };
-  };
-
-  const handleStatusChangeClick = (action: 'complete' | 'cancel') => {
-    setConfirmAction(action);
-    setIsConfirmDialogOpen(true);
-  };
-
-  const handleConfirmStatusChange = async () => {
-    setIsUpdating(true);
-    try {
-      const newStatus = confirmAction === 'complete' ? 'completed' : 'cancelled';
-      await onStatusChange(booking.id, newStatus);
-    } finally {
-      setIsUpdating(false);
-      setIsConfirmDialogOpen(false);
-    }
+    
+    // Final fallback
+    const fallbackData = {
+      names: serviceNames, // Will be 'Unknown Service'
+      duration: totalDuration // Will be booking.total_duration or 30
+    };
+    
+    console.log('BookingCard - Using final fallback:', fallbackData);
+    return fallbackData;
   };
 
   const serviceInfo = getServiceInfo();
-  const isActive = booking.status === 'pending' || booking.status === 'confirmed';
+
+  const getTimeRange = () => {
+    const startMinutes = timeToMinutes(booking.time_slot);
+    const endMinutes = startMinutes + serviceInfo.duration;
+    const endTime = minutesToTime(endMinutes);
+    
+    return `${formatTimeToAmPm(booking.time_slot)} - ${formatTimeToAmPm(endTime)}`;
+  };
+
+  const handleStatusUpdate = async (newStatus: 'confirmed' | 'completed' | 'cancelled') => {
+    try {
+      let updateData: any = { status: newStatus };
+      
+      // If completing, also set payment status to completed for earnings calculation
+      if (newStatus === 'completed') {
+        updateData.payment_status = 'completed';
+      }
+
+      const { error } = await supabase
+        .from('bookings')
+        .update(updateData)
+        .eq('id', booking.id);
+
+      if (error) {
+        console.error('Error updating booking status:', error);
+        toast.error('Failed to update booking status');
+        return;
+      }
+
+      toast.success(`Booking ${newStatus} successfully`);
+      await onStatusChange(booking.id, newStatus);
+    } catch (error) {
+      console.error('Error updating booking status:', error);
+      toast.error('Failed to update booking status');
+    }
+  };
+
+  // Get card styling based on status
+  const getCardStyling = () => {
+    if (booking.status === 'cancelled') {
+      return 'opacity-60 border-l-red-500 bg-red-50/30';
+    }
+    if (booking.status === 'completed') {
+      return 'border-l-blue-500 bg-blue-50/30';
+    }
+    return 'border-l-booqit-primary';
+  };
 
   return (
-    <>
-      <Card className={`transition-all duration-200 ${
-        isActive 
-          ? 'border-l-4 border-l-booqit-primary shadow-md hover:shadow-lg' 
-          : 'border-l-4 border-l-gray-300 opacity-75'
-      }`}>
-        <CardContent className="p-4">
-          <div className="flex items-start justify-between">
-            <div className="flex-1 space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Clock className="h-4 w-4 text-booqit-primary" />
-                  <span className="font-medium text-booqit-dark">
-                    {format(new Date(`2000-01-01T${booking.time_slot}`), 'h:mm a')}
-                  </span>
-                  <Badge className={`text-xs px-2 py-1 ${getStatusColor(booking.status)}`}>
-                    {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-                  </Badge>
-                </div>
-                
-                {isActive && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {booking.status !== 'completed' && (
-                        <DropdownMenuItem 
-                          onClick={() => handleStatusChangeClick('complete')}
-                          className="text-green-600 hover:text-green-700"
-                        >
-                          <CheckCircle className="mr-2 h-4 w-4" />
-                          Mark as Completed
-                        </DropdownMenuItem>
-                      )}
-                      {booking.status !== 'cancelled' && booking.status !== 'completed' && (
-                        <DropdownMenuItem 
-                          onClick={() => handleStatusChangeClick('cancel')}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <XCircle className="mr-2 h-4 w-4" />
-                          Cancel Booking
-                        </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-              </div>
-
-              <div className="space-y-1">
-                <div className="flex items-center space-x-2">
-                  <User className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm font-medium text-gray-900">
-                    {booking.customer_name || 'Customer'}
-                  </span>
-                </div>
-                
-                <div className="text-sm text-gray-600">
-                  <div className="font-medium">{serviceInfo.name}</div>
-                  <div className="text-xs text-gray-500">
-                    Duration: {serviceInfo.duration} mins
-                    {booking.stylist_name && ` • Stylist: ${booking.stylist_name}`}
-                  </div>
-                </div>
-
-                {booking.customer_phone && (
-                  <div className="text-xs text-gray-500">
-                    Phone: {booking.customer_phone}
-                  </div>
-                )}
-              </div>
-            </div>
+    <Card className={`hover:shadow-lg transition-shadow duration-200 border-l-4 ${getCardStyling()}`}>
+      <CardContent className="p-4">
+        {/* Header with time range and status */}
+        <div className="flex justify-between items-start mb-4">
+          <div className="flex items-center space-x-2">
+            <Clock className="h-4 w-4 text-gray-500" />
+            <span className={`font-semibold text-sm ${booking.status === 'cancelled' ? 'line-through text-gray-500' : ''}`}>
+              {getTimeRange()}
+            </span>
           </div>
-        </CardContent>
-      </Card>
+          <Badge className={`${getStatusColor(booking.status)} font-medium`}>
+            {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+          </Badge>
+        </div>
 
-      <BookingConfirmationDialog
-        isOpen={isConfirmDialogOpen}
-        onClose={() => setIsConfirmDialogOpen(false)}
-        onConfirm={handleConfirmStatusChange}
-        actionType={confirmAction}
-        customerName={booking.customer_name}
-        serviceName={serviceInfo.name}
-        timeSlot={format(new Date(`2000-01-01T${booking.time_slot}`), 'h:mm a')}
-        isLoading={isUpdating}
-      />
-    </>
+        {/* Service names and duration */}
+        <div className="space-y-2 mb-3">
+          <div className="flex items-center space-x-2">
+            <div className={`w-2 h-2 rounded-full ${booking.status === 'cancelled' ? 'bg-red-400' : 'bg-booqit-primary'}`}></div>
+            <span className={`font-medium ${booking.status === 'cancelled' ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
+              {serviceInfo.names}
+            </span>
+          </div>
+          <div className="flex items-center space-x-2 text-gray-600">
+            <Timer className="h-4 w-4 text-gray-500" />
+            <span className="text-sm">{serviceInfo.duration} min</span>
+          </div>
+        </div>
+
+        {/* Customer and stylist information */}
+        <div className="space-y-2 mb-4">
+          {booking.customer_name && (
+            <div className="flex items-center space-x-2 text-gray-700">
+              <User className="h-4 w-4 text-gray-500" />
+              <span className={`font-medium ${booking.status === 'cancelled' ? 'text-gray-500' : ''}`}>
+                {booking.customer_name}
+              </span>
+            </div>
+          )}
+          
+          {booking.customer_phone && (
+            <div className="flex items-center space-x-2 text-gray-600">
+              <Phone className="h-4 w-4 text-gray-500" />
+              <a 
+                href={`tel:${booking.customer_phone}`} 
+                className={`${booking.status === 'cancelled' ? 'text-gray-500 cursor-default' : 'text-booqit-primary hover:underline cursor-pointer'}`}
+                onClick={booking.status === 'cancelled' ? (e) => e.preventDefault() : undefined}
+              >
+                {booking.customer_phone}
+              </a>
+            </div>
+          )}
+          
+          {booking.stylist_name && (
+            <div className="flex items-center space-x-2 text-gray-700">
+              <Scissors className="h-4 w-4 text-gray-500" />
+              <span className={booking.status === 'cancelled' ? 'text-gray-500' : ''}>
+                Stylist: <span className="font-medium">{booking.stylist_name}</span>
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Action buttons - only show if not cancelled or completed */}
+        {booking.status === 'pending' || booking.status === 'confirmed' ? (
+          <div className="flex flex-wrap gap-2">
+            {booking.status === 'pending' && (
+              <Button 
+                size="sm" 
+                onClick={() => handleStatusUpdate('confirmed')} 
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                <CheckCircle className="h-4 w-4 mr-1" />
+                Confirm
+              </Button>
+            )}
+            
+            {booking.status === 'confirmed' && (
+              <Button 
+                size="sm" 
+                onClick={() => handleStatusUpdate('completed')} 
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <CheckCircle className="h-4 w-4 mr-1" />
+                Complete
+              </Button>
+            )}
+            
+            <Button 
+              size="sm" 
+              variant="destructive" 
+              onClick={() => handleStatusUpdate('cancelled')}
+            >
+              <XCircle className="h-4 w-4 mr-1" />
+              Cancel
+            </Button>
+          </div>
+        ) : booking.status === 'cancelled' ? (
+          <div className="text-sm text-red-600 font-medium">
+            This booking has been cancelled
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 };
 
