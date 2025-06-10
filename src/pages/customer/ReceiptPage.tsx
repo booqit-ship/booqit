@@ -109,8 +109,8 @@ const ReceiptPage: React.FC = () => {
       }
       
       // If no services found from JSONB field, fall back to single service relation
-      if (services.length === 0 && booking.services) {
-        services = [booking.services];
+      if (services.length === 0 && booking.service) {
+        services = [booking.service];
         console.log('Using single service from relation:', services);
       }
       
