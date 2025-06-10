@@ -116,70 +116,74 @@ const PaymentPage: React.FC = () => {
       // Create payment record with improved error handling
       console.log('Creating payment record for booking:', bookingId);
       
+      let paymentRecordCreated = false;
+      
       try {
-        const { data: paymentData, error: paymentError } = await supabase
+        // Ensure we have valid data for payment record
+        if (!bookingId || !totalPrice) {
+          throw new Error('Missing booking ID or total price for payment record');
+        }
+
+        const paymentData = {
+          booking_id: bookingId,
+          method: 'pay_on_shop',
+          amount: Number(totalPrice), // Ensure it's a number
+          status: 'completed'
+        };
+
+        console.log('Inserting payment record with data:', paymentData);
+
+        const { data: insertedPayment, error: paymentError } = await supabase
           .from('payments')
-          .insert({
-            booking_id: bookingId,
-            method: 'pay_on_shop',
-            amount: totalPrice,
-            status: 'completed'
-          })
+          .insert(paymentData)
           .select()
           .single();
         
         if (paymentError) {
           console.error('Payment record creation error:', paymentError);
-          
-          // Try to update booking payment status even if payment record fails
-          const { error: paymentStatusError } = await supabase
-            .from('bookings')
-            .update({ payment_status: 'completed' })
-            .eq('id', bookingId);
-          
-          if (paymentStatusError) {
-            console.error('Error updating booking payment status:', paymentStatusError);
-            toast.warning('Booking confirmed but payment status update failed');
-          } else {
-            console.log('Payment status updated despite payment record failure');
-            toast.warning('Booking confirmed but payment record had an issue');
-          }
+          throw paymentError;
         } else {
-          console.log('Payment record created successfully:', paymentData);
-          
-          // Update booking payment status
-          const { error: paymentStatusError } = await supabase
-            .from('bookings')
-            .update({ payment_status: 'completed' })
-            .eq('id', bookingId);
-          
-          if (paymentStatusError) {
-            console.error('Error updating booking payment status:', paymentStatusError);
-            toast.warning('Payment recorded but status update failed');
-          } else {
-            console.log('Booking payment status updated to completed');
-          }
+          console.log('Payment record created successfully:', insertedPayment);
+          paymentRecordCreated = true;
         }
       } catch (paymentCreationError) {
-        console.error('Payment creation caught error:', paymentCreationError);
+        console.error('Failed to create payment record:', paymentCreationError);
         
-        // Ensure booking payment status is updated regardless
-        try {
-          const { error: fallbackError } = await supabase
-            .from('bookings')
-            .update({ payment_status: 'completed' })
-            .eq('id', bookingId);
-          
-          if (fallbackError) {
-            console.error('Fallback payment status update failed:', fallbackError);
+        // Log the specific error for debugging
+        if (paymentCreationError.message) {
+          console.error('Payment error message:', paymentCreationError.message);
+        }
+        if (paymentCreationError.details) {
+          console.error('Payment error details:', paymentCreationError.details);
+        }
+        
+        paymentRecordCreated = false;
+      }
+
+      // Always update booking payment status regardless of payment record creation
+      try {
+        const { error: paymentStatusError } = await supabase
+          .from('bookings')
+          .update({ payment_status: 'completed' })
+          .eq('id', bookingId);
+        
+        if (paymentStatusError) {
+          console.error('Error updating booking payment status:', paymentStatusError);
+          if (!paymentRecordCreated) {
             toast.warning('Booking confirmed but payment processing had issues');
           } else {
-            console.log('Fallback payment status update successful');
-            toast.warning('Booking confirmed but payment record creation had an issue');
+            toast.warning('Payment recorded but status update failed');
           }
-        } catch (fallbackError) {
-          console.error('Fallback operation failed completely:', fallbackError);
-          toast.warning('Booking confirmed but payment processing encountered multiple issues');
+        } else {
+          console.log('Booking payment status updated to completed');
+          if (!paymentRecordCreated) {
+            toast.warning('Booking confirmed but payment record creation failed');
+          }
+        }
+      } catch (statusUpdateError) {
+        console.error('Critical error updating payment status:', statusUpdateError);
+        if (!paymentRecordCreated) {
+          toast.error('Booking confirmed but payment processing failed completely');
         }
       }
 
@@ -217,7 +221,12 @@ const PaymentPage: React.FC = () => {
         // Don't fail the booking if notification fails
       }
       
-      toast.success('Payment successful! Your booking is confirmed.');
+      // Show success message
+      if (paymentRecordCreated) {
+        toast.success('Payment successful! Your booking is confirmed.');
+      } else {
+        toast.success('Booking confirmed! Payment will be processed at the shop.');
+      }
 
       // Navigate to receipt page
       navigate(`/receipt/${bookingId}`, {
