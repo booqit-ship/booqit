@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -50,20 +51,19 @@ const OnboardingPage: React.FC = () => {
     image: null as File | null,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isAlreadyOnboarded, setIsAlreadyOnboarded] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   const navigate = useNavigate();
   const { toast } = useToast();
   const { userId } = useAuth();
 
-  // Check if merchant has already completed onboarding
+  // Check if merchant has already completed onboarding properly
   useEffect(() => {
     const checkOnboardingStatus = async () => {
       if (!userId) return;
       
       try {
-        // Check if merchant record exists for this user
+        // Check if merchant record exists and if it's properly onboarded
         const { data: merchantData, error } = await supabase
           .from('merchants')
           .select('*')
@@ -71,17 +71,45 @@ const OnboardingPage: React.FC = () => {
           .single();
         
         if (merchantData) {
-          // Merchant already exists, redirect to dashboard
-          setIsAlreadyOnboarded(true);
-          toast({
-            title: "Already onboarded",
-            description: "Your merchant account is already set up.",
-          });
-          navigate('/merchant');
+          // Check if merchant has completed onboarding (has proper address and location)
+          const hasCompletedOnboarding = merchantData.address && 
+                                       merchantData.address.trim() !== '' &&
+                                       (merchantData.lat !== 0 || merchantData.lng !== 0);
+          
+          if (hasCompletedOnboarding) {
+            console.log("Merchant has completed onboarding, redirecting to dashboard");
+            toast({
+              title: "Already onboarded",
+              description: "Your merchant account is already set up.",
+            });
+            navigate('/merchant');
+          } else {
+            console.log("Merchant record exists but onboarding incomplete, continuing with onboarding");
+            // Pre-fill form with existing data
+            setShopInfo(prev => ({
+              ...prev,
+              name: merchantData.shop_name || '',
+              category: merchantData.category || '',
+              gender_focus: merchantData.gender_focus || 'unisex',
+              description: merchantData.description || '',
+              open_time: merchantData.open_time?.slice(0, 5) || '', // Convert HH:MM:SS to HH:MM
+              close_time: merchantData.close_time?.slice(0, 5) || '', // Convert HH:MM:SS to HH:MM
+            }));
+            
+            if (merchantData.lat && merchantData.lng) {
+              setLocationDetails({
+                lat: merchantData.lat,
+                lng: merchantData.lng,
+                address: merchantData.address || '',
+              });
+            }
+          }
+        } else {
+          console.log("No merchant record found, continuing with onboarding");
         }
       } catch (error) {
-        // No merchant record found, continue with onboarding
-        console.log("No merchant record found, proceeding with onboarding");
+        console.log("Error checking onboarding status:", error);
+        // Continue with onboarding if there's an error
       } finally {
         setIsLoading(false);
       }
@@ -111,47 +139,132 @@ const OnboardingPage: React.FC = () => {
       });
       return;
     }
+
+    // Validate required fields
+    if (!shopInfo.name || !shopInfo.category || !shopInfo.open_time || !shopInfo.close_time) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required shop information.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!locationDetails.address || (locationDetails.lat === 0 && locationDetails.lng === 0)) {
+      toast({
+        title: "Missing Location",
+        description: "Please set your shop location.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!bankDetails.account_holder_name || !bankDetails.account_number || !bankDetails.ifsc_code || !bankDetails.bank_name) {
+      toast({
+        title: "Missing Bank Details",
+        description: "Please fill in all required bank information.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     setIsSubmitting(true);
     
     try {
-      // 1. Insert merchant record
-      const { data: merchantData, error: merchantError } = await supabase
+      // Check if merchant record already exists
+      const { data: existingMerchant } = await supabase
         .from('merchants')
-        .insert({
-          user_id: userId,
-          shop_name: shopInfo.name,
-          category: shopInfo.category,
-          gender_focus: shopInfo.gender_focus, // Add the new field
-          description: shopInfo.description,
-          open_time: shopInfo.open_time,
-          close_time: shopInfo.close_time,
-          lat: locationDetails.lat,
-          lng: locationDetails.lng,
-          address: locationDetails.address,
-        })
-        .select()
+        .select('id')
+        .eq('user_id', userId)
         .single();
-      
-      if (merchantError) throw merchantError;
-      
-      // 2. Insert bank details
-      if (merchantData) {
-        const { error: bankError } = await supabase
-          .from('bank_info')
-          .insert({
-            merchant_id: merchantData.id,
-            account_holder_name: bankDetails.account_holder_name,
-            account_number: bankDetails.account_number,
-            ifsc_code: bankDetails.ifsc_code,
-            bank_name: bankDetails.bank_name,
-            upi_id: bankDetails.upi_id || null,
-          });
+
+      let merchantData;
+
+      if (existingMerchant) {
+        // Update existing merchant record
+        const { data: updatedMerchant, error: merchantError } = await supabase
+          .from('merchants')
+          .update({
+            shop_name: shopInfo.name,
+            category: shopInfo.category,
+            gender_focus: shopInfo.gender_focus,
+            description: shopInfo.description,
+            open_time: shopInfo.open_time,
+            close_time: shopInfo.close_time,
+            lat: locationDetails.lat,
+            lng: locationDetails.lng,
+            address: locationDetails.address,
+          })
+          .eq('user_id', userId)
+          .select()
+          .single();
         
-        if (bankError) throw bankError;
+        if (merchantError) throw merchantError;
+        merchantData = updatedMerchant;
+      } else {
+        // Insert new merchant record
+        const { data: newMerchant, error: merchantError } = await supabase
+          .from('merchants')
+          .insert({
+            user_id: userId,
+            shop_name: shopInfo.name,
+            category: shopInfo.category,
+            gender_focus: shopInfo.gender_focus,
+            description: shopInfo.description,
+            open_time: shopInfo.open_time,
+            close_time: shopInfo.close_time,
+            lat: locationDetails.lat,
+            lng: locationDetails.lng,
+            address: locationDetails.address,
+          })
+          .select()
+          .single();
+        
+        if (merchantError) throw merchantError;
+        merchantData = newMerchant;
       }
       
-      // 3. Upload shop image if provided
+      // Handle bank details
+      if (merchantData) {
+        // Check if bank info already exists
+        const { data: existingBankInfo } = await supabase
+          .from('bank_info')
+          .select('id')
+          .eq('merchant_id', merchantData.id)
+          .single();
+
+        if (existingBankInfo) {
+          // Update existing bank info
+          const { error: bankError } = await supabase
+            .from('bank_info')
+            .update({
+              account_holder_name: bankDetails.account_holder_name,
+              account_number: bankDetails.account_number,
+              ifsc_code: bankDetails.ifsc_code,
+              bank_name: bankDetails.bank_name,
+              upi_id: bankDetails.upi_id || null,
+            })
+            .eq('merchant_id', merchantData.id);
+          
+          if (bankError) throw bankError;
+        } else {
+          // Insert new bank info
+          const { error: bankError } = await supabase
+            .from('bank_info')
+            .insert({
+              merchant_id: merchantData.id,
+              account_holder_name: bankDetails.account_holder_name,
+              account_number: bankDetails.account_number,
+              ifsc_code: bankDetails.ifsc_code,
+              bank_name: bankDetails.bank_name,
+              upi_id: bankDetails.upi_id || null,
+            });
+          
+          if (bankError) throw bankError;
+        }
+      }
+      
+      // Upload shop image if provided
       if (shopInfo.image && merchantData) {
         const fileExt = shopInfo.image.name.split('.').pop();
         const fileName = `${userId}-${Date.now()}.${fileExt}`;
@@ -232,10 +345,6 @@ const OnboardingPage: React.FC = () => {
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-booqit-primary"></div>
       </div>
     );
-  }
-
-  if (isAlreadyOnboarded) {
-    return null; // Will redirect in useEffect
   }
 
   return (

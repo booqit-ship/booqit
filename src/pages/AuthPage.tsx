@@ -164,19 +164,19 @@ const AuthPage: React.FC = () => {
         console.log('✅ Profile created successfully');
       }
 
-      // Step 3: If merchant role, create merchant record
+      // Step 3: If merchant role, create basic merchant record (will be completed in onboarding)
       if (selectedRole === 'merchant') {
-        console.log('🏪 Creating merchant record...');
+        console.log('🏪 Creating basic merchant record for onboarding...');
         
-        // Create merchant record with default values
+        // Create minimal merchant record - will be completed during onboarding
         const { error: merchantError } = await supabase
           .from('merchants')
           .insert({
             user_id: authData.user.id,
-            shop_name: `${name.trim()}'s Shop`, // Default shop name
+            shop_name: `${name.trim()}'s Shop`, // Temporary name
             address: '', // Will be filled during onboarding
             category: 'salon', // Default category
-            lat: 0, // Default coordinates, will be updated during onboarding
+            lat: 0, // Will be updated during onboarding
             lng: 0,
             open_time: '09:00',
             close_time: '18:00',
@@ -184,11 +184,11 @@ const AuthPage: React.FC = () => {
           });
 
         if (merchantError) {
-          console.error('❌ Merchant record creation error:', merchantError);
-          // Don't throw here, let the user continue and create merchant record later
-          console.log('⚠️ Merchant record creation failed, user can complete in onboarding');
+          console.error('❌ Basic merchant record creation error:', merchantError);
+          // Don't throw here, onboarding can handle creating the record if needed
+          console.log('⚠️ Basic merchant record creation failed, onboarding will handle it');
         } else {
-          console.log('✅ Merchant record created successfully');
+          console.log('✅ Basic merchant record created for onboarding');
         }
       }
 
@@ -204,6 +204,7 @@ const AuthPage: React.FC = () => {
         
         console.log('🎯 Navigating after registration...');
         if (selectedRole === 'merchant') {
+          // Always go to onboarding for new merchants
           navigate('/merchant/onboarding', { replace: true });
         } else {
           navigate('/home', { replace: true });
@@ -303,7 +304,23 @@ const AuthPage: React.FC = () => {
         
         console.log('🎯 Navigating after login...');
         if (userRole === 'merchant') {
-          navigate('/merchant', { replace: true });
+          // Check if merchant needs onboarding
+          const { data: merchantData } = await supabase
+            .from('merchants')
+            .select('address, lat, lng')
+            .eq('user_id', data.user.id)
+            .single();
+            
+          const needsOnboarding = !merchantData || 
+                                !merchantData.address || 
+                                merchantData.address.trim() === '' ||
+                                (merchantData.lat === 0 && merchantData.lng === 0);
+                                
+          if (needsOnboarding) {
+            navigate('/merchant/onboarding', { replace: true });
+          } else {
+            navigate('/merchant', { replace: true });
+          }
         } else {
           navigate('/home', { replace: true });
         }
