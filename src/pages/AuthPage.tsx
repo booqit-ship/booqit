@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,7 @@ import { validateCurrentSession } from '@/utils/sessionRecovery';
 
 const AuthPage: React.FC = () => {
   const location = useLocation();
+  const hasRedirected = useRef(false);
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [isRoleSelected, setIsRoleSelected] = useState(false);
   const [email, setEmail] = useState('');
@@ -53,10 +54,13 @@ const AuthPage: React.FC = () => {
 
   // Redirect authenticated users immediately using permanent session
   useEffect(() => {
+    if (hasRedirected.current) return; // Prevent double navigation
+
     const permanentData = PermanentSession.getSession();
     
     if (permanentData.isLoggedIn) {
       console.log('🔄 User has permanent session, redirecting...', { userRole: permanentData.userRole });
+      hasRedirected.current = true;
       if (permanentData.userRole === 'merchant') {
         navigate('/merchant', { replace: true });
       } else {
@@ -67,6 +71,7 @@ const AuthPage: React.FC = () => {
 
     if (!loading && isAuthenticated && userRole) {
       console.log('🔄 User authenticated via context, redirecting...', { userRole });
+      hasRedirected.current = true;
       if (userRole === 'merchant') {
         navigate('/merchant', { replace: true });
       } else {
