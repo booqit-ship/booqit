@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -11,6 +10,7 @@ import { PlusCircle, Edit, Trash, Loader2, Clock, Users } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useIsMobile } from '@/hooks/use-mobile';
 import AddServiceWidget from '@/components/merchant/AddServiceWidget';
+import EditServiceWidget from '@/components/merchant/EditServiceWidget';
 import AddStaffWidget from '@/components/merchant/AddStaffWidget';
 
 const ServicesPage: React.FC = () => {
@@ -21,6 +21,8 @@ const ServicesPage: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isServiceWidgetOpen, setIsServiceWidgetOpen] = useState(false);
+  const [isEditWidgetOpen, setIsEditWidgetOpen] = useState(false);
+  const [editingService, setEditingService] = useState<Service | null>(null);
   const [isStaffWidgetOpen, setIsStaffWidgetOpen] = useState(false);
   
   const { toast } = useToast();
@@ -76,6 +78,12 @@ const ServicesPage: React.FC = () => {
     setServices([...services, newService]);
   };
 
+  const handleServiceUpdated = (updatedService: Service) => {
+    setServices(services.map(service => 
+      service.id === updatedService.id ? updatedService : service
+    ));
+  };
+
   const handleStaffAdded = (newStaff: any) => {
     toast({
       title: "Success",
@@ -83,12 +91,9 @@ const ServicesPage: React.FC = () => {
     });
   };
 
-  const handleEditService = async (service: Service) => {
-    // TODO: Implement edit functionality with a separate edit widget
-    toast({
-      title: "Info",
-      description: "Edit functionality coming soon!"
-    });
+  const handleEditService = (service: Service) => {
+    setEditingService(service);
+    setIsEditWidgetOpen(true);
   };
 
   const confirmDelete = (id: string) => {
@@ -219,13 +224,7 @@ const ServicesPage: React.FC = () => {
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Your First Service
               </Button>
             </div>
-          ) : isMobile ? (
-            <div className="p-5 grid grid-cols-1 gap-5">
-              {services.map(service => (
-                <MobileServiceCard key={service.id} service={service} />
-              ))}
-            </div>
-          ) : (
+          ) : !isLoading && services.length > 0 && !isMobile && (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -267,6 +266,12 @@ const ServicesPage: React.FC = () => {
                 </TableBody>
               </Table>
             </div>
+          ) : !isLoading && services.length > 0 && isMobile && (
+            <div className="p-5 grid grid-cols-1 gap-5">
+              {services.map(service => (
+                <MobileServiceCard key={service.id} service={service} />
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>
@@ -280,6 +285,17 @@ const ServicesPage: React.FC = () => {
           onClose={() => setIsServiceWidgetOpen(false)}
         />
       )}
+
+      {/* Edit Service Widget */}
+      <EditServiceWidget
+        service={editingService}
+        isOpen={isEditWidgetOpen}
+        onClose={() => {
+          setIsEditWidgetOpen(false);
+          setEditingService(null);
+        }}
+        onServiceUpdated={handleServiceUpdated}
+      />
 
       {/* Add Staff Widget */}
       {merchantId && (
