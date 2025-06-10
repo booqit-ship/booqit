@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Store, Clock, User, CheckCircle2, CreditCard, MapPin } from 'lucide-react';
@@ -77,29 +78,40 @@ const ReceiptPage: React.FC = () => {
     let services = [];
     let totalDuration = 0;
     
-    // Try to get services from state data first
-    if (stateData?.selectedServices) {
+    console.log('Booking data:', booking);
+    console.log('State data:', stateData);
+    
+    // Try to get services from state data first (most reliable)
+    if (stateData?.selectedServices && Array.isArray(stateData.selectedServices)) {
       services = stateData.selectedServices;
       totalDuration = services.reduce((sum: number, service: any) => sum + (service.duration || 0), 0);
+      console.log('Using services from state data:', services);
     } 
     // Otherwise try to parse from booking data
     else if (booking) {
-      // Check if booking has services JSON field
-      if (booking.services && typeof booking.services === 'object') {
-        services = Array.isArray(booking.services) ? booking.services : [booking.services];
-      } else if (booking.services && typeof booking.services === 'string') {
+      // Check if booking has services JSONB field
+      if (booking.services) {
         try {
-          const parsedServices = JSON.parse(booking.services);
-          services = Array.isArray(parsedServices) ? parsedServices : [parsedServices];
+          // If it's already an object/array
+          if (typeof booking.services === 'object') {
+            services = Array.isArray(booking.services) ? booking.services : [booking.services];
+          } 
+          // If it's a JSON string, parse it
+          else if (typeof booking.services === 'string') {
+            const parsedServices = JSON.parse(booking.services);
+            services = Array.isArray(parsedServices) ? parsedServices : [parsedServices];
+          }
+          console.log('Parsed services from booking.services:', services);
         } catch (error) {
           console.error('Error parsing services JSON:', error);
           services = [];
         }
       }
       
-      // If no services found in JSON, fall back to single service
+      // If no services found from JSONB field, fall back to single service relation
       if (services.length === 0 && booking.services) {
         services = [booking.services];
+        console.log('Using single service from relation:', services);
       }
       
       // Use total_duration if available, otherwise calculate from services
@@ -109,6 +121,9 @@ const ReceiptPage: React.FC = () => {
         totalDuration = services.reduce((sum: number, service: any) => sum + (service.duration || 0), 0);
       }
     }
+    
+    console.log('Final services:', services);
+    console.log('Total duration:', totalDuration);
     
     return { services, totalDuration };
   };
@@ -238,7 +253,7 @@ const ReceiptPage: React.FC = () => {
                 <div className="text-right">
                   {services.length > 0 ? (
                     services.map((service: any, index: number) => (
-                      <div key={service.id || index} className="font-medium">
+                      <div key={service.id || index} className="font-medium mb-1">
                         {service.name}
                         {service.duration && (
                           <span className="text-sm text-gray-500 ml-1">({service.duration}min)</span>
