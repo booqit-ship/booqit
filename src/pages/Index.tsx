@@ -48,7 +48,7 @@ const Index = () => {
     }
   }, [isAuthenticated, userRole, loading, navigate]);
 
-  // Show loading only if we don't have permanent session AND auth is loading
+  // Only show loading if we don't have permanent session AND auth is loading
   const permanentData = PermanentSession.getSession();
   if (loading && !permanentData.isLoggedIn) {
     return (
@@ -61,7 +61,7 @@ const Index = () => {
     );
   }
 
-  // Show role selection for unauthenticated users
+  // Show role selection immediately for unauthenticated users - NO LOADING STATE
   if (!isAuthenticated && !PermanentSession.isLoggedIn()) {
     const handleRoleSelect = (role: UserRole) => {
       console.log('🎯 Role selected:', role);

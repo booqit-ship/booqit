@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Store, User } from 'lucide-react';
@@ -9,23 +10,6 @@ interface RoleSelectionProps {
 }
 
 const RoleSelection: React.FC<RoleSelectionProps> = ({ onRoleSelect }) => {
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [imageError, setImageError] = useState(false);
-  
-  const imageUrl = "/lovable-uploads/d7dc2456-35dc-4a91-bbac-3783a243d686.png";
-
-  // Preload image on component mount
-  useEffect(() => {
-    const img = new Image();
-    img.onload = () => {
-      setImageLoaded(true);
-    };
-    img.onerror = () => {
-      setImageError(true);
-    };
-    img.src = imageUrl;
-  }, [imageUrl]);
-
   // Prevent event bubbling and default behavior
   const handleRoleClick = (role: UserRole, event: React.MouseEvent) => {
     event.preventDefault();
@@ -49,40 +33,14 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({ onRoleSelect }) => {
           <p className="text-gray-600 font-poppins">Choose how you want to continue</p>
         </div>
 
-        {/* Image with optimized loading */}
+        {/* Static Image - No Loading Logic */}
         <div className="text-center">
           <div className="relative w-full h-64 mx-auto overflow-hidden rounded-lg">
-            {!imageLoaded && !imageError && (
-              <div className="absolute inset-0 bg-gray-100 animate-pulse flex items-center justify-center">
-                <div className="text-gray-400 font-poppins text-sm">Loading...</div>
-              </div>
-            )}
-            
-            {imageError && (
-              <div className="absolute inset-0 bg-gradient-to-br from-booqit-primary/20 to-booqit-secondary/20 flex items-center justify-center">
-                <div className="text-center text-gray-600 font-poppins">
-                  <Store className="h-12 w-12 mx-auto mb-2 text-booqit-primary" />
-                  <p className="text-sm">BooqIt Services</p>
-                </div>
-              </div>
-            )}
-            
-            <motion.img 
-              src={imageUrl}
+            <img 
+              src="/lovable-uploads/d7dc2456-35dc-4a91-bbac-3783a243d686.png"
               alt="BooqIt Service Illustration" 
-              initial={{ scale: 0.8, opacity: 0 }} 
-              animate={{ 
-                scale: imageLoaded ? 1 : 0.8, 
-                opacity: imageLoaded ? 1 : 0 
-              }} 
-              transition={{ duration: 0.6, delay: 0.2 }} 
-              className={`w-full h-full object-cover transition-opacity duration-300 ${
-                imageLoaded ? 'opacity-100' : 'opacity-0'
-              }`}
-              loading="eager"
-              fetchPriority="high"
-              onLoad={() => setImageLoaded(true)}
-              onError={() => setImageError(true)}
+              className="w-full h-full object-cover"
+              draggable={false}
             />
           </div>
         </div>
