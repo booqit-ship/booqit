@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,7 +14,14 @@ import { getFCMToken, requestNotificationPermission } from '@/firebase';
 import { toast } from 'sonner';
 
 const NotificationTestPanel = () => {
-  const { isInitialized, hasPermission, requestPermissionManually } = useNotifications();
+  const { 
+    isInitialized, 
+    hasPermission, 
+    requestPermissionManually, 
+    initializationError, 
+    retryCount,
+    retryInitialization 
+  } = useNotifications();
   const { userId, userRole } = useAuth();
   const [fcmToken, setFcmToken] = useState<string>('');
   const [customTitle, setCustomTitle] = useState('Custom Test Notification 🧪');
@@ -99,7 +107,7 @@ const NotificationTestPanel = () => {
       console.log('🧪 Sending test notification to user:', userId);
       console.log('📋 Notification payload:', { title: customTitle, body: customMessage });
       
-      const success = await sendNotificationToUser(userId, {
+      await sendNotificationToUser(userId, {
         title: customTitle,
         body: customMessage,
         data: {
@@ -109,22 +117,18 @@ const NotificationTestPanel = () => {
         }
       });
 
-      if (success) {
-        toast.success('✅ Test notification sent! Check for browser notification.', {
-          duration: 8000
+      toast.success('✅ Test notification sent! Check for browser notification.', {
+        duration: 8000
+      });
+      console.log('✅ Test notification sent successfully');
+      
+      // Also create a local test notification for immediate feedback
+      if (Notification.permission === 'granted') {
+        new Notification('Local Test: ' + customTitle, {
+          body: customMessage + ' (This is a local test notification)',
+          icon: '/icons/icon-192.png',
+          tag: 'local-test'
         });
-        console.log('✅ Test notification sent successfully');
-        
-        // Also create a local test notification for immediate feedback
-        if (Notification.permission === 'granted') {
-          new Notification('Local Test: ' + customTitle, {
-            body: customMessage + ' (This is a local test notification)',
-            icon: '/icons/icon-192.png',
-            tag: 'local-test'
-          });
-        }
-      } else {
-        toast.error('❌ Failed to send test notification. Check console for details.');
       }
     } catch (error) {
       console.error('❌ Error sending test notification:', error);
@@ -147,7 +151,7 @@ const NotificationTestPanel = () => {
         ? 'Welcome back to BooqIt! Ready to manage your bookings?' 
         : 'Welcome back to BooqIt! Your beauty appointments await!';
 
-      const success = await sendNotificationToUser(userId, {
+      await sendNotificationToUser(userId, {
         title: 'Welcome to BooqIt! 🎉',
         body: welcomeMessage,
         data: {
@@ -157,21 +161,17 @@ const NotificationTestPanel = () => {
         }
       });
 
-      if (success) {
-        toast.success('🎉 Welcome notification sent! Check for browser notification.', {
-          duration: 8000
+      toast.success('🎉 Welcome notification sent! Check for browser notification.', {
+        duration: 8000
+      });
+      
+      // Also create a local test notification
+      if (Notification.permission === 'granted') {
+        new Notification('Welcome to BooqIt! 🎉', {
+          body: welcomeMessage + ' (Local test)',
+          icon: '/icons/icon-192.png',
+          tag: 'welcome-test'
         });
-        
-        // Also create a local test notification
-        if (Notification.permission === 'granted') {
-          new Notification('Welcome to BooqIt! 🎉', {
-            body: welcomeMessage + ' (Local test)',
-            icon: '/icons/icon-192.png',
-            tag: 'welcome-test'
-          });
-        }
-      } else {
-        toast.error('❌ Failed to send welcome notification.');
       }
     } catch (error) {
       console.error('❌ Error sending welcome notification:', error);
@@ -194,7 +194,7 @@ const NotificationTestPanel = () => {
       toast.success('Welcome notification sent! 🎉');
     } catch (error) {
       console.error('Error testing welcome notification:', error);
-      toast.error('Failed to send welcome notification');
+      toast.error('Failed to send welcome notification: ' + error.message);
     } finally {
       setTestingWelcome(false);
     }
@@ -219,7 +219,7 @@ const NotificationTestPanel = () => {
       toast.success('New booking notification sent! 💇‍♀️');
     } catch (error) {
       console.error('Error testing booking notification:', error);
-      toast.error('Failed to send booking notification');
+      toast.error('Failed to send booking notification: ' + error.message);
     } finally {
       setTestingBooking(false);
     }
@@ -242,7 +242,7 @@ const NotificationTestPanel = () => {
       toast.success('Booking completion notification sent! ✨');
     } catch (error) {
       console.error('Error testing completion notification:', error);
-      toast.error('Failed to send completion notification');
+      toast.error('Failed to send completion notification: ' + error.message);
     } finally {
       setTestingCompletion(false);
     }
@@ -261,7 +261,7 @@ const NotificationTestPanel = () => {
       toast.success('Daily reminder sent! 📅');
     } catch (error) {
       console.error('Error testing daily reminder:', error);
-      toast.error('Failed to send daily reminder');
+      toast.error('Failed to send daily reminder: ' + error.message);
     } finally {
       setTestingDaily(false);
     }
@@ -335,9 +335,21 @@ const NotificationTestPanel = () => {
             
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-medium">System Status:</span>
-              <Badge variant={isInitialized ? "default" : "destructive"}>
-                {isInitialized ? "✅ Ready" : "❌ Pending"}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant={isInitialized ? "default" : "destructive"}>
+                  {isInitialized ? "✅ Ready" : "❌ Pending"}
+                </Badge>
+                {initializationError && !isInitialized && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={retryInitialization}
+                    className="p-1 h-6"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
             </div>
             
             <div className="flex items-center justify-between">
@@ -345,6 +357,28 @@ const NotificationTestPanel = () => {
               <Badge variant="outline">{userRole || 'Unknown'}</Badge>
             </div>
           </div>
+
+          {/* Error Display */}
+          {initializationError && !isInitialized && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-center gap-2 text-red-800 text-sm mb-2">
+                <AlertCircle className="h-4 w-4" />
+                <span className="font-medium">Initialization Failed ({retryCount}/3)</span>
+              </div>
+              <p className="text-red-700 text-xs mb-2">
+                Error: {initializationError}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={retryInitialization}
+                className="text-red-700 border-red-300 hover:bg-red-100"
+              >
+                <RefreshCw className="h-3 w-3 mr-1" />
+                Retry Initialization
+              </Button>
+            </div>
+          )}
 
           {/* FCM Token Display */}
           {hasPermission && fcmToken && (
@@ -453,14 +487,14 @@ const NotificationTestPanel = () => {
             </div>
           )}
 
-          {permissionStatus === 'granted' && !isInitialized && (
+          {permissionStatus === 'granted' && !isInitialized && !initializationError && (
             <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
               <div className="flex items-center gap-2 text-orange-800 text-sm">
                 <AlertCircle className="h-4 w-4" />
                 <span className="font-medium">System Initialization Pending</span>
               </div>
               <p className="text-orange-700 text-xs mt-1">
-                Browser permission granted but system initialization failed. Try refreshing the page.
+                Browser permission granted but system initialization in progress...
               </p>
             </div>
           )}

@@ -82,7 +82,7 @@ export const requestNotificationPermission = async () => {
     }
   } catch (error) {
     console.error('❌ Error requesting permission:', error);
-    return false;
+    throw new Error(`Permission request failed: ${error.message}`);
   }
 };
 
@@ -90,13 +90,13 @@ export const getFCMToken = async () => {
   try {
     if (!messaging) {
       console.error('❌ Firebase messaging not initialized');
-      return null;
+      throw new Error('Firebase messaging not available');
     }
 
     // Check permission first
     if (Notification.permission !== 'granted') {
       console.error('❌ Notification permission not granted');
-      return null;
+      throw new Error('Notification permission not granted');
     }
 
     console.log('🔑 Getting FCM token with VAPID key...');
@@ -110,11 +110,11 @@ export const getFCMToken = async () => {
       return token;
     } else {
       console.error('❌ No FCM token available - check VAPID key and permissions');
-      return null;
+      throw new Error('FCM token generation failed');
     }
   } catch (error) {
     console.error('❌ Error getting FCM token:', error);
-    return null;
+    throw new Error(`FCM token error: ${error.message}`);
   }
 };
 
@@ -129,38 +129,46 @@ export const setupForegroundMessaging = (callback?: (payload: any) => void) => {
   onMessage(messaging, (payload) => {
     console.log('📲 Foreground message received:', payload);
     
-    // Always show browser notification for foreground messages
-    if (payload.notification && Notification.permission === 'granted') {
-      const { title, body } = payload.notification;
-      
-      console.log('🔔 Creating browser notification:', { title, body });
-      
-      const notification = new Notification(title || 'BooqIt Notification', {
-        body: body || 'You have a new notification',
-        icon: '/icons/icon-192.png',
-        badge: '/icons/icon-192.png',
-        tag: 'foreground-notification',
-        requireInteraction: true,
-        silent: false,
-        data: payload.data
-      });
+    try {
+      // Always show browser notification for foreground messages
+      if (payload.notification && Notification.permission === 'granted') {
+        const { title, body } = payload.notification;
+        
+        console.log('🔔 Creating browser notification:', { title, body });
+        
+        const notification = new Notification(title || 'BooqIt Notification', {
+          body: body || 'You have a new notification',
+          icon: '/icons/icon-192.png',
+          badge: '/icons/icon-192.png',
+          tag: 'foreground-notification',
+          requireInteraction: true,
+          silent: false,
+          data: payload.data
+        });
 
-      // Handle notification click
-      notification.onclick = () => {
-        console.log('🔔 Foreground notification clicked');
-        window.focus();
-        notification.close();
-      };
+        // Handle notification click
+        notification.onclick = () => {
+          console.log('🔔 Foreground notification clicked');
+          window.focus();
+          notification.close();
+        };
 
-      // Auto-close after 10 seconds
-      setTimeout(() => {
-        notification.close();
-      }, 10000);
-    }
-    
-    // Also call the callback if provided
-    if (callback) {
-      callback(payload);
+        // Auto-close after 10 seconds
+        setTimeout(() => {
+          notification.close();
+        }, 10000);
+      }
+      
+      // Also call the callback if provided
+      if (callback) {
+        callback(payload);
+      }
+    } catch (error) {
+      console.error('❌ Error handling foreground message:', error);
+      // Still call callback even if notification display fails
+      if (callback) {
+        callback(payload);
+      }
     }
   });
 };

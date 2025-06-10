@@ -10,6 +10,8 @@ export const useNotifications = () => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
+  const [initializationError, setInitializationError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   // Check current permission status on mount
   useEffect(() => {
@@ -22,6 +24,61 @@ export const useNotifications = () => {
     console.log('🔔 Current permission status:', currentPermission);
     setHasPermission(currentPermission === 'granted');
   }, []);
+
+  const initializeWithRetry = async (userId: string, userRole: 'customer' | 'merchant', attempt = 1) => {
+    const maxRetries = 3;
+    
+    try {
+      console.log(`🔔 Initializing notifications (attempt ${attempt}/${maxRetries}) for user:`, userId, userRole);
+      
+      const result = await initializeUserNotifications(userId, userRole);
+      
+      if (result.success) {
+        setIsInitialized(true);
+        setInitializationError(null);
+        setRetryCount(0);
+        console.log('✅ Notifications initialized successfully');
+        
+        // Setup foreground message handling
+        setupForegroundMessaging((payload) => {
+          console.log('📱 Foreground notification received:', payload);
+          toast(payload.notification?.title || 'Notification', {
+            description: payload.notification?.body,
+            duration: 5000,
+          });
+        });
+        
+        return true;
+      } else {
+        console.error(`❌ Failed to initialize notifications (attempt ${attempt}):`, result.reason);
+        
+        // Retry for certain errors
+        if (attempt < maxRetries && (result.reason === 'token_failed' || result.reason === 'save_failed')) {
+          console.log(`🔄 Retrying initialization in 2 seconds... (${attempt + 1}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          return await initializeWithRetry(userId, userRole, attempt + 1);
+        } else {
+          setInitializationError(result.reason || 'Unknown error');
+          setRetryCount(attempt);
+          setIsInitialized(false);
+          return false;
+        }
+      }
+    } catch (error) {
+      console.error(`❌ Error initializing notifications (attempt ${attempt}):`, error);
+      
+      if (attempt < maxRetries) {
+        console.log(`🔄 Retrying initialization in 2 seconds... (${attempt + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        return await initializeWithRetry(userId, userRole, attempt + 1);
+      } else {
+        setInitializationError(error.message || 'Initialization failed');
+        setRetryCount(attempt);
+        setIsInitialized(false);
+        return false;
+      }
+    }
+  };
 
   useEffect(() => {
     const initializeNotifications = async () => {
@@ -40,35 +97,11 @@ export const useNotifications = () => {
         return;
       }
 
-      console.log('🔔 Initializing notifications for user:', userId, userRole);
-
-      try {
-        const result = await initializeUserNotifications(userId, userRole);
-        
-        if (result.success) {
-          setIsInitialized(true);
-          console.log('✅ Notifications initialized successfully');
-          
-          // Setup foreground message handling
-          setupForegroundMessaging((payload) => {
-            console.log('📱 Foreground notification received:', payload);
-            toast(payload.notification?.title || 'Notification', {
-              description: payload.notification?.body,
-              duration: 5000,
-            });
-          });
-        } else {
-          console.error('❌ Failed to initialize notifications:', result.reason);
-          setIsInitialized(false);
-        }
-      } catch (error) {
-        console.error('❌ Error initializing notifications:', error);
-        setIsInitialized(false);
-      }
+      await initializeWithRetry(userId, userRole);
     };
 
     // Only run if we have permission
-    if (hasPermission && isAuthenticated && userId && userRole) {
+    if (hasPermission && isAuthenticated && userId && userRole && !isInitialized) {
       initializeNotifications();
     }
   }, [isAuthenticated, userId, userRole, hasPermission, isInitialized]);
@@ -86,23 +119,12 @@ export const useNotifications = () => {
       
       if (permission && userId && userRole) {
         console.log('🔔 Permission granted, initializing notifications...');
-        const result = await initializeUserNotifications(userId, userRole);
+        const success = await initializeWithRetry(userId, userRole);
         
-        if (result.success) {
-          setIsInitialized(true);
+        if (success) {
           toast.success('Notifications enabled successfully! 🔔');
-          
-          // Setup foreground message handling
-          setupForegroundMessaging((payload) => {
-            console.log('📱 Foreground notification received:', payload);
-            toast(payload.notification?.title || 'Notification', {
-              description: payload.notification?.body,
-              duration: 5000,
-            });
-          });
         } else {
-          console.error('❌ Failed to initialize after permission grant:', result.reason);
-          toast.error('Failed to initialize notifications: ' + result.reason);
+          toast.error(`Failed to initialize notifications: ${initializationError}`);
         }
       } else {
         toast('To get booking updates, please enable notifications in your browser settings', {
@@ -124,10 +146,31 @@ export const useNotifications = () => {
     }
   };
 
+  const retryInitialization = async () => {
+    if (!userId || !userRole) {
+      toast.error('User not authenticated');
+      return false;
+    }
+
+    setInitializationError(null);
+    const success = await initializeWithRetry(userId, userRole);
+    
+    if (success) {
+      toast.success('Notifications initialized successfully! 🔔');
+    } else {
+      toast.error(`Failed to initialize notifications: ${initializationError}`);
+    }
+    
+    return success;
+  };
+
   return {
     isInitialized,
     hasPermission,
     isSupported,
-    requestPermissionManually
+    initializationError,
+    retryCount,
+    requestPermissionManually,
+    retryInitialization
   };
 };
