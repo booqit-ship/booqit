@@ -21,19 +21,19 @@ export const useSlotLocking = () => {
     staffId: string,
     date: string,
     timeSlot: string,
-    totalDuration: number = 30 // Add total duration parameter
+    totalDuration: number = 30 // Use total duration for multiple services
   ): Promise<boolean> => {
     setIsLocking(true);
     
     try {
-      console.log('SLOT_LOCKING: Attempting to lock slot with total duration:', { 
+      console.log('SLOT_LOCKING_MULTIPLE_SERVICES: Attempting to lock slot with total duration:', { 
         staffId, 
         date, 
         timeSlot, 
         totalDuration 
       });
       
-      // Check if the slot is available using the total duration
+      // Check if the slot is available using the total duration for multiple services
       const { data: slotsData } = await supabase.rpc('get_available_slots_with_ist_buffer', {
         p_merchant_id: staffId.split('-')[0], // Quick way to get merchant ID from staff ID
         p_date: date,
@@ -49,19 +49,19 @@ export const useSlotLocking = () => {
       );
       
       if (!isSlotAvailable) {
-        console.log('SLOT_LOCKING: Slot not available for total duration:', { 
+        console.log('SLOT_LOCKING_MULTIPLE_SERVICES: Slot not available for total duration:', { 
           staffId, 
           date, 
           timeSlot, 
           totalDuration 
         });
-        toast.error(`This time slot is not available for ${totalDuration} minutes`);
+        toast.error(`This time slot is not available for ${totalDuration} minutes total duration`);
         return false;
       }
 
       // Just keep track of the slot locally without creating a pending booking
       setLockedSlot({ staffId, date, timeSlot });
-      toast.success(`Slot selected for ${totalDuration} minutes`);
+      toast.success(`Slot selected for ${totalDuration} minutes total duration`);
       return true;
       
     } catch (error) {
