@@ -21,6 +21,11 @@ interface LocationState {
   totalDuration: number;
 }
 
+interface BookingResult {
+  booking_id: string;
+  booking_data: any;
+}
+
 const PaymentPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -40,18 +45,14 @@ const PaymentPage: React.FC = () => {
     try {
       console.log('📝 Creating booking with multiple services...');
       
-      const { data: result, error } = await supabase.rpc('create_booking_with_services', {
+      const { data: result, error } = await supabase.rpc('reserve_slot_immediately', {
         p_user_id: userId,
         p_merchant_id: merchant.id,
+        p_service_id: selectedServices[0]?.id || null,
+        p_staff_id: selectedStaffDetails?.id || null,
         p_date: date,
         p_time_slot: timeSlot,
-        p_customer_name: customerName,
-        p_customer_phone: customerPhone,
-        p_services: selectedServices,
-        p_staff_id: selectedStaffDetails?.id || null,
-        p_stylist_name: selectedStaffDetails?.name || null,
-        p_total_amount: totalPrice,
-        p_total_duration: totalDuration
+        p_service_duration: totalDuration
       });
 
       if (error) {
@@ -60,6 +61,9 @@ const PaymentPage: React.FC = () => {
       }
 
       console.log('✅ Booking created successfully:', result);
+
+      // Type the result properly
+      const bookingResult = result as BookingResult;
 
       // Send notification to merchant
       if (merchant.user_id) {
@@ -72,14 +76,14 @@ const PaymentPage: React.FC = () => {
           customerName,
           serviceNames,
           `${format(new Date(date), 'MMM d')} at ${timeRange}`,
-          result.booking_id
+          bookingResult.booking_id
         );
       }
 
       // Navigate to receipt page with booking data
-      navigate(`/receipt/${result.booking_id}`, {
+      navigate(`/receipt/${bookingResult.booking_id}`, {
         state: {
-          booking: result.booking_data,
+          booking: bookingResult.booking_data || result,
           merchant,
           selectedServices,
           selectedStaffDetails,
