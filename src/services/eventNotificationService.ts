@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { sendNotificationToUser } from './notificationService';
 
@@ -87,12 +88,11 @@ const canSendNotification = async (userId: string, notificationType: string) => 
       .single();
 
     if (!profile?.notification_enabled || !profile?.fcm_token) {
-      console.log('🔕 Notifications disabled or no FCM token for user:', userId);
       return false;
     }
 
     // QUIET HOURS DISABLED FOR TESTING - notifications work 24/7 now
-    console.log('🔔 Notifications enabled 24/7 for testing');
+    console.log('🔔 Quiet hours disabled - notifications enabled 24/7 for testing');
 
     // For daily reminders, check if we already sent one today
     if (notificationType === 'daily_reminder') {
@@ -115,16 +115,10 @@ const canSendNotification = async (userId: string, notificationType: string) => 
 // Send welcome notification on login
 export const sendWelcomeNotification = async (userId: string, userRole: 'customer' | 'merchant', userName: string) => {
   try {
-    console.log('🎉 Preparing welcome notification for:', userName, userRole);
-    
     const canSend = await canSendNotification(userId, 'welcome');
-    if (!canSend) {
-      console.log('❌ Cannot send welcome notification to:', userId);
-      return;
-    }
+    if (!canSend) return;
 
     const message = getWelcomeMessage(userName, userRole);
-    console.log('📧 Welcome message:', message);
     
     await sendNotificationToUser(userId, {
       title: message.title,
@@ -137,7 +131,7 @@ export const sendWelcomeNotification = async (userId: string, userRole: 'custome
       }
     });
 
-    console.log('✅ Welcome notification sent successfully to:', userName);
+    console.log('✅ Welcome notification sent to:', userName);
   } catch (error) {
     console.error('❌ Error sending welcome notification:', error);
   }
@@ -152,17 +146,10 @@ export const sendNewBookingNotification = async (
   bookingId: string
 ) => {
   try {
-    console.log('📅 Preparing new booking notification for merchant:', merchantUserId);
-    console.log('📋 Booking details:', { customerName, serviceName, timeSlot, bookingId });
-    
     const canSend = await canSendNotification(merchantUserId, 'new_booking');
-    if (!canSend) {
-      console.log('❌ Cannot send booking notification to merchant:', merchantUserId);
-      return;
-    }
+    if (!canSend) return;
 
     const message = getNewBookingMessage(customerName, serviceName, timeSlot);
-    console.log('📧 Booking message:', message);
     
     await sendNotificationToUser(merchantUserId, {
       title: message.title,
@@ -177,7 +164,7 @@ export const sendNewBookingNotification = async (
       }
     });
 
-    console.log('✅ New booking notification sent successfully to merchant');
+    console.log('✅ New booking notification sent to merchant');
   } catch (error) {
     console.error('❌ Error sending new booking notification:', error);
   }
@@ -190,17 +177,10 @@ export const sendBookingCompletedNotification = async (
   bookingId: string
 ) => {
   try {
-    console.log('⭐ Preparing completion notification for customer:', customerId);
-    console.log('🏪 Merchant:', merchantName, 'Booking:', bookingId);
-    
     const canSend = await canSendNotification(customerId, 'booking_completed');
-    if (!canSend) {
-      console.log('❌ Cannot send completion notification to customer:', customerId);
-      return;
-    }
+    if (!canSend) return;
 
     const message = getBookingCompletedMessage(merchantName);
-    console.log('📧 Completion message:', message);
     
     await sendNotificationToUser(customerId, {
       title: message.title,
@@ -214,7 +194,7 @@ export const sendBookingCompletedNotification = async (
       }
     });
 
-    console.log('✅ Booking completion notification sent successfully to customer');
+    console.log('✅ Booking completion notification sent to customer');
   } catch (error) {
     console.error('❌ Error sending booking completion notification:', error);
   }

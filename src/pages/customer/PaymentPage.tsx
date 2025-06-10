@@ -1,191 +1,327 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { ChevronLeft, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ChevronLeft, CreditCard, Clock, User, Store, Calendar } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { formatTimeToAmPm } from '@/utils/timeUtils';
+import { formatDateInIST } from '@/utils/dateUtils';
 import { useAuth } from '@/contexts/AuthContext';
-import { formatTimeToAmPm, timeToMinutes, minutesToTime } from '@/utils/timeUtils';
-import { format } from 'date-fns';
 import { sendNewBookingNotification } from '@/services/eventNotificationService';
 
-interface LocationState {
-  merchant: any;
-  date: string;
-  timeSlot: string;
-  customerName: string;
-  customerPhone: string;
-  selectedServices: any[];
-  selectedStaffDetails: any;
-  totalPrice: number;
-  totalDuration: number;
-}
-
-interface BookingResult {
-  booking_id: string;
-  booking_data: any;
+interface BookingResponse {
+  success: boolean;
+  booking_id?: string;
+  error?: string;
+  message?: string;
 }
 
 const PaymentPage: React.FC = () => {
+  const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const { userId } = useAuth();
-  const [loading, setLoading] = useState(false);
+  const {
+    merchant,
+    selectedServices,
+    totalPrice,
+    totalDuration,
+    selectedStaff,
+    selectedStaffDetails,
+    bookingDate,
+    bookingTime
+  } = location.state || {};
+  
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  // Parse data from navigation state
-  const { merchant, date, timeSlot, customerName, customerPhone, selectedServices, selectedStaffDetails, totalPrice, totalDuration } = location.state as LocationState;
-
-  const handlePayAtShop = async () => {
-    if (!userId) {
-      console.error('User not authenticated');
+  const handlePayment = async () => {
+    if (!userId || !merchantId) {
+      toast.error('Authentication required');
       return;
     }
-
-    setLoading(true);
+    
+    if (!selectedServices || !selectedStaff || !bookingDate || !bookingTime) {
+      toast.error('Booking information is missing');
+      return;
+    }
+    
+    setIsProcessing(true);
+    
     try {
-      console.log('📝 Creating booking with multiple services...');
+      console.log('MULTIPLE_SERVICES_PAYMENT: Processing payment and creating booking...');
+      console.log('Services:', selectedServices?.map(s => ({ name: s.name, duration: s.duration })));
+      console.log('Total duration:', totalDuration, 'minutes');
+      console.log('Total price:', totalPrice);
+
+      // Simulate payment processing (2 seconds)
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Create booking directly with confirmed status using total duration
+      const serviceId = selectedServices[0]?.id; // Primary service for compatibility
       
-      const { data: result, error } = await supabase.rpc('reserve_slot_immediately', {
+      console.log('Creating booking with total duration params:', {
         p_user_id: userId,
-        p_merchant_id: merchant.id,
-        p_service_id: selectedServices[0]?.id || null,
-        p_staff_id: selectedStaffDetails?.id || null,
-        p_date: date,
-        p_time_slot: timeSlot,
+        p_merchant_id: merchantId,
+        p_service_id: serviceId,
+        p_staff_id: selectedStaff,
+        p_date: bookingDate,
+        p_time_slot: bookingTime,
         p_service_duration: totalDuration
       });
 
-      if (error) {
-        console.error('❌ Error creating booking:', error);
-        throw error;
-      }
-
-      console.log('✅ Booking created successfully:', result);
-
-      // Safely handle the result - it might be a string (booking ID) or object
-      let bookingId: string;
-      let bookingData: any;
-
-      if (typeof result === 'string') {
-        bookingId = result;
-        bookingData = result;
-      } else if (result && typeof result === 'object' && 'booking_id' in result) {
-        bookingId = (result as any).booking_id;
-        bookingData = (result as any).booking_data || result;
-      } else {
-        // Fallback - use result as both ID and data
-        bookingId = String(result);
-        bookingData = result;
-      }
-
-      // Send notification to merchant
-      if (merchant.user_id && bookingId) {
-        const timeRange = `${formatTimeToAmPm(timeSlot)} - ${formatTimeToAmPm(minutesToTime(timeToMinutes(timeSlot) + totalDuration))}`;
-        const serviceNames = selectedServices.map(s => s.name).join(', ');
-        
-        console.log('🔔 Sending booking notification to merchant:', merchant.user_id);
-        await sendNewBookingNotification(
-          merchant.user_id,
-          customerName,
-          serviceNames,
-          `${format(new Date(date), 'MMM d')} at ${timeRange}`,
-          bookingId
-        );
-      }
-
-      // Navigate to receipt page with booking data
-      navigate(`/receipt/${bookingId}`, {
-        state: {
-          booking: bookingData,
-          merchant,
-          selectedServices,
-          selectedStaffDetails,
-          payment: { method: 'pay_at_shop', status: 'pending' }
-        },
-        replace: true
+      // First reserve the slot with total duration
+      const { data: reserveResult, error: reserveError } = await supabase.rpc('reserve_slot_immediately', {
+        p_user_id: userId,
+        p_merchant_id: merchantId,
+        p_service_id: serviceId,
+        p_staff_id: selectedStaff,
+        p_date: bookingDate,
+        p_time_slot: bookingTime,
+        p_service_duration: totalDuration
       });
 
+      if (reserveError) {
+        console.error('Error reserving slot:', reserveError);
+        toast.error(`Failed to reserve slot: ${reserveError.message}`);
+        return;
+      }
+
+      const reserveResponse = reserveResult as unknown as BookingResponse;
+      console.log('Slot reservation response:', reserveResponse);
+      
+      if (!reserveResponse.success) {
+        toast.error(reserveResponse.error || 'Failed to reserve slot');
+        return;
+      }
+
+      const bookingId = reserveResponse.booking_id;
+
+      // Update the booking with multiple services info and total duration
+      const { error: updateError } = await supabase
+        .from('bookings')
+        .update({
+          status: 'confirmed',
+          services: selectedServices,
+          total_duration: totalDuration
+        })
+        .eq('id', bookingId);
+
+      if (updateError) {
+        console.error('Error updating booking with services:', updateError);
+        toast.error('Failed to update booking with services');
+        return;
+      }
+
+      // Create payment record
+      console.log('Creating payment record for booking:', bookingId);
+      
+      const { data: paymentData, error: paymentError } = await supabase
+        .from('payments')
+        .insert({
+          booking_id: bookingId,
+          method: 'pay_on_shop',
+          amount: totalPrice,
+          status: 'completed'
+        })
+        .select()
+        .single();
+      
+      if (paymentError) {
+        console.error('Error creating payment record:', paymentError);
+        // Update booking payment status even if payment record creation failed
+        const { error: updateError } = await supabase
+          .from('bookings')
+          .update({ payment_status: 'completed' })
+          .eq('id', bookingId);
+        
+        if (updateError) {
+          console.error('Error updating booking payment status:', updateError);
+        }
+        
+        toast.warning('Booking confirmed but payment record creation encountered an issue');
+      } else {
+        console.log('Payment record created successfully:', paymentData);
+        
+        // Update booking payment status to completed
+        const { error: updateError } = await supabase
+          .from('bookings')
+          .update({ payment_status: 'completed' })
+          .eq('id', bookingId);
+        
+        if (updateError) {
+          console.error('Error updating booking payment status:', updateError);
+        } else {
+          console.log('Booking payment status updated to completed');
+        }
+      }
+
+      // Send new booking notification to merchant
+      try {
+        // Get merchant user ID
+        const { data: merchantData } = await supabase
+          .from('merchants')
+          .select('user_id')
+          .eq('id', merchantId)
+          .single();
+
+        if (merchantData?.user_id) {
+          // Get customer name
+          const { data: customerProfile } = await supabase
+            .from('profiles')
+            .select('name')
+            .eq('id', userId)
+            .single();
+
+          const customerName = customerProfile?.name || 'Customer';
+          const servicesText = selectedServices.length > 1 
+            ? `${selectedServices.length} services` 
+            : selectedServices[0]?.name || 'Service';
+          const formattedTime = formatTimeToAmPm(bookingTime);
+
+          await sendNewBookingNotification(
+            merchantData.user_id,
+            customerName,
+            servicesText,
+            formattedTime,
+            bookingId
+          );
+        }
+      } catch (notificationError) {
+        console.error('❌ Error sending booking notification:', notificationError);
+        // Don't fail the booking if notification fails
+      }
+      
+      toast.success('Payment successful! Your booking is confirmed.');
+
+      // Navigate to receipt page
+      navigate(`/receipt/${bookingId}`, {
+        state: {
+          merchant,
+          selectedServices,
+          totalPrice,
+          totalDuration,
+          selectedStaff,
+          selectedStaffDetails,
+          bookingDate,
+          bookingTime,
+          bookingId: bookingId,
+          paymentMethod: 'pay_on_shop'
+        }
+      });
     } catch (error) {
-      console.error('❌ Error in payment process:', error);
-      alert('Failed to create booking. Please try again.');
+      console.error('Error processing payment:', error);
+      toast.error('Payment failed. Please try again.');
     } finally {
-      setLoading(false);
+      setIsProcessing(false);
     }
   };
 
+  // Navigate back to datetime selection
+  const handleGoBack = () => {
+    navigate(-1);
+  };
+  
+  if (!merchant || !selectedServices || !bookingDate || !bookingTime) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center p-4">
+        <p className="text-gray-500 mb-4">Booking information missing</p>
+        <Button onClick={() => navigate(-1)}>Go Back</Button>
+      </div>
+    );
+  }
+  
   return (
-    <div className="bg-gray-50 min-h-screen">
+    <div className="pb-24 bg-white min-h-screen">
       <div className="bg-booqit-primary text-white p-4 sticky top-0 z-10">
         <div className="relative flex items-center justify-center">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="absolute left-0 text-white hover:bg-white/20" 
-            onClick={() => navigate(-1)}
-          >
+          <Button variant="ghost" size="icon" className="absolute left-0 text-white hover:bg-white/20" onClick={handleGoBack}>
             <ChevronLeft className="h-5 w-5" />
           </Button>
-          <h1 className="text-xl font-medium">Payment</h1>
+          <h1 className="text-xl font-medium font-righteous">Payment</h1>
         </div>
       </div>
 
-      <div className="container mx-auto p-4">
-        <Card className="shadow-lg border-0">
+      <div className="p-4 space-y-6">
+        {/* Booking Summary */}
+        <Card>
           <CardHeader>
-            <CardTitle className="text-lg font-semibold">Order Summary</CardTitle>
+            <CardTitle className="font-righteous text-lg font-light">Booking Summary</CardTitle>
           </CardHeader>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-4 mb-4">
-              <Store className="h-6 w-6 text-gray-500" />
-              <div>
-                <div className="font-medium">{merchant?.shop_name}</div>
-                <div className="text-sm text-gray-500">{merchant?.address}</div>
+          <CardContent className="space-y-4">
+            <div className="flex justify-between">
+              <span className="font-poppins text-gray-600">Shop</span>
+              <span className="font-poppins font-medium">{merchant.shop_name}</span>
+            </div>
+            
+            <div className="flex justify-between">
+              <span className="font-poppins text-gray-600">Services</span>
+              <div className="text-right">
+                {selectedServices?.map((service: any, index: number) => (
+                  <div key={index} className="font-poppins font-medium">
+                    {service.name} ({service.duration}min)
+                  </div>
+                ))}
               </div>
             </div>
-            <div className="flex items-center space-x-4 mb-4">
-              <Calendar className="h-6 w-6 text-gray-500" />
-              <div>
-                <div className="font-medium">{format(new Date(date), 'EEE, MMM d, yyyy')}</div>
-                <div className="text-sm text-gray-500">
-                  <Clock className="h-4 w-4 inline-block mr-1" />
-                  {formatTimeToAmPm(timeSlot)} - {formatTimeToAmPm(minutesToTime(timeToMinutes(timeSlot) + totalDuration))} ({totalDuration} minutes)
-                </div>
+            
+            <div className="flex justify-between">
+              <span className="font-poppins text-gray-600">Stylist</span>
+              <span className="font-poppins font-medium">{selectedStaffDetails?.name}</span>
+            </div>
+            
+            <div className="flex justify-between">
+              <span className="font-poppins text-gray-600">Date & Time</span>
+              <div className="text-right font-poppins font-medium">
+                <div>{formatDateInIST(new Date(bookingDate), 'MMM d, yyyy')}</div>
+                <div>{formatTimeToAmPm(bookingTime)}</div>
               </div>
             </div>
-            <div className="flex items-center space-x-4 mb-4">
-              <User className="h-6 w-6 text-gray-500" />
-              <div>
-                <div className="font-medium">Customer Details</div>
-                <div className="text-sm text-gray-500">Name: {customerName}</div>
-                <div className="text-sm text-gray-500">Phone: {customerPhone}</div>
-              </div>
+            
+            <div className="flex justify-between">
+              <span className="font-poppins text-gray-600">Total Duration</span>
+              <span className="font-poppins font-medium">{totalDuration} minutes</span>
             </div>
-            <div className="mb-4">
-              <div className="font-medium">Services</div>
-              {selectedServices.map((service, index) => (
-                <div key={index} className="text-sm text-gray-500">- {service.name} ({service.duration} min) - ₹{service.price}</div>
-              ))}
+            
+            <hr />
+            
+            <div className="flex justify-between text-lg font-semibold">
+              <span className="font-righteous">Total</span>
+              <span className="font-righteous">₹{totalPrice}</span>
             </div>
-            <div className="font-semibold text-xl">Total: ₹{totalPrice}</div>
           </CardContent>
         </Card>
 
-        <Card className="shadow-lg border-0 mt-4">
+        {/* Payment Method */}
+        <Card>
           <CardHeader>
-            <CardTitle className="text-lg font-semibold">Payment Options</CardTitle>
+            <CardTitle className="font-righteous text-lg font-light">Payment Method</CardTitle>
           </CardHeader>
-          <CardContent className="p-4">
-            <Button 
-              className="w-full mb-4" 
-              onClick={handlePayAtShop} 
-              disabled={loading}
-            >
-              <CreditCard className="h-4 w-4 mr-2" />
-              Pay at Shop
-            </Button>
-            <p className="text-center text-gray-500">We also accept UPI, cards, and cash at the shop.</p>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-center p-6 bg-blue-50 rounded-lg border border-blue-200 px-[24px] py-[10px]">
+              <div className="text-center">
+                <Smartphone className="h-8 w-8 mx-auto text-blue-600 mb-2" />
+                <span className="text-blue-800 font-medium font-poppins">Pay at Shop</span>
+                <p className="text-sm text-blue-600 mt-1">Complete payment at the shop</p>
+              </div>
+            </div>
           </CardContent>
         </Card>
+
+        {/* Status Message */}
+        <Card className="bg-blue-50 border-blue-200">
+          <CardContent className="p-4">
+            <p className="text-blue-800 text-sm font-poppins">
+              ℹ️ Complete payment to confirm your booking. Payment is done at the shop.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
+        <Button size="lg" onClick={handlePayment} disabled={isProcessing} className="w-full bg-booqit-primary hover:bg-booqit-primary/90 py-6 font-poppins font-semibold text-base text-center">
+          {isProcessing ? 'Processing...' : `Confirm Booking - Pay ₹${totalPrice} at Shop`}
+        </Button>
       </div>
     </div>
   );

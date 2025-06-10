@@ -1,3 +1,4 @@
+
 import { useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { sendBookingCompletedNotification } from '@/services/eventNotificationService';
@@ -5,8 +6,6 @@ import { sendBookingCompletedNotification } from '@/services/eventNotificationSe
 export const useBookingCompletion = () => {
   const completeBooking = useCallback(async (bookingId: string, merchantUserId: string) => {
     try {
-      console.log('✅ Marking booking as completed:', bookingId);
-      
       // Update booking status to completed
       const { data: updateResult, error: updateError } = await supabase.rpc(
         'update_booking_status_with_slot_management',
@@ -41,7 +40,6 @@ export const useBookingCompletion = () => {
 
       // Send completion notification to customer
       if (booking?.user_id && booking?.merchants?.shop_name) {
-        console.log('🔔 Sending completion notification to customer:', booking.user_id);
         await sendBookingCompletedNotification(
           booking.user_id,
           booking.merchants.shop_name,
