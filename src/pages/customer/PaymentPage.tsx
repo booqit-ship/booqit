@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Smartphone } from 'lucide-react';
@@ -58,7 +57,7 @@ const PaymentPage: React.FC = () => {
       // Simulate payment processing (2 seconds)
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Create booking with multiple services using total duration
+      // Create booking directly with confirmed status using total duration
       const serviceId = selectedServices[0]?.id; // Primary service for compatibility
       
       console.log('Creating booking with total duration params:', {
@@ -68,44 +67,59 @@ const PaymentPage: React.FC = () => {
         p_staff_id: selectedStaff,
         p_date: bookingDate,
         p_time_slot: bookingTime,
-        p_services: JSON.stringify(selectedServices),
-        p_total_duration: totalDuration
+        p_service_duration: totalDuration
       });
 
-      // Use the existing function but with total duration
-      const { data: bookingResult, error: bookingError } = await supabase.rpc('create_confirmed_booking_with_services', {
+      // First reserve the slot with total duration
+      const { data: reserveResult, error: reserveError } = await supabase.rpc('reserve_slot_immediately', {
         p_user_id: userId,
         p_merchant_id: merchantId,
         p_service_id: serviceId,
         p_staff_id: selectedStaff,
         p_date: bookingDate,
         p_time_slot: bookingTime,
-        p_service_duration: totalDuration, // Use total duration for slot blocking
-        p_services: JSON.stringify(selectedServices),
-        p_total_duration: totalDuration
+        p_service_duration: totalDuration
       });
 
-      if (bookingError) {
-        console.error('Error creating booking:', bookingError);
-        toast.error(`Failed to create booking: ${bookingError.message}`);
+      if (reserveError) {
+        console.error('Error reserving slot:', reserveError);
+        toast.error(`Failed to reserve slot: ${reserveError.message}`);
         return;
       }
 
-      const response = bookingResult as unknown as BookingResponse;
-      console.log('Booking creation response:', response);
+      const reserveResponse = reserveResult as unknown as BookingResponse;
+      console.log('Slot reservation response:', reserveResponse);
       
-      if (!response.success) {
-        toast.error(response.error || 'Failed to create booking');
+      if (!reserveResponse.success) {
+        toast.error(reserveResponse.error || 'Failed to reserve slot');
+        return;
+      }
+
+      const bookingId = reserveResponse.booking_id;
+
+      // Update the booking with multiple services info and total duration
+      const { error: updateError } = await supabase
+        .from('bookings')
+        .update({
+          status: 'confirmed',
+          services: selectedServices,
+          total_duration: totalDuration
+        })
+        .eq('id', bookingId);
+
+      if (updateError) {
+        console.error('Error updating booking with services:', updateError);
+        toast.error('Failed to update booking with services');
         return;
       }
 
       // Create payment record
-      console.log('Creating payment record for booking:', response.booking_id);
+      console.log('Creating payment record for booking:', bookingId);
       
       const { data: paymentData, error: paymentError } = await supabase
         .from('payments')
         .insert({
-          booking_id: response.booking_id,
+          booking_id: bookingId,
           method: 'pay_on_shop',
           amount: totalPrice,
           status: 'completed'
@@ -119,7 +133,7 @@ const PaymentPage: React.FC = () => {
         const { error: updateError } = await supabase
           .from('bookings')
           .update({ payment_status: 'completed' })
-          .eq('id', response.booking_id);
+          .eq('id', bookingId);
         
         if (updateError) {
           console.error('Error updating booking payment status:', updateError);
@@ -133,7 +147,7 @@ const PaymentPage: React.FC = () => {
         const { error: updateError } = await supabase
           .from('bookings')
           .update({ payment_status: 'completed' })
-          .eq('id', response.booking_id);
+          .eq('id', bookingId);
         
         if (updateError) {
           console.error('Error updating booking payment status:', updateError);
@@ -170,7 +184,7 @@ const PaymentPage: React.FC = () => {
             customerName,
             servicesText,
             formattedTime,
-            response.booking_id
+            bookingId
           );
         }
       } catch (notificationError) {
@@ -181,7 +195,7 @@ const PaymentPage: React.FC = () => {
       toast.success('Payment successful! Your booking is confirmed.');
 
       // Navigate to receipt page
-      navigate(`/receipt/${response.booking_id}`, {
+      navigate(`/receipt/${bookingId}`, {
         state: {
           merchant,
           selectedServices,
@@ -191,7 +205,7 @@ const PaymentPage: React.FC = () => {
           selectedStaffDetails,
           bookingDate,
           bookingTime,
-          bookingId: response.booking_id,
+          bookingId: bookingId,
           paymentMethod: 'pay_on_shop'
         }
       });
