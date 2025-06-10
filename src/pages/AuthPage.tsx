@@ -94,7 +94,162 @@ const AuthPage: React.FC = () => {
     navigate('/', { replace: true });
   };
 
-  // Enhanced login with immediate session validation
+  // Enhanced registration with proper profile creation
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      console.log('📝 Starting registration process...', { email, selectedRole });
+      
+      if (!email || !password || !name) {
+        throw new Error("Please fill in all required fields");
+      }
+
+      if (password.length < 6) {
+        throw new Error("Password must be at least 6 characters long");
+      }
+
+      if (!agreeToPolicies) {
+        throw new Error("Please agree to the Privacy Policy and Terms and Conditions to continue");
+      }
+
+      if (!selectedRole) {
+        throw new Error("Please select a role");
+      }
+
+      // Step 1: Create the user account
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password,
+        options: {
+          data: {
+            name: name.trim(),
+            phone: phone.trim(),
+            role: selectedRole,
+          }
+        }
+      });
+
+      if (authError) {
+        console.error('❌ Auth signup error:', authError);
+        throw authError;
+      }
+
+      if (!authData.user) {
+        throw new Error('Failed to create user account');
+      }
+
+      console.log('✅ User account created:', authData.user.id);
+
+      // Step 2: Create/update profile in profiles table
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert({
+          id: authData.user.id,
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          phone: phone.trim(),
+          role: selectedRole,
+        }, {
+          onConflict: 'id'
+        });
+
+      if (profileError) {
+        console.error('❌ Profile creation error:', profileError);
+        // Don't throw here, profile might be created by trigger
+        console.log('⚠️ Profile creation failed, but continuing (might be created by trigger)');
+      } else {
+        console.log('✅ Profile created successfully');
+      }
+
+      // Step 3: If merchant role, create merchant record
+      if (selectedRole === 'merchant') {
+        console.log('🏪 Creating merchant record...');
+        
+        // Create merchant record with default values
+        const { error: merchantError } = await supabase
+          .from('merchants')
+          .insert({
+            user_id: authData.user.id,
+            shop_name: `${name.trim()}'s Shop`, // Default shop name
+            address: '', // Will be filled during onboarding
+            category: 'salon', // Default category
+            lat: 0, // Default coordinates, will be updated during onboarding
+            lng: 0,
+            open_time: '09:00',
+            close_time: '18:00',
+            description: '',
+          });
+
+        if (merchantError) {
+          console.error('❌ Merchant record creation error:', merchantError);
+          // Don't throw here, let the user continue and create merchant record later
+          console.log('⚠️ Merchant record creation failed, user can complete in onboarding');
+        } else {
+          console.log('✅ Merchant record created successfully');
+        }
+      }
+
+      // Step 4: Handle session and navigation
+      if (authData.session && authData.user) {
+        console.log('✅ Registration successful with session');
+        
+        // Save permanent session
+        PermanentSession.saveSession(authData.session, selectedRole, authData.user.id);
+        
+        // Update auth context
+        setAuth(true, selectedRole, authData.user.id);
+        
+        console.log('🎯 Navigating after registration...');
+        if (selectedRole === 'merchant') {
+          navigate('/merchant/onboarding', { replace: true });
+        } else {
+          navigate('/home', { replace: true });
+        }
+
+        toast({
+          title: "Welcome to BooqIt!",
+          description: "Your account has been created successfully.",
+        });
+      } else if (authData.user && !authData.session) {
+        // Email confirmation required
+        console.log('📧 Email confirmation required');
+        toast({
+          title: "Check your email",
+          description: "Please check your email to confirm your account before logging in.",
+        });
+      } else {
+        throw new Error('Registration failed - no user created');
+      }
+    } catch (error: any) {
+      console.error('❌ Registration error:', error);
+      
+      let errorMessage = "Failed to create account.";
+      
+      if (error.message?.includes('User already registered')) {
+        errorMessage = "An account with this email already exists. Please try logging in instead.";
+      } else if (error.message?.includes('Invalid email')) {
+        errorMessage = "Please enter a valid email address.";
+      } else if (error.message?.includes('Password')) {
+        errorMessage = error.message;
+      } else if (error.message?.includes('agree')) {
+        errorMessage = error.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      toast({
+        title: "Registration Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Enhanced login with better error handling
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -102,8 +257,12 @@ const AuthPage: React.FC = () => {
     try {
       console.log('🔐 Attempting login...');
       
+      if (!email || !password) {
+        throw new Error("Please enter both email and password");
+      }
+      
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim().toLowerCase(),
         password,
       });
 
@@ -149,7 +308,7 @@ const AuthPage: React.FC = () => {
         }
 
         toast({
-          title: "Success!",
+          title: "Welcome back!",
           description: "You have been logged in successfully.",
         });
       } else {
@@ -157,9 +316,20 @@ const AuthPage: React.FC = () => {
       }
     } catch (error: any) {
       console.error('❌ Login error:', error);
+      
+      let errorMessage = "Failed to login.";
+      
+      if (error.message?.includes('Invalid login credentials')) {
+        errorMessage = "Invalid email or password. Please check your credentials and try again.";
+      } else if (error.message?.includes('Email not confirmed')) {
+        errorMessage = "Please check your email and click the confirmation link before logging in.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
       toast({
-        title: "Error!",
-        description: error.message || "Failed to login.",
+        title: "Login Failed",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -180,86 +350,6 @@ const AuthPage: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
     navigate('/forgot-password');
-  };
-
-  // Enhanced registration with immediate session validation
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    try {
-      console.log('📝 Attempting registration...');
-      
-      if (!email || !password || !name) {
-        throw new Error("Please fill in all required fields");
-      }
-
-      if (!agreeToPolicies) {
-        throw new Error("Please agree to the Privacy Policy and Terms and Conditions to continue");
-      }
-
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name,
-            phone,
-            role: selectedRole,
-          }
-        }
-      });
-
-      if (error) throw error;
-
-      if (data.session && data.user) {
-        console.log('✅ Registration successful, session created');
-        
-        // Immediate validation of the new session
-        console.log('🔍 Validating new registration session immediately');
-        const isValid = await validateCurrentSession();
-        
-        if (!isValid) {
-          console.log('⚠️ Session validation failed after registration, but continuing');
-        }
-        
-        // Save permanent session immediately
-        PermanentSession.saveSession(data.session, selectedRole as UserRole, data.user.id);
-        
-        // Update auth context
-        setAuth(true, selectedRole as UserRole, data.user.id);
-        
-        console.log('🎯 Navigating after registration...');
-        if (selectedRole === 'merchant') {
-          navigate('/merchant/onboarding', { replace: true });
-        } else {
-          navigate('/home', { replace: true });
-        }
-
-        toast({
-          title: "Success!",
-          description: "Your account has been created successfully.",
-        });
-      } else if (data.user && !data.session) {
-        // Email confirmation required
-        console.log('📧 Email confirmation required');
-        toast({
-          title: "Check your email",
-          description: "Please check your email to confirm your account.",
-        });
-      } else {
-        throw new Error('Registration failed - no user created');
-      }
-    } catch (error: any) {
-      console.error('❌ Registration error:', error);
-      toast({
-        title: "Error!",
-        description: error.message || "Failed to create account.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   // Show loading while auth is being checked
@@ -304,7 +394,7 @@ const AuthPage: React.FC = () => {
         </motion.div>
 
         <Card className="border-none shadow-lg">
-          <CardHeader className="pb-2">
+          <CardHeader className="py-4">
             <CardDescription>
               <Button 
                 variant="ghost" 
@@ -336,6 +426,7 @@ const AuthPage: React.FC = () => {
                       onKeyDown={handleKeyDown}
                       className="font-poppins"
                       required
+                      disabled={isLoading}
                     />
                   </div>
                   <div className="space-y-2">
@@ -355,6 +446,7 @@ const AuthPage: React.FC = () => {
                       onKeyDown={handleKeyDown}
                       className="font-poppins"
                       required
+                      disabled={isLoading}
                     />
                   </div>
                 </CardContent>
@@ -374,19 +466,20 @@ const AuthPage: React.FC = () => {
               <form onSubmit={handleRegister}>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name" className="font-poppins">Full Name</Label>
+                    <Label htmlFor="name" className="font-poppins">Full Name *</Label>
                     <Input 
                       id="name" 
                       type="text" 
-                      placeholder="Your Name" 
+                      placeholder="Your Full Name" 
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       className="font-poppins"
                       required
+                      disabled={isLoading}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="email" className="font-poppins">Email</Label>
+                    <Label htmlFor="email" className="font-poppins">Email *</Label>
                     <Input 
                       id="email" 
                       type="email" 
@@ -395,6 +488,7 @@ const AuthPage: React.FC = () => {
                       onChange={(e) => setEmail(e.target.value)}
                       className="font-poppins"
                       required
+                      disabled={isLoading}
                     />
                   </div>
                   <div className="space-y-2">
@@ -406,17 +500,21 @@ const AuthPage: React.FC = () => {
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       className="font-poppins"
+                      disabled={isLoading}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="new-password" className="font-poppins">Password</Label>
+                    <Label htmlFor="new-password" className="font-poppins">Password *</Label>
                     <Input 
                       id="new-password" 
                       type="password"
+                      placeholder="At least 6 characters"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="font-poppins"
                       required
+                      disabled={isLoading}
+                      minLength={6}
                     />
                   </div>
                   
@@ -425,6 +523,7 @@ const AuthPage: React.FC = () => {
                       id="agree-policies"
                       checked={agreeToPolicies}
                       onCheckedChange={(checked) => setAgreeToPolicies(checked as boolean)}
+                      disabled={isLoading}
                     />
                     <div className="grid gap-1.5 leading-none">
                       <label
@@ -472,3 +571,5 @@ const AuthPage: React.FC = () => {
 };
 
 export default AuthPage;
+
+}
