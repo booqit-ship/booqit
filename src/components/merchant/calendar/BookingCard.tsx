@@ -6,8 +6,7 @@ import { Clock, User, Phone, CheckCircle, XCircle, Scissors, Timer } from 'lucid
 import { formatTimeToAmPm, timeToMinutes, minutesToTime } from '@/utils/timeUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useQueryClient } from '@tanstack/react-query';
-import { formatDateInIST } from '@/utils/dateUtils';
+import { useInvalidateBookingsData } from '@/hooks/useBookingsData';
 import { 
   AlertDialog, 
   AlertDialogAction, 
@@ -48,8 +47,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
 }) => {
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false);
-  const queryClient = useQueryClient();
+  const invalidateBookings = useInvalidateBookingsData();
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -150,56 +148,39 @@ const BookingCard: React.FC<BookingCardProps> = ({
   };
 
   const handleStatusUpdate = async (newStatus: 'confirmed' | 'completed' | 'cancelled') => {
-    if (isUpdating) return;
-    
-    setIsUpdating(true);
-    
     try {
-      console.log('🔄 Starting booking status update...', { bookingId: booking.id, newStatus });
+      let updateData: any = { status: newStatus };
+      
+      if (newStatus === 'completed') {
+        updateData.payment_status = 'completed';
+      }
 
-      // Call the RPC function for proper status update with slot management
-      const { data: result, error } = await supabase.rpc('update_booking_status_with_slot_management', {
-        p_booking_id: booking.id,
-        p_new_status: newStatus,
-        p_user_id: null // Let the function handle authorization
-      });
+      console.log('Updating booking status...', { bookingId: booking.id, newStatus });
+
+      const { error } = await supabase
+        .from('bookings')
+        .update(updateData)
+        .eq('id', booking.id);
 
       if (error) {
-        console.error('❌ RPC Error updating booking status:', error);
-        toast.error(`Failed to update booking: ${error.message}`);
+        console.error('Error updating booking status:', error);
+        toast.error('Failed to update booking status');
         return;
       }
 
-      if (!result?.success) {
-        console.error('❌ RPC Result Error:', result);
-        toast.error(result?.error || 'Failed to update booking status');
-        return;
-      }
-
-      console.log('✅ Booking status updated successfully:', result);
+      console.log('Booking status updated successfully');
       toast.success(`Booking ${newStatus} successfully`);
       
-      // Force immediate cache invalidation and refetch for all related queries
-      const bookingDate = new Date(booking.date);
-      const dateStr = formatDateInIST(bookingDate, 'yyyy-MM-dd');
+      // Invalidate and refetch relevant queries
+      if (booking.merchant_id) {
+        const bookingDate = new Date(booking.date);
+        invalidateBookings(booking.merchant_id, bookingDate);
+      }
       
-      // Invalidate all related queries immediately
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['bookings', booking.merchant_id, dateStr] }),
-        queryClient.invalidateQueries({ queryKey: ['bookings', booking.merchant_id] }),
-        queryClient.invalidateQueries({ queryKey: ['appointment-counts', booking.merchant_id] }),
-        queryClient.refetchQueries({ queryKey: ['bookings', booking.merchant_id, dateStr] }),
-        queryClient.refetchQueries({ queryKey: ['appointment-counts', booking.merchant_id] })
-      ]);
-      
-      // Also call the parent component's status change handler
       await onStatusChange(booking.id, newStatus);
-      
     } catch (error) {
-      console.error('❌ Unexpected error updating booking status:', error);
-      toast.error('Failed to update booking status. Please try again.');
-    } finally {
-      setIsUpdating(false);
+      console.error('Error updating booking status:', error);
+      toast.error('Failed to update booking status');
     }
   };
 
@@ -281,11 +262,10 @@ const BookingCard: React.FC<BookingCardProps> = ({
                 <Button 
                   size="sm" 
                   onClick={() => handleStatusUpdate('confirmed')} 
-                  disabled={isUpdating}
                   className="bg-green-600 hover:bg-green-700 text-white"
                 >
                   <CheckCircle className="h-4 w-4 mr-1" />
-                  {isUpdating ? 'Confirming...' : 'Confirm'}
+                  Confirm
                 </Button>
               )}
               
@@ -293,7 +273,6 @@ const BookingCard: React.FC<BookingCardProps> = ({
                 <Button 
                   size="sm" 
                   onClick={() => setIsCompleteDialogOpen(true)} 
-                  disabled={isUpdating}
                   className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
                   <CheckCircle className="h-4 w-4 mr-1" />
@@ -305,7 +284,6 @@ const BookingCard: React.FC<BookingCardProps> = ({
                 size="sm" 
                 variant="destructive" 
                 onClick={() => setIsCancelDialogOpen(true)}
-                disabled={isUpdating}
               >
                 <XCircle className="h-4 w-4 mr-1" />
                 Cancel
@@ -329,8 +307,8 @@ const BookingCard: React.FC<BookingCardProps> = ({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleCompleteConfirm} disabled={isUpdating} className="bg-blue-600 hover:bg-blue-700">
-              {isUpdating ? 'Completing...' : 'Complete Booking'}
+            <AlertDialogAction onClick={handleCompleteConfirm} className="bg-blue-600 hover:bg-blue-700">
+              Complete Booking
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -346,8 +324,8 @@ const BookingCard: React.FC<BookingCardProps> = ({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep Booking</AlertDialogCancel>
-            <AlertDialogAction onClick={handleCancelConfirm} disabled={isUpdating} className="bg-red-600 hover:bg-red-700">
-              {isUpdating ? 'Cancelling...' : 'Cancel Booking'}
+            <AlertDialogAction onClick={handleCancelConfirm} className="bg-red-600 hover:bg-red-700">
+              Cancel Booking
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
