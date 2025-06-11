@@ -1,160 +1,96 @@
 
-import React, { useEffect, useState } from 'react';
-import { CheckCircle, Calendar, Clock, Sparkles } from 'lucide-react';
+import React from 'react';
+import { CheckCircle2, Sparkles, Calendar, Clock } from 'lucide-react';
 
 interface BookingSuccessAnimationProps {
-  isVisible: boolean;
-  onComplete: () => void;
-  bookingDetails?: {
-    shopName?: string;
-    date?: string;
-    time?: string;
-  };
+  merchantName: string;
+  bookingDate: string;
+  bookingTime: string;
 }
 
 const BookingSuccessAnimation: React.FC<BookingSuccessAnimationProps> = ({
-  isVisible,
-  onComplete,
-  bookingDetails
+  merchantName,
+  bookingDate,
+  bookingTime
 }) => {
-  const [currentStep, setCurrentStep] = useState(0);
-
-  useEffect(() => {
-    if (!isVisible) return;
-
-    const steps = [
-      { delay: 0, step: 1 },     // Initial animation
-      { delay: 800, step: 2 },   // Success icon
-      { delay: 1600, step: 3 },  // Details appear
-      { delay: 3200, step: 4 },  // Fade out starts
-    ];
-
-    const timeouts = steps.map(({ delay, step }) =>
-      setTimeout(() => setCurrentStep(step), delay)
-    );
-
-    // Complete animation after 4 seconds
-    const completeTimeout = setTimeout(onComplete, 4000);
-
-    return () => {
-      timeouts.forEach(clearTimeout);
-      clearTimeout(completeTimeout);
-    };
-  }, [isVisible, onComplete]);
-
-  if (!isVisible) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="relative w-full max-w-sm mx-4">
-        {/* Background Card */}
-        <div 
-          className={`
-            bg-white rounded-3xl shadow-2xl p-8 text-center transform transition-all duration-700 ease-out
-            ${currentStep >= 1 ? 'scale-100 opacity-100' : 'scale-75 opacity-0'}
-            ${currentStep >= 4 ? 'scale-105 opacity-0' : ''}
-          `}
-        >
-          {/* Floating Sparkles */}
-          <div className="absolute inset-0 pointer-events-none">
-            {[...Array(6)].map((_, i) => (
-              <Sparkles
-                key={i}
-                className={`
-                  absolute h-4 w-4 text-booqit-primary/30 animate-float
-                  ${currentStep >= 2 ? 'opacity-100' : 'opacity-0'}
-                  transition-opacity duration-500
-                `}
-                style={{
-                  left: `${20 + (i * 15)}%`,
-                  top: `${10 + (i % 3) * 25}%`,
-                  animationDelay: `${i * 200}ms`,
-                }}
-              />
-            ))}
+    <div className="fixed inset-0 bg-gradient-to-br from-green-500/20 to-blue-500/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden animate-scale-in">
+        {/* Header with animated background */}
+        <div className="relative bg-gradient-to-r from-green-500 to-emerald-600 p-8 text-center">
+          {/* Floating sparkles */}
+          <div className="absolute inset-0 overflow-hidden">
+            <Sparkles className="absolute top-4 left-4 h-4 w-4 text-white/60 animate-pulse" style={{ animationDelay: '0.5s' }} />
+            <Sparkles className="absolute top-6 right-6 h-3 w-3 text-white/40 animate-pulse" style={{ animationDelay: '1s' }} />
+            <Sparkles className="absolute bottom-4 left-8 h-5 w-5 text-white/50 animate-pulse" style={{ animationDelay: '1.5s' }} />
+            <Sparkles className="absolute bottom-6 right-4 h-4 w-4 text-white/60 animate-pulse" style={{ animationDelay: '2s' }} />
           </div>
-
-          {/* Success Icon */}
-          <div className="relative mb-6">
-            <div 
-              className={`
-                mx-auto w-20 h-20 bg-green-100 rounded-full flex items-center justify-center
-                transform transition-all duration-700 ease-out
-                ${currentStep >= 2 ? 'scale-100 rotate-0' : 'scale-0 rotate-180'}
-              `}
-            >
-              <CheckCircle 
-                className={`
-                  h-10 w-10 text-green-600 transition-all duration-500
-                  ${currentStep >= 2 ? 'scale-100' : 'scale-0'}
-                `} 
-              />
+          
+          {/* Success icon with animation */}
+          <div className="relative">
+            <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 animate-scale-in" style={{ animationDelay: '0.3s' }}>
+              <CheckCircle2 className="h-12 w-12 text-white animate-fade-in" style={{ animationDelay: '0.6s' }} />
             </div>
             
-            {/* Ripple Effect */}
-            <div 
-              className={`
-                absolute inset-0 border-4 border-green-200 rounded-full
-                animate-ping transition-opacity duration-1000
-                ${currentStep >= 2 && currentStep < 4 ? 'opacity-30' : 'opacity-0'}
-              `}
-            />
+            {/* Ripple effect */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-20 h-20 bg-white/30 rounded-full animate-ping" style={{ animationDelay: '0.8s' }}></div>
+            </div>
           </div>
+          
+          <h2 className="text-2xl font-bold text-white mb-2 animate-fade-in" style={{ animationDelay: '0.9s' }}>
+            Booking Confirmed!
+          </h2>
+          <p className="text-white/90 animate-fade-in" style={{ animationDelay: '1.1s' }}>
+            Your appointment is all set
+          </p>
+        </div>
 
-          {/* Success Text */}
-          <div 
-            className={`
-              transform transition-all duration-700 ease-out delay-300
-              ${currentStep >= 2 ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}
-            `}
-          >
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Booking Confirmed!
-            </h2>
-            <p className="text-gray-600 mb-6">
-              Your appointment has been successfully booked
+        {/* Booking details with staggered animation */}
+        <div className="p-6 space-y-4">
+          <div className="flex items-center space-x-3 animate-slide-in-right" style={{ animationDelay: '1.3s' }}>
+            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+              <Calendar className="h-5 w-5 text-green-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Shop</p>
+              <p className="font-semibold text-gray-900">{merchantName}</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center space-x-3 animate-slide-in-right" style={{ animationDelay: '1.5s' }}>
+            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+              <Calendar className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Date</p>
+              <p className="font-semibold text-gray-900">{bookingDate}</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center space-x-3 animate-slide-in-right" style={{ animationDelay: '1.7s' }}>
+            <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+              <Clock className="h-5 w-5 text-purple-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Time</p>
+              <p className="font-semibold text-gray-900">{bookingTime}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Success message */}
+        <div className="px-6 pb-6">
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4 animate-fade-in" style={{ animationDelay: '1.9s' }}>
+            <p className="text-green-800 text-sm text-center">
+              🎉 You're all set! We'll send you a reminder before your appointment.
             </p>
           </div>
+        </div>
 
-          {/* Booking Details */}
-          <div 
-            className={`
-              space-y-3 transform transition-all duration-700 ease-out delay-500
-              ${currentStep >= 3 ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}
-            `}
-          >
-            {bookingDetails?.shopName && (
-              <div className="flex items-center justify-center gap-3 text-gray-700">
-                <div className="w-2 h-2 bg-booqit-primary rounded-full"></div>
-                <span className="font-medium">{bookingDetails.shopName}</span>
-              </div>
-            )}
-            
-            {bookingDetails?.date && (
-              <div className="flex items-center justify-center gap-3 text-gray-600">
-                <Calendar className="h-4 w-4" />
-                <span>{bookingDetails.date}</span>
-              </div>
-            )}
-            
-            {bookingDetails?.time && (
-              <div className="flex items-center justify-center gap-3 text-gray-600">
-                <Clock className="h-4 w-4" />
-                <span>{bookingDetails.time}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Progress Bar */}
-          <div className="mt-8 w-full bg-gray-200 rounded-full h-1">
-            <div 
-              className="bg-booqit-primary h-1 rounded-full transition-all duration-4000 ease-out"
-              style={{ 
-                width: currentStep >= 1 ? '100%' : '0%',
-                transitionDuration: '3.5s'
-              }}
-            />
-          </div>
+        {/* Animated progress bar */}
+        <div className="h-1 bg-gray-100">
+          <div className="h-full bg-gradient-to-r from-green-500 to-emerald-600 animate-slide-in-right origin-left" style={{ animationDelay: '2.1s', animationDuration: '1s' }}></div>
         </div>
       </div>
     </div>
