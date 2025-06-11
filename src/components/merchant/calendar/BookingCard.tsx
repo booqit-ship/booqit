@@ -6,6 +6,7 @@ import { Clock, User, Phone, CheckCircle, XCircle, Scissors, Timer } from 'lucid
 import { formatTimeToAmPm, timeToMinutes, minutesToTime } from '@/utils/timeUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useInvalidateBookingsData } from '@/hooks/useBookingsData';
 import { 
   AlertDialog, 
   AlertDialogAction, 
@@ -19,6 +20,8 @@ import {
 
 interface BookingWithCustomerDetails {
   id: string;
+  merchant_id: string;
+  date: string;
   service?: {
     name: string;
     duration?: number;
@@ -44,6 +47,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
 }) => {
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const invalidateBookings = useInvalidateBookingsData();
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -133,6 +137,16 @@ const BookingCard: React.FC<BookingCardProps> = ({
     return `${formatTimeToAmPm(booking.time_slot)} - ${formatTimeToAmPm(endTime)}`;
   };
 
+  const getCardStyling = () => {
+    if (booking.status === 'cancelled') {
+      return 'opacity-60 border-l-red-500 bg-red-50/30';
+    }
+    if (booking.status === 'completed') {
+      return 'border-l-blue-500 bg-blue-50/30';
+    }
+    return 'border-l-booqit-primary';
+  };
+
   const handleStatusUpdate = async (newStatus: 'confirmed' | 'completed' | 'cancelled') => {
     try {
       let updateData: any = { status: newStatus };
@@ -140,6 +154,8 @@ const BookingCard: React.FC<BookingCardProps> = ({
       if (newStatus === 'completed') {
         updateData.payment_status = 'completed';
       }
+
+      console.log('Updating booking status...', { bookingId: booking.id, newStatus });
 
       const { error } = await supabase
         .from('bookings')
@@ -152,7 +168,15 @@ const BookingCard: React.FC<BookingCardProps> = ({
         return;
       }
 
+      console.log('Booking status updated successfully');
       toast.success(`Booking ${newStatus} successfully`);
+      
+      // Invalidate and refetch relevant queries
+      if (booking.merchant_id) {
+        const bookingDate = new Date(booking.date);
+        invalidateBookings(booking.merchant_id, bookingDate);
+      }
+      
       await onStatusChange(booking.id, newStatus);
     } catch (error) {
       console.error('Error updating booking status:', error);
@@ -168,16 +192,6 @@ const BookingCard: React.FC<BookingCardProps> = ({
   const handleCancelConfirm = () => {
     handleStatusUpdate('cancelled');
     setIsCancelDialogOpen(false);
-  };
-
-  const getCardStyling = () => {
-    if (booking.status === 'cancelled') {
-      return 'opacity-60 border-l-red-500 bg-red-50/30';
-    }
-    if (booking.status === 'completed') {
-      return 'border-l-blue-500 bg-blue-50/30';
-    }
-    return 'border-l-booqit-primary';
   };
 
   return (

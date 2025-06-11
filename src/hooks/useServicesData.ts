@@ -18,8 +18,11 @@ export const useServicesData = (merchantId: string | null) => {
       return data || [];
     },
     enabled: !!merchantId,
-    staleTime: 10 * 60 * 1000, // 10 minutes
-    retry: 1,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    retry: 2,
   });
 };
 
@@ -39,8 +42,11 @@ export const useStaffData = (merchantId: string | null) => {
       return data || [];
     },
     enabled: !!merchantId,
-    staleTime: 10 * 60 * 1000, // 10 minutes
-    retry: 1,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    retry: 2,
   });
 };
 
@@ -50,5 +56,9 @@ export const useInvalidateServicesData = () => {
   return (merchantId: string) => {
     queryClient.invalidateQueries({ queryKey: ['services', merchantId] });
     queryClient.invalidateQueries({ queryKey: ['staff', merchantId] });
+    
+    // Also refetch immediately
+    queryClient.refetchQueries({ queryKey: ['services', merchantId] });
+    queryClient.refetchQueries({ queryKey: ['staff', merchantId] });
   };
 };

@@ -2,7 +2,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useMerchantData } from './useMerchantData';
-import { useBookingsData } from './useBookingsData';
+import { useBookingsData, useInvalidateBookingsData } from './useBookingsData';
 import { formatDateInIST } from '@/utils/dateUtils';
 
 export const useHolidaysData = (merchantId: string | null) => {
@@ -21,13 +21,17 @@ export const useHolidaysData = (merchantId: string | null) => {
       return data || [];
     },
     enabled: !!merchantId,
-    staleTime: 15 * 60 * 1000, // 15 minutes for holidays
-    retry: 1,
+    staleTime: 5 * 60 * 1000, // 5 minutes for holidays
+    gcTime: 15 * 60 * 1000, // 15 minutes
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    retry: 2,
   });
 };
 
 export const useOptimizedCalendarData = (userId: string | null, selectedDate: Date) => {
   const queryClient = useQueryClient();
+  const invalidateBookings = useInvalidateBookingsData();
   
   // Get merchant data
   const { data: merchant, isLoading: merchantLoading } = useMerchantData(userId);
@@ -41,14 +45,14 @@ export const useOptimizedCalendarData = (userId: string | null, selectedDate: Da
   
   const fetchBookings = () => {
     if (merchantId) {
-      const dateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
-      queryClient.invalidateQueries({ queryKey: ['bookings', merchantId, dateStr] });
+      invalidateBookings(merchantId, selectedDate);
     }
   };
   
   const fetchHolidays = () => {
     if (merchantId) {
       queryClient.invalidateQueries({ queryKey: ['shop_holidays', merchantId] });
+      queryClient.refetchQueries({ queryKey: ['shop_holidays', merchantId] });
     }
   };
   

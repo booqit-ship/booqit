@@ -5,18 +5,33 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App.tsx';
 import './index.css';
 
-// Create a client with ULTRA aggressive caching to prevent ANY refetching
+// Create a client with better cache management for long sessions
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: Infinity, // Data never becomes stale
-      gcTime: Infinity, // Keep in cache forever
-      retry: 0, // Never retry failed requests
-      refetchOnWindowFocus: false, // NEVER refetch when tab regains focus
-      refetchOnMount: false, // NEVER refetch when component mounts
-      refetchOnReconnect: false, // NEVER refetch on reconnect
-      refetchInterval: false, // NO automatic refetching ever
-      networkMode: 'offlineFirst', // Use cache first, network second
+      staleTime: 60 * 1000, // 1 minute - data becomes stale after this
+      gcTime: 5 * 60 * 1000, // 5 minutes - keep in cache for this long
+      retry: (failureCount, error: any) => {
+        // Retry logic for network errors but not for auth errors
+        if (error?.status === 401 || error?.status === 403) {
+          return false;
+        }
+        return failureCount < 3;
+      },
+      refetchOnWindowFocus: true, // Refetch when tab regains focus
+      refetchOnMount: true, // Refetch when component mounts
+      refetchOnReconnect: true, // Refetch on network reconnect
+      refetchInterval: false, // No automatic interval refetching by default
+      networkMode: 'online', // Only make requests when online
+    },
+    mutations: {
+      retry: (failureCount, error: any) => {
+        if (error?.status === 401 || error?.status === 403) {
+          return false;
+        }
+        return failureCount < 2;
+      },
+      networkMode: 'online',
     },
   },
 });
@@ -40,11 +55,26 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// Handle page visibility changes - NO session recovery attempts
+// Handle page visibility changes - refetch critical data when page becomes visible
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
-    console.log('📱 Page became visible - using cached session only');
+    console.log('📱 Page became visible - refetching critical data');
+    // Refetch queries that are currently being observed
+    queryClient.refetchQueries({ 
+      type: 'active',
+      stale: true 
+    });
   }
+});
+
+// Handle online/offline status
+window.addEventListener('online', () => {
+  console.log('🌐 Network reconnected - refetching stale data');
+  queryClient.refetchQueries({ stale: true });
+});
+
+window.addEventListener('offline', () => {
+  console.log('📴 Network disconnected - using cached data only');
 });
 
 createRoot(rootElement).render(
