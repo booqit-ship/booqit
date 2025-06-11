@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -39,6 +38,13 @@ const AuthPage: React.FC = () => {
   const [phone, setPhone] = useState('');
   const [agreeToPolicies, setAgreeToPolicies] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<{
+    email?: string;
+    password?: string;
+    name?: string;
+    phone?: string;
+    general?: string;
+  }>({});
   const { toast } = useToast();
   const navigate = useNavigate();
   const { setAuth, isAuthenticated, userRole, loading } = useAuth();
@@ -95,28 +101,84 @@ const AuthPage: React.FC = () => {
     navigate('/', { replace: true });
   };
 
+  // Email validation function
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  // Phone validation function
+  const validatePhone = (phone: string): boolean => {
+    if (!phone) return true; // Phone is optional
+    const phoneRegex = /^[\+]?[0-9\s\-\(\)]{10,15}$/;
+    return phoneRegex.test(phone.replace(/\s/g, ''));
+  };
+
+  // Clear errors when user starts typing
+  const clearError = (field: string) => {
+    if (errors[field as keyof typeof errors]) {
+      setErrors(prev => ({ ...prev, [field]: undefined }));
+    }
+  };
+
+  // Validate form fields
+  const validateForm = (isLogin: boolean = false): boolean => {
+    const newErrors: typeof errors = {};
+
+    // Email validation
+    if (!email.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!validateEmail(email.trim())) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+
+    // Password validation
+    if (!password) {
+      newErrors.password = 'Password is required';
+    } else if (!isLogin && password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters long';
+    }
+
+    // Registration-specific validations
+    if (!isLogin) {
+      if (!name.trim()) {
+        newErrors.name = 'Full name is required';
+      }
+
+      if (phone && !validatePhone(phone)) {
+        newErrors.phone = 'Please enter a valid phone number';
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   // Enhanced registration with proper profile creation
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setErrors({});
 
     try {
       console.log('📝 Starting registration process...', { email, selectedRole });
       
-      if (!email || !password || !name) {
-        throw new Error("Please fill in all required fields");
-      }
-
-      if (password.length < 6) {
-        throw new Error("Password must be at least 6 characters long");
+      // Validate form
+      if (!validateForm(false)) {
+        setIsLoading(false);
+        return;
       }
 
       if (!agreeToPolicies) {
-        throw new Error("Please agree to the Privacy Policy and Terms and Conditions to continue");
+        setErrors({ general: "Please agree to the Privacy Policy and Terms and Conditions to continue" });
+        setIsLoading(false);
+        return;
       }
 
       if (!selectedRole) {
-        throw new Error("Please select a role");
+        setErrors({ general: "Please select a role" });
+        setIsLoading(false);
+        return;
       }
 
       // Step 1: Create the user account
@@ -134,11 +196,24 @@ const AuthPage: React.FC = () => {
 
       if (authError) {
         console.error('❌ Auth signup error:', authError);
-        throw authError;
+        
+        if (authError.message?.includes('User already registered')) {
+          setErrors({ email: "An account with this email already exists. Please try logging in instead." });
+        } else if (authError.message?.includes('Invalid email')) {
+          setErrors({ email: "Please enter a valid email address." });
+        } else if (authError.message?.includes('Password')) {
+          setErrors({ password: authError.message });
+        } else {
+          setErrors({ general: authError.message || "Failed to create account. Please try again." });
+        }
+        setIsLoading(false);
+        return;
       }
 
       if (!authData.user) {
-        throw new Error('Failed to create user account');
+        setErrors({ general: 'Failed to create user account' });
+        setIsLoading(false);
+        return;
       }
 
       console.log('✅ User account created:', authData.user.id);
@@ -222,30 +297,11 @@ const AuthPage: React.FC = () => {
           description: "Please check your email to confirm your account before logging in.",
         });
       } else {
-        throw new Error('Registration failed - no user created');
+        setErrors({ general: 'Registration failed - no user created' });
       }
     } catch (error: any) {
       console.error('❌ Registration error:', error);
-      
-      let errorMessage = "Failed to create account.";
-      
-      if (error.message?.includes('User already registered')) {
-        errorMessage = "An account with this email already exists. Please try logging in instead.";
-      } else if (error.message?.includes('Invalid email')) {
-        errorMessage = "Please enter a valid email address.";
-      } else if (error.message?.includes('Password')) {
-        errorMessage = error.message;
-      } else if (error.message?.includes('agree')) {
-        errorMessage = error.message;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-
-      toast({
-        title: "Registration Failed",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      setErrors({ general: error.message || "Failed to create account. Please try again." });
     } finally {
       setIsLoading(false);
     }
@@ -255,12 +311,15 @@ const AuthPage: React.FC = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setErrors({});
 
     try {
       console.log('🔐 Attempting login...');
       
-      if (!email || !password) {
-        throw new Error("Please enter both email and password");
+      // Validate form
+      if (!validateForm(true)) {
+        setIsLoading(false);
+        return;
       }
       
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -268,7 +327,21 @@ const AuthPage: React.FC = () => {
         password,
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Login error:', error);
+        
+        if (error.message?.includes('Invalid login credentials')) {
+          setErrors({ general: "Invalid email or password. Please check your credentials and try again." });
+        } else if (error.message?.includes('Email not confirmed')) {
+          setErrors({ general: "Please check your email and click the confirmation link before logging in." });
+        } else if (error.message?.includes('Too many requests')) {
+          setErrors({ general: "Too many login attempts. Please wait a moment and try again." });
+        } else {
+          setErrors({ general: error.message || "Login failed. Please try again." });
+        }
+        setIsLoading(false);
+        return;
+      }
 
       if (data.session && data.user) {
         console.log('✅ Login successful, session created');
@@ -278,7 +351,9 @@ const AuthPage: React.FC = () => {
         const isValid = await validateCurrentSession();
         
         if (!isValid) {
-          throw new Error('Session validation failed after login');
+          setErrors({ general: 'Session validation failed after login' });
+          setIsLoading(false);
+          return;
         }
         
         // Fetch user role from profiles table
@@ -290,7 +365,9 @@ const AuthPage: React.FC = () => {
 
         if (profileError) {
           console.error('❌ Error fetching user profile:', profileError);
-          throw new Error('Failed to fetch user profile');
+          setErrors({ general: 'Failed to fetch user profile' });
+          setIsLoading(false);
+          return;
         }
 
         const userRole = profileData?.role as UserRole;
@@ -330,26 +407,11 @@ const AuthPage: React.FC = () => {
           description: "You have been logged in successfully.",
         });
       } else {
-        throw new Error('No session created during login');
+        setErrors({ general: 'No session created during login' });
       }
     } catch (error: any) {
       console.error('❌ Login error:', error);
-      
-      let errorMessage = "Failed to login.";
-      
-      if (error.message?.includes('Invalid login credentials')) {
-        errorMessage = "Invalid email or password. Please check your credentials and try again.";
-      } else if (error.message?.includes('Email not confirmed')) {
-        errorMessage = "Please check your email and click the confirmation link before logging in.";
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-
-      toast({
-        title: "Login Failed",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      setErrors({ general: error.message || "Login failed. Please try again." });
     } finally {
       setIsLoading(false);
     }
@@ -433,6 +495,11 @@ const AuthPage: React.FC = () => {
             <TabsContent value="login">
               <form onSubmit={handleLogin}>
                 <CardContent className="space-y-4">
+                  {errors.general && (
+                    <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+                      {errors.general}
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <Label htmlFor="email" className="font-poppins">Email</Label>
                     <Input 
@@ -440,12 +507,18 @@ const AuthPage: React.FC = () => {
                       type="email" 
                       placeholder="you@example.com" 
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        clearError('email');
+                      }}
                       onKeyDown={handleKeyDown}
-                      className="font-poppins"
+                      className={`font-poppins ${errors.email ? 'border-red-500 focus:border-red-500' : ''}`}
                       required
                       disabled={isLoading}
                     />
+                    {errors.email && (
+                      <p className="text-sm text-red-600">{errors.email}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -460,12 +533,18 @@ const AuthPage: React.FC = () => {
                       id="password" 
                       type="password" 
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        clearError('password');
+                      }}
                       onKeyDown={handleKeyDown}
-                      className="font-poppins"
+                      className={`font-poppins ${errors.password ? 'border-red-500 focus:border-red-500' : ''}`}
                       required
                       disabled={isLoading}
                     />
+                    {errors.password && (
+                      <p className="text-sm text-red-600">{errors.password}</p>
+                    )}
                   </div>
                 </CardContent>
                 <CardFooter>
@@ -483,6 +562,11 @@ const AuthPage: React.FC = () => {
             <TabsContent value="register">
               <form onSubmit={handleRegister}>
                 <CardContent className="space-y-4">
+                  {errors.general && (
+                    <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+                      {errors.general}
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <Label htmlFor="name" className="font-poppins">Full Name *</Label>
                     <Input 
@@ -490,11 +574,17 @@ const AuthPage: React.FC = () => {
                       type="text" 
                       placeholder="Your Full Name" 
                       value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="font-poppins"
+                      onChange={(e) => {
+                        setName(e.target.value);
+                        clearError('name');
+                      }}
+                      className={`font-poppins ${errors.name ? 'border-red-500 focus:border-red-500' : ''}`}
                       required
                       disabled={isLoading}
                     />
+                    {errors.name && (
+                      <p className="text-sm text-red-600">{errors.name}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="email" className="font-poppins">Email *</Label>
@@ -503,11 +593,17 @@ const AuthPage: React.FC = () => {
                       type="email" 
                       placeholder="you@example.com" 
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="font-poppins"
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        clearError('email');
+                      }}
+                      className={`font-poppins ${errors.email ? 'border-red-500 focus:border-red-500' : ''}`}
                       required
                       disabled={isLoading}
                     />
+                    {errors.email && (
+                      <p className="text-sm text-red-600">{errors.email}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone" className="font-poppins">Phone Number</Label>
@@ -516,10 +612,16 @@ const AuthPage: React.FC = () => {
                       type="tel" 
                       placeholder="+91 XXXXXXXXXX" 
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="font-poppins"
+                      onChange={(e) => {
+                        setPhone(e.target.value);
+                        clearError('phone');
+                      }}
+                      className={`font-poppins ${errors.phone ? 'border-red-500 focus:border-red-500' : ''}`}
                       disabled={isLoading}
                     />
+                    {errors.phone && (
+                      <p className="text-sm text-red-600">{errors.phone}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="new-password" className="font-poppins">Password *</Label>
@@ -528,12 +630,18 @@ const AuthPage: React.FC = () => {
                       type="password"
                       placeholder="At least 6 characters"
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="font-poppins"
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        clearError('password');
+                      }}
+                      className={`font-poppins ${errors.password ? 'border-red-500 focus:border-red-500' : ''}`}
                       required
                       disabled={isLoading}
                       minLength={6}
                     />
+                    {errors.password && (
+                      <p className="text-sm text-red-600">{errors.password}</p>
+                    )}
                   </div>
                   
                   <div className="flex items-start space-x-2 pt-2">
