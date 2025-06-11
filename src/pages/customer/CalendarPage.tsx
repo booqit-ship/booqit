@@ -281,7 +281,7 @@ const CalendarPage: React.FC = () => {
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-2">
           <CalendarIcon className="h-6 w-6 text-booqit-primary" />
-          <h1 className="text-2xl md:text-3xl font-light">Your Calendar</h1>
+          <h1 className="text-2xl md:text-3xl font-light font-righteous ">Your Calendar</h1>
           {(isBookingsFetching || isCountsFetching) && <Loader2 className="h-4 w-4 animate-spin text-booqit-primary ml-2" />}
         </div>
         <p className="text-muted-foreground">Manage your appointments</p>
