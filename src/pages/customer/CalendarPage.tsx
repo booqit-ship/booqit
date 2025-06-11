@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -13,14 +14,11 @@ import { Calendar as CalendarIcon, Clock, Store, CalendarX, Scissors, ChevronLef
 import { useIsMobile } from '@/hooks/use-mobile';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import CancelBookingButton from '@/components/customer/CancelBookingButton';
+
 const CalendarPage: React.FC = () => {
   const [date, setDate] = useState<Date>(new Date());
-  const {
-    toast
-  } = useToast();
-  const {
-    userId
-  } = useAuth();
+  const { toast } = useToast();
+  const { userId } = useAuth();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
@@ -28,9 +26,7 @@ const CalendarPage: React.FC = () => {
   // Generate 5 days starting from today (current date + next 4 days)
   const weekDays = useMemo(() => {
     const today = new Date();
-    return Array.from({
-      length: 5
-    }, (_, i) => addDays(today, i));
+    return Array.from({ length: 5 }, (_, i) => addDays(today, i));
   }, []);
 
   // Helper function to get service names from services JSON
@@ -38,7 +34,10 @@ const CalendarPage: React.FC = () => {
     // First try to get from services JSON field
     if (booking.services) {
       try {
-        const services = typeof booking.services === 'string' ? JSON.parse(booking.services) : booking.services;
+        const services = typeof booking.services === 'string' 
+          ? JSON.parse(booking.services) 
+          : booking.services;
+        
         if (Array.isArray(services)) {
           return services.map(service => service.name).join(', ');
         }
@@ -46,7 +45,7 @@ const CalendarPage: React.FC = () => {
         console.error('Error parsing services JSON:', error);
       }
     }
-
+    
     // Fallback to single service name
     return booking.service?.name || 'Service';
   };
@@ -55,7 +54,10 @@ const CalendarPage: React.FC = () => {
   const parseServicesForNavigation = (booking: Booking) => {
     if (booking.services) {
       try {
-        const services = typeof booking.services === 'string' ? JSON.parse(booking.services) : booking.services;
+        const services = typeof booking.services === 'string' 
+          ? JSON.parse(booking.services) 
+          : booking.services;
+        
         if (Array.isArray(services)) {
           return services;
         } else if (services && typeof services === 'object') {
@@ -65,28 +67,25 @@ const CalendarPage: React.FC = () => {
         console.error('Error parsing services JSON:', error);
       }
     }
-
+    
     // Fallback to single service
     if (booking.service) {
       return [booking.service];
     }
+    
     return [];
   };
 
   // Fetch bookings with optimized caching and real-time updates
-  const {
-    data: bookings = [],
-    isFetching: isBookingsFetching,
-    refetch: refetchBookings
-  } = useQuery({
+  const { data: bookings = [], isFetching: isBookingsFetching, refetch: refetchBookings } = useQuery({
     queryKey: ['customer-bookings', userId],
     queryFn: async (): Promise<Booking[]> => {
       if (!userId) return [];
+      
       console.log('Customer: Fetching bookings for user:', userId);
-      const {
-        data,
-        error
-      } = await supabase.from('bookings').select(`
+      const { data, error } = await supabase
+        .from('bookings')
+        .select(`
           *,
           stylist_name,
           service:service_id (
@@ -115,84 +114,80 @@ const CalendarPage: React.FC = () => {
             rating,
             created_at
           )
-        `).eq('user_id', userId).order('date', {
-        ascending: true
-      });
+        `)
+        .eq('user_id', userId)
+        .order('date', { ascending: true });
+      
       if (error) throw error;
       console.log('Customer bookings fetched:', data);
       return data as Booking[];
     },
     enabled: !!userId,
-    staleTime: 30 * 1000,
-    // Reduce stale time to 30 seconds for more frequent updates
-    gcTime: 5 * 60 * 1000 // Reduce garbage collection time to 5 minutes
+    staleTime: 30 * 1000, // Reduce stale time to 30 seconds for more frequent updates
+    gcTime: 5 * 60 * 1000, // Reduce garbage collection time to 5 minutes
   });
 
   // Fetch appointment counts with caching
-  const {
-    data: appointmentCounts = {},
-    isFetching: isCountsFetching,
-    refetch: refetchCounts
-  } = useQuery({
+  const { data: appointmentCounts = {}, isFetching: isCountsFetching, refetch: refetchCounts } = useQuery({
     queryKey: ['appointment-counts', userId, weekDays.map(d => format(d, 'yyyy-MM-dd'))],
-    queryFn: async (): Promise<{
-      [date: string]: number;
-    }> => {
+    queryFn: async (): Promise<{ [date: string]: number }> => {
       if (!userId || !bookings) return {};
-      const counts: {
-        [date: string]: number;
-      } = {};
+      
+      const counts: { [date: string]: number } = {};
       for (const day of weekDays) {
         const dateStr = format(day, 'yyyy-MM-dd');
-        const dayBookings = bookings.filter(booking => booking.date === dateStr && booking.status !== 'cancelled');
+        const dayBookings = bookings.filter(booking => 
+          booking.date === dateStr && booking.status !== 'cancelled'
+        );
         counts[dateStr] = dayBookings.length;
       }
       return counts;
     },
     enabled: !!userId && !!bookings,
-    staleTime: 30 * 1000 // Reduce stale time for faster updates
+    staleTime: 30 * 1000, // Reduce stale time for faster updates
   });
 
   // Enhanced real-time subscription for instant booking updates
   useEffect(() => {
     if (!userId) return;
+
     console.log('Customer: Setting up enhanced real-time subscription for bookings');
-    const channel = supabase.channel('customer-bookings-realtime-enhanced').on('postgres_changes', {
-      event: '*',
-      // Listen to all events (INSERT, UPDATE, DELETE)
-      schema: 'public',
-      table: 'bookings',
-      filter: `user_id=eq.${userId}`
-    }, payload => {
-      console.log('Customer: Real-time booking update received:', payload);
 
-      // Immediately invalidate and refetch both queries for instant updates
-      queryClient.invalidateQueries({
-        queryKey: ['customer-bookings', userId]
+    const channel = supabase
+      .channel('customer-bookings-realtime-enhanced')
+      .on('postgres_changes', {
+        event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+        schema: 'public',
+        table: 'bookings',
+        filter: `user_id=eq.${userId}`
+      }, (payload) => {
+        console.log('Customer: Real-time booking update received:', payload);
+        
+        // Immediately invalidate and refetch both queries for instant updates
+        queryClient.invalidateQueries({ queryKey: ['customer-bookings', userId] });
+        queryClient.invalidateQueries({ queryKey: ['appointment-counts', userId] });
+        
+        // Also trigger immediate refetch for faster updates
+        refetchBookings();
+        refetchCounts();
+        
+        // Show toast notification for new bookings
+        if (payload.eventType === 'INSERT') {
+          toast({
+            title: "New Booking Created",
+            description: "Your booking has been confirmed!",
+          });
+        } else if (payload.eventType === 'UPDATE') {
+          toast({
+            title: "Booking Updated", 
+            description: "Your booking status has been updated.",
+          });
+        }
+      })
+      .subscribe((status) => {
+        console.log('Customer: Enhanced real-time subscription status:', status);
       });
-      queryClient.invalidateQueries({
-        queryKey: ['appointment-counts', userId]
-      });
 
-      // Also trigger immediate refetch for faster updates
-      refetchBookings();
-      refetchCounts();
-
-      // Show toast notification for new bookings
-      if (payload.eventType === 'INSERT') {
-        toast({
-          title: "New Booking Created",
-          description: "Your booking has been confirmed!"
-        });
-      } else if (payload.eventType === 'UPDATE') {
-        toast({
-          title: "Booking Updated",
-          description: "Your booking status has been updated."
-        });
-      }
-    }).subscribe(status => {
-      console.log('Customer: Enhanced real-time subscription status:', status);
-    });
     return () => {
       console.log('Customer: Cleaning up enhanced real-time subscription');
       supabase.removeChannel(channel);
@@ -203,9 +198,7 @@ const CalendarPage: React.FC = () => {
   useEffect(() => {
     if (bookings.length > 0) {
       // Invalidate appointment counts when bookings change
-      queryClient.invalidateQueries({
-        queryKey: ['appointment-counts', userId]
-      });
+      queryClient.invalidateQueries({ queryKey: ['appointment-counts', userId] });
     }
   }, [bookings, userId, queryClient]);
 
@@ -231,12 +224,8 @@ const CalendarPage: React.FC = () => {
 
   // Enhanced booking refresh handler
   const handleBookingRefresh = () => {
-    queryClient.invalidateQueries({
-      queryKey: ['customer-bookings', userId]
-    });
-    queryClient.invalidateQueries({
-      queryKey: ['appointment-counts', userId]
-    });
+    queryClient.invalidateQueries({ queryKey: ['customer-bookings', userId] });
+    queryClient.invalidateQueries({ queryKey: ['appointment-counts', userId] });
     refetchBookings();
     refetchCounts();
   };
@@ -264,25 +253,32 @@ const CalendarPage: React.FC = () => {
         return 'bg-gray-500';
     }
   };
+
   const navigateToNextDay = () => {
     const currentIndex = weekDays.findIndex(day => isSameDay(day, date));
     const nextIndex = (currentIndex + 1) % weekDays.length;
     setDate(weekDays[nextIndex]);
   };
+
   const navigateToPrevDay = () => {
     const currentIndex = weekDays.findIndex(day => isSameDay(day, date));
     const prevIndex = currentIndex === 0 ? weekDays.length - 1 : currentIndex - 1;
     setDate(weekDays[prevIndex]);
   };
+
   const goToToday = () => {
     setDate(new Date());
   };
-  return <div className="container mx-auto px-4 py-6 pb-20 md:pb-6">
+
+  return (
+    <div className="container mx-auto px-4 py-6 pb-20 md:pb-6">
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-2">
           <CalendarIcon className="h-6 w-6 text-booqit-primary" />
           <h1 className="text-2xl md:text-3xl font-light">Your Calendar</h1>
-          {(isBookingsFetching || isCountsFetching) && <Loader2 className="h-4 w-4 animate-spin text-booqit-primary ml-2" />}
+          {(isBookingsFetching || isCountsFetching) && (
+            <Loader2 className="h-4 w-4 animate-spin text-booqit-primary ml-2" />
+          )}
         </div>
         <p className="text-muted-foreground">Manage your appointments</p>
       </div>
@@ -309,14 +305,18 @@ const CalendarPage: React.FC = () => {
         <CardContent className="p-4">
           <div className="grid grid-cols-5 gap-2">
             {weekDays.map((day, index) => {
-            const isCurrentDay = isToday(day);
-            const isSelectedDay = isSameDay(day, date);
-            const dateKey = format(day, 'yyyy-MM-dd');
-            const appointmentCount = appointmentCounts[dateKey] || 0;
-            return <div key={index} className="flex flex-col items-center cursor-pointer" onClick={() => setDate(day)}>
+              const isCurrentDay = isToday(day);
+              const isSelectedDay = isSameDay(day, date);
+              const dateKey = format(day, 'yyyy-MM-dd');
+              const appointmentCount = appointmentCounts[dateKey] || 0;
+              
+              return (
+                <div key={index} className="flex flex-col items-center cursor-pointer" onClick={() => setDate(day)}>
                   <div className={`
                     w-full h-16 rounded-xl flex flex-col items-center justify-center transition-all duration-200
-                    ${isSelectedDay ? 'bg-booqit-primary text-white shadow-lg border-2 border-booqit-primary' : isCurrentDay ? 'bg-booqit-primary/20 text-booqit-primary border-2 border-booqit-primary/30' : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border-2 border-transparent'}
+                    ${isSelectedDay ? 'bg-booqit-primary text-white shadow-lg border-2 border-booqit-primary' : 
+                      isCurrentDay ? 'bg-booqit-primary/20 text-booqit-primary border-2 border-booqit-primary/30' : 
+                      'bg-gray-50 text-gray-700 hover:bg-gray-100 border-2 border-transparent'}
                   `}>
                     <div className="text-xs font-medium uppercase tracking-wide">
                       {format(day, 'EEE')}
@@ -328,8 +328,9 @@ const CalendarPage: React.FC = () => {
                       {format(day, 'MMM')}
                     </div>
                   </div>
-                </div>;
-          })}
+                </div>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
@@ -340,18 +341,24 @@ const CalendarPage: React.FC = () => {
           <CardTitle className="flex items-center gap-2 text-xl font-thin">
             <CalendarIcon className="h-5 w-5 text-booqit-primary" />
             {format(date, 'MMMM d, yyyy')} Bookings
-            {isBookingsFetching && <Loader2 className="h-4 w-4 animate-spin text-booqit-primary ml-2" />}
+            {isBookingsFetching && (
+              <Loader2 className="h-4 w-4 animate-spin text-booqit-primary ml-2" />
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4">
-          {todayBookings.length === 0 ? <div className="text-center py-8 border rounded-lg bg-gray-50">
+          {todayBookings.length === 0 ? (
+            <div className="text-center py-8 border rounded-lg bg-gray-50">
               <CalendarX className="h-10 w-10 mx-auto text-gray-400 mb-3" />
               <p className="text-gray-500 text-sm mb-4">No bookings for this date</p>
               <Button className="bg-booqit-primary hover:bg-booqit-primary/90" onClick={() => navigate('/search')}>
                 Book an Appointment
               </Button>
-            </div> : <div className="space-y-4">
-              {todayBookings.map(booking => <Card key={booking.id} className="border-l-4 border-l-booqit-primary shadow-sm hover:shadow-md transition-shadow">
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {todayBookings.map(booking => (
+                <Card key={booking.id} className="border-l-4 border-l-booqit-primary shadow-sm hover:shadow-md transition-shadow">
                   <CardContent className="p-4">
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-start gap-3">
@@ -359,7 +366,7 @@ const CalendarPage: React.FC = () => {
                           <Clock className="h-4 w-4 text-booqit-primary" />
                         </div>
                         <div className="flex-1">
-                          <h3 className="text-gray-900 mb-1 text-lg font-light font-righteous ">{getServiceNames(booking)}</h3>
+                          <h3 className="text-gray-900 mb-1 text-lg font-light">{getServiceNames(booking)}</h3>
                           <p className="text-sm text-booqit-primary font-medium">
                             {formatTimeToAmPm(booking.time_slot)}
                           </p>
@@ -376,23 +383,39 @@ const CalendarPage: React.FC = () => {
                         <span>{booking.merchant?.shop_name}</span>
                       </div>
                       
-                      {booking.stylist_name && <div className="flex items-center gap-2 text-sm text-gray-600">
+                      {booking.stylist_name && (
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
                           <Scissors className="h-4 w-4" />
                           <span>Stylist: {booking.stylist_name}</span>
-                        </div>}
+                        </div>
+                      )}
                     </div>
                     
-                    {booking.status !== 'cancelled' && booking.status !== 'completed' && <div className="flex justify-end gap-2">
-                        <Button size="sm" variant="outline" onClick={() => handleViewReceipt(booking)} className="h-8 text-base font-medium px-[23px] mx-[20px]">
+                    {booking.status !== 'cancelled' && booking.status !== 'completed' && (
+                      <div className="flex justify-end gap-2">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => handleViewReceipt(booking)} 
+                          className="h-8 text-base font-medium px-[23px] mx-[20px]"
+                        >
                           Receipt
                         </Button>
-                        <CancelBookingButton bookingId={booking.id} onCancelled={handleBookingRefresh} />
-                      </div>}
+                        <CancelBookingButton 
+                          bookingId={booking.id} 
+                          onCancelled={handleBookingRefresh}
+                        />
+                      </div>
+                    )}
                   </CardContent>
-                </Card>)}
-            </div>}
+                </Card>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
-    </div>;
+    </div>
+  );
 };
+
 export default CalendarPage;

@@ -136,7 +136,6 @@ const PaymentPage: React.FC = () => {
         
         if (paymentError) {
           console.error('PAYMENT_FLOW: Payment record error:', paymentError);
-          // Don't fail the booking for payment record issues
           paymentRecorded = false;
         } else {
           console.log('PAYMENT_FLOW: Payment record created successfully');
@@ -180,39 +179,17 @@ const PaymentPage: React.FC = () => {
         }
       } catch (notificationError) {
         console.error('PAYMENT_FLOW: Notification failed (non-critical):', notificationError);
-        // Don't fail the booking if notification fails
       }
       
       // Step 5: Show success animation
       console.log('PAYMENT_FLOW: Process completed successfully');
       setShowSuccessAnimation(true);
       
-      // Hide animation and navigate after 4 seconds
-      setTimeout(() => {
-        setShowSuccessAnimation(false);
-        
-        if (paymentRecorded) {
-          toast.success('Booking confirmed! Payment will be processed at the shop.');
-        } else {
-          toast.success('Booking confirmed! Payment record will be updated shortly.');
-        }
-
-        // Navigate to receipt page
-        navigate(`/receipt/${bookingId}`, {
-          state: {
-            merchant,
-            selectedServices,
-            totalPrice,
-            totalDuration,
-            selectedStaff,
-            selectedStaffDetails,
-            bookingDate,
-            bookingTime,
-            bookingId: bookingId,
-            paymentMethod: 'pay_on_shop'
-          }
-        });
-      }, 4000);
+      if (paymentRecorded) {
+        toast.success('Booking confirmed! Payment will be processed at the shop.');
+      } else {
+        toast.success('Booking confirmed! Payment record will be updated shortly.');
+      }
 
     } catch (error) {
       console.error('PAYMENT_FLOW: Critical error:', error);
@@ -220,6 +197,25 @@ const PaymentPage: React.FC = () => {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleAnimationComplete = () => {
+    setShowSuccessAnimation(false);
+    
+    // Navigate to receipt page after animation
+    navigate(`/receipt/${showSuccessAnimation ? 'temp-id' : 'unknown'}`, {
+      state: {
+        merchant,
+        selectedServices,
+        totalPrice,
+        totalDuration,
+        selectedStaff,
+        selectedStaffDetails,
+        bookingDate,
+        bookingTime,
+        paymentMethod: 'pay_on_shop'
+      }
+    });
   };
 
   // Navigate back to datetime selection
@@ -238,15 +234,6 @@ const PaymentPage: React.FC = () => {
   
   return (
     <>
-      {/* Success Animation Overlay */}
-      {showSuccessAnimation && (
-        <BookingSuccessAnimation
-          merchantName={merchant.shop_name}
-          bookingDate={formatDateInIST(new Date(bookingDate), 'MMM d, yyyy')}
-          bookingTime={formatTimeToAmPm(bookingTime)}
-        />
-      )}
-
       <div className="pb-24 bg-white min-h-screen">
         <div className="bg-booqit-primary text-white p-4 sticky top-0 z-10">
           <div className="relative flex items-center justify-center">
@@ -339,6 +326,17 @@ const PaymentPage: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {/* Success Animation */}
+      <BookingSuccessAnimation
+        isVisible={showSuccessAnimation}
+        onComplete={handleAnimationComplete}
+        bookingDetails={{
+          shopName: merchant?.shop_name,
+          date: formatDateInIST(new Date(bookingDate), 'MMM d, yyyy'),
+          time: formatTimeToAmPm(bookingTime)
+        }}
+      />
     </>
   );
 };
