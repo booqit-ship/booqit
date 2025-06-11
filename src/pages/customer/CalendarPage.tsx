@@ -359,7 +359,7 @@ const CalendarPage: React.FC = () => {
                           <Clock className="h-4 w-4 text-booqit-primary" />
                         </div>
                         <div className="flex-1">
-                          <h3 className="text-gray-900 mb-1 text-lg font-light">{getServiceNames(booking)}</h3>
+                          <h3 className="text-gray-900 mb-1 text-lg font-light font-righteous ">{getServiceNames(booking)}</h3>
                           <p className="text-sm text-booqit-primary font-medium">
                             {formatTimeToAmPm(booking.time_slot)}
                           </p>
