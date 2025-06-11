@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -85,8 +86,23 @@ const StaffManagementSheet: React.FC<StaffManagementSheetProps> = ({
     }
   };
 
-  const handleStaffAdded = (newStaff: Staff) => {
-    setStaff([...staff, newStaff]);
+  const handleStaffAdded = () => {
+    // Refresh the staff list after adding a new staff member
+    const fetchStaff = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('staff')
+          .select('*')
+          .eq('merchant_id', merchantId);
+
+        if (error) throw error;
+        setStaff(data as Staff[]);
+      } catch (error: any) {
+        console.error('Error refreshing staff:', error);
+      }
+    };
+    
+    fetchStaff();
   };
 
   return (
