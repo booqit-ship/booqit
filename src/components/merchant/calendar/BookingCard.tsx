@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,6 +6,16 @@ import { Clock, User, Phone, CheckCircle, XCircle, Scissors, Timer } from 'lucid
 import { formatTimeToAmPm, timeToMinutes, minutesToTime } from '@/utils/timeUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogCancel, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle 
+} from '@/components/ui/alert-dialog';
 
 interface BookingWithCustomerDetails {
   id: string;
@@ -33,6 +42,9 @@ const BookingCard: React.FC<BookingCardProps> = ({
   booking,
   onStatusChange
 }) => {
+  const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'confirmed':
@@ -47,7 +59,6 @@ const BookingCard: React.FC<BookingCardProps> = ({
     }
   };
 
-  // COMPLETELY REWRITTEN getServiceInfo function to handle multiple services properly
   const getServiceInfo = () => {
     console.log('BookingCard - Raw booking data:', booking);
     console.log('BookingCard - Services field:', booking.services);
@@ -56,12 +67,10 @@ const BookingCard: React.FC<BookingCardProps> = ({
     let serviceNames = 'Unknown Service';
     let totalDuration = booking.total_duration || 30;
     
-    // First priority: Try to parse the services JSON field
     if (booking.services) {
       try {
         let services;
         
-        // Parse services if it's a string
         if (typeof booking.services === 'string') {
           console.log('BookingCard - Parsing string services');
           services = JSON.parse(booking.services);
@@ -72,7 +81,6 @@ const BookingCard: React.FC<BookingCardProps> = ({
         
         console.log('BookingCard - Parsed services:', services);
         
-        // Handle array of services (multiple services)
         if (Array.isArray(services) && services.length > 0) {
           const serviceNamesList = services
             .map(service => service.name?.trim())
@@ -80,14 +88,12 @@ const BookingCard: React.FC<BookingCardProps> = ({
           
           if (serviceNamesList.length > 0) {
             serviceNames = serviceNamesList.join(', ');
-            // Use total_duration from booking first, then calculate from services
             totalDuration = booking.total_duration || services.reduce((sum, service) => sum + (service.duration || 0), 0);
             
             console.log('BookingCard - Multiple services found:', { names: serviceNames, duration: totalDuration });
             return { names: serviceNames, duration: totalDuration };
           }
         }
-        // Handle single service object
         else if (services && services.name) {
           serviceNames = services.name.trim();
           totalDuration = booking.total_duration || services.duration || 30;
@@ -100,7 +106,6 @@ const BookingCard: React.FC<BookingCardProps> = ({
       }
     }
     
-    // Second priority: Fallback to single service relation
     if (booking.service?.name) {
       serviceNames = booking.service.name.trim();
       totalDuration = booking.total_duration || booking.service.duration || 30;
@@ -109,7 +114,6 @@ const BookingCard: React.FC<BookingCardProps> = ({
       return { names: serviceNames, duration: totalDuration };
     }
     
-    // Final fallback
     const fallbackData = {
       names: serviceNames, // Will be 'Unknown Service'
       duration: totalDuration // Will be booking.total_duration or 30
@@ -133,7 +137,6 @@ const BookingCard: React.FC<BookingCardProps> = ({
     try {
       let updateData: any = { status: newStatus };
       
-      // If completing, also set payment status to completed for earnings calculation
       if (newStatus === 'completed') {
         updateData.payment_status = 'completed';
       }
@@ -157,7 +160,16 @@ const BookingCard: React.FC<BookingCardProps> = ({
     }
   };
 
-  // Get card styling based on status
+  const handleCompleteConfirm = () => {
+    handleStatusUpdate('completed');
+    setIsCompleteDialogOpen(false);
+  };
+
+  const handleCancelConfirm = () => {
+    handleStatusUpdate('cancelled');
+    setIsCancelDialogOpen(false);
+  };
+
   const getCardStyling = () => {
     if (booking.status === 'cancelled') {
       return 'opacity-60 border-l-red-500 bg-red-50/30';
@@ -169,110 +181,142 @@ const BookingCard: React.FC<BookingCardProps> = ({
   };
 
   return (
-    <Card className={`hover:shadow-lg transition-shadow duration-200 border-l-4 ${getCardStyling()}`}>
-      <CardContent className="p-4">
-        {/* Header with time range and status */}
-        <div className="flex justify-between items-start mb-4">
-          <div className="flex items-center space-x-2">
-            <Clock className="h-4 w-4 text-gray-500" />
-            <span className={`font-semibold text-sm ${booking.status === 'cancelled' ? 'line-through text-gray-500' : ''}`}>
-              {getTimeRange()}
-            </span>
-          </div>
-          <Badge className={`${getStatusColor(booking.status)} font-medium`}>
-            {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-          </Badge>
-        </div>
-
-        {/* Service names and duration */}
-        <div className="space-y-2 mb-3">
-          <div className="flex items-center space-x-2">
-            <div className={`w-2 h-2 rounded-full ${booking.status === 'cancelled' ? 'bg-red-400' : 'bg-booqit-primary'}`}></div>
-            <span className={`font-medium ${booking.status === 'cancelled' ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
-              {serviceInfo.names}
-            </span>
-          </div>
-          <div className="flex items-center space-x-2 text-gray-600">
-            <Timer className="h-4 w-4 text-gray-500" />
-            <span className="text-sm">{serviceInfo.duration} min</span>
-          </div>
-        </div>
-
-        {/* Customer and stylist information */}
-        <div className="space-y-2 mb-4">
-          {booking.customer_name && (
-            <div className="flex items-center space-x-2 text-gray-700">
-              <User className="h-4 w-4 text-gray-500" />
-              <span className={`font-medium ${booking.status === 'cancelled' ? 'text-gray-500' : ''}`}>
-                {booking.customer_name}
+    <>
+      <Card className={`hover:shadow-lg transition-shadow duration-200 border-l-4 ${getCardStyling()}`}>
+        <CardContent className="p-4">
+          <div className="flex justify-between items-start mb-4">
+            <div className="flex items-center space-x-2">
+              <Clock className="h-4 w-4 text-gray-500" />
+              <span className={`font-semibold text-sm ${booking.status === 'cancelled' ? 'line-through text-gray-500' : ''}`}>
+                {getTimeRange()}
               </span>
             </div>
-          )}
-          
-          {booking.customer_phone && (
+            <Badge className={`${getStatusColor(booking.status)} font-medium`}>
+              {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+            </Badge>
+          </div>
+
+          <div className="space-y-2 mb-3">
+            <div className="flex items-center space-x-2">
+              <div className={`w-2 h-2 rounded-full ${booking.status === 'cancelled' ? 'bg-red-400' : 'bg-booqit-primary'}`}></div>
+              <span className={`font-medium ${booking.status === 'cancelled' ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
+                {serviceInfo.names}
+              </span>
+            </div>
             <div className="flex items-center space-x-2 text-gray-600">
-              <Phone className="h-4 w-4 text-gray-500" />
-              <a 
-                href={`tel:${booking.customer_phone}`} 
-                className={`${booking.status === 'cancelled' ? 'text-gray-500 cursor-default' : 'text-booqit-primary hover:underline cursor-pointer'}`}
-                onClick={booking.status === 'cancelled' ? (e) => e.preventDefault() : undefined}
-              >
-                {booking.customer_phone}
-              </a>
+              <Timer className="h-4 w-4 text-gray-500" />
+              <span className="text-sm">{serviceInfo.duration} min</span>
             </div>
-          )}
-          
-          {booking.stylist_name && (
-            <div className="flex items-center space-x-2 text-gray-700">
-              <Scissors className="h-4 w-4 text-gray-500" />
-              <span className={booking.status === 'cancelled' ? 'text-gray-500' : ''}>
-                Stylist: <span className="font-medium">{booking.stylist_name}</span>
-              </span>
-            </div>
-          )}
-        </div>
+          </div>
 
-        {/* Action buttons - only show if not cancelled or completed */}
-        {booking.status === 'pending' || booking.status === 'confirmed' ? (
-          <div className="flex flex-wrap gap-2">
-            {booking.status === 'pending' && (
-              <Button 
-                size="sm" 
-                onClick={() => handleStatusUpdate('confirmed')} 
-                className="bg-green-600 hover:bg-green-700 text-white"
-              >
-                <CheckCircle className="h-4 w-4 mr-1" />
-                Confirm
-              </Button>
+          <div className="space-y-2 mb-4">
+            {booking.customer_name && (
+              <div className="flex items-center space-x-2 text-gray-700">
+                <User className="h-4 w-4 text-gray-500" />
+                <span className={`font-medium ${booking.status === 'cancelled' ? 'text-gray-500' : ''}`}>
+                  {booking.customer_name}
+                </span>
+              </div>
             )}
             
-            {booking.status === 'confirmed' && (
-              <Button 
-                size="sm" 
-                onClick={() => handleStatusUpdate('completed')} 
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                <CheckCircle className="h-4 w-4 mr-1" />
-                Complete
-              </Button>
+            {booking.customer_phone && (
+              <div className="flex items-center space-x-2 text-gray-600">
+                <Phone className="h-4 w-4 text-gray-500" />
+                <a 
+                  href={`tel:${booking.customer_phone}`} 
+                  className={`${booking.status === 'cancelled' ? 'text-gray-500 cursor-default' : 'text-booqit-primary hover:underline cursor-pointer'}`}
+                  onClick={booking.status === 'cancelled' ? (e) => e.preventDefault() : undefined}
+                >
+                  {booking.customer_phone}
+                </a>
+              </div>
             )}
             
-            <Button 
-              size="sm" 
-              variant="destructive" 
-              onClick={() => handleStatusUpdate('cancelled')}
-            >
-              <XCircle className="h-4 w-4 mr-1" />
-              Cancel
-            </Button>
+            {booking.stylist_name && (
+              <div className="flex items-center space-x-2 text-gray-700">
+                <Scissors className="h-4 w-4 text-gray-500" />
+                <span className={booking.status === 'cancelled' ? 'text-gray-500' : ''}>
+                  Stylist: <span className="font-medium">{booking.stylist_name}</span>
+                </span>
+              </div>
+            )}
           </div>
-        ) : booking.status === 'cancelled' ? (
-          <div className="text-sm text-red-600 font-medium">
-            This booking has been cancelled
-          </div>
-        ) : null}
-      </CardContent>
-    </Card>
+
+          {booking.status === 'pending' || booking.status === 'confirmed' ? (
+            <div className="flex flex-wrap gap-2">
+              {booking.status === 'pending' && (
+                <Button 
+                  size="sm" 
+                  onClick={() => handleStatusUpdate('confirmed')} 
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <CheckCircle className="h-4 w-4 mr-1" />
+                  Confirm
+                </Button>
+              )}
+              
+              {booking.status === 'confirmed' && (
+                <Button 
+                  size="sm" 
+                  onClick={() => setIsCompleteDialogOpen(true)} 
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <CheckCircle className="h-4 w-4 mr-1" />
+                  Complete
+                </Button>
+              )}
+              
+              <Button 
+                size="sm" 
+                variant="destructive" 
+                onClick={() => setIsCancelDialogOpen(true)}
+              >
+                <XCircle className="h-4 w-4 mr-1" />
+                Cancel
+              </Button>
+            </div>
+          ) : booking.status === 'cancelled' ? (
+            <div className="text-sm text-red-600 font-medium">
+              This booking has been cancelled
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <AlertDialog open={isCompleteDialogOpen} onOpenChange={setIsCompleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Complete Booking?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to mark this booking as completed? This action will update the booking status and payment information.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCompleteConfirm} className="bg-blue-600 hover:bg-blue-700">
+              Complete Booking
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Booking?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to cancel this booking? This action cannot be undone and the customer will be notified.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Booking</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCancelConfirm} className="bg-red-600 hover:bg-red-700">
+              Cancel Booking
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 };
 
