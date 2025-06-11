@@ -1,13 +1,14 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { UserPlus, X, Loader2, Users, Edit, Trash, UserPen } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { useStaffData, useInvalidateServicesData } from '@/hooks/useServicesData';
 
 interface Staff {
   id: string;
@@ -17,7 +18,7 @@ interface Staff {
 
 interface AddStaffWidgetProps {
   merchantId: string;
-  onStaffAdded: (staff: Staff) => void;
+  onStaffAdded: () => void;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -31,14 +32,16 @@ const AddStaffWidget: React.FC<AddStaffWidgetProps> = ({
   const [name, setName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showStaffList, setShowStaffList] = useState(false);
-  const [staffList, setStaffList] = useState<Staff[]>([]);
-  const [isLoadingStaff, setIsLoadingStaff] = useState(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [editName, setEditName] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<Staff | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
+  const invalidateData = useInvalidateServicesData();
+
+  // Use React Query to fetch staff data
+  const { data: staffList = [], isLoading: isLoadingStaff } = useStaffData(merchantId);
 
   const resetForm = () => {
     setName('');
@@ -47,42 +50,6 @@ const AddStaffWidget: React.FC<AddStaffWidgetProps> = ({
     setEditName('');
     setDeleteConfirm(null);
   };
-
-  const fetchStaffList = async () => {
-    if (!merchantId) return;
-    
-    setIsLoadingStaff(true);
-    try {
-      const { data, error } = await supabase
-        .from('staff')
-        .select('*')
-        .eq('merchant_id', merchantId)
-        .order('name', { ascending: true });
-
-      if (error) {
-        console.error('Error fetching staff:', error);
-        throw error;
-      }
-      
-      console.log('Fetched staff list:', data);
-      setStaffList(data as Staff[]);
-    } catch (error: any) {
-      console.error('Failed to fetch staff:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch staff members. Please try again.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoadingStaff(false);
-    }
-  };
-
-  useEffect(() => {
-    if (showStaffList) {
-      fetchStaffList();
-    }
-  }, [showStaffList, merchantId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,16 +74,15 @@ const AddStaffWidget: React.FC<AddStaffWidgetProps> = ({
 
       if (error) throw error;
 
-      const newStaff = data[0] as Staff;
-      onStaffAdded(newStaff);
-      
       toast({
         title: "Success",
         description: "Staff member added successfully."
       });
 
+      invalidateData(merchantId);
       resetForm();
       onClose();
+      onStaffAdded();
     } catch (error: any) {
       console.error('Error adding staff:', error);
       toast({
@@ -156,7 +122,7 @@ const AddStaffWidget: React.FC<AddStaffWidgetProps> = ({
 
       setEditingStaff(null);
       setEditName('');
-      fetchStaffList();
+      invalidateData(merchantId);
     } catch (error: any) {
       console.error('Error updating staff:', error);
       toast({
@@ -196,11 +162,8 @@ const AddStaffWidget: React.FC<AddStaffWidgetProps> = ({
         description: `${deleteConfirm.name} has been deleted successfully.`
       });
 
-      // Close the confirmation dialog
       setDeleteConfirm(null);
-      
-      // Refresh the staff list
-      await fetchStaffList();
+      invalidateData(merchantId);
       
     } catch (error: any) {
       console.error('Failed to delete staff:', error);
@@ -267,7 +230,7 @@ const AddStaffWidget: React.FC<AddStaffWidgetProps> = ({
                         className="flex-1 border-booqit-primary text-booqit-primary hover:bg-booqit-primary/10"
                       >
                         <UserPen className="mr-2 h-4 w-4" />
-                        Edit Staff
+                        Manage Existing Staff
                       </Button>
                       
                       <div className="flex flex-col-reverse sm:flex-row gap-3">

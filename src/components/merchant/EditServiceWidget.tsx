@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,19 +8,19 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { Service } from '@/types';
-import { PlusCircle, X, Loader2, DollarSign, Clock } from 'lucide-react';
+import { Edit, X, Loader2, DollarSign, Clock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-interface AddServiceWidgetProps {
-  merchantId: string;
-  onServiceAdded: () => void;
+interface EditServiceWidgetProps {
+  service: Service;
+  onServiceUpdated: () => void;
   isOpen: boolean;
   onClose: () => void;
 }
 
-const AddServiceWidget: React.FC<AddServiceWidgetProps> = ({
-  merchantId,
-  onServiceAdded,
+const EditServiceWidget: React.FC<EditServiceWidgetProps> = ({
+  service,
+  onServiceUpdated,
   isOpen,
   onClose
 }) => {
@@ -31,6 +31,16 @@ const AddServiceWidget: React.FC<AddServiceWidgetProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
+  // Populate form with service data when component mounts or service changes
+  useEffect(() => {
+    if (service) {
+      setName(service.name);
+      setPrice(service.price.toString());
+      setDuration(service.duration.toString());
+      setDescription(service.description || '');
+    }
+  }, [service]);
+
   const resetForm = () => {
     setName('');
     setPrice('');
@@ -40,41 +50,32 @@ const AddServiceWidget: React.FC<AddServiceWidgetProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!merchantId) {
-      toast({
-        title: "Error",
-        description: "Merchant information not found. Please complete onboarding first."
-      });
-      return;
-    }
-
+    
     setIsSubmitting(true);
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('services')
-        .insert({
-          merchant_id: merchantId,
+        .update({
           name,
           price: parseFloat(price),
           duration: parseInt(duration),
           description
         })
-        .select();
+        .eq('id', service.id);
 
       if (error) throw error;
 
       toast({
         title: "Success",
-        description: "Service created successfully."
+        description: "Service updated successfully."
       });
 
-      resetForm();
+      onServiceUpdated();
       onClose();
-      onServiceAdded(); // Trigger data refresh
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to create service. Please try again."
+        description: error.message || "Failed to update service. Please try again."
       });
     } finally {
       setIsSubmitting(false);
@@ -91,8 +92,8 @@ const AddServiceWidget: React.FC<AddServiceWidgetProps> = ({
       <DialogContent className="sm:max-w-md max-w-[95vw] mx-auto">
         <DialogHeader className="relative">
           <DialogTitle className="text-xl font-light text-booqit-dark flex items-center gap-2">
-            <PlusCircle className="h-5 w-5 text-booqit-primary" />
-            Add New Service
+            <Edit className="h-5 w-5 text-booqit-primary" />
+            Edit Service
           </DialogTitle>
           <Button
             variant="ghost"
@@ -108,9 +109,9 @@ const AddServiceWidget: React.FC<AddServiceWidgetProps> = ({
           <CardContent className="p-0">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name" className="text-sm font-medium">Service Name</Label>
+                <Label htmlFor="edit-name" className="text-sm font-medium">Service Name</Label>
                 <Input
-                  id="name"
+                  id="edit-name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
@@ -121,12 +122,12 @@ const AddServiceWidget: React.FC<AddServiceWidgetProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label htmlFor="price" className="text-sm font-medium flex items-center gap-1">
+                  <Label htmlFor="edit-price" className="text-sm font-medium flex items-center gap-1">
                     <DollarSign className="h-3 w-3" />
                     Price (₹)
                   </Label>
                   <Input
-                    id="price"
+                    id="edit-price"
                     type="number"
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
@@ -137,12 +138,12 @@ const AddServiceWidget: React.FC<AddServiceWidgetProps> = ({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="duration" className="text-sm font-medium flex items-center gap-1">
+                  <Label htmlFor="edit-duration" className="text-sm font-medium flex items-center gap-1">
                     <Clock className="h-3 w-3" />
                     Duration (mins)
                   </Label>
                   <Input
-                    id="duration"
+                    id="edit-duration"
                     type="number"
                     value={duration}
                     onChange={(e) => setDuration(e.target.value)}
@@ -154,9 +155,9 @@ const AddServiceWidget: React.FC<AddServiceWidgetProps> = ({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="description" className="text-sm font-medium">Description (Optional)</Label>
+                <Label htmlFor="edit-description" className="text-sm font-medium">Description (Optional)</Label>
                 <Textarea
-                  id="description"
+                  id="edit-description"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={3}
@@ -183,12 +184,12 @@ const AddServiceWidget: React.FC<AddServiceWidgetProps> = ({
                   {isSubmitting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Adding...
+                      Updating...
                     </>
                   ) : (
                     <>
-                      <PlusCircle className="mr-2 h-4 w-4" />
-                      Add Service
+                      <Edit className="mr-2 h-4 w-4" />
+                      Update Service
                     </>
                   )}
                 </Button>
@@ -201,4 +202,4 @@ const AddServiceWidget: React.FC<AddServiceWidgetProps> = ({
   );
 };
 
-export default AddServiceWidget;
+export default EditServiceWidget;

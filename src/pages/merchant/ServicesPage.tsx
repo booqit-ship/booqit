@@ -10,22 +10,24 @@ import { Service } from '@/types';
 import { PlusCircle, Edit, Trash, Loader2, Clock, Users } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useServicesData, useStaffData, useInvalidateServicesData } from '@/hooks/useServicesData';
 import AddServiceWidget from '@/components/merchant/AddServiceWidget';
+import EditServiceWidget from '@/components/merchant/EditServiceWidget';
 import AddStaffWidget from '@/components/merchant/AddStaffWidget';
 
 const ServicesPage: React.FC = () => {
-  const [services, setServices] = useState<Service[]>([]);
   const [merchantId, setMerchantId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteServiceId, setDeleteServiceId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isServiceWidgetOpen, setIsServiceWidgetOpen] = useState(false);
   const [isStaffWidgetOpen, setIsStaffWidgetOpen] = useState(false);
+  const [editingService, setEditingService] = useState<Service | null>(null);
   
   const { toast } = useToast();
   const { userId } = useAuth();
   const isMobile = useIsMobile();
+  const invalidateData = useInvalidateServicesData();
 
   // Fetch merchant ID for the current user
   useEffect(() => {
@@ -46,73 +48,69 @@ const ServicesPage: React.FC = () => {
     fetchMerchantId();
   }, [userId]);
 
-  // Fetch services when merchant ID is available
-  useEffect(() => {
-    const fetchServices = async () => {
-      if (!merchantId) return;
-      setIsLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('services')
-          .select('*')
-          .eq('merchant_id', merchantId)
-          .order('name', { ascending: true });
-        if (error) throw error;
-        setServices(data as Service[]);
-      } catch (error: any) {
-        toast({
-          title: "Error",
-          description: "Failed to fetch services. Please try again."
-        });
-        console.error(error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchServices();
-  }, [merchantId]);
+  // Use React Query hooks for data fetching
+  const { data: services = [], isLoading: servicesLoading, error: servicesError } = useServicesData(merchantId);
+  const { data: staff = [], isLoading: staffLoading, error: staffError } = useStaffData(merchantId);
 
-  const handleServiceAdded = (newService: Service) => {
-    setServices([...services, newService]);
-  };
-
-  const handleStaffAdded = (newStaff: any) => {
+  const handleServiceAdded = () => {
+    if (merchantId) {
+      invalidateData(merchantId);
+    }
     toast({
       title: "Success",
-      description: "Staff member added successfully. You can now manage their availability."
+      description: "Service added successfully."
     });
   };
 
-  const handleEditService = async (service: Service) => {
-    // TODO: Implement edit functionality with a separate edit widget
+  const handleServiceUpdated = () => {
+    if (merchantId) {
+      invalidateData(merchantId);
+    }
+    setEditingService(null);
     toast({
-      title: "Info",
-      description: "Edit functionality coming soon!"
+      title: "Success",
+      description: "Service updated successfully."
     });
   };
 
-  const confirmDelete = (id: string) => {
-    setDeleteId(id);
-    setIsDialogOpen(true);
+  const handleStaffAdded = () => {
+    if (merchantId) {
+      invalidateData(merchantId);
+    }
+    toast({
+      title: "Success",
+      description: "Staff member added successfully."
+    });
+  };
+
+  const handleEditService = (service: Service) => {
+    setEditingService(service);
+  };
+
+  const confirmDeleteService = (id: string) => {
+    setDeleteServiceId(id);
+    setIsDeleteDialogOpen(true);
   };
 
   const handleDeleteService = async () => {
-    if (!deleteId) return;
+    if (!deleteServiceId) return;
     setIsDeleting(true);
     try {
       const { error } = await supabase
         .from('services')
         .delete()
-        .eq('id', deleteId);
+        .eq('id', deleteServiceId);
       if (error) throw error;
 
-      // Update local state
-      setServices(services.filter(service => service.id !== deleteId));
+      if (merchantId) {
+        invalidateData(merchantId);
+      }
       toast({
         title: "Success",
         description: "Service deleted successfully."
       });
-      setIsDialogOpen(false);
+      setIsDeleteDialogOpen(false);
+      setDeleteServiceId(null);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -142,7 +140,7 @@ const ServicesPage: React.FC = () => {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => confirmDelete(service.id)}
+                onClick={() => confirmDeleteService(service.id)}
                 className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
                 title="Delete service"
               >
@@ -187,7 +185,7 @@ const ServicesPage: React.FC = () => {
             variant="outline" 
             className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary/10"
           >
-            <Users className="mr-2 h-5 w-5" /> Add Staff Member
+            <Users className="mr-2 h-5 w-5" /> Manage Staff
           </Button>
         </div>
       </div>
@@ -198,7 +196,7 @@ const ServicesPage: React.FC = () => {
           <CardTitle className="text-booqit-dark font-light text-xl">Your Services</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {isLoading ? (
+          {servicesLoading ? (
             <div className="flex justify-center py-10">
               <Loader2 className="h-10 w-10 text-booqit-primary animate-spin" />
             </div>
@@ -255,7 +253,7 @@ const ServicesPage: React.FC = () => {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => confirmDelete(service.id)}
+                          onClick={() => confirmDeleteService(service.id)}
                           className="hover:bg-destructive/10 hover:text-destructive"
                           title="Delete service"
                         >
@@ -281,7 +279,17 @@ const ServicesPage: React.FC = () => {
         />
       )}
 
-      {/* Add Staff Widget */}
+      {/* Edit Service Widget */}
+      {merchantId && editingService && (
+        <EditServiceWidget
+          service={editingService}
+          onServiceUpdated={handleServiceUpdated}
+          isOpen={!!editingService}
+          onClose={() => setEditingService(null)}
+        />
+      )}
+
+      {/* Add/Manage Staff Widget */}
       {merchantId && (
         <AddStaffWidget
           merchantId={merchantId}
@@ -292,7 +300,7 @@ const ServicesPage: React.FC = () => {
       )}
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="font-light">Are you sure?</DialogTitle>
@@ -301,7 +309,7 @@ const ServicesPage: React.FC = () => {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isDeleting}>
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
               Cancel
             </Button>
             <Button variant="destructive" onClick={handleDeleteService} disabled={isDeleting}>
