@@ -3,19 +3,24 @@ import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.x16studios.booqit',
-  appName: 'booqit',
+  appName: 'BooqIt',
   webDir: 'dist',
   bundledWebRuntime: false,
   server: {
     androidScheme: 'https'
   },
   plugins: {
-    Geolocation: {
-      permissions: ['precise', 'coarse']
-    },
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert']
+    },
+    Geolocation: {
+      permissions: ['precise', 'coarse']
     }
+  },
+  android: {
+    allowMixedContent: true,
+    captureInput: true,
+    webContentsDebuggingEnabled: true
   }
 };
 
