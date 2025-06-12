@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Merchant, BankInfo } from '@/types';
-import { LogOut, Settings, Mail, Info, Shield, FileText, Trash2, ChevronRight } from 'lucide-react';
+import { LogOut, Settings, Mail, Info, Shield, FileText, Trash2, ChevronRight, User, CreditCard } from 'lucide-react';
 import SettingsBusinessForm from '@/components/merchant/SettingsBusinessForm';
 import SettingsBankingForm from '@/components/merchant/SettingsBankingForm';
 import { Separator } from '@/components/ui/separator';
@@ -17,11 +17,9 @@ interface SqlResponse {
   message?: string;
   error?: string;
 }
+
 const SettingsPage: React.FC = () => {
-  const {
-    userId,
-    logout
-  } = useAuth();
+  const { userId, logout, user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [merchant, setMerchant] = useState<Merchant | null>(null);
   const [bankInfo, setBankInfo] = useState<BankInfo | null>(null);
@@ -44,6 +42,7 @@ const SettingsPage: React.FC = () => {
   const [upiId, setUpiId] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingBank, setIsSavingBank] = useState(false);
+
   useEffect(() => {
     const fetchMerchantData = async () => {
       if (!userId) return;
@@ -64,15 +63,10 @@ const SettingsPage: React.FC = () => {
           setDescription(merchantData.description || '');
           setCategory(merchantData.category);
           setGenderFocus(merchantData.gender_focus || 'unisex');
-          // Store times in 24-hour format for HTML time inputs
           setOpenTime(merchantData.open_time || '');
           setCloseTime(merchantData.close_time || '');
           setAddress(merchantData.address);
           setShopImageUrl(merchantData.image_url);
-          console.log('Loaded merchant hours:', {
-            open_time: merchantData.open_time,
-            close_time: merchantData.close_time
-          });
 
           // Fetch bank info
           const {
@@ -103,17 +97,16 @@ const SettingsPage: React.FC = () => {
     };
     fetchMerchantData();
   }, [userId]);
+
   const generateSlotsForNext30Days = async (merchantId: string) => {
     try {
       console.log('Starting slot generation for next 30 days...');
-      // Generate slots for the next 30 days using the fresh slots function
       for (let i = 0; i < 30; i++) {
         const date = new Date();
         date.setDate(date.getDate() + i);
         const dateStr = date.toISOString().split('T')[0];
         console.log(`Generating slots for date: ${dateStr}`);
 
-        // Use the new fresh slots function
         const {
           data,
           error
@@ -133,6 +126,7 @@ const SettingsPage: React.FC = () => {
       console.error('Error in slot generation:', error);
     }
   };
+
   const handleUpdateMerchant = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!merchant || !userId) {
@@ -159,16 +153,13 @@ const SettingsPage: React.FC = () => {
     try {
       let imageUrl = shopImageUrl;
 
-      // If there's a new image to upload
       if (shopImage) {
         setIsUploading(true);
 
-        // Create a unique file path with user ID as folder
         const fileExt = shopImage.name.split('.').pop();
         const fileName = `${Date.now()}.${fileExt}`;
         const filePath = `${userId}/${fileName}`;
 
-        // Upload the image to supabase storage
         const {
           error: uploadError
         } = await supabase.storage.from('merchant_images').upload(filePath, shopImage);
@@ -176,7 +167,6 @@ const SettingsPage: React.FC = () => {
           throw uploadError;
         }
 
-        // Get the public URL for the uploaded image
         const {
           data: {
             publicUrl
@@ -185,12 +175,7 @@ const SettingsPage: React.FC = () => {
         imageUrl = publicUrl;
         setIsUploading(false);
       }
-      console.log('Updating merchant with times:', {
-        openTime,
-        closeTime
-      });
 
-      // Use the SQL function to update merchant hours
       const {
         data: hoursResult,
         error: hoursError
@@ -207,9 +192,7 @@ const SettingsPage: React.FC = () => {
       if (!hoursResponse.success) {
         throw new Error(hoursResponse.error || 'Failed to update hours');
       }
-      console.log('Hours updated successfully');
 
-      // Update other merchant fields
       const {
         error
       } = await supabase.from('merchants').update({
@@ -222,13 +205,11 @@ const SettingsPage: React.FC = () => {
       }).eq('id', merchant.id);
       if (error) throw error;
 
-      // Generate slots for the next 30 days after updating hours
       await generateSlotsForNext30Days(merchant.id);
       toast('Business information updated', {
         description: 'Your changes have been saved successfully and booking slots have been generated'
       });
 
-      // Update local state with the new values
       setMerchant(prev => {
         if (!prev) return null;
         return {
@@ -258,10 +239,12 @@ const SettingsPage: React.FC = () => {
       setIsSaving(false);
     }
   };
+
   const handleUpdateBankInfo = async (e: React.FormEvent) => {
     e.preventDefault();
     // Banking updates are now disabled in the UI
   };
+
   const handleLogout = async () => {
     try {
       await logout();
@@ -277,115 +260,255 @@ const SettingsPage: React.FC = () => {
       });
     }
   };
+
+  const settingsItems = [
+    {
+      icon: User,
+      title: 'Business Information',
+      description: 'Manage your shop details and hours',
+      href: '#business'
+    },
+    {
+      icon: CreditCard,
+      title: 'Banking Details',
+      description: 'Manage payment and banking information',
+      href: '#banking'
+    },
+    {
+      icon: Mail,
+      title: 'Contact Us',
+      description: 'Get in touch with our support team',
+      href: '/merchant/settings/contact'
+    },
+    {
+      icon: Info,
+      title: 'About BooqIt',
+      description: 'App information and version details',
+      href: '/merchant/settings/about'
+    },
+    {
+      icon: Shield,
+      title: 'Privacy Policy',
+      description: 'Learn how we protect your data',
+      href: '/merchant/settings/privacy-policy'
+    },
+    {
+      icon: FileText,
+      title: 'Terms & Conditions',
+      description: 'Our terms of service',
+      href: '/merchant/settings/terms-conditions'
+    }
+  ];
+
+  const dangerItems = [
+    {
+      icon: Trash2,
+      title: 'Delete Account',
+      description: 'Permanently delete your account and data',
+      href: '/merchant/settings/delete-account',
+      isDestructive: true
+    }
+  ];
+
   if (isLoading) {
     return <div className="flex justify-center items-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-booqit-primary"></div>
       </div>;
   }
-  return <div className="container mx-auto px-4 py-6 pb-20 md:pb-6">
-      <div className="mb-8">
-        <div className="flex justify-between items-center mb-2">
-          <div className="flex items-center gap-2">
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b sticky top-0 z-10">
+        <div className="flex items-center justify-between p-4">
+          <div className="flex items-center gap-3">
             <Settings className="h-6 w-6 text-booqit-primary" />
-            <h1 className="text-3xl font-light">Settings</h1>
+            <div>
+              <h1 className="text-xl font-semibold">Settings</h1>
+              <p className="text-sm text-gray-600">Manage your account and preferences</p>
+            </div>
           </div>
-          
-          <Button variant="outline" onClick={handleLogout} className="gap-2">
-            <LogOut className="h-4 w-4" />
+          <Button variant="outline" onClick={handleLogout} className="text-sm">
+            <LogOut className="h-4 w-4 mr-2" />
             Logout
           </Button>
         </div>
-        <p className="text-muted-foreground text-lg">Manage your shop preferences and account settings</p>
-        <Separator className="my-4" />
       </div>
-      
-      <Tabs defaultValue="business" className="space-y-6">
-        <TabsList className="w-full max-w-md justify-start mb-6 h-12 p-1">
-          <TabsTrigger className="flex-1 h-10 text-base" value="business">Business Information</TabsTrigger>
-          <TabsTrigger className="flex-1 h-10 text-base" value="banking">Banking Details</TabsTrigger>
-          <TabsTrigger className="flex-1 h-10 text-base" value="general">General</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="business" className="space-y-6">
-          <SettingsBusinessForm merchant={merchant} isLoading={isLoading} isSaving={isSaving} isUploading={isUploading} onSave={handleUpdateMerchant} shopName={shopName} setShopName={setShopName} description={description} setDescription={setDescription} category={category} setCategory={setCategory} genderFocus={genderFocus} setGenderFocus={setGenderFocus} openTime={openTime} setOpenTime={setOpenTime} closeTime={closeTime} setCloseTime={setCloseTime} address={address} setAddress={setAddress} shopImage={shopImage} setShopImage={setShopImage} shopImageUrl={shopImageUrl} />
-        </TabsContent>
-        
-        <TabsContent value="banking" className="space-y-6">
-          <SettingsBankingForm bankInfo={bankInfo} isSavingBank={isSavingBank} onSave={handleUpdateBankInfo} accountHolderName={accountHolderName} setAccountHolderName={setAccountHolderName} accountNumber={accountNumber} setAccountNumber={setAccountNumber} bankName={bankName} setBankName={setBankName} ifscCode={ifscCode} setIfscCode={setIfscCode} upiId={upiId} setUpiId={setUpiId} />
-        </TabsContent>
 
-        <TabsContent value="general" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>General Settings</CardTitle>
-              <p className="text-sm text-muted-foreground">App information and support</p>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-3">
-                <Link to="/merchant/settings/contact" className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <Mail className="h-5 w-5 text-gray-600" />
-                    <div>
-                      <h4 className="font-medium">Contact Us</h4>
-                      <p className="text-sm text-gray-600">Get support and help</p>
-                    </div>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-gray-400" />
-                </Link>
-
-                <Link to="/merchant/settings/about" className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <Info className="h-5 w-5 text-gray-600" />
-                    <div>
-                      <h4 className="font-medium">About BooqIt</h4>
-                      <p className="text-sm text-gray-600">App version and information</p>
-                    </div>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-gray-400" />
-                </Link>
-
-                <Link to="/merchant/settings/privacy-policy" className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <Shield className="h-5 w-5 text-gray-600" />
-                    <div>
-                      <h4 className="font-medium">Privacy Policy</h4>
-                      <p className="text-sm text-gray-600">How we protect your data</p>
-                    </div>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-gray-400" />
-                </Link>
-
-                <Link to="/merchant/settings/terms-conditions" className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <FileText className="h-5 w-5 text-gray-600" />
-                    <div>
-                      <h4 className="font-medium">Terms & Conditions</h4>
-                      <p className="text-sm text-gray-600">Our terms of service</p>
-                    </div>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-gray-400" />
-                </Link>
+      <div className="p-4 space-y-6 pb-24">
+        {/* User Info */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-booqit-primary/10 rounded-full flex items-center justify-center">
+                <User className="h-6 w-6 text-booqit-primary" />
               </div>
+              <div>
+                <h3 className="font-medium">{merchant?.shop_name || 'Shop Name'}</h3>
+                <p className="text-sm text-gray-600">{user?.email}</p>
+                <p className="text-xs text-gray-500">Merchant Account</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-              <Separator className="my-4" />
-              
-              <div className="pt-2">
-                <h4 className="text-sm font-medium text-red-600 mb-3">Danger Zone</h4>
-                <Link to="/merchant/settings/delete-account" className="flex items-center justify-between p-3 rounded-lg border border-red-200 hover:bg-red-50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <Trash2 className="h-5 w-5 text-red-600" />
-                    <div>
-                      <h4 className="font-medium text-red-700">Delete Account</h4>
-                      <p className="text-sm text-red-600">Permanently delete your account</p>
-                    </div>
+        {/* Quick Access - Business & Banking */}
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold px-1 mb-3">Business Management</h2>
+          <Card className="hover:bg-gray-50 transition-colors">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <User className="h-5 w-5 text-blue-600" />
                   </div>
-                  <ChevronRight className="h-4 w-4 text-red-400" />
-                </Link>
+                  <div>
+                    <h3 className="font-medium">Business Information</h3>
+                    <p className="text-sm text-gray-600">Manage your shop details and hours</p>
+                  </div>
+                </div>
+                <a href="#business-form" className="text-booqit-primary">
+                  <ChevronRight className="h-5 w-5" />
+                </a>
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
-    </div>;
+
+          <Card className="hover:bg-gray-50 transition-colors">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                    <CreditCard className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium">Banking Details</h3>
+                    <p className="text-sm text-gray-600">Manage payment and banking information</p>
+                  </div>
+                </div>
+                <a href="#banking-form" className="text-booqit-primary">
+                  <ChevronRight className="h-5 w-5" />
+                </a>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* General Settings */}
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold px-1 mb-3">General Settings</h2>
+          {settingsItems.slice(2).map((item) => (
+            <Link key={item.href} to={item.href}>
+              <Card className="hover:bg-gray-50 transition-colors">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                        <item.icon className="h-5 w-5 text-gray-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-medium">{item.title}</h3>
+                        <p className="text-sm text-gray-600">{item.description}</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-gray-400" />
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+
+        {/* Danger Zone */}
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold px-1 mb-3 text-red-600">Danger Zone</h2>
+          {dangerItems.map((item) => (
+            <Link key={item.href} to={item.href}>
+              <Card className="hover:bg-red-50 transition-colors border-red-200">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                        <item.icon className="h-5 w-5 text-red-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-medium text-red-700">{item.title}</h3>
+                        <p className="text-sm text-red-600">{item.description}</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-red-400" />
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+
+        {/* Business Information Form */}
+        <div id="business-form">
+          <Card>
+            <CardHeader>
+              <CardTitle>Business Information</CardTitle>
+              <p className="text-sm text-gray-600">Update your shop details and operating hours</p>
+            </CardHeader>
+            <CardContent>
+              <SettingsBusinessForm 
+                merchant={merchant} 
+                isLoading={isLoading} 
+                isSaving={isSaving} 
+                isUploading={isUploading} 
+                onSave={handleUpdateMerchant} 
+                shopName={shopName} 
+                setShopName={setShopName} 
+                description={description} 
+                setDescription={setDescription} 
+                category={category} 
+                setCategory={setCategory} 
+                genderFocus={genderFocus} 
+                setGenderFocus={setGenderFocus} 
+                openTime={openTime} 
+                setOpenTime={setOpenTime} 
+                closeTime={closeTime} 
+                setCloseTime={setCloseTime} 
+                address={address} 
+                setAddress={setAddress} 
+                shopImage={shopImage} 
+                setShopImage={setShopImage} 
+                shopImageUrl={shopImageUrl} 
+              />
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Banking Details Form */}
+        <div id="banking-form">
+          <Card>
+            <CardHeader>
+              <CardTitle>Banking Details</CardTitle>
+              <p className="text-sm text-gray-600">Manage your payment and banking information</p>
+            </CardHeader>
+            <CardContent>
+              <SettingsBankingForm 
+                bankInfo={bankInfo} 
+                isSavingBank={isSavingBank} 
+                onSave={handleUpdateBankInfo} 
+                accountHolderName={accountHolderName} 
+                setAccountHolderName={setAccountHolderName} 
+                accountNumber={accountNumber} 
+                setAccountNumber={setAccountNumber} 
+                bankName={bankName} 
+                setBankName={setBankName} 
+                ifscCode={ifscCode} 
+                setIfscCode={setIfscCode} 
+                upiId={upiId} 
+                setUpiId={setUpiId} 
+              />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
 };
+
 export default SettingsPage;
