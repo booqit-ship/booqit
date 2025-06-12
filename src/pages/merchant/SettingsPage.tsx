@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Merchant, BankInfo } from '@/types';
-import { LogOut, Settings } from 'lucide-react';
+import { LogOut, Settings, Mail, Info, Shield, FileText, Trash2, ChevronRight } from 'lucide-react';
 import SettingsBusinessForm from '@/components/merchant/SettingsBusinessForm';
 import SettingsBankingForm from '@/components/merchant/SettingsBankingForm';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
+
 interface SqlResponse {
   success: boolean;
   message?: string;
@@ -300,6 +303,7 @@ const SettingsPage: React.FC = () => {
         <TabsList className="w-full max-w-md justify-start mb-6 h-12 p-1">
           <TabsTrigger className="flex-1 h-10 text-base" value="business">Business Information</TabsTrigger>
           <TabsTrigger className="flex-1 h-10 text-base" value="banking">Banking Details</TabsTrigger>
+          <TabsTrigger className="flex-1 h-10 text-base" value="general">General</TabsTrigger>
         </TabsList>
         
         <TabsContent value="business" className="space-y-6">
@@ -308,6 +312,78 @@ const SettingsPage: React.FC = () => {
         
         <TabsContent value="banking" className="space-y-6">
           <SettingsBankingForm bankInfo={bankInfo} isSavingBank={isSavingBank} onSave={handleUpdateBankInfo} accountHolderName={accountHolderName} setAccountHolderName={setAccountHolderName} accountNumber={accountNumber} setAccountNumber={setAccountNumber} bankName={bankName} setBankName={setBankName} ifscCode={ifscCode} setIfscCode={setIfscCode} upiId={upiId} setUpiId={setUpiId} />
+        </TabsContent>
+
+        <TabsContent value="general" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>General Settings</CardTitle>
+              <p className="text-sm text-muted-foreground">App information and support</p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3">
+                <Link to="/merchant/settings/contact" className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <Mail className="h-5 w-5 text-gray-600" />
+                    <div>
+                      <h4 className="font-medium">Contact Us</h4>
+                      <p className="text-sm text-gray-600">Get support and help</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-gray-400" />
+                </Link>
+
+                <Link to="/merchant/settings/about" className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <Info className="h-5 w-5 text-gray-600" />
+                    <div>
+                      <h4 className="font-medium">About BooqIt</h4>
+                      <p className="text-sm text-gray-600">App version and information</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-gray-400" />
+                </Link>
+
+                <Link to="/merchant/settings/privacy-policy" className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <Shield className="h-5 w-5 text-gray-600" />
+                    <div>
+                      <h4 className="font-medium">Privacy Policy</h4>
+                      <p className="text-sm text-gray-600">How we protect your data</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-gray-400" />
+                </Link>
+
+                <Link to="/merchant/settings/terms-conditions" className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <FileText className="h-5 w-5 text-gray-600" />
+                    <div>
+                      <h4 className="font-medium">Terms & Conditions</h4>
+                      <p className="text-sm text-gray-600">Our terms of service</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-gray-400" />
+                </Link>
+              </div>
+
+              <Separator className="my-4" />
+              
+              <div className="pt-2">
+                <h4 className="text-sm font-medium text-red-600 mb-3">Danger Zone</h4>
+                <Link to="/merchant/settings/delete-account" className="flex items-center justify-between p-3 rounded-lg border border-red-200 hover:bg-red-50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <Trash2 className="h-5 w-5 text-red-600" />
+                    <div>
+                      <h4 className="font-medium text-red-700">Delete Account</h4>
+                      <p className="text-sm text-red-600">Permanently delete your account</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-red-400" />
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>;

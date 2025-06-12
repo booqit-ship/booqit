@@ -1,4 +1,3 @@
-
 import { StrictMode } from 'react';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -32,6 +31,14 @@ import DateTimeSelectionPage from '@/pages/customer/DateTimeSelectionPage';
 import BookingSummaryPage from '@/pages/customer/BookingSummaryPage';
 import PaymentPage from '@/pages/customer/PaymentPage';
 import ReceiptPage from '@/pages/customer/ReceiptPage';
+
+// Customer Settings Pages
+import CustomerSettingsPage from '@/pages/customer/SettingsPage';
+import ContactPage from '@/pages/settings/ContactPage';
+import AboutPage from '@/pages/settings/AboutPage';
+import PrivacyPolicyPage from '@/pages/settings/PrivacyPolicyPage';
+import TermsConditionsPage from '@/pages/settings/TermsConditionsPage';
+import DeleteAccountPage from '@/pages/settings/DeleteAccountPage';
 
 // Merchant Pages
 import MerchantLayout from '@/layouts/MerchantLayout';
@@ -243,6 +250,85 @@ const router = createBrowserRouter([
         element: <CustomerLayout />,
         children: [
           { index: true, element: <ReceiptPage /> },
+        ],
+      },
+    ],
+  },
+  // Customer Settings routes
+  {
+    path: "/settings",
+    element: <ProtectedRoute requiredRole="customer" />,
+    children: [
+      {
+        path: "/settings",
+        element: <CustomerLayout />,
+        children: [
+          { index: true, element: <CustomerSettingsPage /> },
+        ],
+      },
+    ],
+  },
+  {
+    path: "/settings/contact",
+    element: <ProtectedRoute requiredRole="customer" />,
+    children: [
+      {
+        path: "/settings/contact",
+        element: <CustomerLayout />,
+        children: [
+          { index: true, element: <ContactPage /> },
+        ],
+      },
+    ],
+  },
+  {
+    path: "/settings/about",
+    element: <ProtectedRoute requiredRole="customer" />,
+    children: [
+      {
+        path: "/settings/about",
+        element: <CustomerLayout />,
+        children: [
+          { index: true, element: <AboutPage /> },
+        ],
+      },
+    ],
+  },
+  {
+    path: "/settings/privacy-policy",
+    element: <ProtectedRoute requiredRole="customer" />,
+    children: [
+      {
+        path: "/settings/privacy-policy",
+        element: <CustomerLayout />,
+        children: [
+          { index: true, element: <PrivacyPolicyPage /> },
+        ],
+      },
+    ],
+  },
+  {
+    path: "/settings/terms-conditions",
+    element: <ProtectedRoute requiredRole="customer" />,
+    children: [
+      {
+        path: "/settings/terms-conditions",
+        element: <CustomerLayout />,
+        children: [
+          { index: true, element: <TermsConditionsPage /> },
+        ],
+      },
+    ],
+  },
+  {
+    path: "/settings/delete-account",
+    element: <ProtectedRoute requiredRole="customer" />,
+    children: [
+      {
+        path: "/settings/delete-account",
+        element: <CustomerLayout />,
+        children: [
+          { index: true, element: <DeleteAccountPage /> },
         ],
       },
     ],
