@@ -39,6 +39,8 @@ import AboutPage from '@/pages/settings/AboutPage';
 import PrivacyPolicyPage from '@/pages/settings/PrivacyPolicyPage';
 import TermsConditionsPage from '@/pages/settings/TermsConditionsPage';
 import DeleteAccountPage from '@/pages/settings/DeleteAccountPage';
+import ReviewsPage from '@/pages/customer/ReviewsPage';
+import AccountPage from '@/pages/customer/AccountPage';
 
 // Merchant Pages
 import MerchantLayout from '@/layouts/MerchantLayout';
@@ -48,6 +50,13 @@ import CalendarManagementPage from '@/pages/merchant/CalendarManagementPage';
 import AnalyticsPage from '@/pages/merchant/AnalyticsPage';
 import SettingsPage from '@/pages/merchant/SettingsPage';
 import OnboardingPage from '@/pages/merchant/OnboardingPage';
+
+// Merchant Settings Pages
+import MerchantContactPage from '@/pages/merchant/settings/ContactPage';
+import MerchantAboutPage from '@/pages/merchant/settings/AboutPage';
+import MerchantPrivacyPolicyPage from '@/pages/merchant/settings/PrivacyPolicyPage';
+import MerchantTermsConditionsPage from '@/pages/merchant/settings/TermsConditionsPage';
+import MerchantDeleteAccountPage from '@/pages/merchant/settings/DeleteAccountPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -333,6 +342,32 @@ const router = createBrowserRouter([
       },
     ],
   },
+  {
+    path: "/reviews",
+    element: <ProtectedRoute requiredRole="customer" />,
+    children: [
+      {
+        path: "/reviews",
+        element: <CustomerLayout />,
+        children: [
+          { index: true, element: <ReviewsPage /> },
+        ],
+      },
+    ],
+  },
+  {
+    path: "/settings/account",
+    element: <ProtectedRoute requiredRole="customer" />,
+    children: [
+      {
+        path: "/settings/account",
+        element: <CustomerLayout />,
+        children: [
+          { index: true, element: <AccountPage /> },
+        ],
+      },
+    ],
+  },
   // Merchant routes
   {
     path: "/merchant",
@@ -350,6 +385,72 @@ const router = createBrowserRouter([
         ],
       },
       { path: "onboarding", element: <OnboardingPage /> },
+    ],
+  },
+  // Merchant Settings routes
+  {
+    path: "/merchant/settings/contact",
+    element: <ProtectedRoute requiredRole="merchant" />,
+    children: [
+      {
+        path: "/merchant/settings/contact",
+        element: <MerchantLayout />,
+        children: [
+          { index: true, element: <MerchantContactPage /> },
+        ],
+      },
+    ],
+  },
+  {
+    path: "/merchant/settings/about",
+    element: <ProtectedRoute requiredRole="merchant" />,
+    children: [
+      {
+        path: "/merchant/settings/about",
+        element: <MerchantLayout />,
+        children: [
+          { index: true, element: <MerchantAboutPage /> },
+        ],
+      },
+    ],
+  },
+  {
+    path: "/merchant/settings/privacy-policy",
+    element: <ProtectedRoute requiredRole="merchant" />,
+    children: [
+      {
+        path: "/merchant/settings/privacy-policy",
+        element: <MerchantLayout />,
+        children: [
+          { index: true, element: <MerchantPrivacyPolicyPage /> },
+        ],
+      },
+    ],
+  },
+  {
+    path: "/merchant/settings/terms-conditions",
+    element: <ProtectedRoute requiredRole="merchant" />,
+    children: [
+      {
+        path: "/merchant/settings/terms-conditions",
+        element: <MerchantLayout />,
+        children: [
+          { index: true, element: <MerchantTermsConditionsPage /> },
+        ],
+      },
+    ],
+  },
+  {
+    path: "/merchant/settings/delete-account",
+    element: <ProtectedRoute requiredRole="merchant" />,
+    children: [
+      {
+        path: "/merchant/settings/delete-account",
+        element: <MerchantLayout />,
+        children: [
+          { index: true, element: <MerchantDeleteAccountPage /> },
+        ],
+      },
     ],
   },
   {
