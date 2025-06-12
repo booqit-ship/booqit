@@ -57,6 +57,8 @@ import MerchantAboutPage from '@/pages/merchant/settings/AboutPage';
 import MerchantPrivacyPolicyPage from '@/pages/merchant/settings/PrivacyPolicyPage';
 import MerchantTermsConditionsPage from '@/pages/merchant/settings/TermsConditionsPage';
 import MerchantDeleteAccountPage from '@/pages/merchant/settings/DeleteAccountPage';
+import BusinessInformationPage from '@/pages/merchant/settings/BusinessInformationPage';
+import BankingDetailsPage from '@/pages/merchant/settings/BankingDetailsPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -449,6 +451,32 @@ const router = createBrowserRouter([
         element: <MerchantLayout />,
         children: [
           { index: true, element: <MerchantDeleteAccountPage /> },
+        ],
+      },
+    ],
+  },
+  {
+    path: "/merchant/settings/business-information",
+    element: <ProtectedRoute requiredRole="merchant" />,
+    children: [
+      {
+        path: "/merchant/settings/business-information",
+        element: <MerchantLayout />,
+        children: [
+          { index: true, element: <BusinessInformationPage /> },
+        ],
+      },
+    ],
+  },
+  {
+    path: "/merchant/settings/banking-details",
+    element: <ProtectedRoute requiredRole="merchant" />,
+    children: [
+      {
+        path: "/merchant/settings/banking-details",
+        element: <MerchantLayout />,
+        children: [
+          { index: true, element: <BankingDetailsPage /> },
         ],
       },
     ],

@@ -22,33 +22,12 @@ const SettingsPage: React.FC = () => {
   const { userId, logout, user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [merchant, setMerchant] = useState<Merchant | null>(null);
-  const [bankInfo, setBankInfo] = useState<BankInfo | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-
-  // Form states
-  const [shopName, setShopName] = useState('');
-  const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('');
-  const [genderFocus, setGenderFocus] = useState('unisex');
-  const [openTime, setOpenTime] = useState('');
-  const [closeTime, setCloseTime] = useState('');
-  const [address, setAddress] = useState('');
-  const [shopImage, setShopImage] = useState<File | null>(null);
-  const [shopImageUrl, setShopImageUrl] = useState<string | null>(null);
-  const [accountHolderName, setAccountHolderName] = useState('');
-  const [accountNumber, setAccountNumber] = useState('');
-  const [bankName, setBankName] = useState('');
-  const [ifscCode, setIfscCode] = useState('');
-  const [upiId, setUpiId] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-  const [isSavingBank, setIsSavingBank] = useState(false);
 
   useEffect(() => {
     const fetchMerchantData = async () => {
       if (!userId) return;
       try {
         setIsLoading(true);
-        // Fetch merchant data
         const {
           data: merchantData,
           error: merchantError
@@ -59,28 +38,6 @@ const SettingsPage: React.FC = () => {
         }
         if (merchantData) {
           setMerchant(merchantData);
-          setShopName(merchantData.shop_name);
-          setDescription(merchantData.description || '');
-          setCategory(merchantData.category);
-          setGenderFocus(merchantData.gender_focus || 'unisex');
-          setOpenTime(merchantData.open_time || '');
-          setCloseTime(merchantData.close_time || '');
-          setAddress(merchantData.address);
-          setShopImageUrl(merchantData.image_url);
-
-          // Fetch bank info
-          const {
-            data: bankData,
-            error: bankError
-          } = await supabase.from('bank_info').select('*').eq('merchant_id', merchantData.id).single();
-          if (!bankError && bankData) {
-            setBankInfo(bankData);
-            setAccountHolderName(bankData.account_holder_name);
-            setAccountNumber(bankData.account_number);
-            setBankName(bankData.bank_name);
-            setIfscCode(bankData.ifsc_code);
-            setUpiId(bankData.upi_id || '');
-          }
         }
       } catch (error) {
         console.error('Error:', error);
@@ -97,153 +54,6 @@ const SettingsPage: React.FC = () => {
     };
     fetchMerchantData();
   }, [userId]);
-
-  const generateSlotsForNext30Days = async (merchantId: string) => {
-    try {
-      console.log('Starting slot generation for next 30 days...');
-      for (let i = 0; i < 30; i++) {
-        const date = new Date();
-        date.setDate(date.getDate() + i);
-        const dateStr = date.toISOString().split('T')[0];
-        console.log(`Generating slots for date: ${dateStr}`);
-
-        const {
-          data,
-          error
-        } = await supabase.rpc('get_fresh_available_slots', {
-          p_merchant_id: merchantId,
-          p_date: dateStr,
-          p_staff_id: null
-        });
-        if (error) {
-          console.error(`Error generating slots for ${dateStr}:`, error);
-        } else {
-          console.log(`Slots generated for ${dateStr}`);
-        }
-      }
-      console.log('Successfully generated slots for next 30 days');
-    } catch (error) {
-      console.error('Error in slot generation:', error);
-    }
-  };
-
-  const handleUpdateMerchant = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!merchant || !userId) {
-      toast('Error', {
-        description: 'Merchant data not found',
-        style: {
-          backgroundColor: 'red',
-          color: 'white'
-        }
-      });
-      return;
-    }
-    if (!openTime || !closeTime) {
-      toast('Error', {
-        description: 'Please select both opening and closing times',
-        style: {
-          backgroundColor: 'red',
-          color: 'white'
-        }
-      });
-      return;
-    }
-    setIsSaving(true);
-    try {
-      let imageUrl = shopImageUrl;
-
-      if (shopImage) {
-        setIsUploading(true);
-
-        const fileExt = shopImage.name.split('.').pop();
-        const fileName = `${Date.now()}.${fileExt}`;
-        const filePath = `${userId}/${fileName}`;
-
-        const {
-          error: uploadError
-        } = await supabase.storage.from('merchant_images').upload(filePath, shopImage);
-        if (uploadError) {
-          throw uploadError;
-        }
-
-        const {
-          data: {
-            publicUrl
-          }
-        } = supabase.storage.from('merchant_images').getPublicUrl(filePath);
-        imageUrl = publicUrl;
-        setIsUploading(false);
-      }
-
-      const {
-        data: hoursResult,
-        error: hoursError
-      } = await supabase.rpc('update_merchant_hours', {
-        p_merchant_id: merchant.id,
-        p_open_time: openTime,
-        p_close_time: closeTime
-      });
-      if (hoursError) {
-        console.error('Error updating hours:', hoursError);
-        throw hoursError;
-      }
-      const hoursResponse = hoursResult as unknown as SqlResponse;
-      if (!hoursResponse.success) {
-        throw new Error(hoursResponse.error || 'Failed to update hours');
-      }
-
-      const {
-        error
-      } = await supabase.from('merchants').update({
-        shop_name: shopName,
-        description: description,
-        category: category,
-        gender_focus: genderFocus,
-        address: address,
-        image_url: imageUrl
-      }).eq('id', merchant.id);
-      if (error) throw error;
-
-      await generateSlotsForNext30Days(merchant.id);
-      toast('Business information updated', {
-        description: 'Your changes have been saved successfully and booking slots have been generated'
-      });
-
-      setMerchant(prev => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          shop_name: shopName,
-          description: description,
-          category: category,
-          gender_focus: genderFocus,
-          open_time: openTime,
-          close_time: closeTime,
-          address: address,
-          image_url: imageUrl
-        };
-      });
-      setShopImageUrl(imageUrl);
-      setShopImage(null);
-    } catch (error: any) {
-      console.error('Error updating merchant:', error);
-      toast('Update failed', {
-        description: error.message || 'Failed to update business information',
-        style: {
-          backgroundColor: 'red',
-          color: 'white'
-        }
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleUpdateBankInfo = async (e: React.FormEvent) => {
-    e.preventDefault();
-    // Banking updates are now disabled in the UI
-  };
 
   const handleLogout = async () => {
     try {
@@ -266,13 +76,13 @@ const SettingsPage: React.FC = () => {
       icon: User,
       title: 'Business Information',
       description: 'Manage your shop details and hours',
-      href: '#business'
+      href: '/merchant/settings/business-information'
     },
     {
       icon: CreditCard,
       title: 'Banking Details',
       description: 'Manage payment and banking information',
-      href: '#banking'
+      href: '/merchant/settings/banking-details'
     },
     {
       icon: Mail,
@@ -352,46 +162,29 @@ const SettingsPage: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Quick Access - Business & Banking */}
+        {/* Business Management */}
         <div className="space-y-1">
           <h2 className="text-lg font-semibold px-1 mb-3">Business Management</h2>
-          <Card className="hover:bg-gray-50 transition-colors">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <User className="h-5 w-5 text-blue-600" />
+          {settingsItems.slice(0, 2).map((item) => (
+            <Link key={item.href} to={item.href}>
+              <Card className="hover:bg-gray-50 transition-colors">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <item.icon className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-medium">{item.title}</h3>
+                        <p className="text-sm text-gray-600">{item.description}</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-gray-400" />
                   </div>
-                  <div>
-                    <h3 className="font-medium">Business Information</h3>
-                    <p className="text-sm text-gray-600">Manage your shop details and hours</p>
-                  </div>
-                </div>
-                <a href="#business-form" className="text-booqit-primary">
-                  <ChevronRight className="h-5 w-5" />
-                </a>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:bg-gray-50 transition-colors">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                    <CreditCard className="h-5 w-5 text-green-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium">Banking Details</h3>
-                    <p className="text-sm text-gray-600">Manage payment and banking information</p>
-                  </div>
-                </div>
-                <a href="#banking-form" className="text-booqit-primary">
-                  <ChevronRight className="h-5 w-5" />
-                </a>
-              </div>
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
         </div>
 
         {/* General Settings */}
@@ -442,69 +235,6 @@ const SettingsPage: React.FC = () => {
               </Card>
             </Link>
           ))}
-        </div>
-
-        {/* Business Information Form */}
-        <div id="business-form">
-          <Card>
-            <CardHeader>
-              <CardTitle>Business Information</CardTitle>
-              <p className="text-sm text-gray-600">Update your shop details and operating hours</p>
-            </CardHeader>
-            <CardContent>
-              <SettingsBusinessForm 
-                merchant={merchant} 
-                isLoading={isLoading} 
-                isSaving={isSaving} 
-                isUploading={isUploading} 
-                onSave={handleUpdateMerchant} 
-                shopName={shopName} 
-                setShopName={setShopName} 
-                description={description} 
-                setDescription={setDescription} 
-                category={category} 
-                setCategory={setCategory} 
-                genderFocus={genderFocus} 
-                setGenderFocus={setGenderFocus} 
-                openTime={openTime} 
-                setOpenTime={setOpenTime} 
-                closeTime={closeTime} 
-                setCloseTime={setCloseTime} 
-                address={address} 
-                setAddress={setAddress} 
-                shopImage={shopImage} 
-                setShopImage={setShopImage} 
-                shopImageUrl={shopImageUrl} 
-              />
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Banking Details Form */}
-        <div id="banking-form">
-          <Card>
-            <CardHeader>
-              <CardTitle>Banking Details</CardTitle>
-              <p className="text-sm text-gray-600">Manage your payment and banking information</p>
-            </CardHeader>
-            <CardContent>
-              <SettingsBankingForm 
-                bankInfo={bankInfo} 
-                isSavingBank={isSavingBank} 
-                onSave={handleUpdateBankInfo} 
-                accountHolderName={accountHolderName} 
-                setAccountHolderName={setAccountHolderName} 
-                accountNumber={accountNumber} 
-                setAccountNumber={setAccountNumber} 
-                bankName={bankName} 
-                setBankName={setBankName} 
-                ifscCode={ifscCode} 
-                setIfscCode={setIfscCode} 
-                upiId={upiId} 
-                setUpiId={setUpiId} 
-              />
-            </CardContent>
-          </Card>
         </div>
       </div>
     </div>
