@@ -65,6 +65,8 @@ const AccountPage: React.FC = () => {
         id: user.id,
         name: name.trim() || null,
         phone: phone.trim() || null,
+        email: user.email || '',
+        role: 'customer',
         updated_at: new Date().toISOString()
       };
 
