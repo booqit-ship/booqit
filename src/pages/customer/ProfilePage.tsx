@@ -35,7 +35,6 @@ const ProfilePage: React.FC = () => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [recentBookings, setRecentBookings] = useState<RecentBooking[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   const profileItems = [
     {
@@ -59,8 +58,6 @@ const ProfilePage: React.FC = () => {
   ];
 
   useEffect(() => {
-    let isMounted = true;
-
     const fetchUserData = async () => {
       if (!user?.id) {
         setLoading(false);
@@ -68,33 +65,29 @@ const ProfilePage: React.FC = () => {
       }
       
       try {
-        setLoading(true);
-        setError(null);
-
-        // Fetch or create profile
+        console.log('Fetching data for user:', user.id);
+        
+        // Fetch profile
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', user.id)
-          .maybeSingle();
+          .single();
 
-        if (profileError) {
-          console.error('Error fetching profile:', profileError);
-          setError('Failed to load profile');
-          return;
+        if (profileError && profileError.code !== 'PGRST116') {
+          console.error('Profile fetch error:', profileError);
         }
-
-        let finalProfile = profileData;
 
         // If no profile exists, create one
         if (!profileData) {
+          console.log('Creating new profile for user');
           const { data: newProfile, error: createError } = await supabase
             .from('profiles')
             .insert({
               id: user.id,
               name: user.user_metadata?.name || user.email?.split('@')[0] || 'Customer',
               email: user.email || '',
-              phone: user.user_metadata?.phone || '',
+              phone: user.user_metadata?.phone || null,
               role: 'customer'
             })
             .select()
@@ -102,15 +95,11 @@ const ProfilePage: React.FC = () => {
 
           if (createError) {
             console.error('Error creating profile:', createError);
-            setError('Failed to create profile');
-            return;
           } else {
-            finalProfile = newProfile;
+            setProfile(newProfile);
           }
-        }
-
-        if (isMounted && finalProfile) {
-          setProfile(finalProfile);
+        } else {
+          setProfile(profileData);
         }
 
         // Fetch recent bookings
@@ -125,38 +114,29 @@ const ProfilePage: React.FC = () => {
             service:services!inner(name)
           `)
           .eq('user_id', user.id)
-          .in('status', ['confirmed', 'pending', 'completed'])
           .order('date', { ascending: false })
           .order('time_slot', { ascending: false })
           .limit(3);
 
         if (bookingsError) {
-          console.error('Error fetching recent bookings:', bookingsError);
-          // Don't set error for bookings, just log it
-        } else if (isMounted) {
+          console.error('Error fetching bookings:', bookingsError);
+        } else {
+          console.log('Recent bookings:', bookingsData);
           setRecentBookings(bookingsData || []);
         }
 
       } catch (error) {
         console.error('Error in fetchUserData:', error);
-        if (isMounted) {
-          setError('An unexpected error occurred');
-        }
       } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+        setLoading(false);
       }
     };
 
     fetchUserData();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [user?.id]); // Only depend on user.id
+  }, [user?.id]);
 
   const getInitials = (name: string) => {
+    if (!name) return 'U';
     return name
       .split(' ')
       .map(n => n[0])
@@ -182,22 +162,6 @@ const ProfilePage: React.FC = () => {
     );
   }
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <h3 className="text-lg font-medium text-red-600 mb-2">Error</h3>
-            <p className="text-gray-600 mb-4">{error}</p>
-            <Button onClick={() => window.location.reload()}>
-              Try Again
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -207,11 +171,11 @@ const ProfilePage: React.FC = () => {
             <Avatar className="w-20 h-20 mx-auto mb-4">
               <AvatarImage src={profile?.avatar_url || ''} />
               <AvatarFallback className="bg-white/20 text-white text-lg">
-                {profile?.name ? getInitials(profile.name) : 'U'}
+                {getInitials(profile?.name || user?.email || 'User')}
               </AvatarFallback>
             </Avatar>
             <h1 className="text-2xl font-bold">
-              {profile?.name || 'Customer'}
+              {profile?.name || user?.email?.split('@')[0] || 'Customer'}
             </h1>
             <p className="text-booqit-primary/20 mt-1">{profile?.email || user?.email}</p>
           </div>

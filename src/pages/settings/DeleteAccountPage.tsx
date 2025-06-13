@@ -20,9 +20,11 @@ const DeleteAccountPage: React.FC = () => {
       return;
     }
 
-    // Normalize both emails for comparison
+    // Get the user's email and normalize both for comparison
     const userEmail = user?.email?.toLowerCase().trim() || '';
     const inputEmail = email.toLowerCase().trim();
+
+    console.log('Comparing emails:', { userEmail, inputEmail });
 
     if (inputEmail !== userEmail) {
       toast.error('Email address does not match your account');

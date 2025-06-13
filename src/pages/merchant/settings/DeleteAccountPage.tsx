@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
-const DeleteAccountPage: React.FC = () => {
+const MerchantDeleteAccountPage: React.FC = () => {
   const { user } = useAuth();
   const [email, setEmail] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -20,9 +20,11 @@ const DeleteAccountPage: React.FC = () => {
       return;
     }
 
-    // Normalize both emails for comparison
+    // Get the user's email and normalize both for comparison
     const userEmail = user?.email?.toLowerCase().trim() || '';
     const inputEmail = email.toLowerCase().trim();
+
+    console.log('Comparing emails:', { userEmail, inputEmail });
 
     if (inputEmail !== userEmail) {
       toast.error('Email address does not match your account');
@@ -45,10 +47,10 @@ Account Details:
 
 I understand that this action is irreversible and will result in:
 - Permanent deletion of my merchant account
-- Removal of all salon/shop information
-- Deletion of all booking history
+- Removal of all shop information and services
+- Loss of all booking history and customer data
+- Removal of staff and availability settings
 - Loss of access to the BooqIt merchant platform
-- Removal of all staff and service data
 
 Please confirm the deletion within 7-10 business days.
 
@@ -99,13 +101,12 @@ ${userEmail}
               Deleting your merchant account will permanently remove all your business data from our servers. This includes:
             </p>
             <ul className="list-disc list-inside space-y-1 text-sm">
-              <li>Your salon/shop information and settings</li>
-              <li>All staff member details and schedules</li>
-              <li>Complete service catalog and pricing</li>
+              <li>Your shop information and business details</li>
+              <li>All services, pricing, and descriptions</li>
+              <li>Staff information and availability settings</li>
               <li>All booking history and customer data</li>
-              <li>Business analytics and reports</li>
-              <li>Banking and payment information</li>
-              <li>Reviews and ratings data</li>
+              <li>Revenue and analytics data</li>
+              <li>Account settings and preferences</li>
             </ul>
           </CardContent>
         </Card>
@@ -234,4 +235,4 @@ ${userEmail}
   );
 };
 
-export default DeleteAccountPage;
+export default MerchantDeleteAccountPage;

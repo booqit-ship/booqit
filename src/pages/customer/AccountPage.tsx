@@ -29,10 +29,13 @@ const AccountPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
 
   const fetchProfile = async () => {
-    if (!user) return;
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
     
     try {
-      setLoading(true);
+      console.log('Fetching profile for user:', user.id);
       
       let { data: profileData, error } = await supabase
         .from('profiles')
@@ -42,6 +45,7 @@ const AccountPage: React.FC = () => {
 
       if (error && error.code === 'PGRST116') {
         // Profile doesn't exist, create it
+        console.log('Profile not found, creating new one');
         const { data: newProfile, error: createError } = await supabase
           .from('profiles')
           .insert({
@@ -67,6 +71,7 @@ const AccountPage: React.FC = () => {
       }
 
       if (profileData) {
+        console.log('Profile loaded:', profileData);
         setProfile(profileData);
         setName(profileData.name || '');
         setPhone(profileData.phone || '');
@@ -84,10 +89,12 @@ const AccountPage: React.FC = () => {
   }, [user?.id]);
 
   const handleSave = async () => {
-    if (!user) return;
+    if (!user?.id) return;
 
     setSaving(true);
     try {
+      console.log('Updating profile with:', { name: name.trim(), phone: phone.trim() });
+      
       const { error } = await supabase
         .from('profiles')
         .update({
@@ -97,10 +104,13 @@ const AccountPage: React.FC = () => {
         })
         .eq('id', user.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Update error:', error);
+        throw error;
+      }
 
       toast.success('Profile updated successfully');
-      fetchProfile();
+      await fetchProfile(); // Refresh the data
     } catch (error) {
       console.error('Error updating profile:', error);
       toast.error('Failed to update profile');
@@ -110,6 +120,7 @@ const AccountPage: React.FC = () => {
   };
 
   const getInitials = (name: string) => {
+    if (!name) return 'U';
     return name
       .split(' ')
       .map(n => n[0])
@@ -157,11 +168,11 @@ const AccountPage: React.FC = () => {
               <Avatar className="w-20 h-20">
                 <AvatarImage src={profile?.avatar_url || ''} />
                 <AvatarFallback className="bg-booqit-primary/10 text-booqit-primary text-lg">
-                  {name ? getInitials(name) : 'U'}
+                  {getInitials(name || profile?.name || 'User')}
                 </AvatarFallback>
               </Avatar>
               <div>
-                <h3 className="font-medium">{name || 'No name set'}</h3>
+                <h3 className="font-medium">{name || profile?.name || 'No name set'}</h3>
                 <p className="text-sm text-gray-600">{profile?.email || user?.email}</p>
               </div>
             </div>
