@@ -13,9 +13,7 @@ import { toast } from 'sonner';
 interface Profile {
   id: string;
   name: string | null;
-  email: string;
   phone: string | null;
-  avatar_url: string | null;
   created_at: string;
 }
 
@@ -35,16 +33,14 @@ const AccountPage: React.FC = () => {
     if (!user) return;
     
     try {
-      setLoading(true);
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .maybeSingle();
+        .single();
 
-      if (error) {
+      if (error && error.code !== 'PGRST116') {
         console.error('Error fetching profile:', error);
-        toast.error('Failed to load profile');
         return;
       }
 
@@ -52,44 +48,16 @@ const AccountPage: React.FC = () => {
         setProfile(data);
         setName(data.name || '');
         setPhone(data.phone || '');
-      } else {
-        // Create profile if it doesn't exist
-        const newProfile = {
-          id: user.id,
-          name: user.email?.split('@')[0] || 'Customer',
-          email: user.email || '',
-          phone: null,
-          role: 'customer'
-        };
-        
-        const { data: createdProfile, error: createError } = await supabase
-          .from('profiles')
-          .upsert(newProfile)
-          .select()
-          .single();
-          
-        if (createError) {
-          console.error('Error creating profile:', createError);
-          toast.error('Failed to create profile');
-        } else if (createdProfile) {
-          setProfile(createdProfile);
-          setName(createdProfile.name || '');
-          setPhone(createdProfile.phone || '');
-        }
       }
     } catch (error) {
       console.error('Error:', error);
-      toast.error('An unexpected error occurred');
     } finally {
       setLoading(false);
     }
   };
 
   const handleSave = async () => {
-    if (!user) {
-      toast.error('User not authenticated');
-      return;
-    }
+    if (!user) return;
 
     setSaving(true);
     try {
@@ -109,13 +77,10 @@ const AccountPage: React.FC = () => {
           ignoreDuplicates: false 
         });
 
-      if (error) {
-        console.error('Error updating profile:', error);
-        toast.error('Failed to update profile');
-      } else {
-        toast.success('Profile updated successfully');
-        fetchProfile(); // Refresh the profile data
-      }
+      if (error) throw error;
+
+      toast.success('Profile updated successfully');
+      fetchProfile(); // Refresh the profile data
     } catch (error) {
       console.error('Error updating profile:', error);
       toast.error('Failed to update profile');
@@ -161,15 +126,7 @@ const AccountPage: React.FC = () => {
           <CardContent className="space-y-4">
             <div className="flex items-center gap-4">
               <div className="w-20 h-20 bg-booqit-primary/10 rounded-full flex items-center justify-center">
-                {profile?.avatar_url ? (
-                  <img 
-                    src={profile.avatar_url} 
-                    alt="Profile" 
-                    className="w-full h-full rounded-full object-cover"
-                  />
-                ) : (
-                  <User className="h-10 w-10 text-booqit-primary" />
-                )}
+                <User className="h-10 w-10 text-booqit-primary" />
               </div>
               <div>
                 <h3 className="font-medium">{name || 'No name set'}</h3>
