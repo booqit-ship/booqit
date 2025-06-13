@@ -1,64 +1,98 @@
 
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, AlertTriangle, Mail, Trash2 } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, AlertTriangle, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-const MerchantDeleteAccountPage: React.FC = () => {
-  const { user } = useAuth();
+const DeleteAccountPage: React.FC = () => {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
-  const [isConfirmed, setIsConfirmed] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setEmail(value);
-    setIsConfirmed(value === user?.email);
-  };
-
-  const handleSendDeletionRequest = () => {
-    if (!isConfirmed) {
-      toast.error('Please enter your email address to confirm');
+  const handleDeleteAccount = async () => {
+    if (!user) {
+      toast.error('User not authenticated');
       return;
     }
 
-    const subject = 'Account Deletion Request - Merchant';
-    const body = `Dear BooqIt Support Team,
+    // Normalize both emails for comparison (trim and lowercase)
+    const userEmail = user.email?.trim().toLowerCase();
+    const inputEmail = email.trim().toLowerCase();
 
-I am writing to request the permanent deletion of my merchant account from the BooqIt platform.
+    if (!inputEmail) {
+      toast.error('Please enter your email address');
+      return;
+    }
 
-Account Details:
-- Email: ${user?.email}
-- Account Type: Merchant
-- Request Date: ${new Date().toLocaleDateString('en-IN')}
+    if (inputEmail !== userEmail) {
+      toast.error('Email address does not match your account');
+      return;
+    }
 
-I understand that this action is irreversible and will result in:
-- Permanent deletion of my merchant profile and business information
-- Removal of all booking history and customer data
-- Loss of access to all app features and services
-- Deletion of all uploaded images and documents
-
-I confirm that I want to proceed with the deletion of my account and all associated data.
-
-Please process this request and confirm once the account has been deleted.
-
-Thank you for your assistance.
-
-Best regards,
-${user?.email}`;
-
-    const mailtoLink = `mailto:support@booqit.in?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    
     try {
-      window.open(mailtoLink, '_blank');
-      toast.success('Email app opened with deletion request');
+      setIsDeleting(true);
+
+      // Get merchant data first
+      const { data: merchant } = await supabase
+        .from('merchants')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (merchant) {
+        // Cancel all bookings for this merchant
+        const { error: bookingError } = await supabase
+          .from('bookings')
+          .update({ status: 'cancelled' })
+          .eq('merchant_id', merchant.id)
+          .in('status', ['pending', 'confirmed']);
+
+        if (bookingError) {
+          console.error('Error cancelling merchant bookings:', bookingError);
+        }
+
+        // Delete merchant data (this will cascade to related tables)
+        const { error: merchantError } = await supabase
+          .from('merchants')
+          .delete()
+          .eq('user_id', user.id);
+
+        if (merchantError) {
+          console.error('Error deleting merchant:', merchantError);
+          toast.error('Failed to delete merchant data');
+          return;
+        }
+      }
+
+      // Delete user profile
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', user.id);
+
+      if (profileError) {
+        console.error('Error deleting profile:', profileError);
+        toast.error('Failed to delete account data');
+        return;
+      }
+
+      // Sign out the user
+      await logout();
+      
+      toast.success('Account deleted successfully');
+      navigate('/auth');
     } catch (error) {
-      console.error('Error opening email app:', error);
-      toast.error('Could not open email app. Please email support@booqit.in manually.');
+      console.error('Error deleting account:', error);
+      toast.error('Failed to delete account');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -74,157 +108,98 @@ ${user?.email}`;
           </Link>
           <div>
             <h1 className="text-xl font-semibold text-red-600">Delete Account</h1>
-            <p className="text-sm text-gray-600">Permanently delete your merchant account</p>
+            <p className="text-sm text-gray-600">Permanently delete your merchant account and data</p>
           </div>
         </div>
       </div>
 
       <div className="p-4 space-y-6 pb-24">
-        {/* Warning Alert */}
-        <Alert variant="destructive" className="border-red-200 bg-red-50">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription className="text-red-800">
-            <strong>Warning:</strong> This action cannot be undone. Deleting your account will permanently remove all your business data, bookings, and customer information.
-          </AlertDescription>
-        </Alert>
-
-        {/* Consequences Card */}
-        <Card className="border-red-200">
+        {/* Warning Card */}
+        <Card className="border-red-200 bg-red-50">
           <CardHeader>
-            <CardTitle className="text-red-600 flex items-center gap-2">
-              <Trash2 className="h-5 w-5" />
-              What happens when you delete your account?
+            <CardTitle className="flex items-center gap-2 text-red-700">
+              <AlertTriangle className="h-5 w-5" />
+              Warning: This action cannot be undone
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <ul className="space-y-3 text-sm text-gray-700">
-              <li className="flex items-start gap-2">
-                <div className="w-2 h-2 bg-red-500 rounded-full mt-2 flex-shrink-0"></div>
-                <span>Your merchant profile and business information will be permanently deleted</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <div className="w-2 h-2 bg-red-500 rounded-full mt-2 flex-shrink-0"></div>
-                <span>All booking history and customer data will be removed</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <div className="w-2 h-2 bg-red-500 rounded-full mt-2 flex-shrink-0"></div>
-                <span>Your services, pricing, and availability settings will be lost</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <div className="w-2 h-2 bg-red-500 rounded-full mt-2 flex-shrink-0"></div>
-                <span>All uploaded images and documents will be deleted</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <div className="w-2 h-2 bg-red-500 rounded-full mt-2 flex-shrink-0"></div>
-                <span>You will lose access to analytics and business insights</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <div className="w-2 h-2 bg-red-500 rounded-full mt-2 flex-shrink-0"></div>
-                <span>Future customers will not be able to find or book your services</span>
-              </li>
+          <CardContent className="text-red-700">
+            <p className="mb-3">Deleting your merchant account will:</p>
+            <ul className="list-disc list-inside space-y-1 text-sm">
+              <li>Permanently delete your business information</li>
+              <li>Remove your shop from the platform</li>
+              <li>Cancel all pending customer appointments</li>
+              <li>Delete all your services and staff data</li>
+              <li>Remove all booking history and analytics</li>
+              <li>Delete banking and payment information</li>
             </ul>
           </CardContent>
         </Card>
 
-        {/* Current Account Info */}
+        {/* Current Account */}
         <Card>
           <CardHeader>
             <CardTitle>Current Account</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-                <Mail className="h-5 w-5 text-red-600" />
+              <div className="w-10 h-10 bg-booqit-primary/10 rounded-full flex items-center justify-center">
+                <span className="text-booqit-primary font-medium">
+                  {user?.email?.charAt(0).toUpperCase()}
+                </span>
               </div>
               <div>
-                <p className="font-medium">{user?.email}</p>
-                <p className="text-sm text-gray-600">Merchant Account</p>
+                <p className="font-medium">Merchant Account</p>
+                <p className="text-sm text-gray-600">{user?.email}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Email Confirmation */}
+        {/* Deletion Form */}
         <Card>
           <CardHeader>
-            <CardTitle>Confirm Account Deletion</CardTitle>
-            <p className="text-sm text-gray-600">
-              To proceed with account deletion, please enter your email address below and click the send button. 
-              This will open your email app with a pre-written deletion request.
-            </p>
+            <CardTitle>Request Account Deletion</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium mb-2">
-                Enter your email address to confirm:
-              </label>
+            <p className="text-sm text-gray-600">
+              To proceed with account deletion, please confirm your email address below. 
+              This will permanently delete your merchant account and all associated data.
+            </p>
+            
+            <div className="space-y-2">
+              <Label htmlFor="email">Confirm Your Email Address</Label>
               <Input
                 id="email"
                 type="email"
                 value={email}
-                onChange={handleEmailChange}
-                placeholder={user?.email || 'Enter your email'}
-                className={isConfirmed ? 'border-green-500' : 'border-gray-300'}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your email address"
+                className="w-full"
               />
-              {email && !isConfirmed && (
-                <p className="text-sm text-red-600 mt-1">
-                  Email doesn't match your account email
-                </p>
-              )}
-              {isConfirmed && (
-                <p className="text-sm text-green-600 mt-1">
-                  ✓ Email confirmed
-                </p>
-              )}
+              <p className="text-xs text-gray-500">
+                Must match your account email: {user?.email}
+              </p>
             </div>
 
             <Button
-              onClick={handleSendDeletionRequest}
-              disabled={!isConfirmed}
+              onClick={handleDeleteAccount}
+              disabled={isDeleting || !email}
               className="w-full bg-red-600 hover:bg-red-700 text-white"
             >
-              <Mail className="h-4 w-4 mr-2" />
-              Send Deletion Request
+              <Trash2 className="h-4 w-4 mr-2" />
+              {isDeleting ? 'Deleting Account...' : 'Delete My Merchant Account'}
             </Button>
           </CardContent>
         </Card>
 
-        {/* Process Information */}
+        {/* Support Info */}
         <Card className="bg-blue-50 border-blue-200">
-          <CardHeader>
-            <CardTitle className="text-blue-800">Deletion Process</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-blue-700 text-sm space-y-2">
-              <p><strong>1.</strong> Click the "Send Deletion Request" button above</p>
-              <p><strong>2.</strong> Your email app will open with a pre-written message</p>
-              <p><strong>3.</strong> Send the email to our support team</p>
-              <p><strong>4.</strong> We will process your request within 7 business days</p>
-              <p><strong>5.</strong> You will receive a confirmation once deletion is complete</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Support Contact */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Need Help?</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-gray-700 text-sm mb-3">
-              If you're having issues with the deletion process or have questions, 
-              contact our support team directly:
+          <CardContent className="p-4">
+            <p className="text-sm text-blue-700">
+              <strong>Need Help?</strong> If you're having issues with your merchant account, 
+              consider contacting our support team before deleting your account. 
+              We're here to help resolve any problems you might be experiencing.
             </p>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Email:</span>
-                <span className="font-medium text-booqit-primary">support@booqit.in</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Phone:</span>
-                <span className="font-medium">+91-9884339363</span>
-              </div>
-            </div>
           </CardContent>
         </Card>
       </div>
@@ -232,4 +207,4 @@ ${user?.email}`;
   );
 };
 
-export default MerchantDeleteAccountPage;
+export default DeleteAccountPage;
