@@ -1,12 +1,39 @@
-import React from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Settings, User, Calendar, Star, ChevronRight, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+
+interface Profile {
+  id: string;
+  name: string | null;
+  email: string;
+  phone: string | null;
+  avatar_url: string | null;
+}
+
+interface RecentBooking {
+  id: string;
+  date: string;
+  time_slot: string;
+  status: string;
+  merchant: {
+    shop_name: string;
+  };
+  service: {
+    name: string;
+  };
+}
 
 const ProfilePage: React.FC = () => {
   const { user, logout } = useAuth();
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [recentBookings, setRecentBookings] = useState<RecentBooking[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const profileItems = [
     {
@@ -29,22 +56,162 @@ const ProfilePage: React.FC = () => {
     }
   ];
 
+  const fetchUserData = async () => {
+    if (!user) return;
+    
+    try {
+      setLoading(true);
+
+      // Fetch or create profile
+      let { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError && profileError.code === 'PGRST116') {
+        // Profile doesn't exist, create it
+        const { data: newProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert({
+            id: user.id,
+            name: user.user_metadata?.name || user.email?.split('@')[0] || 'User',
+            email: user.email || '',
+            phone: user.user_metadata?.phone || '',
+            role: 'customer'
+          })
+          .select()
+          .single();
+
+        if (createError) {
+          console.error('Error creating profile:', createError);
+        } else {
+          profileData = newProfile;
+        }
+      }
+
+      if (profileData) {
+        setProfile(profileData);
+      }
+
+      // Fetch recent bookings
+      const { data: bookingsData, error: bookingsError } = await supabase
+        .from('bookings')
+        .select(`
+          id,
+          date,
+          time_slot,
+          status,
+          merchant:merchants!inner(shop_name),
+          service:services!inner(name)
+        `)
+        .eq('user_id', user.id)
+        .in('status', ['confirmed', 'pending', 'completed'])
+        .order('date', { ascending: false })
+        .order('time_slot', { ascending: false })
+        .limit(3);
+
+      if (bookingsError) {
+        console.error('Error fetching recent bookings:', bookingsError);
+      } else {
+        setRecentBookings(bookingsData || []);
+      }
+
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUserData();
+  }, [user?.id]);
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-booqit-primary"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-gradient-to-br from-booqit-primary to-booqit-primary/80 text-white">
         <div className="p-6 pt-12">
           <div className="text-center">
-            <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
-              <User className="h-10 w-10 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold">{user?.email}</h1>
-            <p className="text-booqit-primary/20 mt-1">Customer Account</p>
+            <Avatar className="w-20 h-20 mx-auto mb-4">
+              <AvatarImage src={profile?.avatar_url || ''} />
+              <AvatarFallback className="bg-white/20 text-white text-lg">
+                {profile?.name ? getInitials(profile.name) : 'U'}
+              </AvatarFallback>
+            </Avatar>
+            <h1 className="text-2xl font-bold">
+              {profile?.name || 'Customer'}
+            </h1>
+            <p className="text-booqit-primary/20 mt-1">{profile?.email || user?.email}</p>
           </div>
         </div>
       </div>
 
       <div className="p-4 space-y-4 pb-24 -mt-6">
+        {/* Recent Bookings */}
+        {recentBookings.length > 0 && (
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="text-lg">Recent Bookings</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {recentBookings.map((booking, index) => (
+                <div key={booking.id} className={`p-4 ${
+                  index !== recentBookings.length - 1 ? 'border-b border-gray-100' : ''
+                }`}>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-medium">{booking.merchant.shop_name}</h3>
+                      <p className="text-sm text-gray-600">{booking.service.name}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {formatDate(booking.date)} at {booking.time_slot}
+                      </p>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs ${
+                      booking.status === 'confirmed' ? 'bg-green-100 text-green-700' :
+                      booking.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                      booking.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                      'bg-gray-100 text-gray-700'
+                    }`}>
+                      {booking.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              <Link to="/calendar" className="block p-4 text-center text-booqit-primary hover:bg-gray-50">
+                View All Bookings
+              </Link>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Profile Actions */}
         <Card className="shadow-lg">
           <CardContent className="p-0">
@@ -73,13 +240,15 @@ const ProfilePage: React.FC = () => {
         <div className="grid grid-cols-2 gap-4">
           <Card>
             <CardContent className="p-4 text-center">
-              <h3 className="text-2xl font-bold text-booqit-primary">12</h3>
-              <p className="text-sm text-gray-600">Total Bookings</p>
+              <h3 className="text-2xl font-bold text-booqit-primary">{recentBookings.length}</h3>
+              <p className="text-sm text-gray-600">Recent Bookings</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
-              <h3 className="text-2xl font-bold text-green-600">8</h3>
+              <h3 className="text-2xl font-bold text-green-600">
+                {recentBookings.filter(b => b.status === 'completed').length}
+              </h3>
               <p className="text-sm text-gray-600">Completed</p>
             </CardContent>
           </Card>

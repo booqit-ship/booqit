@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -13,7 +14,9 @@ import { toast } from 'sonner';
 interface Profile {
   id: string;
   name: string | null;
+  email: string;
   phone: string | null;
+  avatar_url: string | null;
   created_at: string;
 }
 
@@ -25,68 +28,94 @@ const AccountPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    fetchProfile();
-  }, [user]);
-
   const fetchProfile = async () => {
     if (!user) return;
     
     try {
-      const { data, error } = await supabase
+      setLoading(true);
+      
+      let { data: profileData, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
         .single();
 
-      if (error && error.code !== 'PGRST116') {
+      if (error && error.code === 'PGRST116') {
+        // Profile doesn't exist, create it
+        const { data: newProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert({
+            id: user.id,
+            name: user.user_metadata?.name || user.email?.split('@')[0] || '',
+            email: user.email || '',
+            phone: user.user_metadata?.phone || '',
+            role: 'customer'
+          })
+          .select()
+          .single();
+
+        if (createError) {
+          console.error('Error creating profile:', createError);
+          toast.error('Failed to create profile');
+          return;
+        }
+        profileData = newProfile;
+      } else if (error) {
         console.error('Error fetching profile:', error);
+        toast.error('Failed to load profile');
         return;
       }
 
-      if (data) {
-        setProfile(data);
-        setName(data.name || '');
-        setPhone(data.phone || '');
+      if (profileData) {
+        setProfile(profileData);
+        setName(profileData.name || '');
+        setPhone(profileData.phone || '');
       }
     } catch (error) {
       console.error('Error:', error);
+      toast.error('An error occurred');
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchProfile();
+  }, [user?.id]);
 
   const handleSave = async () => {
     if (!user) return;
 
     setSaving(true);
     try {
-      const profileData = {
-        id: user.id,
-        name: name.trim() || null,
-        phone: phone.trim() || null,
-        email: user.email || '',
-        role: 'customer',
-        updated_at: new Date().toISOString()
-      };
-
       const { error } = await supabase
         .from('profiles')
-        .upsert(profileData, { 
-          onConflict: 'id',
-          ignoreDuplicates: false 
-        });
+        .update({
+          name: name.trim() || null,
+          phone: phone.trim() || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user.id);
 
       if (error) throw error;
 
       toast.success('Profile updated successfully');
-      fetchProfile(); // Refresh the profile data
+      fetchProfile();
     } catch (error) {
       console.error('Error updating profile:', error);
       toast.error('Failed to update profile');
     } finally {
       setSaving(false);
     }
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
   };
 
   if (loading) {
@@ -125,12 +154,15 @@ const AccountPage: React.FC = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-4">
-              <div className="w-20 h-20 bg-booqit-primary/10 rounded-full flex items-center justify-center">
-                <User className="h-10 w-10 text-booqit-primary" />
-              </div>
+              <Avatar className="w-20 h-20">
+                <AvatarImage src={profile?.avatar_url || ''} />
+                <AvatarFallback className="bg-booqit-primary/10 text-booqit-primary text-lg">
+                  {name ? getInitials(name) : 'U'}
+                </AvatarFallback>
+              </Avatar>
               <div>
                 <h3 className="font-medium">{name || 'No name set'}</h3>
-                <p className="text-sm text-gray-600">{user?.email}</p>
+                <p className="text-sm text-gray-600">{profile?.email || user?.email}</p>
               </div>
             </div>
           </CardContent>
@@ -156,7 +188,7 @@ const AccountPage: React.FC = () => {
               <Label htmlFor="email">Email Address</Label>
               <Input
                 id="email"
-                value={user?.email || ''}
+                value={profile?.email || user?.email || ''}
                 disabled
                 className="bg-gray-50"
               />

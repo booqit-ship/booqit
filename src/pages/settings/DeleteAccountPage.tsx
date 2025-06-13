@@ -20,7 +20,11 @@ const DeleteAccountPage: React.FC = () => {
       return;
     }
 
-    if (email.toLowerCase() !== user?.email?.toLowerCase()) {
+    // Normalize both emails for comparison
+    const userEmail = user?.email?.toLowerCase().trim() || '';
+    const inputEmail = email.toLowerCase().trim();
+
+    if (inputEmail !== userEmail) {
       toast.error('Email address does not match your account');
       return;
     }
@@ -34,7 +38,7 @@ Dear BooqIt Support Team,
 I am requesting the permanent deletion of my BooqIt account and all associated data.
 
 Account Details:
-- Email: ${email}
+- Email: ${userEmail}
 - User ID: ${user?.id || 'N/A'}
 - Request Date: ${new Date().toLocaleDateString('en-IN')}
 
@@ -46,7 +50,7 @@ I understand that this action is irreversible and will result in:
 Please confirm the deletion within 7-10 business days.
 
 Thank you,
-${email}
+${userEmail}
     `);
 
     const mailtoUrl = `mailto:support@booqit.in?subject=${subject}&body=${body}`;
