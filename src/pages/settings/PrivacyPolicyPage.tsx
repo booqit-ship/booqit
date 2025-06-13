@@ -13,7 +13,7 @@ const PrivacyPolicyPage: React.FC = () => {
             </Button>
           </Link>
           <div>
-            <h1 className="text-xl font-thin">Privacy Policy</h1>
+            <h1 className="font-thin text-xl">Privacy Policy</h1>
             <p className="text-sm text-gray-600">How we protect your data</p>
           </div>
         </div>
