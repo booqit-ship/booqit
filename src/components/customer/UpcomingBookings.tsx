@@ -41,11 +41,16 @@ const UpcomingBookings: React.FC = () => {
   const fetchNextUpcomingBooking = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user?.id) {
+        setLoading(false);
+        return;
+      }
 
       const now = new Date();
       const currentDate = now.toISOString().split('T')[0];
       const currentTime = now.toTimeString().split(' ')[0].substring(0, 5);
+
+      console.log('Fetching next booking for user:', user.id);
 
       const { data, error } = await supabase
         .from('bookings')
@@ -60,15 +65,12 @@ const UpcomingBookings: React.FC = () => {
         .order('date', { ascending: true })
         .order('time_slot', { ascending: true })
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         console.error('Error fetching next booking:', error);
-        return;
-      }
-
-      // Type cast the status to ensure it matches our interface
-      if (data) {
+        setNextBooking(null);
+      } else if (data) {
         const typedBooking = {
           ...data,
           status: data.status as 'pending' | 'confirmed' | 'completed' | 'cancelled'
@@ -79,6 +81,7 @@ const UpcomingBookings: React.FC = () => {
       }
     } catch (error) {
       console.error('Error fetching next upcoming booking:', error);
+      setNextBooking(null);
     } finally {
       setLoading(false);
     }

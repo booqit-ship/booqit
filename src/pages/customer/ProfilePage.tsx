@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface Profile {
   id: string;
@@ -36,46 +37,53 @@ const ProfilePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchUserData();
-  }, [user]);
+    if (user?.id) {
+      fetchUserData();
+    } else {
+      setLoading(false);
+    }
+  }, [user?.id]);
 
   const fetchUserData = async () => {
-    if (!user) return;
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
     
     try {
-      setLoading(true);
+      console.log('Fetching profile for user:', user.id);
       
       // Fetch profile
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
-      if (!profileError && profileData) {
-        setProfile(profileData);
-      } else {
+      if (profileError) {
+        console.error('Profile fetch error:', profileError);
         // Create profile if it doesn't exist
-        const newProfile = {
-          id: user.id,
-          name: user.email?.split('@')[0] || 'Customer',
-          email: user.email || '',
-          phone: null,
-          role: 'customer'
-        };
-        
         const { data: createdProfile, error: createError } = await supabase
           .from('profiles')
-          .upsert(newProfile)
+          .upsert({
+            id: user.id,
+            name: user.email?.split('@')[0] || 'Customer',
+            email: user.email || '',
+            phone: null,
+            role: 'customer'
+          })
           .select()
           .single();
           
         if (!createError && createdProfile) {
           setProfile(createdProfile);
         }
+      } else if (profileData) {
+        setProfile(profileData);
       }
 
       // Fetch recent bookings (last 3)
+      console.log('Fetching recent bookings for user:', user.id);
       const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
         .select(`
@@ -83,18 +91,21 @@ const ProfilePage: React.FC = () => {
           date,
           time_slot,
           status,
-          merchant:merchant_id (shop_name),
-          service:service_id (name)
+          merchant:merchants!inner(shop_name),
+          service:services!inner(name)
         `)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(3);
 
-      if (!bookingsError && bookingsData) {
+      if (bookingsError) {
+        console.error('Bookings fetch error:', bookingsError);
+      } else if (bookingsData) {
         setRecentBookings(bookingsData as RecentBooking[]);
       }
     } catch (error) {
       console.error('Error fetching user data:', error);
+      toast.error('Failed to load profile data');
     } finally {
       setLoading(false);
     }
@@ -144,6 +155,17 @@ const ProfilePage: React.FC = () => {
     );
   }
 
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600 mb-4">Please log in to view your profile</p>
+          <Button onClick={() => navigate('/auth')}>Login</Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -162,7 +184,7 @@ const ProfilePage: React.FC = () => {
               )}
             </div>
             <h1 className="text-2xl font-bold">{profile?.name || 'Customer'}</h1>
-            <p className="text-booqit-primary/20 mt-1">{user?.email}</p>
+            <p className="text-white/70 mt-1">{user.email}</p>
           </div>
         </div>
       </div>
