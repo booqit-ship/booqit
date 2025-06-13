@@ -1,12 +1,9 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-
 const TermsConditionsPage: React.FC = () => {
-  return (
-    <div className="min-h-screen bg-gray-50">
+  return <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b sticky top-0 z-10">
         <div className="flex items-center gap-3 p-4">
@@ -16,7 +13,7 @@ const TermsConditionsPage: React.FC = () => {
             </Button>
           </Link>
           <div>
-            <h1 className="text-xl font-semibold">Terms & Conditions</h1>
+            <h1 className="text-xl font-thin">Terms & Conditions</h1>
             <p className="text-sm text-gray-600">Our terms of service</p>
           </div>
         </div>
@@ -36,7 +33,7 @@ const TermsConditionsPage: React.FC = () => {
             </p>
 
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">Definitions</h2>
+              <h2 className="text-lg text-gray-900 mb-3 font-thin">Definitions</h2>
               <ul className="list-disc pl-6 space-y-1">
                 <li>"User" refers to both customers and merchants using BooqIt.</li>
                 <li>"Merchant" refers to businesses offering services via the app.</li>
@@ -46,7 +43,7 @@ const TermsConditionsPage: React.FC = () => {
             </div>
 
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">Scope of Service</h2>
+              <h2 className="text-gray-900 mb-3 font-thin text-xl">Scope of Service</h2>
               <div className="space-y-3">
                 <div>
                   <p className="font-medium mb-2">BooqIt allows customers to:</p>
@@ -71,7 +68,7 @@ const TermsConditionsPage: React.FC = () => {
             </div>
 
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">User Obligations</h2>
+              <h2 className="text-gray-900 mb-3 text-xl font-thin">User Obligations</h2>
               <p className="mb-2">By using BooqIt:</p>
               <ul className="list-disc pl-6 space-y-1">
                 <li>You agree to provide accurate, truthful data.</li>
@@ -81,7 +78,7 @@ const TermsConditionsPage: React.FC = () => {
             </div>
 
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">Merchant Obligations</h2>
+              <h2 className="text-gray-900 mb-3 text-xl font-thin">Merchant Obligations</h2>
               <ul className="list-disc pl-6 space-y-1">
                 <li>Merchants must provide accurate and updated service details.</li>
                 <li>Bank details are required only to enable future UPI-based payout functionality. No current transaction occurs via the platform.</li>
@@ -90,7 +87,7 @@ const TermsConditionsPage: React.FC = () => {
             </div>
 
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">Limitations</h2>
+              <h2 className="text-gray-900 mb-3 text-xl font-thin">Limitations</h2>
               <ul className="list-disc pl-6 space-y-1">
                 <li>BooqIt is not liable for disputes between customers and merchants.</li>
                 <li>BooqIt does not mediate pricing, service quality, or shop-specific policies.</li>
@@ -99,14 +96,14 @@ const TermsConditionsPage: React.FC = () => {
             </div>
 
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">Intellectual Property</h2>
+              <h2 className="text-gray-900 mb-3 text-xl font-thin">Intellectual Property</h2>
               <p>
                 All content on BooqIt (text, design, logos, code) is owned or licensed by 16xstudios and cannot be used without permission.
               </p>
             </div>
 
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">Account Termination</h2>
+              <h2 className="text-gray-900 mb-3 text-xl font-thin">Account Termination</h2>
               <p>
                 We reserve the right to suspend or terminate accounts for violation of terms or abuse of platform features, with or without notice.
               </p>
@@ -129,8 +126,6 @@ const TermsConditionsPage: React.FC = () => {
           </div>
         </div>
       </div>
-    </div>
-  );
+    </div>;
 };
-
 export default TermsConditionsPage;
