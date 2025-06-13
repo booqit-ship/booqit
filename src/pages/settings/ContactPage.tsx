@@ -40,7 +40,7 @@ const ContactPage: React.FC = () => {
           </Link>
           <div>
             <h1 className="text-xl font-thin">Contact Us</h1>
-            <p className="text-sm text-gray-600">Get in touch with our support team</p>
+            <p className="text-2xl text-gray-50 font-medium">Get in touch with our support team</p>
           </div>
         </div>
       </div>
