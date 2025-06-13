@@ -110,7 +110,7 @@ const TermsConditionsPage: React.FC = () => {
             </div>
 
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">Modifications</h2>
+              <h2 className="text-gray-900 mb-3 text-xl font-thin">Modifications</h2>
               <p>
                 We may update these Terms at any time. Changes will be posted on the app or site, and continued use of the service constitutes agreement to the updated terms.
               </p>
