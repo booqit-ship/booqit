@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface Profile {
   id: string;
@@ -34,6 +35,7 @@ const ProfilePage: React.FC = () => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [recentBookings, setRecentBookings] = useState<RecentBooking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const profileItems = [
     {
@@ -56,77 +58,103 @@ const ProfilePage: React.FC = () => {
     }
   ];
 
-  const fetchUserData = async () => {
-    if (!user) return;
-    
-    try {
-      setLoading(true);
+  useEffect(() => {
+    let isMounted = true;
 
-      // Fetch or create profile
-      let { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
+    const fetchUserData = async () => {
+      if (!user?.id) {
+        setLoading(false);
+        return;
+      }
+      
+      try {
+        setLoading(true);
+        setError(null);
 
-      if (profileError && profileError.code === 'PGRST116') {
-        // Profile doesn't exist, create it
-        const { data: newProfile, error: createError } = await supabase
+        // Fetch or create profile
+        const { data: profileData, error: profileError } = await supabase
           .from('profiles')
-          .insert({
-            id: user.id,
-            name: user.user_metadata?.name || user.email?.split('@')[0] || 'User',
-            email: user.email || '',
-            phone: user.user_metadata?.phone || '',
-            role: 'customer'
-          })
-          .select()
-          .single();
+          .select('*')
+          .eq('id', user.id)
+          .maybeSingle();
 
-        if (createError) {
-          console.error('Error creating profile:', createError);
-        } else {
-          profileData = newProfile;
+        if (profileError) {
+          console.error('Error fetching profile:', profileError);
+          setError('Failed to load profile');
+          return;
+        }
+
+        let finalProfile = profileData;
+
+        // If no profile exists, create one
+        if (!profileData) {
+          const { data: newProfile, error: createError } = await supabase
+            .from('profiles')
+            .insert({
+              id: user.id,
+              name: user.user_metadata?.name || user.email?.split('@')[0] || 'Customer',
+              email: user.email || '',
+              phone: user.user_metadata?.phone || '',
+              role: 'customer'
+            })
+            .select()
+            .single();
+
+          if (createError) {
+            console.error('Error creating profile:', createError);
+            setError('Failed to create profile');
+            return;
+          } else {
+            finalProfile = newProfile;
+          }
+        }
+
+        if (isMounted && finalProfile) {
+          setProfile(finalProfile);
+        }
+
+        // Fetch recent bookings
+        const { data: bookingsData, error: bookingsError } = await supabase
+          .from('bookings')
+          .select(`
+            id,
+            date,
+            time_slot,
+            status,
+            merchant:merchants!inner(shop_name),
+            service:services!inner(name)
+          `)
+          .eq('user_id', user.id)
+          .in('status', ['confirmed', 'pending', 'completed'])
+          .order('date', { ascending: false })
+          .order('time_slot', { ascending: false })
+          .limit(3);
+
+        if (bookingsError) {
+          console.error('Error fetching recent bookings:', bookingsError);
+          // Don't set error for bookings, just log it
+        } else if (isMounted) {
+          setRecentBookings(bookingsData || []);
+        }
+
+      } catch (error) {
+        console.error('Error in fetchUserData:', error);
+        if (isMounted) {
+          setError('An unexpected error occurred');
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
         }
       }
+    };
 
-      if (profileData) {
-        setProfile(profileData);
-      }
-
-      // Fetch recent bookings
-      const { data: bookingsData, error: bookingsError } = await supabase
-        .from('bookings')
-        .select(`
-          id,
-          date,
-          time_slot,
-          status,
-          merchant:merchants!inner(shop_name),
-          service:services!inner(name)
-        `)
-        .eq('user_id', user.id)
-        .in('status', ['confirmed', 'pending', 'completed'])
-        .order('date', { ascending: false })
-        .order('time_slot', { ascending: false })
-        .limit(3);
-
-      if (bookingsError) {
-        console.error('Error fetching recent bookings:', bookingsError);
-      } else {
-        setRecentBookings(bookingsData || []);
-      }
-
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
     fetchUserData();
-  }, [user?.id]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id]); // Only depend on user.id
 
   const getInitials = (name: string) => {
     return name
@@ -150,6 +178,22 @@ const ProfilePage: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-booqit-primary"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6 text-center">
+            <h3 className="text-lg font-medium text-red-600 mb-2">Error</h3>
+            <p className="text-gray-600 mb-4">{error}</p>
+            <Button onClick={() => window.location.reload()}>
+              Try Again
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
