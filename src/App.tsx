@@ -59,6 +59,7 @@ import MerchantTermsConditionsPage from '@/pages/merchant/settings/TermsConditio
 import MerchantDeleteAccountPage from '@/pages/merchant/settings/DeleteAccountPage';
 import BusinessInformationPage from '@/pages/merchant/settings/BusinessInformationPage';
 import BankingDetailsPage from '@/pages/merchant/settings/BankingDetailsPage';
+import AppInit from '@/components/AppInit';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -71,18 +72,15 @@ const queryClient = new QueryClient({
   },
 });
 
-// Component to handle session persistence, notifications, and Capacitor initialization
-const AppWithProviders = () => {
-  useSessionPersistence();
-  useNotifications();
-  useCapacitor(); // Initialize Capacitor for native features
-  return null;
-};
-
 const router = createBrowserRouter([
   {
     path: "/",
-    element: <Index />,
+    element: (
+      <>
+        <AppInit />
+        <Index />
+      </>
+    ),
   },
   {
     path: "/auth",
@@ -115,7 +113,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/home",
-        element: <CustomerLayout />,
+        element: (
+          <CustomerLayout>
+            <AppInit />
+          </CustomerLayout>
+        ),
         children: [
           { index: true, element: <HomePage /> },
         ],
@@ -128,7 +130,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/search",
-        element: <CustomerLayout />,
+        element: (
+          <CustomerLayout>
+            <AppInit />
+          </CustomerLayout>
+        ),
         children: [
           { index: true, element: <SearchPage /> },
         ],
@@ -141,7 +147,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/map",
-        element: <CustomerLayout />,
+        element: (
+          <CustomerLayout>
+            <AppInit />
+          </CustomerLayout>
+        ),
         children: [
           { index: true, element: <MapPage /> },
         ],
@@ -154,7 +164,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/calendar",
-        element: <CustomerLayout />,
+        element: (
+          <CustomerLayout>
+            <AppInit />
+          </CustomerLayout>
+        ),
         children: [
           { index: true, element: <CalendarPage /> },
         ],
@@ -167,7 +181,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/profile",
-        element: <CustomerLayout />,
+        element: (
+          <CustomerLayout>
+            <AppInit />
+          </CustomerLayout>
+        ),
         children: [
           { index: true, element: <ProfilePage /> },
         ],
@@ -180,7 +198,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/merchant/:merchantId",
-        element: <CustomerLayout />,
+        element: (
+          <CustomerLayout>
+            <AppInit />
+          </CustomerLayout>
+        ),
         children: [
           { index: true, element: <MerchantDetailPage /> },
         ],
@@ -193,7 +215,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/booking/:merchantId",
-        element: <CustomerLayout />,
+        element: (
+          <CustomerLayout>
+            <AppInit />
+          </CustomerLayout>
+        ),
         children: [
           { index: true, element: <ServiceSelectionPage /> },
         ],
@@ -206,7 +232,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/booking/:merchantId/staff",
-        element: <CustomerLayout />,
+        element: (
+          <CustomerLayout>
+            <AppInit />
+          </CustomerLayout>
+        ),
         children: [
           { index: true, element: <StaffSelectionPage /> },
         ],
@@ -219,7 +249,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/booking/:merchantId/datetime",
-        element: <CustomerLayout />,
+        element: (
+          <CustomerLayout>
+            <AppInit />
+          </CustomerLayout>
+        ),
         children: [
           { index: true, element: <DateTimeSelectionPage /> },
         ],
@@ -232,7 +266,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/booking/:merchantId/summary",
-        element: <CustomerLayout />,
+        element: (
+          <CustomerLayout>
+            <AppInit />
+          </CustomerLayout>
+        ),
         children: [
           { index: true, element: <BookingSummaryPage /> },
         ],
@@ -245,7 +283,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/payment/:merchantId",
-        element: <CustomerLayout />,
+        element: (
+          <CustomerLayout>
+            <AppInit />
+          </CustomerLayout>
+        ),
         children: [
           { index: true, element: <PaymentPage /> },
         ],
@@ -258,7 +300,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/receipt/:bookingId",
-        element: <CustomerLayout />,
+        element: (
+          <CustomerLayout>
+            <AppInit />
+          </CustomerLayout>
+        ),
         children: [
           { index: true, element: <ReceiptPage /> },
         ],
@@ -272,7 +318,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/settings",
-        element: <CustomerLayout />,
+        element: (
+          <CustomerLayout>
+            <AppInit />
+          </CustomerLayout>
+        ),
         children: [
           { index: true, element: <CustomerSettingsPage /> },
         ],
@@ -285,7 +335,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/settings/contact",
-        element: <CustomerLayout />,
+        element: (
+          <CustomerLayout>
+            <AppInit />
+          </CustomerLayout>
+        ),
         children: [
           { index: true, element: <ContactPage /> },
         ],
@@ -298,7 +352,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/settings/about",
-        element: <CustomerLayout />,
+        element: (
+          <CustomerLayout>
+            <AppInit />
+          </CustomerLayout>
+        ),
         children: [
           { index: true, element: <AboutPage /> },
         ],
@@ -311,7 +369,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/settings/privacy-policy",
-        element: <CustomerLayout />,
+        element: (
+          <CustomerLayout>
+            <AppInit />
+          </CustomerLayout>
+        ),
         children: [
           { index: true, element: <PrivacyPolicyPage /> },
         ],
@@ -324,7 +386,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/settings/terms-conditions",
-        element: <CustomerLayout />,
+        element: (
+          <CustomerLayout>
+            <AppInit />
+          </CustomerLayout>
+        ),
         children: [
           { index: true, element: <TermsConditionsPage /> },
         ],
@@ -337,7 +403,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/settings/delete-account",
-        element: <CustomerLayout />,
+        element: (
+          <CustomerLayout>
+            <AppInit />
+          </CustomerLayout>
+        ),
         children: [
           { index: true, element: <DeleteAccountPage /> },
         ],
@@ -350,7 +420,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/reviews",
-        element: <CustomerLayout />,
+        element: (
+          <CustomerLayout>
+            <AppInit />
+          </CustomerLayout>
+        ),
         children: [
           { index: true, element: <ReviewsPage /> },
         ],
@@ -363,7 +437,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/settings/account",
-        element: <CustomerLayout />,
+        element: (
+          <CustomerLayout>
+            <AppInit />
+          </CustomerLayout>
+        ),
         children: [
           { index: true, element: <AccountPage /> },
         ],
@@ -377,7 +455,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/merchant",
-        element: <MerchantLayout />,
+        element: (
+          <MerchantLayout>
+            <AppInit />
+          </MerchantLayout>
+        ),
         children: [
           { index: true, element: <DashboardPage /> },
           { path: "services", element: <ServicesPage /> },
@@ -396,7 +478,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/merchant/settings/contact",
-        element: <MerchantLayout />,
+        element: (
+          <MerchantLayout>
+            <AppInit />
+          </MerchantLayout>
+        ),
         children: [
           { index: true, element: <MerchantContactPage /> },
         ],
@@ -409,7 +495,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/merchant/settings/about",
-        element: <MerchantLayout />,
+        element: (
+          <MerchantLayout>
+            <AppInit />
+          </MerchantLayout>
+        ),
         children: [
           { index: true, element: <MerchantAboutPage /> },
         ],
@@ -422,7 +512,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/merchant/settings/privacy-policy",
-        element: <MerchantLayout />,
+        element: (
+          <MerchantLayout>
+            <AppInit />
+          </MerchantLayout>
+        ),
         children: [
           { index: true, element: <MerchantPrivacyPolicyPage /> },
         ],
@@ -435,7 +529,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/merchant/settings/terms-conditions",
-        element: <MerchantLayout />,
+        element: (
+          <MerchantLayout>
+            <AppInit />
+          </MerchantLayout>
+        ),
         children: [
           { index: true, element: <MerchantTermsConditionsPage /> },
         ],
@@ -448,7 +546,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/merchant/settings/delete-account",
-        element: <MerchantLayout />,
+        element: (
+          <MerchantLayout>
+            <AppInit />
+          </MerchantLayout>
+        ),
         children: [
           { index: true, element: <MerchantDeleteAccountPage /> },
         ],
@@ -461,7 +563,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/merchant/settings/business-information",
-        element: <MerchantLayout />,
+        element: (
+          <MerchantLayout>
+            <AppInit />
+          </MerchantLayout>
+        ),
         children: [
           { index: true, element: <BusinessInformationPage /> },
         ],
@@ -474,7 +580,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/merchant/settings/banking-details",
-        element: <MerchantLayout />,
+        element: (
+          <MerchantLayout>
+            <AppInit />
+          </MerchantLayout>
+        ),
         children: [
           { index: true, element: <BankingDetailsPage /> },
         ],
@@ -492,7 +602,6 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <AppWithProviders />
           <RouterProvider router={router} />
           <Toaster />
         </AuthProvider>
