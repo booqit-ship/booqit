@@ -28,7 +28,7 @@ const AccountPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Fetch profile from Supabase (or create if not found)
+  // Fetch or create user profile
   const fetchProfile = async () => {
     if (!user?.id) {
       setProfile(null);
@@ -37,7 +37,7 @@ const AccountPage: React.FC = () => {
     }
     setLoading(true);
     try {
-      // Step 1: Try to fetch profile from Supabase
+      // Try to fetch profile
       const { data: profileData, error } = await supabase
         .from('profiles')
         .select('*')
@@ -45,106 +45,101 @@ const AccountPage: React.FC = () => {
         .maybeSingle();
 
       if (error) {
-        console.error('Error fetching profile:', error);
-        // Attempt to create the profile if it's a not found error
-        if (error.code !== 'PGRST116') {
-          toast.error('Failed to load profile');
-          setLoading(false);
-          return;
-        }
+        toast.error('Error fetching profile');
+        setLoading(false);
+        return;
       }
 
-      // Step 2: If not found, create it
-      let freshProfile = profileData;
-      if (!profileData) {
+      if (profileData) {
+        setProfile(profileData);
+        setName(profileData.name || '');
+        setPhone(profileData.phone || '');
+        setLoading(false);
+      } else {
+        // Create profile if not found
         const { data: newProfile, error: createError } = await supabase
           .from('profiles')
           .insert({
             id: user.id,
-            name: user.user_metadata?.name || user.email?.split('@')[0] || 'Customer',
+            name:
+              user.user_metadata?.name ||
+              user.email?.split('@')[0] ||
+              'Customer',
             email: user.email || '',
             phone: user.user_metadata?.phone || '',
             role: 'customer',
           })
-          .select()
+          .select('*')
           .maybeSingle();
 
-        if (createError) {
-          console.error('Error creating profile:', createError);
+        if (createError || !newProfile) {
           toast.error('Failed to create profile');
           setLoading(false);
           return;
         }
-        freshProfile = newProfile;
+        setProfile(newProfile);
+        setName(newProfile.name || '');
+        setPhone(newProfile.phone || '');
+        setLoading(false);
       }
-
-      // Step 3: Update UI state with the profile
-      if (freshProfile) {
-        setProfile(freshProfile);
-        setName(freshProfile.name ?? '');
-        setPhone(freshProfile.phone ?? '');
-      }
-    } catch (error: any) {
-      console.error('Error:', error);
+    } catch (err) {
       toast.error('A profile error occurred');
-    } finally {
       setLoading(false);
     }
   };
 
-  // Fetch profile on load and when user changes
+  // Run profile fetch when user id is available
   useEffect(() => {
-    fetchProfile();
+    if (user?.id) fetchProfile();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  // Save user changes (name, phone) to backend
+  // Save updates
   const handleSave = async () => {
-    if (!user?.id) return;
+    if (!profile?.id) {
+      toast.error('Cannot update: profile not loaded');
+      return;
+    }
     setSaving(true);
+    const updates: Partial<Profile> = {
+      name: name.trim(),
+      phone: phone.trim(),
+    };
     try {
       const { error } = await supabase
         .from('profiles')
-        .update({
-          name: name.trim() || null,
-          phone: phone.trim() || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', user.id);
+        .update(updates)
+        .eq('id', profile.id);
 
       if (error) {
-        console.error('Update error:', error);
         toast.error('Failed to update profile');
-        setSaving(false);
-        return;
+      } else {
+        toast.success('Profile updated');
+        fetchProfile();
       }
-
-      toast.success('Profile updated successfully');
-      await fetchProfile(); // Refresh
-    } catch (e) {
-      console.error('Unexpected error saving profile', e);
-      toast.error('Failed to update profile');
+    } catch {
+      toast.error('Unexpected profile update error');
     } finally {
       setSaving(false);
     }
   };
 
-  const getInitials = (name: string) => {
-    if (!name) return 'U';
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  // Helper for initials in avatar
+  const getInitials = (n: string) => {
+    if (!n) return 'U';
+    return n.split(' ').slice(0, 2).map((x) => x[0]).join('').toUpperCase();
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-booqit-primary"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-booqit-primary" />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <div className="bg-white border-b sticky top-0 z-10">
         <div className="flex items-center gap-3 p-4">
           <Link to="/settings">
@@ -158,9 +153,7 @@ const AccountPage: React.FC = () => {
           </div>
         </div>
       </div>
-
       <div className="p-4 space-y-6 pb-24">
-        {/* Profile Picture Section */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 font-thin">
@@ -177,14 +170,12 @@ const AccountPage: React.FC = () => {
                 </AvatarFallback>
               </Avatar>
               <div>
-                <h3 className="font-medium">{name || profile?.name || 'No name set'}</h3>
+                <h3 className="font-medium">{name || 'No name set'}</h3>
                 <p className="text-sm text-gray-600">{profile?.email || user?.email}</p>
               </div>
             </div>
           </CardContent>
         </Card>
-
-        {/* Account Details */}
         <Card>
           <CardHeader>
             <CardTitle className="font-normal">Personal Details</CardTitle>
@@ -199,13 +190,16 @@ const AccountPage: React.FC = () => {
                 placeholder="Enter your full name"
               />
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="email">Email Address</Label>
-              <Input id="email" value={profile?.email || user?.email || ''} disabled className="bg-gray-50" />
+              <Input
+                id="email"
+                value={profile?.email || user?.email || ''}
+                disabled
+                className="bg-gray-50"
+              />
               <p className="text-xs text-gray-500">Email cannot be changed</p>
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="phone">Phone Number</Label>
               <Input
@@ -216,15 +210,12 @@ const AccountPage: React.FC = () => {
                 type="tel"
               />
             </div>
-
             <Button onClick={handleSave} disabled={saving} className="w-full">
               <Save className="h-4 w-4 mr-2" />
               {saving ? 'Saving...' : 'Save Changes'}
             </Button>
           </CardContent>
         </Card>
-
-        {/* Account Information */}
         <Card>
           <CardHeader>
             <CardTitle className="font-normal">Account Information</CardTitle>
@@ -237,7 +228,6 @@ const AccountPage: React.FC = () => {
               </div>
               <span className="text-sm font-medium">Customer</span>
             </div>
-
             <div className="flex items-center justify-between py-2">
               <div className="flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-gray-500" />
@@ -249,20 +239,17 @@ const AccountPage: React.FC = () => {
                   : 'N/A'}
               </span>
             </div>
-
             <div className="flex items-center justify-between py-2">
               <div className="flex items-center gap-2">
                 <User className="h-4 w-4 text-gray-500" />
                 <span className="text-sm text-gray-600">User ID</span>
               </div>
               <span className="text-sm font-medium text-gray-400">
-                {user?.id?.slice(0, 8)}...
+                {user?.id ? `${user.id.slice(0, 8)}...` : 'N/A'}
               </span>
             </div>
           </CardContent>
         </Card>
-
-        {/* Security Notice */}
         <Card className="bg-blue-50 border-blue-200">
           <CardContent className="p-4">
             <p className="text-sm text-blue-700">
@@ -274,4 +261,5 @@ const AccountPage: React.FC = () => {
     </div>
   );
 };
+
 export default AccountPage;
