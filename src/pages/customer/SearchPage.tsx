@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -12,8 +11,8 @@ import MerchantMapPopup from '@/components/customer/MerchantMapPopup';
 
 const SearchPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [merchants, setMerchants] = useState<Merchant[]>([]);
-  const [filteredMerchants, setFilteredMerchants] = useState<Merchant[]>([]);
+  const [allMerchants, setAllMerchants] = useState<Merchant[]>([]);
+  const [cityFilteredMerchants, setCityFilteredMerchants] = useState<Merchant[]>([]);
   const [searchSuggestions, setSearchSuggestions] = useState<Merchant[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -182,7 +181,18 @@ const SearchPage: React.FC = () => {
           console.log(`${filteredData.length} merchants after price filter`);
         }
         
-        setMerchants(filteredData);
+        // Set all merchants for the map (no filtering by city)
+        setAllMerchants(filteredData);
+
+        // Now apply city filtering for the bottom sheet
+        if (filteredData) {
+          let filtered = filteredData as Merchant[];
+          // Only filter by user's city if no search term
+          if (userCity) {
+            filtered = filtered.filter((merchant) => merchant.address?.toLowerCase().includes(userCity.toLowerCase()));
+          }
+          setCityFilteredMerchants(filtered);
+        }
       }
     } catch (error: any) {
       console.error('Error fetching merchants:', error);
@@ -204,7 +214,7 @@ const SearchPage: React.FC = () => {
   // Handle search input changes and generate suggestions
   useEffect(() => {
     if (searchTerm.length > 0) {
-      const suggestions = merchants.filter(merchant => 
+      const suggestions = allMerchants.filter(merchant => 
         merchant.shop_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         merchant.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
         merchant.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -219,62 +229,61 @@ const SearchPage: React.FC = () => {
       setSearchSuggestions([]);
       setShowSuggestions(false);
     }
-  }, [searchTerm, merchants]);
+  }, [searchTerm, allMerchants]);
 
-  // Calculate distance and apply search filters
+  // DISTANCE CALCULATION + sort for both
   useEffect(() => {
-    if (merchants.length > 0) {
-      let filtered = [...merchants];
-      
-      // Apply search filter globally
-      if (searchTerm) {
-        filtered = filtered.filter(merchant => 
-          merchant.shop_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          merchant.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          merchant.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (merchant.services && merchant.services.some(service => 
-            service.name.toLowerCase().includes(searchTerm.toLowerCase())
-          ))
+    // Add distance to allMerchants and cityFilteredMerchants
+    const addDistance = (merchantsArr: Merchant[]): Merchant[] => {
+      if (!userLocation) return merchantsArr;
+      return merchantsArr.map((merchant) => {
+        const distance = calculateDistance(
+          userLocation.lat, userLocation.lng, merchant.lat, merchant.lng
         );
-      } else {
-        // Only filter by user's city when no search term
-        if (userCity) {
-          filtered = filtered.filter(merchant => 
-            merchant.address.toLowerCase().includes(userCity.toLowerCase())
-          );
-        }
-      }
-      
-      // Calculate distances if user location is available
-      if (userLocation) {
-        filtered = filtered.map(merchant => {
-          const distance = calculateDistance(
-            userLocation.lat, 
-            userLocation.lng, 
-            merchant.lat, 
-            merchant.lng
-          );
-          return {
-            ...merchant,
-            distance: `${distance.toFixed(1)} km`,
-            distanceValue: distance
-          } as Merchant;
-        });
-        
-        // Apply sorting
-        if (filters.sortBy === 'rating') {
-          filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-        } else if (filters.sortBy === 'name') {
-          filtered.sort((a, b) => a.shop_name.localeCompare(b.shop_name));
-        } else if (filters.sortBy === 'distance' && userLocation) {
-          filtered.sort((a, b) => (a.distanceValue || 0) - (b.distanceValue || 0));
-        }
-      }
-      
-      console.log(`Filtered to ${filtered.length} merchants`);
-      setFilteredMerchants(filtered);
+        return {
+          ...merchant,
+          distance: `${distance.toFixed(1)} km`,
+          distanceValue: distance
+        };
+      });
+    };
+
+    setAllMerchants(prev => addDistance(prev));
+    setCityFilteredMerchants(prev => addDistance(prev));
+  }, [userLocation]);
+
+  // SEARCH FILTERING for city list (bottom sheet)
+  useEffect(() => {
+    let filtered = allMerchants;
+
+    // Search term applies globally (to both map and cityFilteredMerchants)
+    if (searchTerm) {
+      filtered = allMerchants.filter(merchant =>
+        merchant.shop_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        merchant.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        merchant.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (merchant.services && merchant.services.some(service =>
+          service.name.toLowerCase().includes(searchTerm.toLowerCase())
+        ))
+      );
+    } else if (userCity) {
+      // Only show city-filtered list in the bottom sheet if no search
+      filtered = allMerchants.filter(merchant =>
+        merchant.address?.toLowerCase().includes(userCity.toLowerCase())
+      );
     }
-  }, [merchants, searchTerm, userLocation, userCity, filters.sortBy]);
+    
+    // Apply sorting
+    if (filters.sortBy === 'rating') {
+      filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    } else if (filters.sortBy === 'name') {
+      filtered.sort((a, b) => a.shop_name.localeCompare(b.shop_name));
+    } else if (filters.sortBy === 'distance' && userLocation) {
+      filtered.sort((a, b) => (a.distanceValue || 0) - (b.distanceValue || 0));
+    }
+    
+    setCityFilteredMerchants(filtered);
+  }, [searchTerm, userCity, allMerchants, filters.sortBy]);
 
   // Calculate distance using Haversine formula
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -329,14 +338,15 @@ const SearchPage: React.FC = () => {
     };
   }, []);
 
-  const mapMarkers = filteredMerchants.map(merchant => ({
+  // Map markers always use ALL merchants
+  const mapMarkers = allMerchants.map(merchant => ({
     lat: merchant.lat,
     lng: merchant.lng,
     title: merchant.shop_name
   }));
 
   const handleMarkerClick = (index: number) => {
-    const merchant = filteredMerchants[index];
+    const merchant = allMerchants[index];
     setSelectedMerchant(merchant);
     setMapPopupMerchant(merchant);
     
@@ -434,7 +444,7 @@ const SearchPage: React.FC = () => {
 
       {/* Bottom Sheet with filters and nearby venues */}
       <SearchBottomSheet 
-        merchants={filteredMerchants}
+        merchants={cityFilteredMerchants}
         filters={filters}
         onFiltersChange={setFilters}
         isLoading={isLoading}
