@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, User, Mail, Phone, Calendar, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,7 @@ interface Profile {
   name: string | null;
   email: string;
   phone: string | null;
-  avatar_url: string | null;
+  avatar_url?: string | null;
   created_at: string;
 }
 
@@ -28,8 +28,8 @@ const AccountPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Fetch or create user profile
-  const fetchProfile = async () => {
+  // Fetch profile and auto-create if not exists
+  const fetchProfile = useCallback(async () => {
     if (!user?.id) {
       setProfile(null);
       setLoading(false);
@@ -37,8 +37,7 @@ const AccountPage: React.FC = () => {
     }
     setLoading(true);
     try {
-      // Try to fetch profile
-      const { data: profileData, error } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
@@ -49,63 +48,59 @@ const AccountPage: React.FC = () => {
         setLoading(false);
         return;
       }
-
-      if (profileData) {
-        setProfile(profileData);
-        setName(profileData.name || '');
-        setPhone(profileData.phone || '');
+      if (data) {
+        setProfile(data);
+        setName(data.name ?? '');
+        setPhone(data.phone ?? '');
         setLoading(false);
       } else {
-        // Create profile if not found
-        const { data: newProfile, error: createError } = await supabase
+        // If no profile, attempt to create one based on user metadata
+        const insertProfile = {
+          id: user.id,
+          name: user.user_metadata?.name || user.email?.split('@')[0] || 'Customer',
+          email: user.email || '',
+          phone: user.user_metadata?.phone || '',
+          role: 'customer',
+        };
+        console.log('Profile missing, inserting', insertProfile);
+        const { data: created, error: createErr } = await supabase
           .from('profiles')
-          .insert({
-            id: user.id,
-            name:
-              user.user_metadata?.name ||
-              user.email?.split('@')[0] ||
-              'Customer',
-            email: user.email || '',
-            phone: user.user_metadata?.phone || '',
-            role: 'customer',
-          })
+          .insert([insertProfile])
           .select('*')
           .maybeSingle();
-
-        if (createError || !newProfile) {
+        if (createErr || !created) {
           toast.error('Failed to create profile');
           setLoading(false);
           return;
         }
-        setProfile(newProfile);
-        setName(newProfile.name || '');
-        setPhone(newProfile.phone || '');
+        setProfile(created);
+        setName(created.name || '');
+        setPhone(created.phone || '');
         setLoading(false);
       }
     } catch (err) {
+      console.error('Profile fetch error', err);
       toast.error('A profile error occurred');
       setLoading(false);
     }
-  };
+  }, [user?.id, user?.email, user?.user_metadata]);
 
-  // Run profile fetch when user id is available
   useEffect(() => {
     if (user?.id) fetchProfile();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, fetchProfile]);
 
-  // Save updates
+  // Save profile edits
   const handleSave = async () => {
     if (!profile?.id) {
       toast.error('Cannot update: profile not loaded');
       return;
     }
     setSaving(true);
-    const updates: Partial<Profile> = {
-      name: name.trim(),
-      phone: phone.trim(),
-    };
     try {
+      const updates: Partial<Profile> = {
+        name: name.trim(),
+        phone: phone.trim(),
+      };
       const { error } = await supabase
         .from('profiles')
         .update(updates)
@@ -115,19 +110,27 @@ const AccountPage: React.FC = () => {
         toast.error('Failed to update profile');
       } else {
         toast.success('Profile updated');
+        // Re-fetch to update UI
         fetchProfile();
       }
-    } catch {
+    } catch (err) {
       toast.error('Unexpected profile update error');
     } finally {
       setSaving(false);
     }
   };
 
-  // Helper for initials in avatar
+  // Helper for initials
   const getInitials = (n: string) => {
     if (!n) return 'U';
-    return n.split(' ').slice(0, 2).map((x) => x[0]).join('').toUpperCase();
+    return n
+      .trim()
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map(x => x[0])
+      .join('')
+      .toUpperCase();
   };
 
   if (loading) {
@@ -140,6 +143,7 @@ const AccountPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Header */}
       <div className="bg-white border-b sticky top-0 z-10">
         <div className="flex items-center gap-3 p-4">
           <Link to="/settings">
@@ -164,13 +168,13 @@ const AccountPage: React.FC = () => {
           <CardContent className="space-y-4">
             <div className="flex items-center gap-4">
               <Avatar className="w-20 h-20">
-                <AvatarImage src={profile?.avatar_url || ''} />
+                <AvatarImage src={profile?.avatar_url ?? ''} />
                 <AvatarFallback className="bg-booqit-primary/10 text-booqit-primary text-lg">
-                  {getInitials(name || profile?.name || 'User')}
+                  {getInitials(name || profile?.name || user?.email?.split('@')[0] || 'U')}
                 </AvatarFallback>
               </Avatar>
               <div>
-                <h3 className="font-medium">{name || 'No name set'}</h3>
+                <h3 className="font-medium">{name || profile?.name || 'No name set'}</h3>
                 <p className="text-sm text-gray-600">{profile?.email || user?.email}</p>
               </div>
             </div>
