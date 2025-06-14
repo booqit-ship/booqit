@@ -29,7 +29,7 @@ const AccountPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Fetch or create profile
+  // Fetch profile data
   const fetchProfile = useCallback(async () => {
     if (!user?.id) {
       console.log('No user ID available');
@@ -41,15 +41,14 @@ const AccountPage: React.FC = () => {
     console.log('Fetching profile for user:', user.id);
 
     try {
-      // First try to fetch existing profile
+      // Fetch existing profile
       const { data: existingProfile, error: fetchError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        // Error other than "not found"
+      if (fetchError) {
         console.error('Error fetching profile:', fetchError);
         toast.error('Error loading profile');
         setLoading(false);
@@ -103,7 +102,7 @@ const AccountPage: React.FC = () => {
     if (user?.id) {
       fetchProfile();
     }
-  }, [user?.id, fetchProfile]);
+  }, [fetchProfile]);
 
   // Save profile updates
   const handleSave = async () => {
