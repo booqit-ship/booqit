@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, User, Mail, Phone, Calendar, Save } from 'lucide-react';
@@ -213,17 +212,17 @@ const AccountPage: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex flex-row items-center gap-6 py-2">
-              <Avatar className="w-20 h-20 shadow-md">
+            <div className="flex items-center gap-5 py-4">
+              <Avatar className="w-20 h-20 shadow-md flex-shrink-0">
                 <AvatarImage src={profile?.avatar_url ?? ''} />
                 <AvatarFallback className="bg-booqit-primary/10 text-booqit-primary text-lg">
                   {getInitials(name || profile?.name || user?.email?.split('@')[0] || 'U')}
                 </AvatarFallback>
               </Avatar>
-              <div className="flex flex-col justify-center">
-                <h3 className="font-bold uppercase text-lg tracking-wide text-gray-900">
+              <div className="flex flex-col justify-center min-w-0">
+                <span className="font-bold text-lg uppercase text-gray-900 truncate">
                   {name || profile?.name || 'No name set'}
-                </h3>
+                </span>
                 <span className="text-base text-gray-500 break-all">
                   {profile?.email || user?.email}
                 </span>
@@ -329,4 +328,3 @@ const AccountPage: React.FC = () => {
 };
 
 export default AccountPage;
-
