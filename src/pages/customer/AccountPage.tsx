@@ -13,11 +13,12 @@ import { toast } from 'sonner';
 
 interface Profile {
   id: string;
-  name: string | null;
+  name: string;
   email: string;
   phone: string | null;
   avatar_url?: string | null;
   created_at: string;
+  role: string;
 }
 
 const AccountPage: React.FC = () => {
@@ -28,93 +29,116 @@ const AccountPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Fetch profile and auto-create if not exists
+  // Fetch or create profile
   const fetchProfile = useCallback(async () => {
     if (!user?.id) {
-      setProfile(null);
+      console.log('No user ID available');
       setLoading(false);
       return;
     }
+
     setLoading(true);
+    console.log('Fetching profile for user:', user.id);
+
     try {
-      const { data, error } = await supabase
+      // First try to fetch existing profile
+      const { data: existingProfile, error: fetchError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .maybeSingle();
+        .single();
 
-      if (error) {
-        toast.error('Error fetching profile');
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        // Error other than "not found"
+        console.error('Error fetching profile:', fetchError);
+        toast.error('Error loading profile');
         setLoading(false);
         return;
       }
-      if (data) {
-        setProfile(data);
-        setName(data.name ?? '');
-        setPhone(data.phone ?? '');
-        setLoading(false);
+
+      if (existingProfile) {
+        // Profile exists, use it
+        console.log('Found existing profile:', existingProfile);
+        setProfile(existingProfile);
+        setName(existingProfile.name || '');
+        setPhone(existingProfile.phone || '');
       } else {
-        // If no profile, attempt to create one based on user metadata
-        const insertProfile = {
+        // No profile exists, create one
+        console.log('No profile found, creating new one');
+        
+        const newProfile = {
           id: user.id,
           name: user.user_metadata?.name || user.email?.split('@')[0] || 'Customer',
           email: user.email || '',
-          phone: user.user_metadata?.phone || '',
-          role: 'customer',
+          phone: user.user_metadata?.phone || null,
+          role: 'customer'
         };
-        console.log('Profile missing, inserting', insertProfile);
-        const { data: created, error: createErr } = await supabase
+
+        const { data: createdProfile, error: createError } = await supabase
           .from('profiles')
-          .insert([insertProfile])
-          .select('*')
-          .maybeSingle();
-        if (createErr || !created) {
+          .insert([newProfile])
+          .select()
+          .single();
+
+        if (createError) {
+          console.error('Error creating profile:', createError);
           toast.error('Failed to create profile');
-          setLoading(false);
-          return;
+        } else {
+          console.log('Created new profile:', createdProfile);
+          setProfile(createdProfile);
+          setName(createdProfile.name || '');
+          setPhone(createdProfile.phone || '');
+          toast.success('Profile created successfully');
         }
-        setProfile(created);
-        setName(created.name || '');
-        setPhone(created.phone || '');
-        setLoading(false);
       }
     } catch (err) {
-      console.error('Profile fetch error', err);
-      toast.error('A profile error occurred');
+      console.error('Unexpected error in fetchProfile:', err);
+      toast.error('An unexpected error occurred');
+    } finally {
       setLoading(false);
     }
   }, [user?.id, user?.email, user?.user_metadata]);
 
   useEffect(() => {
-    if (user?.id) fetchProfile();
+    if (user?.id) {
+      fetchProfile();
+    }
   }, [user?.id, fetchProfile]);
 
-  // Save profile edits
+  // Save profile updates
   const handleSave = async () => {
     if (!profile?.id) {
       toast.error('Cannot update: profile not loaded');
       return;
     }
+
     setSaving(true);
+    console.log('Saving profile updates...');
+
     try {
-      const updates: Partial<Profile> = {
+      const updates = {
         name: name.trim(),
-        phone: phone.trim(),
+        phone: phone.trim() || null,
       };
-      const { error } = await supabase
+
+      const { data, error } = await supabase
         .from('profiles')
         .update(updates)
-        .eq('id', profile.id);
+        .eq('id', profile.id)
+        .select()
+        .single();
 
       if (error) {
+        console.error('Error updating profile:', error);
         toast.error('Failed to update profile');
       } else {
-        toast.success('Profile updated');
-        // Re-fetch to update UI
-        fetchProfile();
+        console.log('Profile updated successfully:', data);
+        setProfile(data);
+        toast.success('Profile updated successfully');
       }
     } catch (err) {
-      toast.error('Unexpected profile update error');
+      console.error('Unexpected error updating profile:', err);
+      toast.error('An unexpected error occurred');
     } finally {
       setSaving(false);
     }
@@ -157,7 +181,9 @@ const AccountPage: React.FC = () => {
           </div>
         </div>
       </div>
+
       <div className="p-4 space-y-6 pb-24">
+        {/* Profile Information Card */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 font-thin">
@@ -180,6 +206,8 @@ const AccountPage: React.FC = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Personal Details Card */}
         <Card>
           <CardHeader>
             <CardTitle className="font-normal">Personal Details</CardTitle>
@@ -194,6 +222,7 @@ const AccountPage: React.FC = () => {
                 placeholder="Enter your full name"
               />
             </div>
+            
             <div className="space-y-2">
               <Label htmlFor="email">Email Address</Label>
               <Input
@@ -204,6 +233,7 @@ const AccountPage: React.FC = () => {
               />
               <p className="text-xs text-gray-500">Email cannot be changed</p>
             </div>
+            
             <div className="space-y-2">
               <Label htmlFor="phone">Phone Number</Label>
               <Input
@@ -214,12 +244,15 @@ const AccountPage: React.FC = () => {
                 type="tel"
               />
             </div>
+            
             <Button onClick={handleSave} disabled={saving} className="w-full">
               <Save className="h-4 w-4 mr-2" />
               {saving ? 'Saving...' : 'Save Changes'}
             </Button>
           </CardContent>
         </Card>
+
+        {/* Account Information Card */}
         <Card>
           <CardHeader>
             <CardTitle className="font-normal">Account Information</CardTitle>
@@ -230,8 +263,9 @@ const AccountPage: React.FC = () => {
                 <Mail className="h-4 w-4 text-gray-500" />
                 <span className="text-sm text-gray-600">Account Type</span>
               </div>
-              <span className="text-sm font-medium">Customer</span>
+              <span className="text-sm font-medium capitalize">{profile?.role || 'Customer'}</span>
             </div>
+            
             <div className="flex items-center justify-between py-2">
               <div className="flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-gray-500" />
@@ -243,6 +277,7 @@ const AccountPage: React.FC = () => {
                   : 'N/A'}
               </span>
             </div>
+            
             <div className="flex items-center justify-between py-2">
               <div className="flex items-center gap-2">
                 <User className="h-4 w-4 text-gray-500" />
@@ -254,6 +289,8 @@ const AccountPage: React.FC = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Security Tip Card */}
         <Card className="bg-blue-50 border-blue-200">
           <CardContent className="p-4">
             <p className="text-sm text-blue-700">
