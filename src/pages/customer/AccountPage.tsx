@@ -102,8 +102,9 @@ const AccountPage: React.FC = () => {
 
   // Create or Update profile
   const handleSave = async () => {
-    if (!user?.id) {
-      toast.error('User not authenticated');
+    if (!user || !user.id) {
+      toast.error('You must be logged in to edit your profile.');
+      console.error('[handleSave] Attempted save without user session.');
       return;
     }
 
@@ -117,7 +118,7 @@ const AccountPage: React.FC = () => {
     console.log('[handleSave] User object:', user);
 
     try {
-      // Ensure we're using exactly the logged-in user's id for the profile
+      // Always set id === user.id, only allow updating own profile!
       const profileData = {
         id: user.id,
         name: name.trim(),
@@ -126,26 +127,27 @@ const AccountPage: React.FC = () => {
         role: 'customer',
       };
 
-      console.log('[handleSave] Attempting upsert with profileData:', profileData);
+      console.log('[handleSave] Upsert payload:', profileData);
 
-      // INSERT must set id = auth.uid(), which RLS enforces
+      // Always supply the authenticated session
+      // Defensive: If session is missing, this should fail loudly
       const { data, error } = await supabase
         .from('profiles')
         .upsert(profileData, {
           onConflict: 'id',
-          ignoreDuplicates: false
+          ignoreDuplicates: false,
         })
         .select()
         .single();
 
       if (error) {
-        // Log and display a detailed error message
-        console.error('[handleSave] Error upserting profile:', error, error.details || '');
+        // Log the error
+        console.error('[handleSave] Supabase upsert error:', error, error.details || '');
         if (
           error.message &&
           error.message.includes('violates row-level security policy')
         ) {
-          toast.error('Permission denied. Make sure you are logged in as the correct user. (RLS Error)');
+          toast.error('Permission denied. Please log out and log in again, and ensure your session is active. (RLS Error)');
         } else {
           toast.error(`Failed to save profile: ${error.message}`);
         }
