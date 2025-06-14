@@ -38,7 +38,7 @@ const AccountPage: React.FC = () => {
     }
 
     setLoading(true);
-    console.log('Fetching profile for user:', user.id);
+    console.log('[fetchProfile] Fetching profile for user:', user.id);
 
     try {
       const { data: existingProfile, error: fetchError } = await supabase
@@ -48,12 +48,12 @@ const AccountPage: React.FC = () => {
         .maybeSingle();
 
       if (fetchError) {
-        console.error('Error fetching profile:', fetchError);
+        console.error('[fetchProfile] Error fetching profile:', fetchError);
         // Don't throw on fetch error, create fallback profile
       }
 
       if (existingProfile) {
-        console.log('Found existing profile:', existingProfile);
+        console.log('[fetchProfile] Found existing profile:', existingProfile);
         setProfile(existingProfile);
         setName(existingProfile.name || '');
         setPhone(existingProfile.phone || '');
@@ -68,14 +68,14 @@ const AccountPage: React.FC = () => {
           created_at: new Date().toISOString(),
           role: 'customer'
         };
-        
+
         setProfile(fallbackProfile);
         setName(fallbackProfile.name);
         setPhone(fallbackProfile.phone || '');
-        console.log('No profile found, using fallback data');
+        console.log('[fetchProfile] No profile found, using fallback data');
       }
     } catch (err) {
-      console.error('Error in fetchProfile:', err);
+      console.error('[fetchProfile] Error in fetchProfile:', err);
       // Create fallback profile even on error
       const fallbackProfile = {
         id: user.id,
@@ -86,7 +86,7 @@ const AccountPage: React.FC = () => {
         created_at: new Date().toISOString(),
         role: 'customer'
       };
-      
+
       setProfile(fallbackProfile);
       setName(fallbackProfile.name);
       setPhone(fallbackProfile.phone || '');
@@ -99,7 +99,7 @@ const AccountPage: React.FC = () => {
     if (user?.id) {
       fetchProfile();
     }
-  }, [fetchProfile]);
+  }, [fetchProfile, user?.id]);
 
   // Create or Update profile
   const handleSave = async () => {
@@ -114,9 +114,11 @@ const AccountPage: React.FC = () => {
     }
 
     setSaving(true);
-    console.log('Saving profile updates...');
+    console.log('[handleSave] Saving profile...');
+    console.log('[handleSave] User object:', user);
 
     try {
+      // Ensure we're using exactly the logged-in user's id for the profile
       const profileData = {
         id: user.id,
         name: name.trim(),
@@ -125,29 +127,38 @@ const AccountPage: React.FC = () => {
         role: 'customer',
       };
 
-      console.log('Upserting profile data:', profileData);
+      console.log('[handleSave] Attempting upsert with profileData:', profileData);
 
+      // INSERT must set id = auth.uid(), which RLS enforces
       const { data, error } = await supabase
         .from('profiles')
-        .upsert(profileData, { 
+        .upsert(profileData, {
           onConflict: 'id',
-          ignoreDuplicates: false 
+          ignoreDuplicates: false
         })
         .select()
         .single();
 
       if (error) {
-        console.error('Error saving profile:', error);
-        toast.error(`Failed to save profile: ${error.message}`);
+        // Log and display a detailed error message
+        console.error('[handleSave] Error upserting profile:', error, error.details || '');
+        if (
+          error.message &&
+          error.message.includes('violates row-level security policy')
+        ) {
+          toast.error('Permission denied. Make sure you are logged in as the correct user. (RLS Error)');
+        } else {
+          toast.error(`Failed to save profile: ${error.message}`);
+        }
+        setSaving(false);
         return;
       }
 
-      console.log('Profile saved successfully:', data);
+      console.log('[handleSave] Profile upserted successfully:', data);
       setProfile(data);
       toast.success('Profile updated successfully');
-      
-    } catch (err) {
-      console.error('Unexpected error saving profile:', err);
+    } catch (err: any) {
+      console.error('[handleSave] Unexpected error:', err);
       toast.error('An unexpected error occurred while saving');
     } finally {
       setSaving(false);
@@ -314,3 +325,4 @@ const AccountPage: React.FC = () => {
 };
 
 export default AccountPage;
+
