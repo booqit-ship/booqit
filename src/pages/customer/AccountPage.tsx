@@ -49,7 +49,7 @@ const AccountPage: React.FC = () => {
 
       if (fetchError) {
         console.error('Error fetching profile:', fetchError);
-        throw fetchError;
+        // Don't throw on fetch error, create fallback profile
       }
 
       if (existingProfile) {
@@ -58,7 +58,7 @@ const AccountPage: React.FC = () => {
         setName(existingProfile.name || '');
         setPhone(existingProfile.phone || '');
       } else {
-        // Create fallback profile without inserting to database yet
+        // Create fallback profile data
         const fallbackProfile = {
           id: user.id,
           name: user.user_metadata?.name || user.email?.split('@')[0] || 'Customer',
@@ -76,7 +76,20 @@ const AccountPage: React.FC = () => {
       }
     } catch (err) {
       console.error('Error in fetchProfile:', err);
-      toast.error('Error loading profile data');
+      // Create fallback profile even on error
+      const fallbackProfile = {
+        id: user.id,
+        name: user.user_metadata?.name || user.email?.split('@')[0] || 'Customer',
+        email: user.email || '',
+        phone: user.user_metadata?.phone || null,
+        avatar_url: null,
+        created_at: new Date().toISOString(),
+        role: 'customer'
+      };
+      
+      setProfile(fallbackProfile);
+      setName(fallbackProfile.name);
+      setPhone(fallbackProfile.phone || '');
     } finally {
       setLoading(false);
     }
@@ -88,7 +101,7 @@ const AccountPage: React.FC = () => {
     }
   }, [fetchProfile]);
 
-  // Create or Update profile using upsert
+  // Create or Update profile
   const handleSave = async () => {
     if (!user?.id) {
       toast.error('User not authenticated');
@@ -124,7 +137,7 @@ const AccountPage: React.FC = () => {
         .single();
 
       if (error) {
-        console.error('Error upserting profile:', error);
+        console.error('Error saving profile:', error);
         toast.error(`Failed to save profile: ${error.message}`);
         return;
       }
