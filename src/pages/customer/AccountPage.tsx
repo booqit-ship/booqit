@@ -61,8 +61,9 @@ const AccountPage: React.FC = () => {
         setProfile(existingProfile);
         setName(existingProfile.name || '');
         setPhone(existingProfile.phone || '');
+        toast.success('Profile loaded successfully');
       } else {
-        // No profile exists, create one
+        // Profile doesn't exist, create one
         console.log('No profile found, creating new one');
         
         const newProfile = {
@@ -82,6 +83,18 @@ const AccountPage: React.FC = () => {
         if (createError) {
           console.error('Error creating profile:', createError);
           toast.error('Failed to create profile');
+          // Even if create fails, try to set basic info from user
+          setProfile({
+            id: user.id,
+            name: user.user_metadata?.name || user.email?.split('@')[0] || 'Customer',
+            email: user.email || '',
+            phone: user.user_metadata?.phone || null,
+            avatar_url: null,
+            created_at: new Date().toISOString(),
+            role: 'customer'
+          });
+          setName(user.user_metadata?.name || user.email?.split('@')[0] || '');
+          setPhone(user.user_metadata?.phone || '');
         } else {
           console.log('Created new profile:', createdProfile);
           setProfile(createdProfile);
@@ -93,6 +106,20 @@ const AccountPage: React.FC = () => {
     } catch (err) {
       console.error('Unexpected error in fetchProfile:', err);
       toast.error('An unexpected error occurred');
+      // Fallback: set profile from user data
+      if (user) {
+        setProfile({
+          id: user.id,
+          name: user.user_metadata?.name || user.email?.split('@')[0] || 'Customer',
+          email: user.email || '',
+          phone: user.user_metadata?.phone || null,
+          avatar_url: null,
+          created_at: new Date().toISOString(),
+          role: 'customer'
+        });
+        setName(user.user_metadata?.name || user.email?.split('@')[0] || '');
+        setPhone(user.user_metadata?.phone || '');
+      }
     } finally {
       setLoading(false);
     }
@@ -106,8 +133,8 @@ const AccountPage: React.FC = () => {
 
   // Save profile updates
   const handleSave = async () => {
-    if (!profile?.id) {
-      toast.error('Cannot update: profile not loaded');
+    if (!user?.id) {
+      toast.error('Cannot update: user not authenticated');
       return;
     }
 
@@ -122,8 +149,14 @@ const AccountPage: React.FC = () => {
 
       const { data, error } = await supabase
         .from('profiles')
-        .update(updates)
-        .eq('id', profile.id)
+        .upsert({ 
+          id: user.id,
+          email: user.email || '',
+          role: 'customer',
+          ...updates 
+        }, { 
+          onConflict: 'id' 
+        })
         .select()
         .single();
 
