@@ -213,16 +213,20 @@ const AccountPage: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center gap-4">
-              <Avatar className="w-20 h-20">
+            <div className="flex flex-row items-center gap-6 py-2">
+              <Avatar className="w-20 h-20 shadow-md">
                 <AvatarImage src={profile?.avatar_url ?? ''} />
                 <AvatarFallback className="bg-booqit-primary/10 text-booqit-primary text-lg">
                   {getInitials(name || profile?.name || user?.email?.split('@')[0] || 'U')}
                 </AvatarFallback>
               </Avatar>
-              <div>
-                <h3 className="font-medium">{name || profile?.name || 'No name set'}</h3>
-                <p className="text-sm text-gray-600">{profile?.email || user?.email}</p>
+              <div className="flex flex-col justify-center">
+                <h3 className="font-bold uppercase text-lg tracking-wide text-gray-900">
+                  {name || profile?.name || 'No name set'}
+                </h3>
+                <span className="text-base text-gray-500 break-all">
+                  {profile?.email || user?.email}
+                </span>
               </div>
             </div>
           </CardContent>
