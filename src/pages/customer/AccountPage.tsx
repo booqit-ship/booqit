@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, User, Mail, Phone, Calendar, Save } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, Calendar, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -61,7 +61,6 @@ const AccountPage: React.FC = () => {
         setProfile(existingProfile);
         setName(existingProfile.name || '');
         setPhone(existingProfile.phone || '');
-        toast.success('Profile loaded successfully');
       } else {
         // Profile doesn't exist, create one
         console.log('No profile found, creating new one');
@@ -82,9 +81,8 @@ const AccountPage: React.FC = () => {
 
         if (createError) {
           console.error('Error creating profile:', createError);
-          toast.error('Failed to create profile');
-          // Even if create fails, try to set basic info from user
-          setProfile({
+          // Set fallback profile data without showing error
+          const fallbackProfile = {
             id: user.id,
             name: user.user_metadata?.name || user.email?.split('@')[0] || 'Customer',
             email: user.email || '',
@@ -92,9 +90,10 @@ const AccountPage: React.FC = () => {
             avatar_url: null,
             created_at: new Date().toISOString(),
             role: 'customer'
-          });
-          setName(user.user_metadata?.name || user.email?.split('@')[0] || '');
-          setPhone(user.user_metadata?.phone || '');
+          };
+          setProfile(fallbackProfile);
+          setName(fallbackProfile.name);
+          setPhone(fallbackProfile.phone || '');
         } else {
           console.log('Created new profile:', createdProfile);
           setProfile(createdProfile);
@@ -105,10 +104,9 @@ const AccountPage: React.FC = () => {
       }
     } catch (err) {
       console.error('Unexpected error in fetchProfile:', err);
-      toast.error('An unexpected error occurred');
-      // Fallback: set profile from user data
+      // Set fallback profile without showing error
       if (user) {
-        setProfile({
+        const fallbackProfile = {
           id: user.id,
           name: user.user_metadata?.name || user.email?.split('@')[0] || 'Customer',
           email: user.email || '',
@@ -116,9 +114,10 @@ const AccountPage: React.FC = () => {
           avatar_url: null,
           created_at: new Date().toISOString(),
           role: 'customer'
-        });
-        setName(user.user_metadata?.name || user.email?.split('@')[0] || '');
-        setPhone(user.user_metadata?.phone || '');
+        };
+        setProfile(fallbackProfile);
+        setName(fallbackProfile.name);
+        setPhone(fallbackProfile.phone || '');
       }
     } finally {
       setLoading(false);
@@ -131,7 +130,7 @@ const AccountPage: React.FC = () => {
     }
   }, [fetchProfile]);
 
-  // Save profile updates
+  // Create or Update profile
   const handleSave = async () => {
     if (!user?.id) {
       toast.error('Cannot update: user not authenticated');
@@ -143,18 +142,16 @@ const AccountPage: React.FC = () => {
 
     try {
       const updates = {
+        id: user.id,
         name: name.trim(),
+        email: user.email || '',
         phone: phone.trim() || null,
+        role: 'customer',
       };
 
       const { data, error } = await supabase
         .from('profiles')
-        .upsert({ 
-          id: user.id,
-          email: user.email || '',
-          role: 'customer',
-          ...updates 
-        }, { 
+        .upsert(updates, { 
           onConflict: 'id' 
         })
         .select()
@@ -173,6 +170,36 @@ const AccountPage: React.FC = () => {
       toast.error('An unexpected error occurred');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Delete profile (soft delete by updating role)
+  const handleDeleteProfile = async () => {
+    if (!user?.id || !profile) {
+      toast.error('Cannot delete: profile not loaded');
+      return;
+    }
+
+    if (confirm('Are you sure you want to delete your profile? This action cannot be undone.')) {
+      try {
+        const { error } = await supabase
+          .from('profiles')
+          .delete()
+          .eq('id', user.id);
+
+        if (error) {
+          console.error('Error deleting profile:', error);
+          toast.error('Failed to delete profile');
+        } else {
+          toast.success('Profile deleted successfully');
+          setProfile(null);
+          setName('');
+          setPhone('');
+        }
+      } catch (err) {
+        console.error('Unexpected error deleting profile:', err);
+        toast.error('An unexpected error occurred');
+      }
     }
   };
 
@@ -277,10 +304,21 @@ const AccountPage: React.FC = () => {
               />
             </div>
             
-            <Button onClick={handleSave} disabled={saving} className="w-full">
-              <Save className="h-4 w-4 mr-2" />
-              {saving ? 'Saving...' : 'Save Changes'}
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={handleSave} disabled={saving} className="flex-1">
+                <Save className="h-4 w-4 mr-2" />
+                {saving ? 'Saving...' : 'Save Changes'}
+              </Button>
+              
+              <Button 
+                onClick={handleDeleteProfile} 
+                variant="destructive" 
+                disabled={!profile}
+                className="px-4"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
