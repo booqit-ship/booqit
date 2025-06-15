@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Settings, User, Calendar, Star, ChevronRight, LogOut } from 'lucide-react';
@@ -7,6 +8,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+
 interface Profile {
   id: string;
   name: string | null;
@@ -14,6 +16,7 @@ interface Profile {
   phone: string | null;
   avatar_url: string | null;
 }
+
 interface RecentBooking {
   id: string;
   date: string;
@@ -26,15 +29,14 @@ interface RecentBooking {
     name: string;
   };
 }
+
 const ProfilePage: React.FC = () => {
-  const {
-    user,
-    logout
-  } = useAuth();
+  const { user, logout } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [recentBookings, setRecentBookings] = useState<RecentBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
   const profileItems = [{
     icon: Calendar,
     title: 'My Bookings',
@@ -51,41 +53,61 @@ const ProfilePage: React.FC = () => {
     description: 'Account settings and preferences',
     href: '/settings'
   }];
+
   useEffect(() => {
     const fetchUserData = async () => {
       if (!user?.id) {
+        console.log('⚠️ No user ID available, but not setting error - waiting for auth');
         setLoading(false);
-        setError("Session expired or not logged in. Please log in again.");
         return;
       }
-      try {
-        console.log('Fetching data for user:', user.id);
 
-        // Fetch profile
-        const {
-          data: profileData,
-          error: profileError
-        } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+      try {
+        console.log('📡 Fetching data for user:', user.id);
+
+        // Fetch profile with more specific error handling
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
         if (profileError && profileError.code !== 'PGRST116') {
-          console.error('Profile fetch error:', profileError);
-          setError("Unable to load profile. Please refresh or log in again.");
+          console.error('❌ Profile fetch error:', profileError);
+          
+          // Only set error for authentication/permission issues
+          if (profileError.message?.includes('JWT') || 
+              profileError.message?.includes('permission') ||
+              profileError.message?.includes('auth')) {
+            setError("Session issue detected. Please try refreshing the page.");
+          } else {
+            // For other errors, try to create profile instead of erroring
+            console.log('🔧 Non-auth error, attempting to create profile');
+          }
         }
 
         // If no profile exists, create one
         if (!profileData) {
-          console.log('Creating new profile for user');
-          const {
-            data: newProfile,
-            error: createError
-          } = await supabase.from('profiles').insert({
-            id: user.id,
-            name: user.user_metadata?.name || user.email?.split('@')[0] || 'Customer',
-            email: user.email || '',
-            phone: user.user_metadata?.phone || null,
-            role: 'customer'
-          }).select().single();
+          console.log('👤 Creating new profile for user');
+          const { data: newProfile, error: createError } = await supabase
+            .from('profiles')
+            .insert({
+              id: user.id,
+              name: user.user_metadata?.name || user.email?.split('@')[0] || 'Customer',
+              email: user.email || '',
+              phone: user.user_metadata?.phone || null,
+              role: 'customer'
+            })
+            .select()
+            .single();
+
           if (createError) {
-            console.error('Error creating profile:', createError);
+            console.error('❌ Error creating profile:', createError);
+            // Only show error for auth issues, not data issues
+            if (createError.message?.includes('JWT') || 
+                createError.message?.includes('permission')) {
+              setError("Authentication issue. Please try logging in again.");
+            }
           } else {
             setProfile(newProfile);
           }
@@ -93,42 +115,55 @@ const ProfilePage: React.FC = () => {
           setProfile(profileData);
         }
 
-        // Fetch recent bookings
-        const {
-          data: bookingsData,
-          error: bookingsError
-        } = await supabase.from('bookings').select(`
+        // Fetch recent bookings with better error handling
+        const { data: bookingsData, error: bookingsError } = await supabase
+          .from('bookings')
+          .select(`
             id,
             date,
             time_slot,
             status,
             merchant:merchants!inner(shop_name),
             service:services!inner(name)
-          `).eq('user_id', user.id).order('date', {
-          ascending: false
-        }).order('time_slot', {
-          ascending: false
-        }).limit(3);
+          `)
+          .eq('user_id', user.id)
+          .order('date', { ascending: false })
+          .order('time_slot', { ascending: false })
+          .limit(3);
+
         if (bookingsError) {
-          setError("Unable to load bookings. Please refresh or log in again.");
-          console.error('Error fetching bookings:', bookingsError);
+          console.error('❌ Error fetching bookings:', bookingsError);
+          // Don't set error for booking fetch failures - just log and continue
+          console.log('⚠️ Could not load bookings, but continuing with profile');
         } else {
-          console.log('Recent bookings:', bookingsData);
+          console.log('✅ Recent bookings loaded:', bookingsData?.length || 0);
           setRecentBookings(bookingsData || []);
         }
+
       } catch (error) {
-        setError("A network or session error occurred. Please log in again.");
-        console.error('Error in fetchUserData:', error);
+        console.error('❌ Exception in fetchUserData:', error);
+        // Only set error for critical failures
+        if (error?.message?.includes('JWT') || 
+            error?.message?.includes('auth') ||
+            error?.message?.includes('permission')) {
+          setError("Authentication session issue. Please try refreshing the page.");
+        } else {
+          // For other errors, just log and continue
+          console.log('⚠️ Non-critical error, continuing with partial data');
+        }
       } finally {
         setLoading(false);
       }
     };
+
     fetchUserData();
   }, [user?.id]);
+
   const getInitials = (name: string) => {
     if (!name) return 'U';
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -137,29 +172,48 @@ const ProfilePage: React.FC = () => {
       year: 'numeric'
     });
   };
+
   if (loading) {
-    return <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-booqit-primary"></div>
-      </div>;
+      </div>
+    );
   }
 
-  // --- NEW: session error UI ---
+  // Show error UI only for critical authentication errors
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
         <div className="bg-white p-6 rounded shadow-md max-w-md w-full text-center">
           <p className="text-lg font-semibold text-red-600 mb-4">{error}</p>
-          <button
-            className="bg-booqit-primary rounded px-4 py-2 text-white font-medium"
-            onClick={() => window.location.href = '/auth'}
-          >
-            Log In
-          </button>
+          <div className="flex gap-2 justify-center">
+            <button
+              className="bg-booqit-primary rounded px-4 py-2 text-white font-medium"
+              onClick={() => window.location.reload()}
+            >
+              Refresh Page
+            </button>
+            <button
+              className="bg-gray-500 rounded px-4 py-2 text-white font-medium"
+              onClick={() => window.location.href = '/auth'}
+            >
+              Log In Again
+            </button>
+          </div>
         </div>
       </div>
     );
   }
-  return <div className="min-h-screen bg-gray-50">
+
+  // If no user but no error, redirect to auth
+  if (!user) {
+    window.location.href = '/auth';
+    return null;
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-gradient-to-br from-booqit-primary to-booqit-primary/80 text-white">
         <div className="p-6 pt-12">
@@ -180,12 +234,17 @@ const ProfilePage: React.FC = () => {
 
       <div className="p-4 space-y-4 pb-24 -mt-6">
         {/* Recent Bookings */}
-        {recentBookings.length > 0 && <Card className="shadow-lg">
+        {recentBookings.length > 0 && (
+          <Card className="shadow-lg">
             <CardHeader>
               <CardTitle className="text-lg font-light">Recent Bookings</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              {recentBookings.map((booking, index) => <div key={booking.id} className={`p-4 ${index !== recentBookings.length - 1 ? 'border-b border-gray-100' : ''}`}>
+              {recentBookings.map((booking, index) => (
+                <div 
+                  key={booking.id} 
+                  className={`p-4 ${index !== recentBookings.length - 1 ? 'border-b border-gray-100' : ''}`}
+                >
                   <div className="flex justify-between items-start">
                     <div>
                       <h3 className="font-medium">{booking.merchant.shop_name}</h3>
@@ -194,22 +253,32 @@ const ProfilePage: React.FC = () => {
                         {formatDate(booking.date)} at {booking.time_slot}
                       </p>
                     </div>
-                    <span className={`px-2 py-1 rounded-full text-xs ${booking.status === 'confirmed' ? 'bg-green-100 text-green-700' : booking.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : booking.status === 'completed' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
+                    <span className={`px-2 py-1 rounded-full text-xs ${
+                      booking.status === 'confirmed' ? 'bg-green-100 text-green-700' :
+                      booking.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                      booking.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                      'bg-gray-100 text-gray-700'
+                    }`}>
                       {booking.status}
                     </span>
                   </div>
-                </div>)}
+                </div>
+              ))}
               <Link to="/calendar" className="block p-4 text-center text-booqit-primary hover:bg-gray-50">
                 View All Bookings
               </Link>
             </CardContent>
-          </Card>}
+          </Card>
+        )}
 
         {/* Profile Actions */}
         <Card className="shadow-lg">
           <CardContent className="p-0">
-            {profileItems.map((item, index) => <Link key={item.href} to={item.href}>
-                <div className={`flex items-center justify-between p-4 hover:bg-gray-50 transition-colors ${index !== profileItems.length - 1 ? 'border-b border-gray-100' : ''}`}>
+            {profileItems.map((item, index) => (
+              <Link key={item.href} to={item.href}>
+                <div className={`flex items-center justify-between p-4 hover:bg-gray-50 transition-colors ${
+                  index !== profileItems.length - 1 ? 'border-b border-gray-100' : ''
+                }`}>
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
                       <item.icon className="h-5 w-5 text-gray-600" />
@@ -221,7 +290,8 @@ const ProfilePage: React.FC = () => {
                   </div>
                   <ChevronRight className="h-5 w-5 text-gray-400" />
                 </div>
-              </Link>)}
+              </Link>
+            ))}
           </CardContent>
         </Card>
 
@@ -256,6 +326,8 @@ const ProfilePage: React.FC = () => {
           </CardContent>
         </Card>
       </div>
-    </div>;
+    </div>
+  );
 };
+
 export default ProfilePage;
