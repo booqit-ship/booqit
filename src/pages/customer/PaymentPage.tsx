@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Smartphone } from 'lucide-react';
@@ -22,7 +23,6 @@ const PaymentPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { userId } = useAuth();
-  // Accept both current and legacy state (for future proofing)
   const {
     merchant,
     selectedServices,
@@ -31,15 +31,9 @@ const PaymentPage: React.FC = () => {
     selectedStaff,
     selectedStaffDetails,
     bookingDate,
-    bookingTime,
-    selectedDate,
-    selectedTime,
+    bookingTime
   } = location.state || {};
-
-  // Fallback assignment for older states with different field names
-  const finalBookingDate = bookingDate || selectedDate;
-  const finalBookingTime = bookingTime || selectedTime;
-
+  
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handlePayment = async () => {
@@ -48,7 +42,7 @@ const PaymentPage: React.FC = () => {
       return;
     }
     
-    if (!selectedServices || !selectedStaff || !finalBookingDate || !finalBookingTime) {
+    if (!selectedServices || !selectedStaff || !bookingDate || !bookingTime) {
       toast.error('Booking information is missing');
       return;
     }
@@ -71,8 +65,8 @@ const PaymentPage: React.FC = () => {
         p_merchant_id: merchantId,
         p_service_id: serviceId,
         p_staff_id: selectedStaff,
-        p_date: finalBookingDate,
-        p_time_slot: finalBookingTime,
+        p_date: bookingDate,
+        p_time_slot: bookingTime,
         p_service_duration: totalDuration
       });
 
@@ -82,8 +76,8 @@ const PaymentPage: React.FC = () => {
         p_merchant_id: merchantId,
         p_service_id: serviceId,
         p_staff_id: selectedStaff,
-        p_date: finalBookingDate,
-        p_time_slot: finalBookingTime,
+        p_date: bookingDate,
+        p_time_slot: bookingTime,
         p_service_duration: totalDuration
       });
 
@@ -175,7 +169,7 @@ const PaymentPage: React.FC = () => {
           const servicesText = selectedServices.length > 1 
             ? `${selectedServices.length} services` 
             : selectedServices[0]?.name || 'Service';
-          const formattedTime = formatTimeToAmPm(finalBookingTime);
+          const formattedTime = formatTimeToAmPm(bookingTime);
 
           console.log('📤 PAYMENT_FLOW: Calling sendNewBookingNotification with:', {
             merchantUserId: merchantData.user_id,
@@ -220,8 +214,8 @@ const PaymentPage: React.FC = () => {
           totalDuration,
           selectedStaff,
           selectedStaffDetails,
-          bookingDate: finalBookingDate,
-          bookingTime: finalBookingTime,
+          bookingDate,
+          bookingTime,
           bookingId: bookingId,
           paymentMethod: 'pay_on_shop'
         }
@@ -240,11 +234,11 @@ const PaymentPage: React.FC = () => {
     navigate(-1);
   };
   
-  if (!merchant || !selectedServices || !finalBookingDate || !finalBookingTime) {
+  if (!merchant || !selectedServices || !bookingDate || !bookingTime) {
     return (
       <div className="h-screen flex flex-col items-center justify-center p-4">
-        <p className="text-gray-500 mb-4">Booking information missing or expired. Please start again.</p>
-        <Button onClick={() => navigate('/')}>Go Home</Button>
+        <p className="text-gray-500 mb-4">Booking information missing</p>
+        <Button onClick={() => navigate(-1)}>Go Back</Button>
       </div>
     );
   }
@@ -291,8 +285,8 @@ const PaymentPage: React.FC = () => {
             <div className="flex justify-between">
               <span className="font-poppins text-gray-600">Date & Time</span>
               <div className="text-right font-poppins font-medium">
-                <div>{formatDateInIST(new Date(finalBookingDate), 'MMM d, yyyy')}</div>
-                <div>{formatTimeToAmPm(finalBookingTime)}</div>
+                <div>{formatDateInIST(new Date(bookingDate), 'MMM d, yyyy')}</div>
+                <div>{formatTimeToAmPm(bookingTime)}</div>
               </div>
             </div>
             

@@ -99,10 +99,10 @@ const MerchantDetailPage: React.FC = () => {
     setImageError(true);
   };
   const handleBookServices = () => {
-    // New navigation: push to /booking/:merchantId and pass merchant data in state
     navigate(`/booking/${merchantId}`, {
       state: {
-        merchant
+        merchant,
+        services
       }
     });
   };
