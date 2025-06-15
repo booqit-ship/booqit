@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Clock, MapPin, Star, User, Frown } from 'lucide-react';
+import { ChevronLeft, Clock, MapPin, Star, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -10,7 +10,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { Merchant, Service, Staff } from '@/types';
 import { toast } from 'sonner';
 import ReviewsSection from '@/components/customer/ReviewsSection';
-import MerchantNotFound from '@/components/customer/MerchantNotFound';
 const MerchantDetailPage: React.FC = () => {
   const {
     merchantId
@@ -108,14 +107,15 @@ const MerchantDetailPage: React.FC = () => {
     });
   };
   if (loading) {
-    return (
-      <div className="h-screen flex items-center justify-center">
+    return <div className="h-screen flex items-center justify-center">
         <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
-      </div>
-    );
+      </div>;
   }
   if (!merchant) {
-    return <MerchantNotFound />;
+    return <div className="h-screen flex flex-col items-center justify-center p-4">
+        <p className="text-gray-500 mb-4">Merchant not found</p>
+        <Button onClick={() => navigate(-1)}>Go Back</Button>
+      </div>;
   }
   return <div className="pb-20">
       <div className="relative h-64 bg-gray-200">
