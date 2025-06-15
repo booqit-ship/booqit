@@ -1,4 +1,3 @@
-
 import React, { useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, CalendarIcon, Clock, User, MapPin } from 'lucide-react';
@@ -11,17 +10,23 @@ const BookingSummaryPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  // Add fallback in case no state is passed (refresh case)
   const { 
     merchant, 
     selectedServices, 
     totalPrice, 
     totalDuration, 
     selectedStaff, 
-    selectedDate, 
-    selectedTime 
-  } = location.state;
+    selectedStaffDetails,
+    selectedDate,
+    selectedTime
+  } = location.state || {};
 
   const handleProceedToPayment = () => {
+    // Use merchantId from state or URL for navigation
+    if (!merchantId) {
+      return navigate(-1);
+    }
     navigate(`/payment/${merchantId}`, {
       state: {
         merchant,
@@ -29,20 +34,14 @@ const BookingSummaryPage: React.FC = () => {
         totalPrice,
         totalDuration,
         selectedStaff,
-        selectedDate,
-        selectedTime
+        selectedStaffDetails,
+        bookingDate: selectedDate,    // Alias for PaymentPage
+        bookingTime: selectedTime
       }
     });
   };
 
-  // Auto-navigate to payment after 3 seconds
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      handleProceedToPayment();
-    }, 3000);
-
-    return () => clearTimeout(timer);
-  }, []);
+  // Remove auto-navigate effect; only proceed on button click
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
