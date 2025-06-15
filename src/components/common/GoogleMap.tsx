@@ -54,6 +54,8 @@ const GoogleMapComponent: React.FC<MapProps> = ({
       scrollwheel: true,
       clickableIcons: false,
       disableDefaultUI: isMobile,
+      minZoom: 10, // Minimum zoom level to prevent excessive zoom out
+      maxZoom: 20, // Maximum zoom level
       zoomControlOptions: {
         position: google.maps.ControlPosition.RIGHT_TOP,
       },
@@ -121,8 +123,15 @@ const GoogleMapComponent: React.FC<MapProps> = ({
         bounds.extend(new google.maps.LatLng(userLocation.lat, userLocation.lng));
       }
       
-      // Add a small padding around bounds
+      // Add a small padding around bounds and ensure minimum zoom
       map.fitBounds(bounds, 50);
+      
+      // After fitting bounds, check if zoom is too low and adjust
+      const listener = google.maps.event.addListenerOnce(map, 'bounds_changed', () => {
+        if (map.getZoom() && map.getZoom()! < 11) {
+          map.setZoom(12);
+        }
+      });
     }
   }, [markers, userLocation]);
 
