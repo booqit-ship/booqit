@@ -17,30 +17,12 @@ export const clearOwnSessionStorage = (): void => {
   }
 };
 
-// Enhanced session validation with proactive refresh
+// Simplified session validation without aggressive refresh
 export const validateCurrentSession = async (): Promise<boolean> => {
-  console.log('🔍 Validating current session with proactive refresh');
+  console.log('🔍 Validating current session (simplified)');
   
   try {
-    // First try to refresh the session proactively
-    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-    
-    if (refreshData?.session && !refreshError) {
-      console.log('✅ Session refreshed successfully');
-      
-      // Update permanent session with refreshed data
-      const permanentData = PermanentSession.getSession();
-      if (permanentData.isLoggedIn && permanentData.userRole) {
-        PermanentSession.saveSession(
-          refreshData.session, 
-          permanentData.userRole, 
-          refreshData.session.user.id
-        );
-      }
-      return true;
-    }
-    
-    // If refresh failed, try to get current session
+    // Just check if we have a valid session, don't force refresh
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
     
     if (sessionData?.session && !sessionError) {
@@ -48,7 +30,7 @@ export const validateCurrentSession = async (): Promise<boolean> => {
       return true;
     }
     
-    console.log('❌ Session validation failed:', { refreshError, sessionError });
+    console.log('❌ Session validation failed:', { sessionError });
     return false;
     
   } catch (error) {
@@ -57,13 +39,13 @@ export const validateCurrentSession = async (): Promise<boolean> => {
   }
 };
 
-// Enhanced session recovery with exponential backoff retry mechanism
+// Simplified session recovery without aggressive retries
 export const attemptSessionRecovery = async (): Promise<{
   success: boolean;
   session: any | null;
   message: string;
 }> => {
-  console.log('🔄 Attempting session recovery with exponential backoff retries');
+  console.log('🔄 Attempting simple session recovery');
   
   const permanentData = PermanentSession.getSession();
   
@@ -75,87 +57,67 @@ export const attemptSessionRecovery = async (): Promise<{
     };
   }
   
-  // Try to validate/refresh session with exponential backoff retries
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      console.log(`🔄 Recovery attempt ${attempt}/3`);
-      
-      const isValid = await validateCurrentSession();
-      
-      if (isValid) {
-        // Get the current session after successful validation
-        const { data: { session } } = await supabase.auth.getSession();
-        return {
-          success: true,
-          session: session || permanentData.session,
-          message: `Recovery succeeded on attempt ${attempt}`
-        };
-      }
-      
-      // Exponential backoff: wait 2^attempt seconds before retry
-      if (attempt < 3) {
-        const delay = Math.pow(2, attempt) * 1000;
-        console.log(`⏳ Waiting ${delay}ms before retry ${attempt + 1}`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-      
-    } catch (error) {
-      console.error(`❌ Recovery attempt ${attempt} failed:`, error);
-      
-      // On last attempt, try one more time with just token refresh
-      if (attempt === 3) {
-        try {
-          const { data: refreshData } = await supabase.auth.refreshSession();
-          if (refreshData?.session) {
-            return {
-              success: true,
-              session: refreshData.session,
-              message: 'Recovery succeeded with final token refresh'
-            };
-          }
-        } catch (finalError) {
-          console.error('❌ Final recovery attempt failed:', finalError);
-        }
-      }
+  try {
+    // Single attempt to get current session
+    const { data: { session }, error } = await supabase.auth.getSession();
+    
+    if (session && !error) {
+      return {
+        success: true,
+        session: session,
+        message: 'Recovery succeeded with current session'
+      };
     }
+    
+    // If no current session, try one refresh
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+    
+    if (refreshData?.session && !refreshError) {
+      // Update permanent session with refreshed data
+      if (permanentData.userRole && permanentData.userId) {
+        PermanentSession.saveSession(refreshData.session, permanentData.userRole, permanentData.userId);
+      }
+      
+      return {
+        success: true,
+        session: refreshData.session,
+        message: 'Recovery succeeded with refresh'
+      };
+    }
+    
+    return {
+      success: false,
+      session: null,
+      message: 'Session recovery failed'
+    };
+    
+  } catch (error) {
+    console.error('❌ Session recovery error:', error);
+    return {
+      success: false,
+      session: null,
+      message: `Session recovery failed: ${error.message}`
+    };
   }
-  
-  return {
-    success: false,
-    session: null,
-    message: 'Session recovery failed after 3 attempts with exponential backoff'
-  };
 };
 
-// Enhanced session expiry handler with improved retry mechanism
+// Simplified session expiry handler
 export const handleSessionExpiry = async (): Promise<void> => {
-  console.log('⚠️ Handling session expiry with enhanced retry mechanism');
+  console.log('⚠️ Handling session expiry');
   
-  // Try to recover session with exponential backoff retries
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      console.log(`🔄 Expiry recovery attempt ${attempt}/3`);
-      
-      const recovery = await attemptSessionRecovery();
-      
-      if (recovery.success) {
-        console.log('✅ Session recovered during expiry handling');
-        return;
-      }
-      
-      // Exponential backoff for expiry recovery
-      if (attempt < 3) {
-        const delay = Math.pow(2, attempt) * 1000;
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-      
-    } catch (error) {
-      console.error(`❌ Expiry recovery attempt ${attempt} failed:`, error);
+  try {
+    const recovery = await attemptSessionRecovery();
+    
+    if (recovery.success) {
+      console.log('✅ Session recovered during expiry handling');
+      return;
     }
+  } catch (error) {
+    console.error('❌ Expiry recovery failed:', error);
   }
   
-  // If all retries failed, clear session and redirect
-  console.log('❌ All expiry recovery attempts failed, clearing session');
+  // If recovery failed, clear session and redirect
+  console.log('❌ Session recovery failed, clearing session');
   PermanentSession.clearSession();
   
   // Clear all Supabase keys

@@ -18,12 +18,12 @@ const debounce = (func: Function, wait: number) => {
 };
 
 export const useSessionPersistence = () => {
-  const { isAuthenticated, setAuth, logout, session, loading } = useAuth();
+  const { isAuthenticated, setAuth, logout, loading } = useAuth();
   const validationInProgress = useRef(false);
   const lastValidation = useRef(0);
   const hookActive = useRef(false);
 
-  // Enhanced debounced session validation with reduced delay
+  // Much less aggressive debounced validation
   const debouncedValidation = useRef(
     debounce(async () => {
       if (validationInProgress.current || loading) {
@@ -32,13 +32,13 @@ export const useSessionPersistence = () => {
       }
 
       const now = Date.now();
-      if (now - lastValidation.current < 60000) { // Increased cooldown to 1 minute
+      if (now - lastValidation.current < 300000) { // 5 minute cooldown
         console.log('🔄 Validation cooldown active, skipping');
         return;
       }
 
       await performSessionValidation();
-    }, 1000) // Increased debounce delay to reduce interference
+    }, 5000) // 5 second debounce
   ).current;
 
   const performSessionValidation = async () => {
@@ -61,12 +61,6 @@ export const useSessionPersistence = () => {
         if (recovery.success && permanentData.userRole && permanentData.userId) {
           console.log('✅ Session recovered, updating auth state');
           setAuth(true, permanentData.userRole as 'customer' | 'merchant', permanentData.userId);
-          
-          // Update session state if recovery provided a session
-          if (recovery.session) {
-            // Update permanent session with recovered session
-            PermanentSession.saveSession(recovery.session, permanentData.userRole, permanentData.userId);
-          }
         } else {
           console.log('❌ Session recovery failed, logging out');
           logout();
@@ -76,8 +70,6 @@ export const useSessionPersistence = () => {
         if (permanentData.userRole && permanentData.userId) {
           setAuth(true, permanentData.userRole as 'customer' | 'merchant', permanentData.userId);
         }
-      } else if (!isValid && !permanentData.isLoggedIn) {
-        console.log('ℹ️ No session to validate');
       } else {
         console.log('✅ Background session validation passed');
       }
@@ -85,10 +77,9 @@ export const useSessionPersistence = () => {
     } catch (error) {
       console.error('❌ Error during background session validation:', error);
       
-      // On critical validation errors, only logout if we're sure there's an issue
-      const permanentData = PermanentSession.getSession();
-      if (permanentData.isLoggedIn && isAuthenticated) {
-        console.log('🚨 Critical validation error, forcing logout');
+      // Only logout on critical errors, not network issues
+      if (error?.message?.includes('Invalid Refresh Token') || error?.message?.includes('Already Used')) {
+        console.log('🚨 Critical session error, forcing logout');
         logout();
       }
     } finally {
@@ -109,79 +100,64 @@ export const useSessionPersistence = () => {
     }
 
     hookActive.current = true;
-    console.log('📱 Session persistence monitoring active');
+    console.log('📱 Session persistence monitoring active (simplified)');
     
-    // Delayed initial validation - wait for auth to fully stabilize
-    const initialValidationTimeout = setTimeout(() => {
-      const permanentData = PermanentSession.getSession();
-      if (permanentData.isLoggedIn) {
-        console.log('⏰ Initial session validation after auth stabilized');
-        debouncedValidation();
-      }
-    }, 3000); // Wait 3 seconds for auth to stabilize
-    
-    // Periodic validation every 2 minutes (less frequent to reduce interference)
+    // Much less frequent validation - only every 10 minutes
     const validationInterval = setInterval(() => {
       const permanentData = PermanentSession.getSession();
       if (permanentData.isLoggedIn && !loading) {
-        console.log('⏰ Periodic session validation');
+        console.log('⏰ Periodic session validation (10min)');
         debouncedValidation();
       }
-    }, 120000); // 2 minute interval
+    }, 600000); // 10 minute interval
     
-    // Listen for page visibility changes (only when not loading)
+    // Only validate on visibility change if tab was hidden for more than 5 minutes
+    let tabHiddenTime: number | null = null;
+    
     const handleVisibilityChange = () => {
-      if (!document.hidden && !loading) {
-        const permanentData = PermanentSession.getSession();
-        console.log('👁️ Tab became visible - session status:', permanentData.isLoggedIn);
-        
-        if (permanentData.isLoggedIn) {
-          // Delay validation to avoid interference with tab switch
-          setTimeout(() => {
-            debouncedValidation();
-          }, 1000);
+      if (document.hidden) {
+        tabHiddenTime = Date.now();
+      } else if (tabHiddenTime && !loading) {
+        const hiddenDuration = Date.now() - tabHiddenTime;
+        if (hiddenDuration > 300000) { // Only if hidden for 5+ minutes
+          const permanentData = PermanentSession.getSession();
+          console.log('👁️ Tab visible after long absence - session status:', permanentData.isLoggedIn);
+          
+          if (permanentData.isLoggedIn) {
+            setTimeout(() => {
+              debouncedValidation();
+            }, 2000);
+          }
         }
+        tabHiddenTime = null;
       }
     };
     
-    // Listen for focus events (only when not loading)
+    // Less aggressive focus handling
     const handleFocus = () => {
-      if (!loading) {
+      if (!loading && !tabHiddenTime) {
         const permanentData = PermanentSession.getSession();
-        console.log('🎯 Window focused - session status:', permanentData.isLoggedIn);
+        const timeSinceLastValidation = Date.now() - lastValidation.current;
         
-        if (permanentData.isLoggedIn) {
-          // Delay validation to avoid interference with focus
+        if (permanentData.isLoggedIn && timeSinceLastValidation > 300000) { // Only if 5+ minutes since last validation
+          console.log('🎯 Window focused after long time - validating session');
           setTimeout(() => {
             debouncedValidation();
-          }, 1000);
+          }, 3000);
         }
-      }
-    };
-    
-    // Listen for storage events (for cross-tab synchronization)
-    const handleStorageChange = (e: StorageEvent) => {
-      if ((e.key?.startsWith('booqit-') || e.key?.startsWith('sb-')) && !loading) {
-        console.log('🔄 Storage changed, validating session after delay');
-        setTimeout(() => {
-          debouncedValidation();
-        }, 500);
       }
     };
     
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', handleFocus);
-    window.addEventListener('storage', handleStorageChange);
     
     return () => {
       hookActive.current = false;
-      clearTimeout(initialValidationTimeout);
       clearInterval(validationInterval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('storage', handleStorageChange);
     };
-  }, [loading, isAuthenticated, setAuth, logout]); // Added loading dependency
+  }, [loading, isAuthenticated, setAuth, logout]);
   
   // No return value needed - this is purely active monitoring with state sync
 };
