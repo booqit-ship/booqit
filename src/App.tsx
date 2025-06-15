@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import {
   BrowserRouter as Router,
@@ -196,7 +195,6 @@ const App: React.FC = () => {
 
         {/* Customer Settings Routes - Updated to use the correct functional pages */}
         <Route path="/settings/account" element={<ProtectedRoute><CustomerLayout><AccountPage /></CustomerLayout></ProtectedRoute>} />
-        <Route path="/settings/notifications" element={<ProtectedRoute><CustomerLayout><NotificationsPage /></CustomerLayout></ProtectedRoute>} />
         <Route path="/settings/privacy-policy" element={<ProtectedRoute><CustomerLayout><PrivacyPolicy /></CustomerLayout></ProtectedRoute>} />
         <Route path="/settings/terms-conditions" element={<ProtectedRoute><CustomerLayout><TermsAndConditions /></CustomerLayout></ProtectedRoute>} />
         <Route path="/settings/contact" element={<ProtectedRoute><CustomerLayout><ContactPage /></CustomerLayout></ProtectedRoute>} />
