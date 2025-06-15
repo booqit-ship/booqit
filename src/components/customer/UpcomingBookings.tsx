@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
@@ -146,17 +147,17 @@ const UpcomingBookings: React.FC = () => {
     <div className="mb-6">
       <h2 className="text-xl font-normal mb-4">Next Appointment</h2>
       <Card 
-        className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-200 cursor-pointer border-l-4 border-l-booqit-primary bg-white"
+        className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-200 cursor-pointer border-l-4 border-l-booqit-primary bg-gradient-to-r from-white to-gray-50/30"
         onClick={handleBookingClick}
       >
-        <CardContent className="p-0">
-          <div className="flex items-center">
-            {/* Shop Image - Fixed size and better alignment */}
-            <div className="w-20 h-20 flex-shrink-0 m-4">
+        <CardContent className="p-4">
+          <div className="flex items-center space-x-4">
+            {/* Shop Image */}
+            <div className="w-16 h-16 flex-shrink-0">
               <img 
                 src={getShopImage(nextBooking.merchant)} 
                 alt={nextBooking.merchant.shop_name}
-                className="w-full h-full object-cover rounded-xl shadow-sm"
+                className="w-full h-full object-cover rounded-lg shadow-sm"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
                   target.src = 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
@@ -164,13 +165,13 @@ const UpcomingBookings: React.FC = () => {
               />
             </div>
             
-            {/* Booking Details - Better spacing and alignment */}
-            <div className="flex-1 pr-4 py-4">
-              <div className="flex justify-between items-start mb-1">
+            {/* Booking Details */}
+            <div className="flex-1 min-w-0">
+              <div className="flex justify-between items-start mb-2">
                 <h3 className="font-semibold text-lg text-gray-900 truncate">
                   {nextBooking.merchant.shop_name}
                 </h3>
-                <div className="flex items-center text-xs text-booqit-primary bg-booqit-primary/10 px-2 py-1 rounded-full ml-2 flex-shrink-0">
+                <div className="flex items-center text-xs text-gray-500 bg-booqit-primary/10 px-2 py-1 rounded-full ml-2">
                   <div className="w-2 h-2 bg-booqit-primary rounded-full mr-1 animate-pulse"></div>
                   Next
                 </div>
@@ -180,16 +181,16 @@ const UpcomingBookings: React.FC = () => {
                 {nextBooking.service.name}
               </p>
               
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center text-sm text-gray-700">
-                  <CalendarIcon className="h-4 w-4 mr-1.5 text-booqit-primary flex-shrink-0" />
+                  <CalendarIcon className="h-4 w-4 mr-1.5 text-booqit-primary" />
                   <span className="font-medium">
                     {formatDateInIST(new Date(nextBooking.date), 'MMM d, yyyy')}
                   </span>
                 </div>
                 
                 <div className="flex items-center text-sm text-gray-700">
-                  <Clock className="h-4 w-4 mr-1.5 text-booqit-primary flex-shrink-0" />
+                  <Clock className="h-4 w-4 mr-1.5 text-booqit-primary" />
                   <span className="font-medium">
                     {formatTimeToAmPm(nextBooking.time_slot)}
                   </span>
@@ -197,7 +198,7 @@ const UpcomingBookings: React.FC = () => {
               </div>
               
               {nextBooking.stylist_name && (
-                <div className="text-xs text-gray-500">
+                <div className="mt-2 text-xs text-gray-500">
                   Stylist: {nextBooking.stylist_name}
                 </div>
               )}
