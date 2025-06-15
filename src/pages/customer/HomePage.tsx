@@ -13,18 +13,19 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import UpcomingBookings from '@/components/customer/UpcomingBookings';
 
-// Updated featured categories - only Salon and Beauty Parlour as requested
+// Updated featured categories with illustration images
 const featuredCategories = [{
   id: 1,
   name: 'Salon',
-  icon: '💇',
+  image: '/lovable-uploads/af83ca05-7d12-4bb4-9e5e-9d7e0421b721.png',
   color: '#7E57C2'
 }, {
   id: 2,
   name: 'Beauty Parlour',
-  icon: '💅',
+  image: '/lovable-uploads/e8017a81-26c0-495a-af95-e68ca23ba46c.png',
   color: '#FF6B6B'
 }];
+
 const HomePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [nearbyShops, setNearbyShops] = useState<Merchant[]>([]);
@@ -306,11 +307,18 @@ const HomePage: React.FC = () => {
                     ${activeCategory === category.name ? 'border-booqit-primary bg-booqit-primary/10 shadow-md' : 'border-gray-200 shadow-sm hover:shadow-md hover:border-booqit-primary'}`} style={{
               backgroundColor: activeCategory === category.name ? `${category.color}20` : `${category.color}10`
             }} onClick={() => handleCategoryClick(category.name)}>
-                  <span style={{
-                color: category.color
-              }} className="mb-2 text-3xl font-normal text-purple-600">
-                    {category.icon}
-                  </span>
+                  <div className="w-16 h-16 mb-2 flex items-center justify-center">
+                    <img 
+                      src={category.image} 
+                      alt={category.name}
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        console.error(`Failed to load image for ${category.name}`);
+                        // Fallback to a simple colored div if image fails to load
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  </div>
                   <span className="text-base font-medium">{category.name}</span>
                 </Button>)}
             </div>
