@@ -12,6 +12,47 @@ export const saveUserFCMToken = async (userId: string, token: string, userRole: 
   try {
     console.log('💾 FCM TOKEN SAVE: Saving token for user:', { userId, userRole, tokenLength: token.length });
     
+    // First ensure the user has a profile
+    const { data: existingProfile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, name, email')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (!existingProfile) {
+      console.log('👤 FCM TOKEN SAVE: Creating profile for user:', userId);
+      
+      // Get user data from auth.users
+      const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(userId);
+      
+      if (authError) {
+        console.log('⚠️ FCM TOKEN SAVE: Could not get auth user data, using defaults');
+      }
+      
+      // Create profile with default values
+      const { error: createError } = await supabase
+        .from('profiles')
+        .insert({
+          id: userId,
+          name: authUser?.user?.user_metadata?.name || (userRole === 'merchant' ? 'Merchant' : 'Customer'),
+          email: authUser?.user?.email || '',
+          phone: authUser?.user?.user_metadata?.phone || '',
+          role: userRole,
+          fcm_token: token,
+          notification_enabled: true,
+          last_notification_sent: new Date().toISOString()
+        });
+
+      if (createError) {
+        console.error('❌ FCM TOKEN SAVE: Error creating profile:', createError);
+        // Continue with just updating FCM token if profile creation fails
+      } else {
+        console.log('✅ FCM TOKEN SAVE: Profile created and FCM token saved');
+        return true;
+      }
+    }
+    
+    // Update FCM token
     const { error } = await supabase
       .from('profiles')
       .update({
