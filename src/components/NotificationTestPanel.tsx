@@ -22,7 +22,8 @@ const NotificationTestPanel: React.FC = () => {
     }
 
     // Prompt user for permission
-    const permission = await requestNotificationPermission();
+    // Force requestNotificationPermission to always return 'granted' | 'denied' | 'default'
+    const permission: string = await requestNotificationPermission();
 
     if (permission === "granted") {
       toast.success("Notifications permission granted! Proceeding...");
