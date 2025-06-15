@@ -27,10 +27,8 @@ import SettingsPage from '@/pages/customer/SettingsPage';
 import BookingsHistoryPage from '@/pages/customer/BookingsHistoryPage';
 import Auth from '@/pages/AuthPage';
 import CustomerLayout from '@/layouts/CustomerLayout';
-import MerchantAuth from '@/pages/auth/MerchantAuth';
 import MerchantDashboard from '@/pages/merchant/DashboardPage';
 import MerchantServices from '@/pages/merchant/ServicesPage';
-import MerchantStaff from '@/pages/merchant/StaffManagementPage';
 import MerchantCalendar from '@/pages/merchant/CalendarManagementPage';
 import MerchantProfile from '@/pages/merchant/ProfilePage';
 import MerchantLayout from '@/layouts/MerchantLayout';
@@ -69,7 +67,7 @@ const App: React.FC = () => {
 
   const ProtectedMerchantRoute = ({ children }: { children: React.ReactNode }) => {
     if (!isAuthenticated && !loading) {
-      return <Navigate to="/merchant/auth" replace />;
+      return <Navigate to="/auth" replace />;
     }
     return loading ? <div>Loading...</div> : <>{children}</>;
   };
@@ -79,13 +77,12 @@ const App: React.FC = () => {
       <Routes>
         {/* Auth Routes */}
         <Route path="/auth" element={<Auth />} />
-        <Route path="/merchant/auth" element={<MerchantAuth />} />
 
-        {/* Merchant Routes */}
+        {/* Merchant Routes - using Auth for now since MerchantAuth doesn't exist */}
+        <Route path="/merchant/auth" element={<Auth />} />
         <Route path="/merchant" element={<ProtectedMerchantRoute><MerchantLayout><MerchantDashboard /></MerchantLayout></ProtectedMerchantRoute>} />
         <Route path="/merchant/dashboard" element={<ProtectedMerchantRoute><MerchantLayout><MerchantDashboard /></MerchantLayout></ProtectedMerchantRoute>} />
         <Route path="/merchant/services" element={<ProtectedMerchantRoute><MerchantLayout><MerchantServices /></MerchantLayout></ProtectedMerchantRoute>} />
-        <Route path="/merchant/staff" element={<ProtectedMerchantRoute><MerchantLayout><MerchantStaff /></MerchantLayout></ProtectedMerchantRoute>} />
         <Route path="/merchant/calendar" element={<ProtectedMerchantRoute><MerchantLayout><MerchantCalendar /></MerchantLayout></ProtectedMerchantRoute>} />
         <Route path="/merchant/profile" element={<ProtectedMerchantRoute><MerchantLayout><MerchantProfile /></MerchantLayout></ProtectedMerchantRoute>} />
         <Route path="/merchant/analytics" element={<ProtectedMerchantRoute><MerchantLayout><AnalyticsPage /></MerchantLayout></ProtectedMerchantRoute>} />
