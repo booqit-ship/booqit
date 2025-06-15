@@ -86,7 +86,13 @@ export default function DashboardPage() {
       </Card>
 
       {/* Existing dashboard content */}
-      <BookingStats />
+      <BookingStats 
+        total={0}
+        pending={0}
+        confirmed={0}
+        completed={0}
+        todaysEarning={0}
+      />
     </div>
   );
 }

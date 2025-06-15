@@ -1,16 +1,15 @@
-
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/hooks/useNotifications';
 import SideNavigation from '@/components/merchant/SideNavigation';
 import OptimizedNavigation from '@/components/merchant/OptimizedNavigation';
-import { useMobile } from '@/hooks/use-mobile';
+import { useIsMobile } from '@/hooks/use-mobile';
 import MerchantNotificationBanner from '@/components/MerchantNotificationBanner';
 
 export default function MerchantLayout({ children }: { children: React.ReactNode }) {
   const { userId, userRole, isAuthenticated } = useAuth();
   const { hasPermission, isInitialized, requestPermissionManually } = useNotifications();
-  const isMobile = useMobile();
+  const isMobile = useIsMobile();
 
   // Auto-prompt for notification permissions when merchant layout loads
   useEffect(() => {
