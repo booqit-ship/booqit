@@ -107,15 +107,19 @@ const MerchantDetailPage: React.FC = () => {
     });
   };
   if (loading) {
-    return <div className="h-screen flex items-center justify-center">
+    return (
+      <div className="h-screen flex items-center justify-center">
         <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
-      </div>;
+      </div>
+    );
   }
   if (!merchant) {
-    return <div className="h-screen flex flex-col items-center justify-center p-4">
-        <p className="text-gray-500 mb-4">Merchant not found</p>
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-5rem)] px-4">
+        <p className="text-gray-500 mb-4 mt-36 md:mt-24 text-center">Merchant not found</p>
         <Button onClick={() => navigate(-1)}>Go Back</Button>
-      </div>;
+      </div>
+    );
   }
   return <div className="pb-20">
       <div className="relative h-64 bg-gray-200">
