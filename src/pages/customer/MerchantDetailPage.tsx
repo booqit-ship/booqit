@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Clock, MapPin, Star, User } from 'lucide-react';
+import { ChevronLeft, Clock, MapPin, Star, User, Frown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -116,8 +116,14 @@ const MerchantDetailPage: React.FC = () => {
   if (!merchant) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-5rem)] px-4">
-        <p className="text-gray-500 mb-4 mt-36 md:mt-24 text-center">Merchant not found</p>
-        <Button onClick={() => navigate(-1)}>Go Back</Button>
+        <Frown className="h-16 w-16 text-gray-400 mb-4" aria-hidden />
+        <h2 className="text-xl font-semibold mb-1 text-gray-700">Merchant not found</h2>
+        <p className="text-gray-500 mb-4 text-center max-w-xs">
+          We couldn’t find this shop. It may have been removed or the link was incorrect.
+        </p>
+        <Button onClick={() => navigate(-1)} className="mt-2">
+          Go Back
+        </Button>
       </div>
     );
   }
