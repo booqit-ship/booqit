@@ -134,7 +134,6 @@ const PaymentPage: React.FC = () => {
         
         if (paymentError) {
           console.error('PAYMENT_FLOW: Payment record error:', paymentError);
-          // Don't fail the booking for payment record issues
           paymentRecorded = false;
         } else {
           console.log('PAYMENT_FLOW: Payment record created successfully');
@@ -145,7 +144,7 @@ const PaymentPage: React.FC = () => {
         paymentRecorded = false;
       }
 
-      // Step 4: Send notification to merchant (non-blocking)
+      // Step 4: Send notification to merchant (simplified - non-blocking)
       try {
         console.log('PAYMENT_FLOW: Sending notification to merchant...');
         
@@ -171,7 +170,7 @@ const PaymentPage: React.FC = () => {
           const timeSlotFormatted = formatTimeToAmPm(bookingTime);
           const dateFormatted = formatDateInIST(new Date(bookingDate), 'MMM d, yyyy');
 
-          console.log('PAYMENT_FLOW: Notification details:', {
+          console.log('PAYMENT_FLOW: Sending simple notification to merchant:', {
             merchantUserId: merchantData.user_id,
             customerName,
             serviceNames,
@@ -179,6 +178,7 @@ const PaymentPage: React.FC = () => {
             bookingId
           });
 
+          // Send notification directly - no profile creation needed
           await sendNewBookingNotification(
             merchantData.user_id,
             customerName,

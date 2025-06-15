@@ -77,97 +77,15 @@ const getMerchantReminderMessages = (merchantName: string) => {
   ];
 };
 
-// Ensure user profile exists before checking notifications
-const ensureUserProfile = async (userId: string, userRole: 'customer' | 'merchant') => {
+// Simple notification check - just verify if user has notifications enabled
+const canSendNotification = async (userId: string) => {
   try {
-    console.log('🔧 PROFILE ENSURE: Ensuring profile exists for user:', { userId, userRole });
-    
-    // Check if profile exists
-    const { data: existingProfile } = await supabase
-      .from('profiles')
-      .select('id, notification_enabled')
-      .eq('id', userId)
-      .maybeSingle();
-
-    if (existingProfile) {
-      console.log('✅ PROFILE ENSURE: Profile already exists');
-      return true;
-    }
-
-    // Profile doesn't exist, create it manually
-    if (userRole === 'merchant') {
-      console.log('🔧 PROFILE ENSURE: Creating merchant profile...');
-      
-      // Get user data from auth
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) {
-        console.error('❌ PROFILE ENSURE: No auth user found');
-        return false;
-      }
-
-      const { error: insertError } = await supabase
-        .from('profiles')
-        .insert({
-          id: userId,
-          name: userData.user.user_metadata?.name || 'Merchant',
-          email: userData.user.email || '',
-          phone: userData.user.user_metadata?.phone || '',
-          role: 'merchant',
-          notification_enabled: true
-        });
-
-      if (insertError) {
-        console.error('❌ PROFILE ENSURE: Error creating merchant profile:', insertError);
-        return false;
-      }
-
-      console.log('✅ PROFILE ENSURE: Merchant profile created');
-      return true;
-    } else {
-      // For customers, try to create profile directly
-      console.log('🔧 PROFILE ENSURE: Creating customer profile...');
-      
-      // Get user data from auth
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) {
-        console.error('❌ PROFILE ENSURE: No auth user found');
-        return false;
-      }
-
-      const { error: insertError } = await supabase
-        .from('profiles')
-        .insert({
-          id: userId,
-          name: userData.user.user_metadata?.name || 'Customer',
-          email: userData.user.email || '',
-          phone: userData.user.user_metadata?.phone || '',
-          role: 'customer',
-          notification_enabled: true
-        });
-
-      if (insertError) {
-        console.error('❌ PROFILE ENSURE: Error creating customer profile:', insertError);
-        return false;
-      }
-
-      console.log('✅ PROFILE ENSURE: Customer profile created');
-      return true;
-    }
-  } catch (error) {
-    console.error('❌ PROFILE ENSURE: Unexpected error:', error);
-    return false;
-  }
-};
-
-// Check if user should receive notifications (respects preferences but NOT quiet hours for testing)
-const canSendNotification = async (userId: string, notificationType: string) => {
-  try {
-    console.log('🔍 NOTIFICATION CHECK: Checking if user can receive notifications', { userId, notificationType });
+    console.log('🔍 NOTIFICATION CHECK: Checking if user can receive notifications:', userId);
     
     // Get user's notification preferences
     const { data: profile, error } = await supabase
       .from('profiles')
-      .select('notification_enabled, fcm_token, last_notification_sent')
+      .select('notification_enabled, fcm_token')
       .eq('id', userId)
       .maybeSingle();
 
@@ -177,88 +95,25 @@ const canSendNotification = async (userId: string, notificationType: string) => 
     }
 
     if (!profile) {
-      console.log('⚠️ NOTIFICATION CHECK: No profile found, attempting to create...');
-      // Try to determine user role and create profile
-      const userRole = await getUserRole(userId);
-      const profileCreated = await ensureUserProfile(userId, userRole);
-      
-      if (!profileCreated) {
-        console.error('❌ NOTIFICATION CHECK: Could not create profile');
-        return false;
-      }
-
-      // Try to get profile again
-      const { data: newProfile } = await supabase
-        .from('profiles')
-        .select('notification_enabled, fcm_token, last_notification_sent')
-        .eq('id', userId)
-        .maybeSingle();
-
-      if (!newProfile) {
-        console.error('❌ NOTIFICATION CHECK: Still no profile after creation');
-        return false;
-      }
-
-      console.log('✅ NOTIFICATION CHECK: Profile created, using new profile');
-      console.log('👤 NOTIFICATION CHECK: New profile data:', {
-        hasToken: !!newProfile.fcm_token,
-        tokenLength: newProfile.fcm_token?.length || 0,
-        notificationEnabled: newProfile.notification_enabled
-      });
-
-      if (!newProfile.notification_enabled) {
-        console.log('🚫 NOTIFICATION CHECK: Notifications disabled for user');
-        return false;
-      }
-
-      return true; // Allow notification even without FCM token initially
+      console.log('⚠️ NOTIFICATION CHECK: No profile found for user, will try to send anyway');
+      return true; // Try to send even without profile - notification service will handle it
     }
 
     console.log('👤 NOTIFICATION CHECK: Profile data:', {
       hasToken: !!profile.fcm_token,
-      tokenLength: profile.fcm_token?.length || 0,
-      notificationEnabled: profile.notification_enabled,
-      lastSent: profile.last_notification_sent
+      notificationEnabled: profile.notification_enabled
     });
 
-    if (!profile.notification_enabled) {
+    if (profile.notification_enabled === false) {
       console.log('🚫 NOTIFICATION CHECK: Notifications disabled for user');
       return false;
-    }
-
-    // For daily reminders, check if we already sent one today
-    if (notificationType === 'daily_reminder') {
-      const lastSent = profile.last_notification_sent ? new Date(profile.last_notification_sent) : null;
-      const today = new Date().toDateString();
-      
-      if (lastSent && lastSent.toDateString() === today) {
-        console.log('📅 NOTIFICATION CHECK: Daily reminder already sent today');
-        return false;
-      }
     }
 
     console.log('✅ NOTIFICATION CHECK: User can receive notifications');
     return true;
   } catch (error) {
     console.error('❌ NOTIFICATION CHECK: Error checking notification permissions:', error);
-    return false;
-  }
-};
-
-// Helper function to determine user role
-const getUserRole = async (userId: string): Promise<'customer' | 'merchant'> => {
-  try {
-    // Check if user is a merchant
-    const { data: merchant } = await supabase
-      .from('merchants')
-      .select('id')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    return merchant ? 'merchant' : 'customer';
-  } catch (error) {
-    console.error('❌ Error determining user role:', error);
-    return 'customer'; // Default to customer
+    return true; // Default to allowing notifications
   }
 };
 
@@ -267,9 +122,9 @@ export const sendWelcomeNotification = async (userId: string, userRole: 'custome
   try {
     console.log('🎉 WELCOME NOTIFICATION: Starting send for user:', { userId, userRole, userName });
     
-    const canSend = await canSendNotification(userId, 'welcome');
+    const canSend = await canSendNotification(userId);
     if (!canSend) {
-      console.log('🚫 WELCOME NOTIFICATION: Cannot send notification (permissions/token check failed)');
+      console.log('🚫 WELCOME NOTIFICATION: Cannot send notification');
       return;
     }
 
@@ -294,7 +149,7 @@ export const sendWelcomeNotification = async (userId: string, userRole: 'custome
   }
 };
 
-// Send new booking notification to merchant
+// Send new booking notification to merchant - SIMPLIFIED
 export const sendNewBookingNotification = async (
   merchantUserId: string,
   customerName: string,
@@ -311,9 +166,9 @@ export const sendNewBookingNotification = async (
       bookingId 
     });
     
-    const canSend = await canSendNotification(merchantUserId, 'new_booking');
+    const canSend = await canSendNotification(merchantUserId);
     if (!canSend) {
-      console.log('🚫 BOOKING NOTIFICATION: Cannot send notification to merchant (permissions/token check failed)');
+      console.log('🚫 BOOKING NOTIFICATION: Cannot send notification to merchant');
       return;
     }
 
@@ -353,9 +208,9 @@ export const sendBookingCompletedNotification = async (
       bookingId 
     });
     
-    const canSend = await canSendNotification(customerId, 'booking_completed');
+    const canSend = await canSendNotification(customerId);
     if (!canSend) {
-      console.log('🚫 COMPLETION NOTIFICATION: Cannot send notification to customer (permissions/token check failed)');
+      console.log('🚫 COMPLETION NOTIFICATION: Cannot send notification to customer');
       return;
     }
 
@@ -390,9 +245,9 @@ export const sendDailyReminderNotification = async (
   try {
     console.log('⏰ DAILY REMINDER: Starting send for user:', { userId, userRole, userName });
     
-    const canSend = await canSendNotification(userId, 'daily_reminder');
+    const canSend = await canSendNotification(userId);
     if (!canSend) {
-      console.log('🚫 DAILY REMINDER: Cannot send notification (permissions/token check failed)');
+      console.log('🚫 DAILY REMINDER: Cannot send notification');
       return;
     }
 
@@ -420,7 +275,7 @@ export const sendDailyReminderNotification = async (
       }
     });
 
-    // Update last notification sent timestamp
+    // Update last notification sent timestamp if profile exists
     await supabase
       .from('profiles')
       .update({ last_notification_sent: new Date().toISOString() })
