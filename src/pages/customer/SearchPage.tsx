@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { Merchant } from '@/types';
-import { Search, MapPin } from 'lucide-react';
+import { Search, MapPin, CornerDownLeft, X } from 'lucide-react';
 import GoogleMapComponent from '@/components/common/GoogleMap';
 import SearchBottomSheet from '@/components/customer/SearchBottomSheet';
 import MerchantMapPopup from '@/components/customer/MerchantMapPopup';
@@ -22,6 +23,7 @@ const SearchPage: React.FC = () => {
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>({ lat: 12.9716, lng: 77.5946 });
   const [mapZoom, setMapZoom] = useState(11);
   const [specificSearchActive, setSpecificSearchActive] = useState(false);
+  const [isSearchMode, setIsSearchMode] = useState(false); // New state for enter/clear button
   const [filters, setFilters] = useState({
     sortBy: 'rating',
     priceRange: 'all',
@@ -230,6 +232,7 @@ const SearchPage: React.FC = () => {
       setSearchSuggestions([]);
       setShowSuggestions(false);
       setSpecificSearchActive(false);
+      setIsSearchMode(false); // Reset search mode when search term is cleared
     }
   }, [searchTerm, allMerchants]);
 
@@ -322,6 +325,7 @@ const SearchPage: React.FC = () => {
         setMapPopupMerchant(exactMatch);
         setMapCenter({ lat: exactMatch.lat, lng: exactMatch.lng });
         setMapZoom(18); // Maximum zoom for specific shop
+        setIsSearchMode(true); // Enable search mode to show clear button
         
         // Focus and blur the search input
         if (searchInputRef.current) {
@@ -341,11 +345,13 @@ const SearchPage: React.FC = () => {
           setMapPopupMerchant(singleMatch);
           setMapCenter({ lat: singleMatch.lat, lng: singleMatch.lng });
           setMapZoom(18); // Maximum zoom for specific shop
+          setIsSearchMode(true); // Enable search mode to show clear button
         } else {
           // Multiple or no matches - show normal search results
           setSpecificSearchActive(false);
           setSelectedMerchant(null);
           setMapPopupMerchant(null);
+          setIsSearchMode(true); // Still enable search mode for clear functionality
         }
         
         if (searchInputRef.current) {
@@ -355,12 +361,40 @@ const SearchPage: React.FC = () => {
     }
   };
 
+  // New function to handle clear search
+  const handleClearSearch = () => {
+    setSearchTerm('');
+    setSpecificSearchActive(false);
+    setSelectedMerchant(null);
+    setMapPopupMerchant(null);
+    setIsSearchMode(false);
+    setMapZoom(11);
+    if (userLocation) {
+      setMapCenter(userLocation);
+    }
+    if (searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  };
+
+  // New function to handle enter/clear button click
+  const handleEnterClearClick = () => {
+    if (isSearchMode) {
+      handleClearSearch();
+    } else {
+      // Trigger search
+      const event = new Event('submit') as any;
+      handleSearch(event);
+    }
+  };
+
   const handleSuggestionClick = (merchant: Merchant) => {
     setSearchTerm(merchant.shop_name);
     setShowSuggestions(false);
     setSpecificSearchActive(true);
     setSelectedMerchant(merchant);
     setMapPopupMerchant(merchant);
+    setIsSearchMode(true); // Enable search mode to show clear button
     
     // Smooth zoom to the selected merchant with maximum zoom
     setMapCenter({ lat: merchant.lat, lng: merchant.lng });
@@ -431,6 +465,7 @@ const SearchPage: React.FC = () => {
       setSpecificSearchActive(false);
       setSelectedMerchant(null);
       setMapPopupMerchant(null);
+      setIsSearchMode(false);
       setMapZoom(11);
       if (userLocation) {
         setMapCenter(userLocation);
@@ -450,9 +485,23 @@ const SearchPage: React.FC = () => {
               value={searchTerm}
               onChange={handleSearchTermChange}
               placeholder="Search salons, beauty parlours..."
-              className="pl-12 pr-4 py-4 rounded-2xl border-0 shadow-lg bg-white/95 backdrop-blur-sm text-base placeholder:text-gray-600 focus:ring-2 focus:ring-booqit-primary font-medium font-poppins"
+              className="pl-12 pr-16 py-4 rounded-2xl border-0 shadow-lg bg-white/95 backdrop-blur-sm text-base placeholder:text-gray-600 focus:ring-2 focus:ring-booqit-primary font-medium font-poppins"
               onFocus={() => searchTerm.length > 0 && searchSuggestions.length > 0 && setShowSuggestions(true)}
             />
+            
+            {/* Enter/Clear Button */}
+            <Button
+              type="button"
+              onClick={handleEnterClearClick}
+              className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 rounded-full p-0 bg-booqit-primary hover:bg-booqit-primary/90 text-white shadow-sm"
+              aria-label={isSearchMode ? "Clear search" : "Search"}
+            >
+              {isSearchMode ? (
+                <X className="h-4 w-4" />
+              ) : (
+                <CornerDownLeft className="h-4 w-4" />
+              )}
+            </Button>
             
             {/* Search Suggestions Dropdown */}
             {showSuggestions && searchSuggestions.length > 0 && (
