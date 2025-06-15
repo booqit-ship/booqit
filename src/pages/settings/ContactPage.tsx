@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { ArrowLeft, Mail, Phone, MapPin, Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -109,7 +108,7 @@ const ContactPage: React.FC = () => (
           
           <div className="border-l-4 border-booqit-primary pl-4">
             <h3 className="font-medium mb-1">How do I change my account information?</h3>
-            <p className="text-sm text-gray-600">Go to Settings > Account Information to update your profile details.</p>
+            <p className="text-sm text-gray-600">Go to Settings &gt; Account Information to update your profile details.</p>
           </div>
           
           <div className="border-l-4 border-booqit-primary pl-4">
