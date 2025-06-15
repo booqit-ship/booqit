@@ -190,6 +190,8 @@ export type Database = {
       notification_logs: {
         Row: {
           body: string
+          error_message: string | null
+          fcm_response: string | null
           id: string
           sent_at: string | null
           status: string | null
@@ -199,6 +201,8 @@ export type Database = {
         }
         Insert: {
           body: string
+          error_message?: string | null
+          fcm_response?: string | null
           id?: string
           sent_at?: string | null
           status?: string | null
@@ -208,6 +212,8 @@ export type Database = {
         }
         Update: {
           body?: string
+          error_message?: string | null
+          fcm_response?: string | null
           id?: string
           sent_at?: string | null
           status?: string | null
@@ -218,6 +224,53 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "notification_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_queue: {
+        Row: {
+          body: string
+          data: Json | null
+          error_message: string | null
+          id: string
+          scheduled_at: string
+          sent_at: string | null
+          status: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          data?: Json | null
+          error_message?: string | null
+          id?: string
+          scheduled_at: string
+          sent_at?: string | null
+          status?: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          data?: Json | null
+          error_message?: string | null
+          id?: string
+          scheduled_at?: string
+          sent_at?: string | null
+          status?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_queue_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -618,6 +671,38 @@ export type Database = {
             columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_notification_preferences: {
+        Row: {
+          enabled: boolean
+          id: string
+          notification_type: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          enabled?: boolean
+          id?: string
+          notification_type: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          enabled?: boolean
+          id?: string
+          notification_type?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_notification_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]

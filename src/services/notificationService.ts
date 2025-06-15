@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { getFCMToken } from '@/firebase';
 
@@ -193,4 +192,63 @@ export const sendWeeklyReminderNotification = async (customerId: string) => {
       customerId: customerId
     }
   });
+};
+
+/**
+ * NEW: Fetch user notification preferences
+ */
+export const getUserNotificationPreferences = async (userId: string) => {
+  const { data, error } = await supabase
+    .from("user_notification_preferences")
+    .select("*")
+    .eq("user_id", userId);
+
+  if (error) throw new Error(error.message);
+  return data;
+};
+
+/**
+ * NEW: Update user notification preference
+ */
+export const updateUserNotificationPreference = async (
+  userId: string, notificationType: string, enabled: boolean
+) => {
+  const { data, error } = await supabase
+    .from("user_notification_preferences")
+    .upsert([{ user_id: userId, notification_type: notificationType, enabled }], { onConflict: "user_id,notification_type" })
+    .select();
+
+  if (error) throw new Error(error.message);
+  return data;
+};
+
+/**
+ * Fetch recent notification logs
+ */
+export const getNotificationLogs = async (userId: string, limit = 25) => {
+  const { data, error } = await supabase
+    .from("notification_logs")
+    .select("*")
+    .eq("user_id", userId)
+    .order('sent_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(error.message);
+  return data;
+};
+
+/**
+ * Admin/cron: manually trigger notification queue delivery
+ */
+export const runScheduledNotifications = async (adminSecret: string) => {
+  const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-scheduled-notifications`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Admin-Secret": adminSecret
+    }
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const response = await res.json();
+  return response;
 };
