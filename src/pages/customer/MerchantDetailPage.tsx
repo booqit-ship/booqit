@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Merchant, Service, Staff } from '@/types';
 import { toast } from 'sonner';
 import ReviewsSection from '@/components/customer/ReviewsSection';
+import MerchantNotFound from '@/components/customer/MerchantNotFound';
 const MerchantDetailPage: React.FC = () => {
   const {
     merchantId
@@ -114,18 +115,7 @@ const MerchantDetailPage: React.FC = () => {
     );
   }
   if (!merchant) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-5rem)] px-4">
-        <Frown className="h-16 w-16 text-gray-400 mb-4" aria-hidden />
-        <h2 className="text-xl font-semibold mb-1 text-gray-700">Merchant not found</h2>
-        <p className="text-gray-500 mb-4 text-center max-w-xs">
-          We couldn’t find this shop. It may have been removed or the link was incorrect.
-        </p>
-        <Button onClick={() => navigate(-1)} className="mt-2">
-          Go Back
-        </Button>
-      </div>
-    );
+    return <MerchantNotFound />;
   }
   return <div className="pb-20">
       <div className="relative h-64 bg-gray-200">
