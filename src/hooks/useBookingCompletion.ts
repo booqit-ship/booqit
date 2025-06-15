@@ -28,6 +28,7 @@ export const useBookingCompletion = () => {
           id,
           user_id,
           customer_name,
+          merchant_id,
           merchants!inner(shop_name)
         `)
         .eq('id', bookingId)
@@ -38,7 +39,7 @@ export const useBookingCompletion = () => {
         return updateResult;
       }
 
-      // Send completion notification to customer
+      // Send completion notification to customer if booking was just set to completed
       if (booking?.user_id && booking?.merchants?.shop_name) {
         await sendBookingCompletedNotification(
           booking.user_id,
@@ -56,3 +57,4 @@ export const useBookingCompletion = () => {
 
   return { completeBooking };
 };
+
