@@ -5,10 +5,47 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+// Import getFCMToken directly from your firebase config
+import { getFCMToken } from "@/firebase";
 
 const NotificationTestPanel: React.FC = () => {
   const { user } = useAuth();
   const [sending, setSending] = useState(false);
+
+  // Helper to update user's FCM token before sending test notification
+  const refreshAndSaveToken = async () => {
+    if (!user?.id) {
+      toast.error("User not logged in!");
+      return false;
+    }
+    try {
+      toast("Refreshing your push token...");
+      const token = await getFCMToken();
+      if (!token) {
+        toast.error("Could not get a push token—for best results, allow notifications.");
+        return false;
+      }
+      // Save token to DB (customer/merchant both supported)
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          fcm_token: token,
+          notification_enabled: true,
+          last_notification_sent: new Date().toISOString()
+        })
+        .eq("id", user.id);
+
+      if (error) {
+        toast.error("Could not update your push token. Try logging out/in.");
+        return false;
+      }
+      toast.success("Push token refreshed—attempting to send...");
+      return true;
+    } catch (err: any) {
+      toast.error("Error refreshing/saving push token: " + (err.message || "unknown error"));
+      return false;
+    }
+  };
 
   const handleSendTestNotification = async () => {
     if (!user?.id) {
@@ -16,6 +53,13 @@ const NotificationTestPanel: React.FC = () => {
       return;
     }
     setSending(true);
+    // 1. Refresh/save token first, then proceed if succeeded
+    const tokenSaved = await refreshAndSaveToken();
+    if (!tokenSaved) {
+      setSending(false);
+      return;
+    }
+    // 2. Send notification with latest token
     try {
       const { data, error } = await supabase.functions.invoke("send-notification", {
         body: {
@@ -53,7 +97,8 @@ const NotificationTestPanel: React.FC = () => {
       </CardHeader>
       <CardContent>
         <p className="mb-4 text-sm">
-          Click the button below to send a test push notification to yourself. Make sure notifications are enabled in your browser or app!
+          Click the button below to refresh and save your push token and send a test push notification to yourself.<br />
+          Make sure notifications are enabled in your browser or app!
         </p>
         <Button onClick={handleSendTestNotification} disabled={sending} className="w-full">
           {sending ? "Sending..." : "Send Test Notification"}
@@ -64,3 +109,4 @@ const NotificationTestPanel: React.FC = () => {
 };
 
 export default NotificationTestPanel;
+
