@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Smartphone } from 'lucide-react';
@@ -146,56 +145,6 @@ const PaymentPage: React.FC = () => {
         paymentRecorded = false;
       }
 
-      // Step 4: Send notification to merchant (non-blocking)
-      try {
-        console.log('🔔 PAYMENT_FLOW: Starting merchant notification process...');
-        
-        const { data: merchantData } = await supabase
-          .from('merchants')
-          .select('user_id')
-          .eq('id', merchantId)
-          .single();
-
-        console.log('🔍 PAYMENT_FLOW: Merchant data lookup result:', merchantData);
-
-        if (merchantData?.user_id) {
-          const { data: customerProfile } = await supabase
-            .from('profiles')
-            .select('name')
-            .eq('id', userId)
-            .single();
-
-          const customerName = customerProfile?.name || 'Customer';
-          const servicesText = selectedServices.length > 1 
-            ? `${selectedServices.length} services` 
-            : selectedServices[0]?.name || 'Service';
-          const formattedTime = formatTimeToAmPm(bookingTime);
-
-          console.log('📤 PAYMENT_FLOW: Calling sendNewBookingNotification with:', {
-            merchantUserId: merchantData.user_id,
-            customerName,
-            servicesText,
-            formattedTime,
-            bookingId
-          });
-
-          await sendNewBookingNotification(
-            merchantData.user_id,
-            customerName,
-            servicesText,
-            formattedTime,
-            bookingId
-          );
-
-          console.log('✅ PAYMENT_FLOW: Merchant notification sent successfully');
-        } else {
-          console.warn('⚠️ PAYMENT_FLOW: No merchant user_id found for merchant:', merchantId);
-        }
-      } catch (notificationError) {
-        console.error('❌ PAYMENT_FLOW: Merchant notification failed (non-critical):', notificationError);
-        // Don't fail the booking if notification fails
-      }
-      
       // Step 5: Show single success message
       console.log('PAYMENT_FLOW: Process completed successfully');
       
