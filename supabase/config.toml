@@ -31,8 +31,9 @@ additional_redirect_urls = [
   "https://localhost:3000",
   "https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com"
 ]
-jwt_expiry = 3600
+jwt_expiry = 86400 # 24 hours, so the access token lasts a day
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
 enable_signup = true
 enable_email_confirmations = false
+refresh_token_expiry = 31536000 # 1 year
