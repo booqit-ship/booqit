@@ -9,9 +9,19 @@ import { useCapacitor } from "@/hooks/useCapacitor";
  * and native capacitor features. Must be rendered INSIDE <RouterProvider>.
  */
 const AppInit: React.FC = () => {
+  console.log('🚀 APP INIT: Initializing app components...');
+  
   useSessionPersistence();
-  useNotifications();
+  const notificationState = useNotifications(); // Make sure this runs for FCM registration
   useCapacitor();
+  
+  console.log('📱 APP INIT: Notification state:', {
+    isInitialized: notificationState.isInitialized,
+    hasPermission: notificationState.hasPermission,
+    isSupported: notificationState.isSupported,
+    error: notificationState.initializationError
+  });
+  
   return null;
 };
 

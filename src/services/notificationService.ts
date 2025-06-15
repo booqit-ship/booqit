@@ -10,71 +10,56 @@ export interface NotificationPayload {
 export const saveUserFCMToken = async (userId: string, token: string, userRole: 'customer' | 'merchant') => {
   try {
     if (!token) {
-      console.error('❌ FCM TOKEN NOT PROVIDED, NOT UPDATING PROFILE');
+      console.error('❌ FCM TOKEN SAVE: No token provided');
       throw new Error('No FCM token to save');
     }
 
-    // Log before writing
-    console.log('💾 [SAVE FCM] userId:', userId, 'token (first12):', token.substring(0, 12), 'role:', userRole);
+    console.log('💾 FCM TOKEN SAVE: Starting save process', {
+      userId: userId,
+      tokenPreview: token.substring(0, 20) + '...',
+      userRole: userRole,
+      tokenLength: token.length
+    });
 
-    // First, ensure the profile exists
+    // First, check if profile exists
     const { data: existingProfile, error: profileError } = await supabase
       .from('profiles')
-      .select('id')
+      .select('id, fcm_token')
       .eq('id', userId)
       .single();
 
     if (profileError && profileError.code === 'PGRST116') {
       // Profile doesn't exist, create it
-      console.log('📝 Creating new profile for user:', userId);
+      console.log('📝 FCM TOKEN SAVE: Creating new profile for user:', userId);
       
-      // Get user data from auth.users
-      const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(userId);
-      
-      if (authError) {
-        console.error('❌ Failed to get auth user data:', authError);
-        // Create minimal profile anyway
-        const { error: createError } = await supabase
-          .from('profiles')
-          .insert({
-            id: userId,
-            name: userRole === 'merchant' ? 'Merchant' : 'Customer',
-            email: '',
-            role: userRole,
-            fcm_token: token,
-            notification_enabled: true,
-            last_notification_sent: new Date().toISOString()
-          });
+      const { error: createError } = await supabase
+        .from('profiles')
+        .insert({
+          id: userId,
+          name: userRole === 'merchant' ? 'Merchant' : 'Customer',
+          email: '',
+          role: userRole,
+          fcm_token: token,
+          notification_enabled: true,
+          last_notification_sent: new Date().toISOString()
+        });
 
-        if (createError) {
-          console.error('❌ Failed to create minimal profile:', createError);
-          throw new Error(`Failed to create profile: ${createError.message}`);
-        }
-      } else {
-        // Create profile with auth data
-        const { error: createError } = await supabase
-          .from('profiles')
-          .insert({
-            id: userId,
-            name: authUser.user?.user_metadata?.name || authUser.user?.email || (userRole === 'merchant' ? 'Merchant' : 'Customer'),
-            email: authUser.user?.email || '',
-            phone: authUser.user?.user_metadata?.phone || '',
-            role: userRole,
-            fcm_token: token,
-            notification_enabled: true,
-            last_notification_sent: new Date().toISOString()
-          });
-
-        if (createError) {
-          console.error('❌ Failed to create profile with auth data:', createError);
-          throw new Error(`Failed to create profile: ${createError.message}`);
-        }
+      if (createError) {
+        console.error('❌ FCM TOKEN SAVE: Failed to create profile:', createError);
+        throw new Error(`Failed to create profile: ${createError.message}`);
       }
       
-      console.log('✅ Profile created successfully for user:', userId);
+      console.log('✅ FCM TOKEN SAVE: Profile created successfully for user:', userId);
+    } else if (profileError) {
+      console.error('❌ FCM TOKEN SAVE: Error checking profile:', profileError);
+      throw new Error(`Profile check failed: ${profileError.message}`);
     } else {
-      // Profile exists, update it
-      const { error } = await supabase
+      // Profile exists, update FCM token
+      console.log('📝 FCM TOKEN SAVE: Updating existing profile for user:', userId);
+      console.log('📝 FCM TOKEN SAVE: Old token:', existingProfile.fcm_token ? existingProfile.fcm_token.substring(0, 20) + '...' : 'none');
+      console.log('📝 FCM TOKEN SAVE: New token:', token.substring(0, 20) + '...');
+      
+      const { error: updateError } = await supabase
         .from('profiles')
         .update({
           fcm_token: token,
@@ -83,69 +68,41 @@ export const saveUserFCMToken = async (userId: string, token: string, userRole: 
         })
         .eq('id', userId);
 
-      if (error) {
-        console.error('❌ FCM TOKEN SAVE: Error saving token:', error);
-        throw new Error(`Failed to save FCM token: ${error.message}`);
+      if (updateError) {
+        console.error('❌ FCM TOKEN SAVE: Error updating profile:', updateError);
+        throw new Error(`Failed to update FCM token: ${updateError.message}`);
       }
     }
 
-    console.log('✅ FCM TOKEN SAVE: Successfully saved for user:', userId);
+    console.log('✅ FCM TOKEN SAVE: Successfully saved FCM token for user:', userId);
+    
+    // Verify the save
+    const { data: verifyProfile, error: verifyError } = await supabase
+      .from('profiles')
+      .select('fcm_token, notification_enabled')
+      .eq('id', userId)
+      .single();
+    
+    if (verifyError) {
+      console.error('❌ FCM TOKEN SAVE: Error verifying save:', verifyError);
+    } else {
+      console.log('✅ FCM TOKEN SAVE: Verification successful', {
+        hasToken: !!verifyProfile.fcm_token,
+        tokenMatch: verifyProfile.fcm_token === token,
+        notificationEnabled: verifyProfile.notification_enabled
+      });
+    }
+    
     return true;
   } catch (error) {
-    console.error('❌ FCM TOKEN SAVE: Error in saveUserFCMToken:', error);
-    throw error;
-  }
-};
-
-export const sendNotificationToUser = async (userId: string, payload: NotificationPayload) => {
-  try {
-    console.log('📤 SEND NOTIFICATION: Starting send to user:', { userId, payload });
-
-    const { data, error } = await supabase.functions.invoke('send-notification', {
-      body: {
-        userId,
-        title: payload.title,
-        body: payload.body,
-        data: payload.data
-      }
-    });
-
-    console.log('📨 SEND NOTIFICATION: Edge Function Response:', { data, error });
-
-    if (error) {
-      console.error('❌ SEND NOTIFICATION: Error calling Edge Function:', error);
-      
-      // Provide more specific error messages based on the error
-      if (error.message.includes('No profile found')) {
-        throw new Error('User needs to enable notifications in the app first. The merchant should open the app and allow notifications.');
-      } else if (error.message.includes('No FCM token')) {
-        throw new Error('User needs to enable push notifications in their browser.');
-      } else if (error.message.includes('disabled')) {
-        throw new Error('Notifications are disabled for this user.');
-      } else if (error.message.includes('Profile lookup failed')) {
-        throw new Error('User profile not found. The merchant should open the app to set up notifications.');
-      } else {
-        throw new Error(`Notification failed: ${error.message}`);
-      }
-    }
-
-    // Check for successful response
-    if (data && !data.success) {
-      console.error('❌ SEND NOTIFICATION: Backend error:', data.error);
-      throw new Error(data.error || 'Unknown error occurred');
-    }
-
-    console.log('✅ SEND NOTIFICATION: Successfully sent:', data);
-    return true;
-  } catch (error) {
-    console.error('❌ SEND NOTIFICATION: Error in sendNotificationToUser:', error);
+    console.error('❌ FCM TOKEN SAVE: Critical error in saveUserFCMToken:', error);
     throw error;
   }
 };
 
 export const initializeUserNotifications = async (userId: string, userRole: 'customer' | 'merchant') => {
   try {
-    console.log('🚀 INIT NOTIFICATIONS: Starting initialization for user:', { userId, userRole });
+    console.log('🚀 INIT NOTIFICATIONS: Starting initialization', { userId, userRole });
 
     // Check if notifications are supported
     if (!('Notification' in window)) {
@@ -167,22 +124,30 @@ export const initializeUserNotifications = async (userId: string, userRole: 'cus
       return { success: false, reason: 'permission_not_granted' };
     }
 
-    // Get FCM token with retry logic
+    // Get FCM token with enhanced logging
     console.log('🔑 INIT NOTIFICATIONS: Getting FCM token...');
     let token;
     let tokenRetries = 3;
     
     while (tokenRetries > 0) {
       try {
+        console.log(`🔑 INIT NOTIFICATIONS: Attempting to get FCM token (attempt ${4 - tokenRetries}/3)...`);
         token = await getFCMToken();
-        if (token) break;
+        
+        if (token) {
+          console.log('🔑 INIT NOTIFICATIONS: FCM token obtained successfully:', {
+            tokenPreview: token.substring(0, 30) + '...',
+            tokenLength: token.length
+          });
+          break;
+        }
         
         tokenRetries--;
         if (tokenRetries > 0) {
-          console.log(`🔄 INIT NOTIFICATIONS: Retrying FCM token generation... (${3 - tokenRetries}/3)`);
+          console.log(`🔄 INIT NOTIFICATIONS: No token received, retrying... (${3 - tokenRetries}/3)`);
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('❌ INIT NOTIFICATIONS: Error getting FCM token:', error);
         tokenRetries--;
         if (tokenRetries === 0) {
@@ -197,22 +162,112 @@ export const initializeUserNotifications = async (userId: string, userRole: 'cus
       return { success: false, reason: 'token_failed' };
     }
 
-    console.log('🔑 INIT NOTIFICATIONS: FCM Token obtained:', token.substring(0, 20) + '...');
-
-    // Save token to user profile with retry logic
+    // Save token to user profile
     console.log('💾 INIT NOTIFICATIONS: Saving FCM token to profile...');
     try {
       await saveUserFCMToken(userId, token, userRole);
-    } catch (error) {
-      console.log('❌ INIT NOTIFICATIONS: Could not save FCM token:', error.message);
+    } catch (error: any) {
+      console.error('❌ INIT NOTIFICATIONS: Could not save FCM token:', error);
       return { success: false, reason: 'save_failed', error: error.message };
     }
 
     console.log('✅ INIT NOTIFICATIONS: User notifications initialized successfully');
     return { success: true };
-  } catch (error) {
-    console.error('❌ INIT NOTIFICATIONS: Error initializing notifications:', error);
+  } catch (error: any) {
+    console.error('❌ INIT NOTIFICATIONS: Critical error during initialization:', error);
     return { success: false, reason: 'initialization_error', error: error.message };
+  }
+};
+
+// Enhanced notification checking function
+const canSendNotification = async (userId: string) => {
+  try {
+    console.log('🔍 NOTIFICATION CHECK: Checking if user can receive notifications:', userId);
+    
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('fcm_token, notification_enabled, name, role')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('❌ NOTIFICATION CHECK: Error fetching profile:', error);
+      return false;
+    }
+
+    if (!profile) {
+      console.log('⚠️ NOTIFICATION CHECK: No profile found for user - they need to enable notifications first');
+      return false;
+    }
+
+    console.log('👤 NOTIFICATION CHECK: Profile found:', {
+      userId: userId,
+      name: profile.name,
+      role: profile.role,
+      hasToken: !!profile.fcm_token,
+      tokenPreview: profile.fcm_token ? profile.fcm_token.substring(0, 20) + '...' : 'none',
+      notificationEnabled: profile.notification_enabled
+    });
+
+    if (profile.notification_enabled === false) {
+      console.log('🚫 NOTIFICATION CHECK: Notifications disabled for user');
+      return false;
+    }
+
+    if (!profile.fcm_token) {
+      console.log('🚫 NOTIFICATION CHECK: No FCM token found - user needs to enable notifications');
+      return false;
+    }
+
+    console.log('✅ NOTIFICATION CHECK: User can receive notifications');
+    return true;
+  } catch (error) {
+    console.error('❌ NOTIFICATION CHECK: Error checking notification permissions:', error);
+    return false;
+  }
+};
+
+export const sendNotificationToUser = async (userId: string, payload: NotificationPayload) => {
+  try {
+    console.log('📤 SEND NOTIFICATION: Starting send to user:', { userId, payload });
+
+    const { data, error } = await supabase.functions.invoke('send-notification', {
+      body: {
+        userId,
+        title: payload.title,
+        body: payload.body,
+        data: payload.data
+      }
+    });
+
+    console.log('📨 SEND NOTIFICATION: Edge Function Response:', { data, error });
+
+    if (error) {
+      console.error('❌ SEND NOTIFICATION: Error calling Edge Function:', error);
+      
+      if (error.message.includes('No profile found')) {
+        throw new Error('User needs to enable notifications in the app first. The merchant should open the app and allow notifications.');
+      } else if (error.message.includes('No FCM token')) {
+        throw new Error('User needs to enable push notifications in their browser.');
+      } else if (error.message.includes('disabled')) {
+        throw new Error('Notifications are disabled for this user.');
+      } else if (error.message.includes('Profile lookup failed')) {
+        throw new Error('User profile not found. The merchant should open the app to set up notifications.');
+      } else {
+        throw new Error(`Notification failed: ${error.message}`);
+      }
+    }
+
+    if (data && !data.success) {
+      console.error('❌ SEND NOTIFICATION: Backend error:', data.error);
+      throw new Error(data.error || 'Unknown error occurred');
+    }
+
+    console.log('✅ SEND NOTIFICATION: Successfully sent:', data);
+    return true;
+  } catch (error) {
+    console.error('❌ SEND NOTIFICATION: Error in sendNotificationToUser:', error);
+    throw error;
   }
 };
 

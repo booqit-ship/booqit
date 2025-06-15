@@ -22,70 +22,82 @@ export const useNotifications = () => {
     setHasPermission(Notification.permission === 'granted');
   }, []);
 
-  // On login, always try to initialize and save FCM token
+  // CRITICAL: Auto-initialize FCM token on every login/role change
   useEffect(() => {
-    const tryInit = async () => {
-      if (!isAuthenticated || !userId || !userRole) return;
+    const autoInitialize = async () => {
+      console.log('🔔 NOTIFICATION HOOK: Auto-initialization triggered', { isAuthenticated, userId, userRole });
+      
+      if (!isAuthenticated || !userId || !userRole) {
+        console.log('🔔 NOTIFICATION HOOK: Skipping - user not authenticated or missing data');
+        return;
+      }
 
-      // If not granted, request and register
       if (!('Notification' in window)) {
+        console.log('❌ NOTIFICATION HOOK: Browser does not support notifications');
         setIsSupported(false);
         setInitializationError('not_supported');
         return;
       }
 
-      if (Notification.permission !== 'granted') {
-        try {
-          const result = await Notification.requestPermission();
-          setHasPermission(result === 'granted');
-        } catch (err: any) {
-          setInitializationError(err?.message || String(err));
+      try {
+        setIsInitialized(false);
+        setInitializationError(null);
+        setRetryCount(0);
+
+        console.log('🔔 NOTIFICATION HOOK: Starting FCM token registration for user:', userId, 'role:', userRole);
+
+        // Step 1: Request permission if not granted
+        let permission = Notification.permission;
+        console.log('📱 NOTIFICATION HOOK: Current permission status:', permission);
+
+        if (permission === 'default') {
+          console.log('📱 NOTIFICATION HOOK: Requesting notification permission...');
+          permission = await Notification.requestPermission();
+          console.log('📱 NOTIFICATION HOOK: Permission response:', permission);
+        }
+
+        if (permission !== 'granted') {
+          console.log('❌ NOTIFICATION HOOK: Permission not granted:', permission);
           setHasPermission(false);
+          setInitializationError('permission_denied');
           return;
         }
-      }
 
-      if (Notification.permission === 'granted') {
         setHasPermission(true);
-        // Try to register/save FCM token anyway
-        try {
-          setIsInitialized(false);
+        console.log('✅ NOTIFICATION HOOK: Permission granted, initializing notifications...');
+
+        // Step 2: Initialize and save FCM token
+        const result = await initializeUserNotifications(userId, userRole);
+        
+        if (result?.success) {
+          console.log('✅ NOTIFICATION HOOK: FCM token registration successful');
+          setIsInitialized(true);
           setInitializationError(null);
           setRetryCount(0);
-
-          // Force an FCM registration and save, robust to failure
-          const { initializeUserNotifications } = await import("@/services/notificationService");
-          const result = await initializeUserNotifications(userId, userRole);
-          if (result?.success) {
-            setIsInitialized(true);
-            setInitializationError(null);
-            setRetryCount(0);
-            // Setup foreground handler
-            import('@/firebase').then(({ setupForegroundMessaging }) => {
-              setupForegroundMessaging((payload) => {
-                console.log('📱 Foreground notification received:', payload);
-                import('sonner').then(({ toast }) => {
-                  toast(payload.notification?.title || 'Notification', {
-                    description: payload.notification?.body,
-                    duration: 5000,
-                  });
-                });
-              });
+          
+          // Step 3: Setup foreground messaging handler
+          setupForegroundMessaging((payload) => {
+            console.log('📱 NOTIFICATION HOOK: Foreground notification received:', payload);
+            toast(payload.notification?.title || 'Notification', {
+              description: payload.notification?.body,
+              duration: 5000,
             });
-          } else {
-            setIsInitialized(false);
-            setInitializationError(result?.reason || 'Unknown error');
-          }
-        } catch (error: any) {
-          setInitializationError(error?.message || String(error));
+          });
+        } else {
+          console.error('❌ NOTIFICATION HOOK: FCM token registration failed:', result);
           setIsInitialized(false);
+          setInitializationError(result?.reason || 'Unknown error');
         }
+      } catch (error: any) {
+        console.error('❌ NOTIFICATION HOOK: Error during auto-initialization:', error);
+        setInitializationError(error?.message || String(error));
+        setIsInitialized(false);
       }
     };
-    tryInit();
-    // Only once after login/role selection
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, userId, userRole]); // Only runs when user logs in or changes role
+
+    // Run auto-initialization when user logs in or role changes
+    autoInitialize();
+  }, [isAuthenticated, userId, userRole]);
 
   const requestPermissionManually = async () => {
     try {
@@ -94,16 +106,17 @@ export const useNotifications = () => {
         return false;
       }
 
-      console.log('🔔 Requesting notification permission manually...');
+      console.log('🔔 MANUAL: Requesting notification permission manually...');
       const permission = await requestNotificationPermission();
       setHasPermission(permission);
 
       if (permission && userId && userRole) {
-        console.log('🔔 Permission granted, initializing notifications...');
-        // Call initializeUserNotifications directly, since initializeWithRetry was not defined
+        console.log('🔔 MANUAL: Permission granted, initializing notifications...');
         const result = await initializeUserNotifications(userId, userRole);
 
         if (result?.success) {
+          setIsInitialized(true);
+          setInitializationError(null);
           toast.success('Notifications enabled successfully! 🔔');
         } else {
           toast.error(`Failed to initialize notifications: ${result?.reason || initializationError}`);
@@ -122,7 +135,7 @@ export const useNotifications = () => {
 
       return permission;
     } catch (error: any) {
-      console.error('❌ Error requesting permission:', error);
+      console.error('❌ MANUAL: Error requesting permission:', error);
       toast.error('Failed to enable notifications: ' + error.message);
       return false;
     }
@@ -134,11 +147,14 @@ export const useNotifications = () => {
       return false;
     }
 
+    console.log('🔄 RETRY: Retrying notification initialization...');
     setInitializationError(null);
-    // Call initializeUserNotifications directly, since initializeWithRetry was not defined
+    
     const result = await initializeUserNotifications(userId, userRole);
 
     if (result?.success) {
+      setIsInitialized(true);
+      setInitializationError(null);
       toast.success('Notifications initialized successfully! 🔔');
     } else {
       toast.error(`Failed to initialize notifications: ${result?.reason || initializationError}`);
