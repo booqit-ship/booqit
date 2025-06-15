@@ -30,6 +30,7 @@ const HomePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [nearbyShops, setNearbyShops] = useState<Merchant[]>([]);
   const [filteredShops, setFilteredShops] = useState<Merchant[]>([]);
+  const [displayedShops, setDisplayedShops] = useState<Merchant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [userLocation, setUserLocation] = useState<{
     lat: number;
@@ -70,8 +71,9 @@ const HomePage: React.FC = () => {
     };
     fetchUserProfile();
   }, [userId]);
+
+  // Get user location
   useEffect(() => {
-    // Get user location
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(position => {
         const userLoc = {
@@ -125,6 +127,12 @@ const HomePage: React.FC = () => {
       setFilteredShops(nearbyShops);
     }
   }, [activeCategory, nearbyShops]);
+
+  // Limit displayed shops to 6 for homepage
+  useEffect(() => {
+    setDisplayedShops(filteredShops.slice(0, 6));
+  }, [filteredShops]);
+
   const fetchLocationName = async (lat: number, lng: number) => {
     try {
       const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=AIzaSyB28nWHDBaEoMGIEoqfWDh6L2VRkM5AMwc`);
@@ -145,6 +153,8 @@ const HomePage: React.FC = () => {
       setLocationName("Your area");
     }
   };
+
+  // Fetch nearby shops based on user's location
   const fetchNearbyShops = async (location: {
     lat: number;
     lng: number;
@@ -260,6 +270,13 @@ const HomePage: React.FC = () => {
   const handleBookNow = (merchantId: string) => {
     navigate(`/merchant/${merchantId}`);
   };
+
+  const handleViewMore = () => {
+    // Navigate to a dedicated page showing all nearby shops
+    const categoryParam = activeCategory ? `?category=${encodeURIComponent(activeCategory)}` : '';
+    navigate(`/nearby-shops${categoryParam}`);
+  };
+
   return <div className="pb-20"> {/* Add padding to account for bottom navigation */}
       {/* Header Section */}
       <motion.div className="bg-gradient-to-r from-booqit-primary to-purple-700 text-white p-6 rounded-b-3xl shadow-lg" initial={{
@@ -334,8 +351,8 @@ const HomePage: React.FC = () => {
             </h2>
             {isLoading ? <div className="flex justify-center py-8">
                 <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
-              </div> : filteredShops.length > 0 ? <div className="space-y-4">
-                {filteredShops.map(shop => <Card key={shop.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow">
+              </div> : displayedShops.length > 0 ? <div className="space-y-4">
+                {displayedShops.map(shop => <Card key={shop.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow">
                     <CardContent className="p-0">
                       <div className="flex">
                         <div className="w-24 h-24 bg-gray-200 flex-shrink-0">
@@ -369,6 +386,18 @@ const HomePage: React.FC = () => {
                       </div>
                     </CardContent>
                   </Card>)}
+                
+                {filteredShops.length > 6 && (
+                  <div className="flex justify-center mt-4">
+                    <Button 
+                      variant="outline" 
+                      onClick={handleViewMore}
+                      className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary hover:text-white"
+                    >
+                      View More ({filteredShops.length - 6} more shops)
+                    </Button>
+                  </div>
+                )}
               </div> : <div className="text-center py-8 bg-gray-50 rounded-lg">
                 <p className="text-gray-500">
                   {activeCategory ? `No ${activeCategory} shops found within 5km` : "No shops found within 5km"}
