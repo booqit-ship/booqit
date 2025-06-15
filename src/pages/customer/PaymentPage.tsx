@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Smartphone } from 'lucide-react';
@@ -39,6 +38,7 @@ const PaymentPage: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [showFailureAnimation, setShowFailureAnimation] = useState(false);
+  const [createdBookingId, setCreatedBookingId] = useState<string | null>(null);
 
   const handlePayment = async () => {
     if (!userId || !merchantId) {
@@ -101,6 +101,9 @@ const PaymentPage: React.FC = () => {
 
       const bookingId = reserveResponse.booking_id;
       console.log('PAYMENT_FLOW: Booking created with ID:', bookingId);
+      
+      // Store the booking ID for navigation
+      setCreatedBookingId(bookingId);
 
       // Step 2: Update booking with services and confirm status
       const { error: updateError } = await supabase
@@ -122,7 +125,6 @@ const PaymentPage: React.FC = () => {
       console.log('PAYMENT_FLOW: Booking confirmed successfully');
 
       // Step 3: Create payment record (non-blocking)
-      let paymentRecorded = false;
       try {
         const paymentData = {
           booking_id: bookingId,
@@ -139,14 +141,11 @@ const PaymentPage: React.FC = () => {
         
         if (paymentError) {
           console.error('PAYMENT_FLOW: Payment record error:', paymentError);
-          paymentRecorded = false;
         } else {
           console.log('PAYMENT_FLOW: Payment record created successfully');
-          paymentRecorded = true;
         }
       } catch (paymentCreationError) {
         console.error('PAYMENT_FLOW: Payment record creation failed:', paymentCreationError);
-        paymentRecorded = false;
       }
 
       // Step 4: Send notification to merchant (simplified - non-blocking)
@@ -183,7 +182,6 @@ const PaymentPage: React.FC = () => {
             bookingId
           });
 
-          // Send notification directly - no profile creation needed
           await sendNewBookingNotification(
             merchantData.user_id,
             customerName,
@@ -213,20 +211,36 @@ const PaymentPage: React.FC = () => {
 
   const handleSuccessComplete = () => {
     setShowSuccessAnimation(false);
-    // Navigate to receipt page
-    navigate(`/receipt/${location.state?.bookingId}`, {
-      state: {
-        merchant,
-        selectedServices,
-        totalPrice,
-        totalDuration,
-        selectedStaff,
-        selectedStaffDetails,
-        bookingDate,
-        bookingTime,
-        paymentMethod: 'pay_on_shop'
-      }
-    });
+    // Navigate to receipt page with the correct booking ID
+    if (createdBookingId) {
+      navigate(`/receipt/${createdBookingId}`, {
+        state: {
+          booking: {
+            id: createdBookingId,
+            date: bookingDate,
+            time_slot: bookingTime,
+            status: 'confirmed',
+            payment_status: 'completed',
+            total_duration: totalDuration,
+            services: selectedServices,
+            merchants: merchant,
+            staff: selectedStaffDetails
+          },
+          merchant,
+          selectedServices,
+          totalPrice,
+          totalDuration,
+          selectedStaff,
+          selectedStaffDetails,
+          bookingDate,
+          bookingTime,
+          paymentMethod: 'pay_on_shop'
+        }
+      });
+    } else {
+      // Fallback to calendar page if no booking ID
+      navigate('/calendar');
+    }
   };
 
   const handleFailureComplete = () => {
