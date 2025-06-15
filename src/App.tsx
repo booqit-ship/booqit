@@ -39,6 +39,13 @@ import TermsAndConditions from '@/pages/TermsAndConditions';
 import DeleteAccountPage from '@/pages/settings/DeleteAccountPage';
 import ContactPage from '@/pages/settings/ContactPage';
 import AboutPage from '@/pages/settings/AboutPage';
+import MerchantBusinessInfoPage from '@/pages/merchant/settings/BusinessInformationPage';
+import MerchantBankingDetailsPage from '@/pages/merchant/settings/BankingDetailsPage';
+import MerchantContactPage from '@/pages/merchant/settings/ContactPage';
+import MerchantAboutPage from '@/pages/merchant/settings/AboutPage';
+import MerchantPrivacyPolicyPage from '@/pages/merchant/settings/PrivacyPolicyPage';
+import MerchantTermsConditionsPage from '@/pages/merchant/settings/TermsConditionsPage';
+import MerchantDeleteAccountPage from '@/pages/merchant/settings/DeleteAccountPage';
 
 const App: React.FC = () => {
   const { user, isAuthenticated } = useAuth();
@@ -79,6 +86,78 @@ const App: React.FC = () => {
         <Route path="/merchant/profile" element={<ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantProfile /></MerchantLayout></ProtectedRoute>} />
         <Route path="/merchant/analytics" element={<ProtectedRoute requiredRole="merchant"><MerchantLayout><AnalyticsPage /></MerchantLayout></ProtectedRoute>} />
         <Route path="/merchant/settings" element={<ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantSettingsPage /></MerchantLayout></ProtectedRoute>} />
+
+        {/* Merchant Settings Sub-Pages */}
+        <Route
+          path="/merchant/settings/business-information"
+          element={
+            <ProtectedRoute requiredRole="merchant">
+              <MerchantLayout>
+                <MerchantBusinessInfoPage />
+              </MerchantLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/merchant/settings/banking-details"
+          element={
+            <ProtectedRoute requiredRole="merchant">
+              <MerchantLayout>
+                <MerchantBankingDetailsPage />
+              </MerchantLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/merchant/settings/contact"
+          element={
+            <ProtectedRoute requiredRole="merchant">
+              <MerchantLayout>
+                <MerchantContactPage />
+              </MerchantLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/merchant/settings/about"
+          element={
+            <ProtectedRoute requiredRole="merchant">
+              <MerchantLayout>
+                <MerchantAboutPage />
+              </MerchantLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/merchant/settings/privacy-policy"
+          element={
+            <ProtectedRoute requiredRole="merchant">
+              <MerchantLayout>
+                <MerchantPrivacyPolicyPage />
+              </MerchantLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/merchant/settings/terms-conditions"
+          element={
+            <ProtectedRoute requiredRole="merchant">
+              <MerchantLayout>
+                <MerchantTermsConditionsPage />
+              </MerchantLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/merchant/settings/delete-account"
+          element={
+            <ProtectedRoute requiredRole="merchant">
+              <MerchantLayout>
+                <MerchantDeleteAccountPage />
+              </MerchantLayout>
+            </ProtectedRoute>
+          }
+        />
 
         {/* Customer Routes */}
         <Route path="/" element={<Index />} />
