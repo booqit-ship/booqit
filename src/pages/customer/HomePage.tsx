@@ -307,7 +307,7 @@ const HomePage: React.FC = () => {
                     ${activeCategory === category.name ? 'border-booqit-primary bg-booqit-primary/10 shadow-md' : 'border-gray-200 shadow-sm hover:shadow-md hover:border-booqit-primary'}`} style={{
               backgroundColor: activeCategory === category.name ? `${category.color}20` : `${category.color}10`
             }} onClick={() => handleCategoryClick(category.name)}>
-                  <div className="w-12 h-12 mb-1 flex items-center justify-center">
+                  <div className="w-16 h-16 mb-1 flex items-center justify-center">
                     <img 
                       src={category.image} 
                       alt={category.name}
