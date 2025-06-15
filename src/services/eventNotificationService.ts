@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { sendNotificationToUser } from './notificationService';
 
@@ -93,20 +94,35 @@ const ensureUserProfile = async (userId: string, userRole: 'customer' | 'merchan
       return true;
     }
 
-    // Profile doesn't exist, create it using the security definer function
+    // Profile doesn't exist, create it manually
     if (userRole === 'merchant') {
       console.log('🔧 PROFILE ENSURE: Creating merchant profile...');
-      const { data: result, error } = await supabase.rpc('ensure_merchant_profile', {
-        p_user_id: userId
-      });
-
-      if (error) {
-        console.error('❌ PROFILE ENSURE: Error creating merchant profile:', error);
+      
+      // Get user data from auth
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) {
+        console.error('❌ PROFILE ENSURE: No auth user found');
         return false;
       }
 
-      console.log('✅ PROFILE ENSURE: Merchant profile created:', result);
-      return result?.success || false;
+      const { error: insertError } = await supabase
+        .from('profiles')
+        .insert({
+          id: userId,
+          name: userData.user.user_metadata?.name || 'Merchant',
+          email: userData.user.email || '',
+          phone: userData.user.user_metadata?.phone || '',
+          role: 'merchant',
+          notification_enabled: true
+        });
+
+      if (insertError) {
+        console.error('❌ PROFILE ENSURE: Error creating merchant profile:', insertError);
+        return false;
+      }
+
+      console.log('✅ PROFILE ENSURE: Merchant profile created');
+      return true;
     } else {
       // For customers, try to create profile directly
       console.log('🔧 PROFILE ENSURE: Creating customer profile...');
