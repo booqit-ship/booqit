@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,9 +22,10 @@ const NotificationTestPanel: React.FC = () => {
     }
 
     // Prompt user for permission
-    const permissionGranted = await requestNotificationPermission();
+    const permissionResult = await requestNotificationPermission();
 
-    if (permissionGranted === true) {
+    // Accept both boolean true, or (rarely) string "granted"
+    if (permissionResult === true || permissionResult === "granted" || Notification.permission === "granted") {
       toast.success("Notifications permission granted! Proceeding...");
       return true;
     } else {
@@ -42,6 +42,13 @@ const NotificationTestPanel: React.FC = () => {
             ),
         },
       });
+      // Add debug info so it can be investigated if this fires incorrectly
+      console.warn(
+        "Notification permission not granted. permissionResult:",
+        permissionResult,
+        "Notification.permission:",
+        Notification.permission
+      );
       return false;
     }
   };
