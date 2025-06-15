@@ -145,6 +145,55 @@ const PaymentPage: React.FC = () => {
         paymentRecorded = false;
       }
 
+      // Step 4: Send notification to merchant (non-blocking)
+      try {
+        console.log('PAYMENT_FLOW: Sending notification to merchant...');
+        
+        // Get merchant user_id
+        const { data: merchantData, error: merchantError } = await supabase
+          .from('merchants')
+          .select('user_id')
+          .eq('id', merchantId)
+          .single();
+
+        if (merchantError) {
+          console.error('PAYMENT_FLOW: Error fetching merchant data:', merchantError);
+        } else if (merchantData?.user_id) {
+          // Get customer name for notification
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('name')
+            .eq('id', userId)
+            .single();
+
+          const customerName = profileData?.name || 'A customer';
+          const serviceNames = selectedServices.map(s => s.name).join(', ');
+          const timeSlotFormatted = formatTimeToAmPm(bookingTime);
+          const dateFormatted = formatDateInIST(new Date(bookingDate), 'MMM d, yyyy');
+
+          console.log('PAYMENT_FLOW: Notification details:', {
+            merchantUserId: merchantData.user_id,
+            customerName,
+            serviceNames,
+            timeSlot: `${dateFormatted} at ${timeSlotFormatted}`,
+            bookingId
+          });
+
+          await sendNewBookingNotification(
+            merchantData.user_id,
+            customerName,
+            serviceNames,
+            `${dateFormatted} at ${timeSlotFormatted}`,
+            bookingId
+          );
+
+          console.log('PAYMENT_FLOW: Notification sent successfully');
+        }
+      } catch (notificationError) {
+        console.error('PAYMENT_FLOW: Error sending notification:', notificationError);
+        // Don't fail the booking for notification issues
+      }
+
       // Step 5: Show single success message
       console.log('PAYMENT_FLOW: Process completed successfully');
       
