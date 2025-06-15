@@ -6,40 +6,69 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
-import { Service } from '@/types';
+import { Service, Merchant } from '@/types';
 import { toast } from 'sonner';
 
 const ServiceSelectionPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { merchant, services: initialServices } = location.state;
 
+  // Defensive fallback for location.state
+  const merchantFromState = location.state?.merchant || null;
+  const initialServices = location.state?.services || null;
+
+  const [merchant, setMerchant] = useState<Merchant | null>(merchantFromState);
   const [services, setServices] = useState<Service[]>(initialServices || []);
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
+  // Fetch merchant if missing
   useEffect(() => {
-    if (!initialServices || initialServices.length === 0) {
+    const fetchMerchant = async () => {
+      if (!merchant && merchantId) {
+        setLoading(true);
+        try {
+          const { data, error } = await supabase
+            .from('merchants')
+            .select('*')
+            .eq('id', merchantId)
+            .single();
+          if (error) throw error;
+          setMerchant(data);
+        } catch (err) {
+          setError('Could not load merchant details');
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+    fetchMerchant();
+    // Only run on mount or if merchant is not loaded yet
+    // eslint-disable-next-line
+  }, [merchantId, merchant]);
+
+  // Fetch services if missing
+  useEffect(() => {
+    if ((!services || services.length === 0) && merchantId) {
       fetchServices();
     }
-  }, [merchantId, initialServices]);
+    // eslint-disable-next-line
+  }, [merchantId]);
 
   const fetchServices = async () => {
     try {
       setLoading(true);
       if (!merchantId) return;
-
       const { data, error } = await supabase
         .from('services')
         .select('*')
         .eq('merchant_id', merchantId);
-
       if (error) throw error;
       setServices(data || []);
-    } catch (error) {
-      console.error('Error fetching services:', error);
-      toast.error('Could not load services');
+    } catch (err) {
+      setError('Could not load services');
     } finally {
       setLoading(false);
     }
@@ -47,7 +76,6 @@ const ServiceSelectionPage: React.FC = () => {
 
   const selectService = (service: Service) => {
     const isSelected = selectedServices.some(s => s.id === service.id);
-    
     if (isSelected) {
       setSelectedServices(prev => prev.filter(s => s.id !== service.id));
     } else {
@@ -64,14 +92,11 @@ const ServiceSelectionPage: React.FC = () => {
       toast.error('Please select at least one service');
       return;
     }
-
-    console.log('MULTIPLE_SERVICES: Selected services:', {
-      count: selectedServices.length,
-      services: selectedServices.map(s => ({ name: s.name, duration: s.duration })),
-      totalDuration,
-      totalPrice
-    });
-
+    // Make sure merchant is available before navigating
+    if (!merchant) {
+      toast.error('Merchant information missing');
+      return;
+    }
     navigate(`/booking/${merchantId}/staff`, {
       state: {
         merchant,
@@ -86,6 +111,24 @@ const ServiceSelectionPage: React.FC = () => {
     return (
       <div className="h-screen flex items-center justify-center">
         <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center p-4">
+        <p className="text-gray-500 mb-4">{error}</p>
+        <Button onClick={() => navigate(-1)}>Go Back</Button>
+      </div>
+    );
+  }
+
+  if (!merchant) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center p-4">
+        <p className="text-gray-500 mb-4">Merchant information not available.</p>
+        <Button onClick={() => navigate(-1)}>Go Back</Button>
       </div>
     );
   }
@@ -191,3 +234,4 @@ const ServiceSelectionPage: React.FC = () => {
 };
 
 export default ServiceSelectionPage;
+
