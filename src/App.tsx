@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import {
   BrowserRouter as Router,
@@ -33,6 +34,12 @@ import MerchantProfile from '@/pages/merchant/ProfilePage';
 import MerchantLayout from '@/layouts/MerchantLayout';
 import AnalyticsPage from '@/pages/merchant/AnalyticsPage';
 import ProtectedRoute from '@/components/ProtectedRoute';
+// Import Customer Settings Pages
+import AccountInformationPage from '@/pages/settings/AccountInformationPage';
+import PrivacyPolicyPage from '@/pages/settings/PrivacyPolicyPage';
+import TermsConditionsPage from '@/pages/settings/TermsConditionsPage';
+import ContactPage from '@/pages/settings/ContactPage';
+import AboutPage from '@/pages/settings/AboutPage';
 
 const App: React.FC = () => {
   const { user, isAuthenticated } = useAuth();
@@ -79,7 +86,7 @@ const App: React.FC = () => {
         <Route path="/search" element={<ProtectedRoute><CustomerLayout><SearchPage /></CustomerLayout></ProtectedRoute>} />
         <Route path="/map" element={<ProtectedRoute><CustomerLayout><MapPage /></CustomerLayout></ProtectedRoute>} />
         <Route path="/merchant/:merchantId" element={<ProtectedRoute><CustomerLayout><MerchantDetailPage /></CustomerLayout></ProtectedRoute>} />
-        
+
         {/* Booking Flow Routes */}
         <Route path="/booking/:merchantId/services" element={<ProtectedRoute><CustomerLayout><ServiceSelectionPage /></CustomerLayout></ProtectedRoute>} />
         <Route path="/booking/:merchantId/staff" element={<ProtectedRoute><CustomerLayout><StaffSelectionPage /></CustomerLayout></ProtectedRoute>} />
@@ -95,11 +102,11 @@ const App: React.FC = () => {
         <Route path="/settings" element={<ProtectedRoute><CustomerLayout><SettingsPage /></CustomerLayout></ProtectedRoute>} />
 
         {/* Customer Settings Routes */}
-        <Route path="/settings/account" element={<ProtectedRoute><CustomerLayout><import('@/pages/settings/AccountInformationPage').then(m => <m.default />) /></CustomerLayout></ProtectedRoute>} />
-        <Route path="/settings/privacy-policy" element={<ProtectedRoute><CustomerLayout><import('@/pages/settings/PrivacyPolicyPage').then(m => <m.default />) /></CustomerLayout></ProtectedRoute>} />
-        <Route path="/settings/terms-conditions" element={<ProtectedRoute><CustomerLayout><import('@/pages/settings/TermsConditionsPage').then(m => <m.default />) /></CustomerLayout></ProtectedRoute>} />
-        <Route path="/settings/contact" element={<ProtectedRoute><CustomerLayout><import('@/pages/settings/ContactPage').then(m => <m.default />) /></CustomerLayout></ProtectedRoute>} />
-        <Route path="/settings/about" element={<ProtectedRoute><CustomerLayout><import('@/pages/settings/AboutPage').then(m => <m.default />) /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/settings/account" element={<ProtectedRoute><CustomerLayout><AccountInformationPage /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/settings/privacy-policy" element={<ProtectedRoute><CustomerLayout><PrivacyPolicyPage /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/settings/terms-conditions" element={<ProtectedRoute><CustomerLayout><TermsConditionsPage /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/settings/contact" element={<ProtectedRoute><CustomerLayout><ContactPage /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/settings/about" element={<ProtectedRoute><CustomerLayout><AboutPage /></CustomerLayout></ProtectedRoute>} />
       </Routes>
     </Router>
   );
