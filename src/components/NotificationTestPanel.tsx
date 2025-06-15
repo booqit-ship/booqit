@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,7 +24,7 @@ const NotificationTestPanel: React.FC = () => {
     // Prompt user for permission
     const permission = await requestNotificationPermission();
 
-    if (permission === true || permission === "granted") {
+    if (permission === "granted") {
       toast.success("Notifications permission granted! Proceeding...");
       return true;
     }
