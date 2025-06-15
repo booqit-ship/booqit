@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import {
   BrowserRouter as Router,
@@ -7,11 +8,7 @@ import {
 } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { Layout as DashboardLayout } from '@/layouts/dashboard/layout';
-import { ThemeProvider } from '@mui/material/styles';
-import { CssBaseline } from '@mui/material';
-import theme from './theme';
-import Index from '@/pages/customer/Index';
+import Index from '@/pages/Index';
 import HomePage from '@/pages/customer/HomePage';
 import SearchPage from '@/pages/customer/SearchPage';
 import MapPage from '@/pages/customer/MapPage';
@@ -27,33 +24,27 @@ import ProfilePage from '@/pages/customer/ProfilePage';
 import AccountPage from '@/pages/customer/AccountPage';
 import ReviewsPage from '@/pages/customer/ReviewsPage';
 import SettingsPage from '@/pages/customer/SettingsPage';
-import Auth from '@/pages/auth/Auth';
+import BookingsHistoryPage from '@/pages/customer/BookingsHistoryPage';
+import Auth from '@/pages/AuthPage';
 import CustomerLayout from '@/layouts/CustomerLayout';
 import MerchantAuth from '@/pages/auth/MerchantAuth';
-import MerchantDashboard from '@/pages/merchant/MerchantDashboard';
-import MerchantServices from '@/pages/merchant/MerchantServices';
-import MerchantStaff from '@/pages/merchant/MerchantStaff';
-import MerchantCalendar from '@/pages/merchant/MerchantCalendar';
-import MerchantProfile from '@/pages/merchant/MerchantProfile';
+import MerchantDashboard from '@/pages/merchant/DashboardPage';
+import MerchantServices from '@/pages/merchant/ServicesPage';
+import MerchantStaff from '@/pages/merchant/StaffManagementPage';
+import MerchantCalendar from '@/pages/merchant/CalendarManagementPage';
+import MerchantProfile from '@/pages/merchant/ProfilePage';
 import MerchantLayout from '@/layouts/MerchantLayout';
 import AnalyticsPage from '@/pages/merchant/AnalyticsPage';
-import BookingsHistoryPage from '@/pages/customer/BookingsHistoryPage';
 
 const App: React.FC = () => {
-  const { authState, setAuthState } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const getSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-
-        setAuthState({
-          ...authState,
-          session: session,
-          user: session?.user || null,
-          isLoggedIn: !!session,
-        });
+        console.log("Session loaded:", !!session);
       } catch (error) {
         console.error("Error fetching session:", error);
       } finally {
@@ -65,68 +56,60 @@ const App: React.FC = () => {
 
     supabase.auth.onAuthStateChange((event, session) => {
       console.log("Auth State Change:", event);
-      setAuthState({
-        ...authState,
-        session: session,
-        user: session?.user || null,
-        isLoggedIn: !!session,
-      });
+      setLoading(false);
     });
   }, []);
 
   const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-    if (!authState.isLoggedIn && !loading) {
+    if (!isAuthenticated && !loading) {
       return <Navigate to="/auth" replace />;
     }
     return loading ? <div>Loading...</div> : <>{children}</>;
   };
 
   const ProtectedMerchantRoute = ({ children }: { children: React.ReactNode }) => {
-    if (!authState.isLoggedIn && !loading) {
+    if (!isAuthenticated && !loading) {
       return <Navigate to="/merchant/auth" replace />;
     }
     return loading ? <div>Loading...</div> : <>{children}</>;
   };
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Router>
-        <Routes>
-          {/* Auth Routes */}
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/merchant/auth" element={<MerchantAuth />} />
+    <Router>
+      <Routes>
+        {/* Auth Routes */}
+        <Route path="/auth" element={<Auth />} />
+        <Route path="/merchant/auth" element={<MerchantAuth />} />
 
-          {/* Merchant Routes */}
-          <Route path="/merchant" element={<ProtectedMerchantRoute><MerchantLayout><MerchantDashboard /></MerchantLayout></ProtectedMerchantRoute>} />
-          <Route path="/merchant/dashboard" element={<ProtectedMerchantRoute><MerchantLayout><MerchantDashboard /></MerchantLayout></ProtectedMerchantRoute>} />
-          <Route path="/merchant/services" element={<ProtectedMerchantRoute><MerchantLayout><MerchantServices /></MerchantLayout></ProtectedMerchantRoute>} />
-          <Route path="/merchant/staff" element={<ProtectedMerchantRoute><MerchantLayout><MerchantStaff /></MerchantLayout></ProtectedMerchantRoute>} />
-          <Route path="/merchant/calendar" element={<ProtectedMerchantRoute><MerchantLayout><MerchantCalendar /></MerchantLayout></ProtectedMerchantRoute>} />
-          <Route path="/merchant/profile" element={<ProtectedMerchantRoute><MerchantLayout><MerchantProfile /></MerchantLayout></ProtectedMerchantRoute>} />
-          <Route path="/merchant/analytics" element={<ProtectedMerchantRoute><MerchantLayout><AnalyticsPage /></MerchantLayout></ProtectedMerchantRoute>} />
+        {/* Merchant Routes */}
+        <Route path="/merchant" element={<ProtectedMerchantRoute><MerchantLayout><MerchantDashboard /></MerchantLayout></ProtectedMerchantRoute>} />
+        <Route path="/merchant/dashboard" element={<ProtectedMerchantRoute><MerchantLayout><MerchantDashboard /></MerchantLayout></ProtectedMerchantRoute>} />
+        <Route path="/merchant/services" element={<ProtectedMerchantRoute><MerchantLayout><MerchantServices /></MerchantLayout></ProtectedMerchantRoute>} />
+        <Route path="/merchant/staff" element={<ProtectedMerchantRoute><MerchantLayout><MerchantStaff /></MerchantLayout></ProtectedMerchantRoute>} />
+        <Route path="/merchant/calendar" element={<ProtectedMerchantRoute><MerchantLayout><MerchantCalendar /></MerchantLayout></ProtectedMerchantRoute>} />
+        <Route path="/merchant/profile" element={<ProtectedMerchantRoute><MerchantLayout><MerchantProfile /></MerchantLayout></ProtectedMerchantRoute>} />
+        <Route path="/merchant/analytics" element={<ProtectedMerchantRoute><MerchantLayout><AnalyticsPage /></MerchantLayout></ProtectedMerchantRoute>} />
 
-          {/* Customer Routes */}
-          <Route path="/" element={<ProtectedRoute><CustomerLayout><Index /></CustomerLayout></ProtectedRoute>} />
-          <Route path="/home" element={<ProtectedRoute><CustomerLayout><HomePage /></CustomerLayout></ProtectedRoute>} />
-          <Route path="/search" element={<ProtectedRoute><CustomerLayout><SearchPage /></CustomerLayout></ProtectedRoute>} />
-          <Route path="/map" element={<ProtectedRoute><CustomerLayout><MapPage /></CustomerLayout></ProtectedRoute>} />
-          <Route path="/merchant/:merchantId" element={<ProtectedRoute><CustomerLayout><MerchantDetailPage /></CustomerLayout></ProtectedRoute>} />
-          <Route path="/merchant/:merchantId/services" element={<ProtectedRoute><CustomerLayout><ServiceSelectionPage /></CustomerLayout></ProtectedRoute>} />
-          <Route path="/merchant/:merchantId/staff" element={<ProtectedRoute><CustomerLayout><StaffSelectionPage /></CustomerLayout></ProtectedRoute>} />
-          <Route path="/merchant/:merchantId/datetime" element={<ProtectedRoute><CustomerLayout><DateTimeSelectionPage /></CustomerLayout></ProtectedRoute>} />
-          <Route path="/booking-summary" element={<ProtectedRoute><CustomerLayout><BookingSummaryPage /></CustomerLayout></ProtectedRoute>} />
-          <Route path="/payment" element={<ProtectedRoute><CustomerLayout><PaymentPage /></CustomerLayout></ProtectedRoute>} />
-          <Route path="/receipt/:bookingId" element={<ProtectedRoute><CustomerLayout><ReceiptPage /></CustomerLayout></ProtectedRoute>} />
-          <Route path="/calendar" element={<ProtectedRoute><CustomerLayout><CalendarPage /></CustomerLayout></ProtectedRoute>} />
-          <Route path="/bookings-history" element={<ProtectedRoute><CustomerLayout><BookingsHistoryPage /></CustomerLayout></ProtectedRoute>} />
-          <Route path="/profile" element={<ProtectedRoute><CustomerLayout><ProfilePage /></CustomerLayout></ProtectedRoute>} />
-          <Route path="/account" element={<ProtectedRoute><CustomerLayout><AccountPage /></CustomerLayout></ProtectedRoute>} />
-          <Route path="/reviews" element={<ProtectedRoute><CustomerLayout><ReviewsPage /></CustomerLayout></ProtectedRoute>} />
-          <Route path="/settings" element={<ProtectedRoute><CustomerLayout><SettingsPage /></CustomerLayout></ProtectedRoute>} />
-        </Routes>
-      </Router>
-    </ThemeProvider>
+        {/* Customer Routes */}
+        <Route path="/" element={<Index />} />
+        <Route path="/home" element={<ProtectedRoute><CustomerLayout><HomePage /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/search" element={<ProtectedRoute><CustomerLayout><SearchPage /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/map" element={<ProtectedRoute><CustomerLayout><MapPage /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/merchant/:merchantId" element={<ProtectedRoute><CustomerLayout><MerchantDetailPage /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/merchant/:merchantId/services" element={<ProtectedRoute><CustomerLayout><ServiceSelectionPage /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/merchant/:merchantId/staff" element={<ProtectedRoute><CustomerLayout><StaffSelectionPage /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/merchant/:merchantId/datetime" element={<ProtectedRoute><CustomerLayout><DateTimeSelectionPage /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/booking-summary" element={<ProtectedRoute><CustomerLayout><BookingSummaryPage /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/payment" element={<ProtectedRoute><CustomerLayout><PaymentPage /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/receipt/:bookingId" element={<ProtectedRoute><CustomerLayout><ReceiptPage /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/calendar" element={<ProtectedRoute><CustomerLayout><CalendarPage /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/bookings-history" element={<ProtectedRoute><CustomerLayout><BookingsHistoryPage /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/profile" element={<ProtectedRoute><CustomerLayout><ProfilePage /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/account" element={<ProtectedRoute><CustomerLayout><AccountPage /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/reviews" element={<ProtectedRoute><CustomerLayout><ReviewsPage /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/settings" element={<ProtectedRoute><CustomerLayout><SettingsPage /></CustomerLayout></ProtectedRoute>} />
+      </Routes>
+    </Router>
   );
 };
 
