@@ -17,12 +17,12 @@ export const clearOwnSessionStorage = (): void => {
   }
 };
 
-// Simplified session validation without aggressive refresh
+// Simple session validation without aggressive refresh
 export const validateCurrentSession = async (): Promise<boolean> => {
-  console.log('🔍 Validating current session (simplified)');
+  console.log('🔍 Validating current session (simple check)');
   
   try {
-    // Just check if we have a valid session, don't force refresh
+    // Just check if we have a valid session, don't force operations
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
     
     if (sessionData?.session && !sessionError) {
@@ -39,13 +39,13 @@ export const validateCurrentSession = async (): Promise<boolean> => {
   }
 };
 
-// Simplified session recovery without aggressive retries
+// Very conservative session recovery
 export const attemptSessionRecovery = async (): Promise<{
   success: boolean;
   session: any | null;
   message: string;
 }> => {
-  console.log('🔄 Attempting simple session recovery');
+  console.log('🔄 Attempting conservative session recovery');
   
   const permanentData = PermanentSession.getSession();
   
@@ -58,7 +58,7 @@ export const attemptSessionRecovery = async (): Promise<{
   }
   
   try {
-    // Single attempt to get current session
+    // Only try to get current session, no aggressive refreshing
     const { data: { session }, error } = await supabase.auth.getSession();
     
     if (session && !error) {
@@ -69,26 +69,10 @@ export const attemptSessionRecovery = async (): Promise<{
       };
     }
     
-    // If no current session, try one refresh
-    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-    
-    if (refreshData?.session && !refreshError) {
-      // Update permanent session with refreshed data
-      if (permanentData.userRole && permanentData.userId) {
-        PermanentSession.saveSession(refreshData.session, permanentData.userRole, permanentData.userId);
-      }
-      
-      return {
-        success: true,
-        session: refreshData.session,
-        message: 'Recovery succeeded with refresh'
-      };
-    }
-    
     return {
       success: false,
       session: null,
-      message: 'Session recovery failed'
+      message: 'Session recovery failed - please log in again'
     };
     
   } catch (error) {
@@ -103,29 +87,19 @@ export const attemptSessionRecovery = async (): Promise<{
 
 // Simplified session expiry handler
 export const handleSessionExpiry = async (): Promise<void> => {
-  console.log('⚠️ Handling session expiry');
+  console.log('⚠️ Handling session expiry - clearing and redirecting');
   
-  try {
-    const recovery = await attemptSessionRecovery();
-    
-    if (recovery.success) {
-      console.log('✅ Session recovered during expiry handling');
-      return;
-    }
-  } catch (error) {
-    console.error('❌ Expiry recovery failed:', error);
-  }
-  
-  // If recovery failed, clear session and redirect
-  console.log('❌ Session recovery failed, clearing session');
+  // Clear permanent session
   PermanentSession.clearSession();
   
-  // Clear all Supabase keys
-  const keysToRemove = Object.keys(localStorage).filter(key => 
-    key.startsWith('sb-') || key.includes('supabase') || key.includes('auth')
-  );
-  keysToRemove.forEach(key => localStorage.removeItem(key));
+  // Clear Supabase auth state
+  try {
+    await supabase.auth.signOut();
+  } catch (error) {
+    console.error('❌ Error during signOut:', error);
+  }
   
+  // Redirect to login
   setTimeout(() => {
     window.location.href = '/auth';
   }, 100);
