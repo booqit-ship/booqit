@@ -1,44 +1,35 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Mail, Phone, Globe, MapPin, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-
 const MerchantContactPage: React.FC = () => {
-  const contactMethods = [
-    {
-      icon: Mail,
-      title: 'Email Support',
-      value: 'support@booqit.in',
-      description: 'Get help via email',
-      action: () => window.open('mailto:support@booqit.in', '_blank')
-    },
-    {
-      icon: Phone,
-      title: 'Phone Support',
-      value: '+91-9884339363',
-      description: 'Call us for immediate assistance',
-      action: () => window.open('tel:+919884339363', '_blank')
-    },
-    {
-      icon: Globe,
-      title: 'Website',
-      value: 'https://booqit.in',
-      description: 'Visit our official website',
-      action: () => window.open('https://booqit.in', '_blank')
-    },
-    {
-      icon: MapPin,
-      title: 'Address',
-      value: 'BooqIt, Hosur, Tamil Nadu, India',
-      description: 'Our office location',
-      action: null
-    }
-  ];
-
-  return (
-    <div className="min-h-screen bg-gray-50">
+  const contactMethods = [{
+    icon: Mail,
+    title: 'Email Support',
+    value: 'support@booqit.in',
+    description: 'Get help via email',
+    action: () => window.open('mailto:support@booqit.in', '_blank')
+  }, {
+    icon: Phone,
+    title: 'Phone Support',
+    value: '+91-9884339363',
+    description: 'Call us for immediate assistance',
+    action: () => window.open('tel:+919884339363', '_blank')
+  }, {
+    icon: Globe,
+    title: 'Website',
+    value: 'https://booqit.in',
+    description: 'Visit our official website',
+    action: () => window.open('https://booqit.in', '_blank')
+  }, {
+    icon: MapPin,
+    title: 'Address',
+    value: 'BooqIt, Hosur, Tamil Nadu, India',
+    description: 'Our office location',
+    action: null
+  }];
+  return <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b sticky top-0 z-10">
         <div className="flex items-center gap-3 p-4">
@@ -58,11 +49,11 @@ const MerchantContactPage: React.FC = () => {
         {/* Header Card */}
         <Card className="bg-gradient-to-br from-booqit-primary to-booqit-primary/80 text-white">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-base font-medium">
               <MessageCircle className="h-6 w-6" />
               We're Here to Help
             </CardTitle>
-            <p className="text-booqit-primary/20">
+            <p className="text-white font-normal">
               Have questions or need assistance? Our support team is ready to help you with any issues or inquiries.
             </p>
           </CardHeader>
@@ -71,8 +62,7 @@ const MerchantContactPage: React.FC = () => {
         {/* Contact Methods */}
         <div className="space-y-3">
           <h2 className="text-lg font-semibold px-1">Contact Information</h2>
-          {contactMethods.map((method, index) => (
-            <Card key={index} className={method.action ? "hover:bg-gray-50 cursor-pointer transition-colors" : ""}>
+          {contactMethods.map((method, index) => <Card key={index} className={method.action ? "hover:bg-gray-50 cursor-pointer transition-colors" : ""}>
               <CardContent className="p-4" onClick={method.action || undefined}>
                 <div className="flex items-start gap-4">
                   <div className="w-12 h-12 bg-booqit-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -85,8 +75,7 @@ const MerchantContactPage: React.FC = () => {
                   </div>
                 </div>
               </CardContent>
-            </Card>
-          ))}
+            </Card>)}
         </div>
 
         {/* Support Hours */}
@@ -116,27 +105,17 @@ const MerchantContactPage: React.FC = () => {
             <CardTitle>Quick Actions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Button 
-              className="w-full justify-start" 
-              variant="outline"
-              onClick={() => window.open('mailto:support@booqit.in?subject=Merchant Support Request', '_blank')}
-            >
+            <Button className="w-full justify-start" variant="outline" onClick={() => window.open('mailto:support@booqit.in?subject=Merchant Support Request', '_blank')}>
               <Mail className="h-4 w-4 mr-2" />
               Send Support Email
             </Button>
-            <Button 
-              className="w-full justify-start" 
-              variant="outline"
-              onClick={() => window.open('mailto:support@booqit.in?subject=Bug Report - Merchant App', '_blank')}
-            >
+            <Button className="w-full justify-start" variant="outline" onClick={() => window.open('mailto:support@booqit.in?subject=Bug Report - Merchant App', '_blank')}>
               <MessageCircle className="h-4 w-4 mr-2" />
               Report a Bug
             </Button>
           </CardContent>
         </Card>
       </div>
-    </div>
-  );
+    </div>;
 };
-
 export default MerchantContactPage;
