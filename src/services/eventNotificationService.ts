@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { sendNotificationToUser } from './notificationService';
 
@@ -95,8 +94,8 @@ const canSendNotification = async (userId: string) => {
     }
 
     if (!profile) {
-      console.log('⚠️ NOTIFICATION CHECK: No profile found for user, will try to send anyway');
-      return true; // Try to send even without profile - notification service will handle it
+      console.log('⚠️ NOTIFICATION CHECK: No profile found for user - they need to enable notifications first');
+      return false;
     }
 
     console.log('👤 NOTIFICATION CHECK: Profile data:', {
@@ -109,11 +108,16 @@ const canSendNotification = async (userId: string) => {
       return false;
     }
 
+    if (!profile.fcm_token) {
+      console.log('🚫 NOTIFICATION CHECK: No FCM token found - user needs to enable notifications');
+      return false;
+    }
+
     console.log('✅ NOTIFICATION CHECK: User can receive notifications');
     return true;
   } catch (error) {
     console.error('❌ NOTIFICATION CHECK: Error checking notification permissions:', error);
-    return true; // Default to allowing notifications
+    return false;
   }
 };
 
@@ -124,7 +128,7 @@ export const sendWelcomeNotification = async (userId: string, userRole: 'custome
     
     const canSend = await canSendNotification(userId);
     if (!canSend) {
-      console.log('🚫 WELCOME NOTIFICATION: Cannot send notification');
+      console.log('🚫 WELCOME NOTIFICATION: Cannot send notification - user needs to enable notifications first');
       return;
     }
 
@@ -168,7 +172,7 @@ export const sendNewBookingNotification = async (
     
     const canSend = await canSendNotification(merchantUserId);
     if (!canSend) {
-      console.log('🚫 BOOKING NOTIFICATION: Cannot send notification to merchant');
+      console.log('🚫 BOOKING NOTIFICATION: Cannot send notification - merchant needs to enable notifications in their app first');
       return;
     }
 
@@ -192,6 +196,7 @@ export const sendNewBookingNotification = async (
     console.log('✅ BOOKING NOTIFICATION: Successfully sent to merchant');
   } catch (error) {
     console.error('❌ BOOKING NOTIFICATION: Error sending notification to merchant:', error);
+    console.error('💡 BOOKING NOTIFICATION: Merchant should open the app and enable notifications to receive booking alerts');
   }
 };
 

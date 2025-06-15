@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { getFCMToken } from '@/firebase';
 
@@ -51,13 +52,15 @@ export const sendNotificationToUser = async (userId: string, payload: Notificati
     if (error) {
       console.error('❌ SEND NOTIFICATION: Error calling Edge Function:', error);
       
-      // Provide more specific error messages
-      if (error.message.includes('No FCM token')) {
-        throw new Error('Please enable notifications first. Go to Settings → Notifications to enable.');
-      } else if (error.message.includes('not found')) {
-        throw new Error('User profile not found. Please try logging out and back in.');
+      // Provide more specific error messages based on the error
+      if (error.message.includes('No profile found')) {
+        throw new Error('User needs to enable notifications in the app first. The merchant should open the app and allow notifications.');
+      } else if (error.message.includes('No FCM token')) {
+        throw new Error('User needs to enable push notifications in their browser.');
       } else if (error.message.includes('disabled')) {
         throw new Error('Notifications are disabled for this user.');
+      } else if (error.message.includes('Profile lookup failed')) {
+        throw new Error('User profile not found. The merchant should open the app to set up notifications.');
       } else {
         throw new Error(`Notification failed: ${error.message}`);
       }

@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -73,25 +74,54 @@ serve(async (req) => {
       .from('profiles')
       .select('fcm_token, notification_enabled')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
 
     if (profileError) {
       console.error('❌ Profile lookup error:', profileError);
+      // Log this attempt but don't fail - maybe the user has notifications enabled in another way
+      await supabaseClient.from('notification_logs')
+        .insert({
+          user_id: userId,
+          title,
+          body,
+          type: data?.type || 'general',
+          status: 'failed',
+          error_message: `Profile lookup error: ${profileError.message}`
+        });
+      
       return new Response(
-        JSON.stringify({ error: 'User profile not found', details: profileError.message }),
+        JSON.stringify({ 
+          error: 'Profile lookup failed', 
+          details: profileError.message,
+          message: 'User may not have a profile set up for notifications'
+        }),
         {
-          status: 404,
+          status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
     }
 
     if (!profile) {
-      console.error('❌ No profile found for user:', userId);
+      console.warn('⚠️ No profile found for user:', userId);
+      // Log this attempt for visibility
+      await supabaseClient.from('notification_logs')
+        .insert({
+          user_id: userId,
+          title,
+          body,
+          type: data?.type || 'general',
+          status: 'failed',
+          error_message: 'No profile found - user needs to enable notifications in the app'
+        });
+      
       return new Response(
-        JSON.stringify({ error: 'User profile not found' }),
+        JSON.stringify({ 
+          error: 'No profile found for user',
+          message: 'User needs to enable notifications in the app first'
+        }),
         {
-          status: 404,
+          status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
@@ -109,10 +139,13 @@ serve(async (req) => {
           body,
           type: data?.type || 'general',
           status: 'failed',
-          error_message: 'No FCM token found for user'
+          error_message: 'No FCM token found - user needs to enable notifications in browser'
         });
       return new Response(
-        JSON.stringify({ error: 'No FCM token found for user' }),
+        JSON.stringify({ 
+          error: 'No FCM token found for user',
+          message: 'User needs to enable push notifications in their browser'
+        }),
         {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
