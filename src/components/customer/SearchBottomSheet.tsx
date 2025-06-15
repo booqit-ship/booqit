@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Merchant } from '@/types';
 import { SlidersHorizontal, ChevronUp, ChevronDown, Star, MapPin, Clock, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
 interface SearchBottomSheetProps {
   merchants: Merchant[];
   filters: {
@@ -20,6 +21,40 @@ interface SearchBottomSheetProps {
   onMerchantSelect: (merchant: Merchant) => void;
   userCity: string;
 }
+
+const StarRating: React.FC<{ rating: number | null }> = ({ rating }) => {
+  const stars = [];
+  const actualRating = rating || 0;
+  
+  for (let i = 1; i <= 5; i++) {
+    const isFilled = i <= actualRating;
+    const isHalfFilled = i - 0.5 <= actualRating && i > actualRating;
+    
+    stars.push(
+      <Star
+        key={i}
+        className={cn(
+          "w-3 h-3",
+          isFilled || isHalfFilled
+            ? "fill-yellow-400 text-yellow-400"
+            : "fill-gray-200 text-gray-200"
+        )}
+      />
+    );
+  }
+  
+  return (
+    <div className="flex items-center gap-1">
+      <div className="flex">{stars}</div>
+      {rating && (
+        <span className="text-xs text-gray-600 ml-1 font-poppins">
+          ({rating.toFixed(1)})
+        </span>
+      )}
+    </div>
+  );
+};
+
 const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
   merchants,
   filters,
@@ -30,6 +65,7 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+
   const handleFilterChange = (key: string, value: string) => {
     console.log(`Filter changed: ${key} = ${value}`);
     onFiltersChange(prev => ({
@@ -37,6 +73,7 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
       [key]: value
     }));
   };
+
   const resetFilters = () => {
     console.log('Resetting all filters');
     onFiltersChange({
@@ -47,9 +84,11 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
       genderFocus: 'all'
     });
   };
+
   const formatPrice = (price: number) => {
     return `₹${price}`;
   };
+
   const formatDuration = (duration: number) => {
     const hours = Math.floor(duration / 60);
     const minutes = duration % 60;
@@ -58,9 +97,11 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
     }
     return `${minutes} min`;
   };
+
   const handleExpandToggle = () => {
     setIsExpanded(!isExpanded);
   };
+
   return <div className={cn("fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl transition-all duration-300 ease-out z-40 flex flex-col", isExpanded ? "h-[85vh]" : "h-44")}>
       {/* Handle bar and header */}
       <div className="flex flex-col items-center pt-3 pb-4 flex-shrink-0">
@@ -199,12 +240,14 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
                     </div>
                     
                     <CardContent className="p-4">
-                      {/* Shop Name and Location */}
+                      {/* Shop Name and Star Rating */}
                       <div className="mb-3">
                         <h3 className="font-bold text-gray-900 mb-1 font-righteous font-medium text-xl">
                           {merchant.shop_name}
                         </h3>
                         
+                        {/* Star Rating Display */}
+                        <StarRating rating={merchant.rating} />
                       </div>
 
                       {/* Services */}
@@ -245,4 +288,5 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
         </div>}
     </div>;
 };
+
 export default SearchBottomSheet;
