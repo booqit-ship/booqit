@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { getFCMToken } from '@/firebase';
 
@@ -10,8 +9,14 @@ export interface NotificationPayload {
 
 export const saveUserFCMToken = async (userId: string, token: string, userRole: 'customer' | 'merchant') => {
   try {
-    console.log('💾 FCM TOKEN SAVE: Saving token for user:', { userId, userRole, tokenLength: token.length });
-    
+    if (!token) {
+      console.error('❌ FCM TOKEN NOT PROVIDED, NOT UPDATING PROFILE');
+      throw new Error('No FCM token to save');
+    }
+
+    // Log before writing
+    console.log('💾 [SAVE FCM] userId:', userId, 'token (first12):', token.substring(0, 12), 'role:', userRole);
+
     // First, ensure the profile exists
     const { data: existingProfile, error: profileError } = await supabase
       .from('profiles')
