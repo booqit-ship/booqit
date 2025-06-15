@@ -5,12 +5,47 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-// Import getFCMToken directly from your firebase config
-import { getFCMToken } from "@/firebase";
+import { getFCMToken, requestNotificationPermission } from "@/firebase";
 
 const NotificationTestPanel: React.FC = () => {
   const { user } = useAuth();
   const [sending, setSending] = useState(false);
+
+  // Helper to request notification permission and block on denied
+  const ensurePermissionGranted = async () => {
+    if (!("Notification" in window)) {
+      toast.error("Notifications are not supported in this browser.");
+      return false;
+    }
+    // Already granted
+    if (Notification.permission === "granted") {
+      return true;
+    }
+
+    // Prompt user for permission
+    const permission = await requestNotificationPermission();
+
+    if (permission === true || permission === "granted") {
+      toast.success("Notifications permission granted! Proceeding...");
+      return true;
+    }
+
+    // Denied or default/blocked
+    toast("To enable test notifications, please allow notifications in your browser settings.", {
+      description:
+        'Click the lock icon in your address bar and set "Notifications" to "Allow", then try again.',
+      duration: 9000,
+      action: {
+        label: "Learn How",
+        onClick: () =>
+          window.open(
+            "https://support.google.com/chrome/answer/3220216",
+            "_blank"
+          ),
+      },
+    });
+    return false;
+  };
 
   // Helper to update user's FCM token before sending test notification
   const refreshAndSaveToken = async () => {
@@ -18,11 +53,17 @@ const NotificationTestPanel: React.FC = () => {
       toast.error("User not logged in!");
       return false;
     }
+    // Ensure permission
+    const granted = await ensurePermissionGranted();
+    if (!granted) return false;
+
     try {
       toast("Refreshing your push token...");
       const token = await getFCMToken();
       if (!token) {
-        toast.error("Could not get a push token—for best results, allow notifications.");
+        toast.error(
+          "Could not get a push token—for best results, allow notifications."
+        );
         return false;
       }
       // Save token to DB (customer/merchant both supported)
@@ -31,7 +72,7 @@ const NotificationTestPanel: React.FC = () => {
         .update({
           fcm_token: token,
           notification_enabled: true,
-          last_notification_sent: new Date().toISOString()
+          last_notification_sent: new Date().toISOString(),
         })
         .eq("id", user.id);
 
@@ -42,7 +83,10 @@ const NotificationTestPanel: React.FC = () => {
       toast.success("Push token refreshed—attempting to send...");
       return true;
     } catch (err: any) {
-      toast.error("Error refreshing/saving push token: " + (err.message || "unknown error"));
+      toast.error(
+        "Error refreshing/saving push token: " +
+          (err.message || "unknown error")
+      );
       return false;
     }
   };
@@ -61,17 +105,23 @@ const NotificationTestPanel: React.FC = () => {
     }
     // 2. Send notification with latest token
     try {
-      const { data, error } = await supabase.functions.invoke("send-notification", {
-        body: {
-          userId: user.id,
-          title: "Test Notification 🔔",
-          body: "This is a test notification from BooqIt!",
-        },
-      });
+      const { data, error } = await supabase.functions.invoke(
+        "send-notification",
+        {
+          body: {
+            userId: user.id,
+            title: "Test Notification 🔔",
+            body: "This is a test notification from BooqIt!",
+          },
+        }
+      );
 
       if (error) {
         console.error("❌ Error invoking notification:", error);
-        toast.error("Failed to send test notification: " + (error.message || "Unknown error"));
+        toast.error(
+          "Failed to send test notification: " +
+            (error.message || "Unknown error")
+        );
         return;
       }
 
@@ -97,10 +147,16 @@ const NotificationTestPanel: React.FC = () => {
       </CardHeader>
       <CardContent>
         <p className="mb-4 text-sm">
-          Click the button below to refresh and save your push token and send a test push notification to yourself.<br />
+          Click the button below to refresh and save your push token and send a
+          test push notification to yourself.
+          <br />
           Make sure notifications are enabled in your browser or app!
         </p>
-        <Button onClick={handleSendTestNotification} disabled={sending} className="w-full">
+        <Button
+          onClick={handleSendTestNotification}
+          disabled={sending}
+          className="w-full"
+        >
           {sending ? "Sending..." : "Send Test Notification"}
         </Button>
       </CardContent>
@@ -109,4 +165,3 @@ const NotificationTestPanel: React.FC = () => {
 };
 
 export default NotificationTestPanel;
-
