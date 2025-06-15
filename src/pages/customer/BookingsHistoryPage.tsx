@@ -150,131 +150,132 @@ const BookingsHistoryPage: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-6 pb-20 md:pb-6">
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center gap-4 mb-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/profile')} className="p-2">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="flex items-center gap-2">
-            <CalendarIcon className="h-6 w-6 text-booqit-primary" />
-            <h1 className="text-2xl md:text-3xl font-light">My Bookings</h1>
-            {isFetching && (
-              <Loader2 className="h-4 w-4 animate-spin text-booqit-primary ml-2" />
-            )}
+    <div className="min-h-screen bg-gray-50 pb-20 md:pb-6">
+      <div className="container mx-auto px-4 py-6 max-w-md">
+        {/* Header */}
+        <div className="mb-6">
+          <div className="flex items-center gap-3 mb-2">
+            <Button variant="ghost" size="sm" onClick={() => navigate('/profile')} className="p-2 -ml-2">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex items-center gap-2">
+              <CalendarIcon className="h-6 w-6 text-booqit-primary" />
+              <h1 className="text-2xl font-semibold text-gray-900">My Bookings</h1>
+            </div>
+          </div>
+          <p className="text-gray-600 ml-11">View your booking history</p>
+        </div>
+
+        {/* Filter Section */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">Filter by status:</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-36 h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Bookings</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="text-xs text-gray-500">
+                ({filteredBookings.length})
+              </span>
+            </div>
           </div>
         </div>
-        <p className="text-muted-foreground">View your booking history</p>
-      </div>
 
-      {/* Filter */}
-      <Card className="mb-6">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-4">
-            <span className="text-sm font-medium">Filter by status:</span>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Bookings</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="confirmed">Confirmed</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="cancelled">Cancelled</SelectItem>
-              </SelectContent>
-            </Select>
-            <span className="text-sm text-gray-600">
-              ({filteredBookings.length} {filteredBookings.length === 1 ? 'booking' : 'bookings'})
-            </span>
+        {/* Bookings List */}
+        {isFetching ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-booqit-primary" />
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Bookings List */}
-      {filteredBookings.length === 0 ? (
-        <Card>
-          <CardContent className="p-8 text-center">
-            <CalendarIcon className="h-16 w-16 mx-auto text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              {statusFilter === 'all' ? 'No bookings yet' : `No ${statusFilter} bookings`}
-            </h3>
-            <p className="text-gray-500 mb-4">
-              {statusFilter === 'all' 
-                ? 'Start booking appointments to see them here'
-                : `You don't have any ${statusFilter} bookings`
-              }
-            </p>
-            {statusFilter === 'all' && (
-              <Button 
-                className="bg-booqit-primary hover:bg-booqit-primary/90" 
-                onClick={() => navigate('/search')}
-              >
-                Book an Appointment
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          {filteredBookings.map(booking => (
-            <Card key={booking.id} className="border-l-4 border-l-booqit-primary shadow-sm hover:shadow-md transition-shadow">
-              <CardContent className="p-4">
-                <div className="flex justify-between items-start mb-3">
-                  <div className="flex items-start gap-3">
-                    <div className="bg-booqit-primary/10 p-2 rounded-full">
-                      <Clock className="h-4 w-4 text-booqit-primary" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-gray-900 mb-1 text-lg font-light">{getServiceNames(booking)}</h3>
-                      <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
-                        <span className="text-booqit-primary font-medium">
+        ) : filteredBookings.length === 0 ? (
+          <Card className="text-center py-12">
+            <CardContent className="p-6">
+              <CalendarIcon className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                {statusFilter === 'all' ? 'No bookings yet' : `No ${statusFilter} bookings`}
+              </h3>
+              <p className="text-gray-500 mb-4">
+                {statusFilter === 'all' 
+                  ? 'Start booking appointments to see them here'
+                  : `You don't have any ${statusFilter} bookings`
+                }
+              </p>
+              {statusFilter === 'all' && (
+                <Button 
+                  className="bg-booqit-primary hover:bg-booqit-primary/90" 
+                  onClick={() => navigate('/search')}
+                >
+                  Book an Appointment
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {filteredBookings.map(booking => (
+              <Card key={booking.id} className="border-l-4 border-l-booqit-primary shadow-sm">
+                <CardContent className="p-4">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex items-start gap-3 flex-1">
+                      <div className="bg-booqit-primary/10 p-2 rounded-full flex-shrink-0">
+                        <Clock className="h-4 w-4 text-booqit-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-gray-900 font-medium text-lg mb-1">{getServiceNames(booking)}</h3>
+                        <div className="text-sm text-booqit-primary font-medium mb-2">
                           {format(parseISO(booking.date), 'MMM d, yyyy')} at {formatTimeToAmPm(booking.time_slot)}
-                        </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <Badge className={`${getStatusColor(booking.status)} text-white border-0`}>
-                    {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-                  </Badge>
-                </div>
-                
-                <div className="space-y-2 mb-4">
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Store className="h-4 w-4" />
-                    <span>{booking.merchant?.shop_name}</span>
+                    <Badge className={`${getStatusColor(booking.status)} text-white border-0 flex-shrink-0 ml-2`}>
+                      {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                    </Badge>
                   </div>
                   
-                  {booking.stylist_name && (
+                  <div className="space-y-2 mb-4 ml-11">
                     <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Scissors className="h-4 w-4" />
-                      <span>Stylist: {booking.stylist_name}</span>
+                      <Store className="h-4 w-4 flex-shrink-0" />
+                      <span className="truncate">{booking.merchant?.shop_name}</span>
                     </div>
-                  )}
-                </div>
-                
-                <div className="flex justify-end gap-2">
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    onClick={() => handleViewReceipt(booking)} 
-                    className="h-8 text-base font-medium px-[23px]"
-                  >
-                    Receipt
-                  </Button>
-                  {booking.status !== 'cancelled' && booking.status !== 'completed' && (
-                    <CancelBookingButton 
-                      bookingId={booking.id} 
-                      onCancelled={refetch}
-                    />
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+                    
+                    {booking.stylist_name && (
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <Scissors className="h-4 w-4 flex-shrink-0" />
+                        <span>Stylist: {booking.stylist_name}</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex justify-end gap-2">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => handleViewReceipt(booking)} 
+                      className="h-8 text-sm"
+                    >
+                      Receipt
+                    </Button>
+                    {booking.status !== 'cancelled' && booking.status !== 'completed' && (
+                      <CancelBookingButton 
+                        bookingId={booking.id} 
+                        onCancelled={refetch}
+                      />
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
