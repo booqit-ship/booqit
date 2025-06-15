@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
@@ -165,7 +166,7 @@ const UpcomingBookings: React.FC = () => {
           <div className="flex items-start space-x-4">
             {/* Larger Shop Image */}
             <div className="relative flex-shrink-0">
-              <div className="w-20 h-20 rounded-lg overflow-hidden">
+              <div className="w-16 h-16 rounded-lg overflow-hidden">
                 <img 
                   src={getShopImage(nextBooking.merchant)} 
                   alt={nextBooking.merchant.shop_name}
@@ -181,10 +182,10 @@ const UpcomingBookings: React.FC = () => {
               </div>
             </div>
             
-            {/* Text Content on Right Side */}
-            <div className="flex-1 min-w-0">
-              {/* Shop Name & Service */}
-              <div className="mb-2">
+            {/* Content Split: Left for shop/service, Right for date/time/stylist */}
+            <div className="flex-1 flex items-start justify-between">
+              {/* Left side - Shop & Service */}
+              <div className="flex-1 min-w-0">
                 <h3 className="text-base font-bold text-gray-900 truncate">
                   {nextBooking.merchant.shop_name}
                 </h3>
@@ -193,8 +194,9 @@ const UpcomingBookings: React.FC = () => {
                 </p>
               </div>
               
-              {/* Date & Time in Grid */}
-              <div className="grid grid-cols-2 gap-3 mb-2">
+              {/* Right side - Date, Time, Stylist (vertical stack) */}
+              <div className="flex flex-col items-end space-y-2">
+                {/* Date */}
                 <div className="flex items-center space-x-1">
                   <CalendarIcon className="h-3.5 w-3.5 text-blue-600" />
                   <span className="text-xs font-medium text-gray-700">
@@ -202,23 +204,24 @@ const UpcomingBookings: React.FC = () => {
                   </span>
                 </div>
                 
+                {/* Time */}
                 <div className="flex items-center space-x-1">
                   <Clock className="h-3.5 w-3.5 text-purple-600" />
                   <span className="text-xs font-medium text-gray-700">
                     {formatTimeToAmPm(nextBooking.time_slot)}
                   </span>
                 </div>
-              </div>
 
-              {/* Stylist Name */}
-              {nextBooking.stylist_name && (
-                <div className="flex items-center space-x-1">
-                  <User className="h-3.5 w-3.5 text-gray-400" />
-                  <span className="text-xs text-gray-600">
-                    {nextBooking.stylist_name}
-                  </span>
-                </div>
-              )}
+                {/* Stylist Name */}
+                {nextBooking.stylist_name && (
+                  <div className="flex items-center space-x-1">
+                    <User className="h-3.5 w-3.5 text-gray-400" />
+                    <span className="text-xs text-gray-600">
+                      {nextBooking.stylist_name}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </CardContent>
