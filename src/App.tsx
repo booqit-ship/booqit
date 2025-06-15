@@ -80,11 +80,14 @@ const App: React.FC = () => {
         <Route path="/search" element={<ProtectedRoute><CustomerLayout><SearchPage /></CustomerLayout></ProtectedRoute>} />
         <Route path="/map" element={<ProtectedRoute><CustomerLayout><MapPage /></CustomerLayout></ProtectedRoute>} />
         <Route path="/merchant/:merchantId" element={<ProtectedRoute><CustomerLayout><MerchantDetailPage /></CustomerLayout></ProtectedRoute>} />
-        <Route path="/merchant/:merchantId/services" element={<ProtectedRoute><CustomerLayout><ServiceSelectionPage /></CustomerLayout></ProtectedRoute>} />
-        <Route path="/merchant/:merchantId/staff" element={<ProtectedRoute><CustomerLayout><StaffSelectionPage /></CustomerLayout></ProtectedRoute>} />
-        <Route path="/merchant/:merchantId/datetime" element={<ProtectedRoute><CustomerLayout><DateTimeSelectionPage /></CustomerLayout></ProtectedRoute>} />
+        
+        {/* Booking Flow Routes */}
+        <Route path="/booking/:merchantId/services" element={<ProtectedRoute><CustomerLayout><ServiceSelectionPage /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/booking/:merchantId/staff" element={<ProtectedRoute><CustomerLayout><StaffSelectionPage /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/booking/:merchantId/datetime" element={<ProtectedRoute><CustomerLayout><DateTimeSelectionPage /></CustomerLayout></ProtectedRoute>} />
         <Route path="/booking-summary" element={<ProtectedRoute><CustomerLayout><BookingSummaryPage /></CustomerLayout></ProtectedRoute>} />
-        <Route path="/payment" element={<ProtectedRoute><CustomerLayout><PaymentPage /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/payment/:merchantId" element={<ProtectedRoute><CustomerLayout><PaymentPage /></CustomerLayout></ProtectedRoute>} />
+        
         <Route path="/receipt/:bookingId" element={<ProtectedRoute><CustomerLayout><ReceiptPage /></CustomerLayout></ProtectedRoute>} />
         <Route path="/calendar" element={<ProtectedRoute><CustomerLayout><CalendarPage /></CustomerLayout></ProtectedRoute>} />
         <Route path="/bookings-history" element={<ProtectedRoute><CustomerLayout><BookingsHistoryPage /></CustomerLayout></ProtectedRoute>} />

@@ -6,40 +6,77 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
-import { Service } from '@/types';
+import { Service, Merchant } from '@/types';
 import { toast } from 'sonner';
 
 const ServiceSelectionPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { merchant, services: initialServices } = location.state;
+  
+  // Safely extract state with fallbacks
+  const { merchant: initialMerchant, services: initialServices } = location.state || {};
 
+  const [merchant, setMerchant] = useState<Merchant | null>(initialMerchant || null);
   const [services, setServices] = useState<Service[]>(initialServices || []);
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!initialServices || initialServices.length === 0) {
-      fetchServices();
+    // If we don't have merchant or services data, fetch them
+    if (!merchant || !services.length) {
+      fetchMerchantAndServices();
     }
-  }, [merchantId, initialServices]);
+  }, [merchantId]);
 
-  const fetchServices = async () => {
+  const fetchMerchantAndServices = async () => {
     try {
       setLoading(true);
-      if (!merchantId) return;
+      if (!merchantId) {
+        toast.error('Merchant ID is missing');
+        navigate('/home');
+        return;
+      }
 
-      const { data, error } = await supabase
+      console.log('BOOKING_FLOW: Fetching merchant and services for:', merchantId);
+
+      // Fetch merchant details
+      const { data: merchantData, error: merchantError } = await supabase
+        .from('merchants')
+        .select('*')
+        .eq('id', merchantId)
+        .single();
+
+      if (merchantError) {
+        console.error('Error fetching merchant:', merchantError);
+        toast.error('Could not load merchant details');
+        navigate('/home');
+        return;
+      }
+
+      // Fetch services
+      const { data: servicesData, error: servicesError } = await supabase
         .from('services')
         .select('*')
         .eq('merchant_id', merchantId);
 
-      if (error) throw error;
-      setServices(data || []);
+      if (servicesError) {
+        console.error('Error fetching services:', servicesError);
+        toast.error('Could not load services');
+        return;
+      }
+
+      console.log('BOOKING_FLOW: Fetched data:', {
+        merchant: merchantData?.shop_name,
+        servicesCount: servicesData?.length || 0
+      });
+
+      setMerchant(merchantData);
+      setServices(servicesData || []);
     } catch (error) {
-      console.error('Error fetching services:', error);
-      toast.error('Could not load services');
+      console.error('Error fetching merchant and services:', error);
+      toast.error('Could not load booking data');
+      navigate('/home');
     } finally {
       setLoading(false);
     }
@@ -65,6 +102,11 @@ const ServiceSelectionPage: React.FC = () => {
       return;
     }
 
+    if (!merchant) {
+      toast.error('Merchant information is missing');
+      return;
+    }
+
     console.log('MULTIPLE_SERVICES: Selected services:', {
       count: selectedServices.length,
       services: selectedServices.map(s => ({ name: s.name, duration: s.duration })),
@@ -82,10 +124,21 @@ const ServiceSelectionPage: React.FC = () => {
     });
   };
 
+  // Show loading state
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center">
         <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
+      </div>
+    );
+  }
+
+  // Show error state if no merchant data
+  if (!merchant) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center p-4">
+        <p className="text-gray-500 mb-4">Unable to load merchant information</p>
+        <Button onClick={() => navigate('/home')}>Go to Home</Button>
       </div>
     );
   }
