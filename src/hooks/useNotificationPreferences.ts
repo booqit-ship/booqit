@@ -17,7 +17,7 @@ export function useNotificationPreferences(userId: string | null) {
       return await updateUserNotificationPreference(userId, notificationType, enabled);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['notificationPrefs', userId]);
+      queryClient.invalidateQueries({ queryKey: ['notificationPrefs', userId] });
     }
   });
 
@@ -28,3 +28,4 @@ export function useNotificationPreferences(userId: string | null) {
     updatePreference: mutation.mutate
   };
 }
+
