@@ -1,4 +1,3 @@
-
 import React, { useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, CalendarIcon, Clock, User, MapPin } from 'lucide-react';
@@ -6,8 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { useBookingNotifications } from "@/hooks/useBookingNotifications";
 
-const BookingSummaryPage: React.FC = () => {
+const BookingSummaryPage: React.FC = (props) => {
   const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -52,6 +52,13 @@ const BookingSummaryPage: React.FC = () => {
       month: 'long', 
       day: 'numeric' 
     });
+  };
+
+  const { notifyNewBooking } = useBookingNotifications();
+
+  // Example: call this function after booking confirmation/mutation completes
+  const handleBookingConfirmed = async (result) => {
+    notifyNewBooking(result.merchantUserId, result.customerName, result.serviceName, result.timeSlot, result.bookingId);
   };
 
   if (!merchant || !selectedServices) {

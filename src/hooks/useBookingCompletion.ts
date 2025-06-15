@@ -1,60 +1,23 @@
+import { useBookingNotifications } from "@/hooks/useBookingNotifications";
 
-import { useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { sendBookingCompletedNotification } from '@/services/eventNotificationService';
+// Define a type for the booking completion data
+interface BookingCompletionData {
+  customerId: string;
+  merchantName: string;
+  bookingId: string;
+}
 
-export const useBookingCompletion = () => {
-  const completeBooking = useCallback(async (bookingId: string, merchantUserId: string) => {
-    try {
-      // Update booking status to completed
-      const { data: updateResult, error: updateError } = await supabase.rpc(
-        'update_booking_status_with_slot_management',
-        {
-          p_booking_id: bookingId,
-          p_new_status: 'completed',
-          p_user_id: merchantUserId
-        }
-      );
+// This hook is called when a booking is marked completed.
+export function useBookingCompletion() {
+  const { notifyBookingComplete } = useBookingNotifications();
 
-      if (updateError) {
-        console.error('❌ Error updating booking status:', updateError);
-        throw updateError;
-      }
+  // Call this when marking booking as completed.
+  const onBookingCompleted = (customerId: string, merchantName: string, bookingId: string) => {
+    notifyBookingComplete(customerId, merchantName, bookingId);
+    // Here you can add any other logic that needs to be executed after a booking is completed
+    // For example, you might want to update the booking status in the database
+    // or send a confirmation email to the customer.
+  };
 
-      // Get booking details for notification
-      const { data: booking, error: bookingError } = await supabase
-        .from('bookings')
-        .select(`
-          id,
-          user_id,
-          customer_name,
-          merchant_id,
-          merchants!inner(shop_name)
-        `)
-        .eq('id', bookingId)
-        .single();
-
-      if (bookingError) {
-        console.error('❌ Error fetching booking details:', bookingError);
-        return updateResult;
-      }
-
-      // Send completion notification to customer if booking was just set to completed
-      if (booking?.user_id && booking?.merchants?.shop_name) {
-        await sendBookingCompletedNotification(
-          booking.user_id,
-          booking.merchants.shop_name,
-          bookingId
-        );
-      }
-
-      return updateResult;
-    } catch (error) {
-      console.error('❌ Error in completeBooking:', error);
-      throw error;
-    }
-  }, []);
-
-  return { completeBooking };
-};
-
+  return { onBookingCompleted };
+}
