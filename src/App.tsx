@@ -93,6 +93,13 @@ const App: React.FC = () => {
         <Route path="/account" element={<ProtectedRoute><CustomerLayout><AccountPage /></CustomerLayout></ProtectedRoute>} />
         <Route path="/reviews" element={<ProtectedRoute><CustomerLayout><ReviewsPage /></CustomerLayout></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><CustomerLayout><SettingsPage /></CustomerLayout></ProtectedRoute>} />
+
+        {/* Customer Settings Routes */}
+        <Route path="/settings/account" element={<ProtectedRoute><CustomerLayout><import('@/pages/settings/AccountInformationPage').then(m => <m.default />) /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/settings/privacy-policy" element={<ProtectedRoute><CustomerLayout><import('@/pages/settings/PrivacyPolicyPage').then(m => <m.default />) /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/settings/terms-conditions" element={<ProtectedRoute><CustomerLayout><import('@/pages/settings/TermsConditionsPage').then(m => <m.default />) /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/settings/contact" element={<ProtectedRoute><CustomerLayout><import('@/pages/settings/ContactPage').then(m => <m.default />) /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/settings/about" element={<ProtectedRoute><CustomerLayout><import('@/pages/settings/AboutPage').then(m => <m.default />) /></CustomerLayout></ProtectedRoute>} />
       </Routes>
     </Router>
   );

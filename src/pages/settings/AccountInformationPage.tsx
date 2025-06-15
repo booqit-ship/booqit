@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 
-const AboutPage: React.FC = () => (
+const AccountInformationPage: React.FC = () => (
   <div className="min-h-screen bg-gray-50">
     <div className="bg-white border-b sticky top-0 z-10">
       <div className="flex items-center gap-3 p-4">
@@ -14,14 +14,14 @@ const AboutPage: React.FC = () => (
           </Button>
         </Link>
         <div>
-          <h1 className="text-xl font-semibold">About BooqIt</h1>
+          <h1 className="text-xl font-semibold">Account Information</h1>
         </div>
       </div>
     </div>
     <div className="p-6">
-      <p>Version 1.0.0. Info about BooqIt app goes here.</p>
+      <p>Here you can manage your personal details. (Feature coming soon)</p>
     </div>
   </div>
 );
 
-export default AboutPage;
+export default AccountInformationPage;
