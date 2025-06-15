@@ -161,7 +161,7 @@ const UpcomingBookings: React.FC = () => {
           </div>
         </div>
 
-        <CardContent className="p-4">
+        <CardContent className="p-3">
           <div className="flex items-start space-x-4">
             {/* Larger Shop Image */}
             <div className="relative flex-shrink-0">
@@ -212,21 +212,13 @@ const UpcomingBookings: React.FC = () => {
 
               {/* Stylist Name */}
               {nextBooking.stylist_name && (
-                <div className="flex items-center space-x-1 mb-2">
+                <div className="flex items-center space-x-1">
                   <User className="h-3.5 w-3.5 text-gray-400" />
                   <span className="text-xs text-gray-600">
                     {nextBooking.stylist_name}
                   </span>
                 </div>
               )}
-
-              {/* Action Hint */}
-              <div className="mt-2 pt-2 border-t border-gray-100">
-                <p className="text-xs text-gray-500 flex items-center">
-                  <span className="mr-1">👆</span>
-                  Tap to view details
-                </p>
-              </div>
             </div>
           </div>
         </CardContent>
