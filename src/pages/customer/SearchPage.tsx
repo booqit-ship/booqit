@@ -21,6 +21,7 @@ const SearchPage: React.FC = () => {
   const [selectedMerchant, setSelectedMerchant] = useState<Merchant | null>(null);
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>({ lat: 12.9716, lng: 77.5946 });
   const [mapZoom, setMapZoom] = useState(11);
+  const [specificSearchActive, setSpecificSearchActive] = useState(false);
   const [filters, setFilters] = useState({
     sortBy: 'rating',
     priceRange: 'all',
@@ -228,6 +229,7 @@ const SearchPage: React.FC = () => {
     } else {
       setSearchSuggestions([]);
       setShowSuggestions(false);
+      setSpecificSearchActive(false);
     }
   }, [searchTerm, allMerchants]);
 
@@ -306,16 +308,63 @@ const SearchPage: React.FC = () => {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setShowSuggestions(false);
+    
+    if (searchTerm.trim()) {
+      // Check if search term exactly matches a shop name
+      const exactMatch = allMerchants.find(merchant => 
+        merchant.shop_name.toLowerCase() === searchTerm.toLowerCase().trim()
+      );
+      
+      if (exactMatch) {
+        // Exact match found - focus on this shop only
+        setSpecificSearchActive(true);
+        setSelectedMerchant(exactMatch);
+        setMapPopupMerchant(exactMatch);
+        setMapCenter({ lat: exactMatch.lat, lng: exactMatch.lng });
+        setMapZoom(18); // Maximum zoom for specific shop
+        
+        // Focus and blur the search input
+        if (searchInputRef.current) {
+          searchInputRef.current.blur();
+        }
+      } else {
+        // No exact match - check if there's a close partial match
+        const partialMatches = allMerchants.filter(merchant =>
+          merchant.shop_name.toLowerCase().includes(searchTerm.toLowerCase().trim())
+        );
+        
+        if (partialMatches.length === 1) {
+          // Only one partial match - treat as specific search
+          const singleMatch = partialMatches[0];
+          setSpecificSearchActive(true);
+          setSelectedMerchant(singleMatch);
+          setMapPopupMerchant(singleMatch);
+          setMapCenter({ lat: singleMatch.lat, lng: singleMatch.lng });
+          setMapZoom(18); // Maximum zoom for specific shop
+        } else {
+          // Multiple or no matches - show normal search results
+          setSpecificSearchActive(false);
+          setSelectedMerchant(null);
+          setMapPopupMerchant(null);
+        }
+        
+        if (searchInputRef.current) {
+          searchInputRef.current.blur();
+        }
+      }
+    }
   };
 
   const handleSuggestionClick = (merchant: Merchant) => {
     setSearchTerm(merchant.shop_name);
     setShowSuggestions(false);
+    setSpecificSearchActive(true);
     setSelectedMerchant(merchant);
+    setMapPopupMerchant(merchant);
     
-    // Smooth zoom to the selected merchant with animation
+    // Smooth zoom to the selected merchant with maximum zoom
     setMapCenter({ lat: merchant.lat, lng: merchant.lng });
-    setMapZoom(16);
+    setMapZoom(18); // Maximum zoom for specific shop
     
     // Focus the search input to blur it
     if (searchInputRef.current) {
@@ -338,30 +387,55 @@ const SearchPage: React.FC = () => {
     };
   }, []);
 
-  // Map markers always use ALL merchants
-  const mapMarkers = allMerchants.map(merchant => ({
-    lat: merchant.lat,
-    lng: merchant.lng,
-    title: merchant.shop_name
-  }));
+  // Map markers logic - show only specific merchant if specific search is active
+  const mapMarkers = specificSearchActive && selectedMerchant 
+    ? [{ lat: selectedMerchant.lat, lng: selectedMerchant.lng, title: selectedMerchant.shop_name }]
+    : allMerchants.map(merchant => ({
+        lat: merchant.lat,
+        lng: merchant.lng,
+        title: merchant.shop_name
+      }));
 
   const handleMarkerClick = (index: number) => {
-    const merchant = allMerchants[index];
+    const merchant = specificSearchActive && selectedMerchant 
+      ? selectedMerchant 
+      : allMerchants[index];
+      
     setSelectedMerchant(merchant);
     setMapPopupMerchant(merchant);
     
-    // Center the map on the selected merchant with smooth animation
+    // Center the map on the selected merchant
     setMapCenter({ lat: merchant.lat, lng: merchant.lng });
-    setMapZoom(16);
+    if (!specificSearchActive) {
+      setMapZoom(16);
+    }
   };
 
   const handleCloseMapPopup = () => {
     setMapPopupMerchant(null);
-    setSelectedMerchant(null);
+    if (!specificSearchActive) {
+      setSelectedMerchant(null);
+    }
   };
 
   const handleBookNowFromMap = (merchant: Merchant) => {
     navigate(`/merchant/${merchant.id}`);
+  };
+
+  // Clear specific search when search term is cleared
+  const handleSearchTermChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchTerm(value);
+    
+    if (value.trim() === '') {
+      setSpecificSearchActive(false);
+      setSelectedMerchant(null);
+      setMapPopupMerchant(null);
+      setMapZoom(11);
+      if (userLocation) {
+        setMapCenter(userLocation);
+      }
+    }
   };
 
   return (
@@ -374,7 +448,7 @@ const SearchPage: React.FC = () => {
             <Input
               ref={searchInputRef}
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={handleSearchTermChange}
               placeholder="Search salons, beauty parlours..."
               className="pl-12 pr-4 py-4 rounded-2xl border-0 shadow-lg bg-white/95 backdrop-blur-sm text-base placeholder:text-gray-600 focus:ring-2 focus:ring-booqit-primary font-medium font-poppins"
               onFocus={() => searchTerm.length > 0 && searchSuggestions.length > 0 && setShowSuggestions(true)}
@@ -426,8 +500,10 @@ const SearchPage: React.FC = () => {
           className="h-full w-full"
           onMarkerClick={handleMarkerClick}
           onClick={() => {
-            setSelectedMerchant(null);
-            setMapPopupMerchant(null);
+            if (!specificSearchActive) {
+              setSelectedMerchant(null);
+              setMapPopupMerchant(null);
+            }
           }}
           showUserLocation={true}
         />
