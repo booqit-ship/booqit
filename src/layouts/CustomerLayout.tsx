@@ -15,13 +15,14 @@ const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
   const isBookingFlow = location.pathname.includes('/booking/') || 
                          location.pathname.includes('/payment/') ||
                          location.pathname.includes('/receipt/');
+  const isSettingsPage = location.pathname.startsWith('/settings/');
   
   return (
     <div className="min-h-screen bg-gray-50">
-      <main className={(isMapPage || isSearchPage || isBookingFlow || isCalendarPage) ? "" : "pb-20"}>
+      <main className={(isMapPage || isSearchPage || isBookingFlow || isCalendarPage || isSettingsPage) ? "" : "pb-20"}>
         {children}
       </main>
-      {!isMapPage && !isBookingFlow && <BottomNavigation />}
+      {!isMapPage && !isBookingFlow && !isSettingsPage && <BottomNavigation />}
     </div>
   );
 };

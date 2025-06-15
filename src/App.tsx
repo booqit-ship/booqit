@@ -34,10 +34,10 @@ import MerchantProfile from '@/pages/merchant/ProfilePage';
 import MerchantLayout from '@/layouts/MerchantLayout';
 import AnalyticsPage from '@/pages/merchant/AnalyticsPage';
 import ProtectedRoute from '@/components/ProtectedRoute';
-// Import Customer Settings Pages
-import AccountInformationPage from '@/pages/settings/AccountInformationPage';
-import PrivacyPolicyPage from '@/pages/settings/PrivacyPolicyPage';
-import TermsConditionsPage from '@/pages/settings/TermsConditionsPage';
+// Import the actual working pages
+import PrivacyPolicy from '@/pages/PrivacyPolicy';
+import TermsAndConditions from '@/pages/TermsAndConditions';
+import DeleteAccountPage from '@/pages/settings/DeleteAccountPage';
 import ContactPage from '@/pages/settings/ContactPage';
 import AboutPage from '@/pages/settings/AboutPage';
 
@@ -101,12 +101,13 @@ const App: React.FC = () => {
         <Route path="/reviews" element={<ProtectedRoute><CustomerLayout><ReviewsPage /></CustomerLayout></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><CustomerLayout><SettingsPage /></CustomerLayout></ProtectedRoute>} />
 
-        {/* Customer Settings Routes */}
-        <Route path="/settings/account" element={<ProtectedRoute><CustomerLayout><AccountInformationPage /></CustomerLayout></ProtectedRoute>} />
-        <Route path="/settings/privacy-policy" element={<ProtectedRoute><CustomerLayout><PrivacyPolicyPage /></CustomerLayout></ProtectedRoute>} />
-        <Route path="/settings/terms-conditions" element={<ProtectedRoute><CustomerLayout><TermsConditionsPage /></CustomerLayout></ProtectedRoute>} />
+        {/* Customer Settings Routes - Updated to use the correct functional pages */}
+        <Route path="/settings/account" element={<ProtectedRoute><CustomerLayout><AccountPage /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/settings/privacy-policy" element={<ProtectedRoute><CustomerLayout><PrivacyPolicy /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/settings/terms-conditions" element={<ProtectedRoute><CustomerLayout><TermsAndConditions /></CustomerLayout></ProtectedRoute>} />
         <Route path="/settings/contact" element={<ProtectedRoute><CustomerLayout><ContactPage /></CustomerLayout></ProtectedRoute>} />
         <Route path="/settings/about" element={<ProtectedRoute><CustomerLayout><AboutPage /></CustomerLayout></ProtectedRoute>} />
+        <Route path="/settings/delete-account" element={<ProtectedRoute><CustomerLayout><DeleteAccountPage /></CustomerLayout></ProtectedRoute>} />
       </Routes>
     </Router>
   );
