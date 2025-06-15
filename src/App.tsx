@@ -47,6 +47,7 @@ import MerchantPrivacyPolicyPage from '@/pages/merchant/settings/PrivacyPolicyPa
 import MerchantTermsConditionsPage from '@/pages/merchant/settings/TermsConditionsPage';
 import MerchantDeleteAccountPage from '@/pages/merchant/settings/DeleteAccountPage';
 import NotificationsPage from '@/pages/settings/NotificationsPage';
+import NotificationTestPage from '@/pages/NotificationTestPage';
 
 const App: React.FC = () => {
   const { user, isAuthenticated } = useAuth();
@@ -75,6 +76,9 @@ const App: React.FC = () => {
   return (
     <Router>
       <Routes>
+        {/* Test Route */}
+        <Route path="/test-notification" element={<NotificationTestPage />} />
+
         {/* Auth Routes */}
         <Route path="/auth" element={<Auth />} />
 
