@@ -34,6 +34,7 @@ const ProfilePage: React.FC = () => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [recentBookings, setRecentBookings] = useState<RecentBooking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const profileItems = [{
     icon: Calendar,
     title: 'My Bookings',
@@ -54,6 +55,7 @@ const ProfilePage: React.FC = () => {
     const fetchUserData = async () => {
       if (!user?.id) {
         setLoading(false);
+        setError("Session expired or not logged in. Please log in again.");
         return;
       }
       try {
@@ -66,6 +68,7 @@ const ProfilePage: React.FC = () => {
         } = await supabase.from('profiles').select('*').eq('id', user.id).single();
         if (profileError && profileError.code !== 'PGRST116') {
           console.error('Profile fetch error:', profileError);
+          setError("Unable to load profile. Please refresh or log in again.");
         }
 
         // If no profile exists, create one
@@ -107,12 +110,14 @@ const ProfilePage: React.FC = () => {
           ascending: false
         }).limit(3);
         if (bookingsError) {
+          setError("Unable to load bookings. Please refresh or log in again.");
           console.error('Error fetching bookings:', bookingsError);
         } else {
           console.log('Recent bookings:', bookingsData);
           setRecentBookings(bookingsData || []);
         }
       } catch (error) {
+        setError("A network or session error occurred. Please log in again.");
         console.error('Error in fetchUserData:', error);
       } finally {
         setLoading(false);
@@ -136,6 +141,23 @@ const ProfilePage: React.FC = () => {
     return <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-booqit-primary"></div>
       </div>;
+  }
+
+  // --- NEW: session error UI ---
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+        <div className="bg-white p-6 rounded shadow-md max-w-md w-full text-center">
+          <p className="text-lg font-semibold text-red-600 mb-4">{error}</p>
+          <button
+            className="bg-booqit-primary rounded px-4 py-2 text-white font-medium"
+            onClick={() => window.location.href = '/auth'}
+          >
+            Log In
+          </button>
+        </div>
+      </div>
+    );
   }
   return <div className="min-h-screen bg-gray-50">
       {/* Header */}

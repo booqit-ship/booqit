@@ -27,11 +27,12 @@ const AccountPage: React.FC = () => {
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Fetch profile data
   const fetchProfile = useCallback(async () => {
     if (!user?.id) {
-      console.log('No user ID available');
+      setError("Session expired or not logged in. Please log in again.");
       setLoading(false);
       return;
     }
@@ -47,8 +48,8 @@ const AccountPage: React.FC = () => {
         .maybeSingle();
 
       if (fetchError) {
+        setError("Unable to load account information. Please log in again.");
         console.error('[fetchProfile] Error fetching profile:', fetchError);
-        // Don't throw on fetch error, create fallback profile
       }
 
       if (existingProfile) {
@@ -74,7 +75,7 @@ const AccountPage: React.FC = () => {
         console.log('[fetchProfile] No profile found, using fallback data');
       }
     } catch (err) {
-      console.error('[fetchProfile] Error in fetchProfile:', err);
+      setError("A network or session error occurred. Please log in again.");
       // Create fallback profile even on error
       const fallbackProfile = {
         id: user.id,
@@ -97,6 +98,9 @@ const AccountPage: React.FC = () => {
   useEffect(() => {
     if (user?.id) {
       fetchProfile();
+    } else {
+      setError("Session expired or not logged in. Please log in again.");
+      setLoading(false);
     }
   }, [fetchProfile, user?.id]);
 
@@ -183,6 +187,23 @@ const AccountPage: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-booqit-primary" />
+      </div>
+    );
+  }
+
+  // --- NEW: session error UI ---
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+        <div className="bg-white p-6 rounded shadow-md max-w-md w-full text-center">
+          <p className="text-lg font-semibold text-red-600 mb-4">{error}</p>
+          <button
+            className="bg-booqit-primary rounded px-4 py-2 text-white font-medium"
+            onClick={() => window.location.href = '/auth'}
+          >
+            Log In
+          </button>
+        </div>
       </div>
     );
   }
