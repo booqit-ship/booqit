@@ -24,11 +24,10 @@ const NotificationTestPanel: React.FC = () => {
     // Prompt user for permission
     const permissionResult = await requestNotificationPermission();
 
-    // Type guards for permissionResult
+    // Accept both boolean true, or (rarely) string "granted"
     const permissionGranted =
       permissionResult === true ||
-      (typeof permissionResult === "string" && permissionResult === "granted") ||
-      Notification.permission === "granted";
+      permissionResult === "granted"; // Already guaranteed string or boolean at this point
 
     if (permissionGranted) {
       toast.success("Notifications permission granted! Proceeding...");
