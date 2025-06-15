@@ -80,19 +80,34 @@ const getMerchantReminderMessages = (merchantName: string) => {
 // Check if user should receive notifications (respects preferences but NOT quiet hours for testing)
 const canSendNotification = async (userId: string, notificationType: string) => {
   try {
+    console.log('🔍 NOTIFICATION CHECK: Checking if user can receive notifications', { userId, notificationType });
+    
     // Get user's notification preferences
-    const { data: profile } = await supabase
+    const { data: profile, error } = await supabase
       .from('profiles')
       .select('notification_enabled, fcm_token, last_notification_sent')
       .eq('id', userId)
       .single();
 
+    if (error) {
+      console.error('❌ NOTIFICATION CHECK: Error fetching profile:', error);
+      return false;
+    }
+
+    console.log('👤 NOTIFICATION CHECK: Profile data:', {
+      hasToken: !!profile?.fcm_token,
+      tokenLength: profile?.fcm_token?.length || 0,
+      notificationEnabled: profile?.notification_enabled,
+      lastSent: profile?.last_notification_sent
+    });
+
     if (!profile?.notification_enabled || !profile?.fcm_token) {
+      console.log('🚫 NOTIFICATION CHECK: Notifications disabled or no FCM token');
       return false;
     }
 
     // QUIET HOURS DISABLED FOR TESTING - notifications work 24/7 now
-    console.log('🔔 Quiet hours disabled - notifications enabled 24/7 for testing');
+    console.log('🔔 NOTIFICATION CHECK: Quiet hours disabled - notifications enabled 24/7 for testing');
 
     // For daily reminders, check if we already sent one today
     if (notificationType === 'daily_reminder') {
@@ -100,14 +115,15 @@ const canSendNotification = async (userId: string, notificationType: string) => 
       const today = new Date().toDateString();
       
       if (lastSent && lastSent.toDateString() === today) {
-        console.log('📅 Daily reminder already sent today');
+        console.log('📅 NOTIFICATION CHECK: Daily reminder already sent today');
         return false;
       }
     }
 
+    console.log('✅ NOTIFICATION CHECK: User can receive notifications');
     return true;
   } catch (error) {
-    console.error('❌ Error checking notification permissions:', error);
+    console.error('❌ NOTIFICATION CHECK: Error checking notification permissions:', error);
     return false;
   }
 };
@@ -115,10 +131,17 @@ const canSendNotification = async (userId: string, notificationType: string) => 
 // Send welcome notification on login
 export const sendWelcomeNotification = async (userId: string, userRole: 'customer' | 'merchant', userName: string) => {
   try {
+    console.log('🎉 WELCOME NOTIFICATION: Starting send for user:', { userId, userRole, userName });
+    
     const canSend = await canSendNotification(userId, 'welcome');
-    if (!canSend) return;
+    if (!canSend) {
+      console.log('🚫 WELCOME NOTIFICATION: Cannot send notification (permissions/token check failed)');
+      return;
+    }
 
     const message = getWelcomeMessage(userName, userRole);
+    
+    console.log('📤 WELCOME NOTIFICATION: Sending notification:', message);
     
     await sendNotificationToUser(userId, {
       title: message.title,
@@ -131,9 +154,9 @@ export const sendWelcomeNotification = async (userId: string, userRole: 'custome
       }
     });
 
-    console.log('✅ Welcome notification sent to:', userName);
+    console.log('✅ WELCOME NOTIFICATION: Successfully sent to:', userName);
   } catch (error) {
-    console.error('❌ Error sending welcome notification:', error);
+    console.error('❌ WELCOME NOTIFICATION: Error sending notification:', error);
   }
 };
 
@@ -146,10 +169,23 @@ export const sendNewBookingNotification = async (
   bookingId: string
 ) => {
   try {
+    console.log('🆕 BOOKING NOTIFICATION: Starting send to merchant:', { 
+      merchantUserId, 
+      customerName, 
+      serviceName, 
+      timeSlot, 
+      bookingId 
+    });
+    
     const canSend = await canSendNotification(merchantUserId, 'new_booking');
-    if (!canSend) return;
+    if (!canSend) {
+      console.log('🚫 BOOKING NOTIFICATION: Cannot send notification to merchant (permissions/token check failed)');
+      return;
+    }
 
     const message = getNewBookingMessage(customerName, serviceName, timeSlot);
+    
+    console.log('📤 BOOKING NOTIFICATION: Sending notification to merchant:', message);
     
     await sendNotificationToUser(merchantUserId, {
       title: message.title,
@@ -164,9 +200,9 @@ export const sendNewBookingNotification = async (
       }
     });
 
-    console.log('✅ New booking notification sent to merchant');
+    console.log('✅ BOOKING NOTIFICATION: Successfully sent to merchant');
   } catch (error) {
-    console.error('❌ Error sending new booking notification:', error);
+    console.error('❌ BOOKING NOTIFICATION: Error sending notification to merchant:', error);
   }
 };
 
@@ -177,10 +213,21 @@ export const sendBookingCompletedNotification = async (
   bookingId: string
 ) => {
   try {
+    console.log('🎯 COMPLETION NOTIFICATION: Starting send to customer:', { 
+      customerId, 
+      merchantName, 
+      bookingId 
+    });
+    
     const canSend = await canSendNotification(customerId, 'booking_completed');
-    if (!canSend) return;
+    if (!canSend) {
+      console.log('🚫 COMPLETION NOTIFICATION: Cannot send notification to customer (permissions/token check failed)');
+      return;
+    }
 
     const message = getBookingCompletedMessage(merchantName);
+    
+    console.log('📤 COMPLETION NOTIFICATION: Sending notification to customer:', message);
     
     await sendNotificationToUser(customerId, {
       title: message.title,
@@ -194,9 +241,9 @@ export const sendBookingCompletedNotification = async (
       }
     });
 
-    console.log('✅ Booking completion notification sent to customer');
+    console.log('✅ COMPLETION NOTIFICATION: Successfully sent to customer');
   } catch (error) {
-    console.error('❌ Error sending booking completion notification:', error);
+    console.error('❌ COMPLETION NOTIFICATION: Error sending notification to customer:', error);
   }
 };
 
@@ -207,8 +254,13 @@ export const sendDailyReminderNotification = async (
   userName: string
 ) => {
   try {
+    console.log('⏰ DAILY REMINDER: Starting send for user:', { userId, userRole, userName });
+    
     const canSend = await canSendNotification(userId, 'daily_reminder');
-    if (!canSend) return;
+    if (!canSend) {
+      console.log('🚫 DAILY REMINDER: Cannot send notification (permissions/token check failed)');
+      return;
+    }
 
     let message;
     if (userRole === 'customer') {
@@ -220,6 +272,8 @@ export const sendDailyReminderNotification = async (
       const randomIndex = Math.floor(Math.random() * messages.length);
       message = messages[randomIndex];
     }
+    
+    console.log('📤 DAILY REMINDER: Sending notification:', message);
     
     await sendNotificationToUser(userId, {
       title: message.title,
@@ -238,8 +292,8 @@ export const sendDailyReminderNotification = async (
       .update({ last_notification_sent: new Date().toISOString() })
       .eq('id', userId);
 
-    console.log('✅ Daily reminder sent to:', userName);
+    console.log('✅ DAILY REMINDER: Successfully sent to:', userName);
   } catch (error) {
-    console.error('❌ Error sending daily reminder:', error);
+    console.error('❌ DAILY REMINDER: Error sending notification:', error);
   }
 };

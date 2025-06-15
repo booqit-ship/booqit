@@ -10,8 +10,7 @@ export interface NotificationPayload {
 
 export const saveUserFCMToken = async (userId: string, token: string, userRole: 'customer' | 'merchant') => {
   try {
-    console.log('💾 Saving FCM token for user:', userId, 'Role:', userRole);
-    console.log('🔑 Token length:', token.length, 'Token preview:', token.substring(0, 30) + '...');
+    console.log('💾 FCM TOKEN SAVE: Saving token for user:', { userId, userRole, tokenLength: token.length });
     
     const { error } = await supabase
       .from('profiles')
@@ -23,22 +22,21 @@ export const saveUserFCMToken = async (userId: string, token: string, userRole: 
       .eq('id', userId);
 
     if (error) {
-      console.error('❌ Error saving FCM token:', error);
+      console.error('❌ FCM TOKEN SAVE: Error saving token:', error);
       throw new Error(`Failed to save FCM token: ${error.message}`);
     }
 
-    console.log('✅ FCM token saved successfully for user:', userId);
+    console.log('✅ FCM TOKEN SAVE: Successfully saved for user:', userId);
     return true;
   } catch (error) {
-    console.error('❌ Error in saveUserFCMToken:', error);
+    console.error('❌ FCM TOKEN SAVE: Error in saveUserFCMToken:', error);
     throw error;
   }
 };
 
 export const sendNotificationToUser = async (userId: string, payload: NotificationPayload) => {
   try {
-    console.log('📤 Sending notification to user:', userId);
-    console.log('📋 Payload:', JSON.stringify(payload, null, 2));
+    console.log('📤 SEND NOTIFICATION: Starting send to user:', { userId, payload });
 
     const { data, error } = await supabase.functions.invoke('send-notification', {
       body: {
@@ -49,10 +47,10 @@ export const sendNotificationToUser = async (userId: string, payload: Notificati
       }
     });
 
-    console.log('📨 Edge Function Response:', { data, error });
+    console.log('📨 SEND NOTIFICATION: Edge Function Response:', { data, error });
 
     if (error) {
-      console.error('❌ Error calling Edge Function:', error);
+      console.error('❌ SEND NOTIFICATION: Error calling Edge Function:', error);
       
       // Provide more specific error messages
       if (error.message.includes('No FCM token')) {
@@ -68,43 +66,44 @@ export const sendNotificationToUser = async (userId: string, payload: Notificati
 
     // Check for successful response
     if (data && !data.success) {
+      console.error('❌ SEND NOTIFICATION: Backend error:', data.error);
       throw new Error(data.error || 'Unknown error occurred');
     }
 
-    console.log('✅ Notification sent successfully:', data);
+    console.log('✅ SEND NOTIFICATION: Successfully sent:', data);
     return true;
   } catch (error) {
-    console.error('❌ Error in sendNotificationToUser:', error);
+    console.error('❌ SEND NOTIFICATION: Error in sendNotificationToUser:', error);
     throw error;
   }
 };
 
 export const initializeUserNotifications = async (userId: string, userRole: 'customer' | 'merchant') => {
   try {
-    console.log('🚀 Initializing notifications for user:', userId, userRole);
+    console.log('🚀 INIT NOTIFICATIONS: Starting initialization for user:', { userId, userRole });
 
     // Check if notifications are supported
     if (!('Notification' in window)) {
-      console.log('❌ This browser does not support notifications');
+      console.log('❌ INIT NOTIFICATIONS: Browser does not support notifications');
       return { success: false, reason: 'not_supported' };
     }
 
     // Check current permission status
     const currentPermission = Notification.permission;
-    console.log('📱 Current permission status:', currentPermission);
+    console.log('📱 INIT NOTIFICATIONS: Current permission status:', currentPermission);
     
     if (currentPermission === 'denied') {
-      console.log('❌ Notification permission is denied');
+      console.log('❌ INIT NOTIFICATIONS: Permission is denied');
       return { success: false, reason: 'permission_denied' };
     }
 
     if (currentPermission !== 'granted') {
-      console.log('❌ Notification permission not granted');
+      console.log('❌ INIT NOTIFICATIONS: Permission not granted');
       return { success: false, reason: 'permission_not_granted' };
     }
 
     // Get FCM token with retry logic
-    console.log('🔑 Getting FCM token...');
+    console.log('🔑 INIT NOTIFICATIONS: Getting FCM token...');
     let token;
     let tokenRetries = 3;
     
@@ -115,11 +114,11 @@ export const initializeUserNotifications = async (userId: string, userRole: 'cus
         
         tokenRetries--;
         if (tokenRetries > 0) {
-          console.log(`🔄 Retrying FCM token generation... (${3 - tokenRetries}/3)`);
+          console.log(`🔄 INIT NOTIFICATIONS: Retrying FCM token generation... (${3 - tokenRetries}/3)`);
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
       } catch (error) {
-        console.error('❌ Error getting FCM token:', error);
+        console.error('❌ INIT NOTIFICATIONS: Error getting FCM token:', error);
         tokenRetries--;
         if (tokenRetries === 0) {
           return { success: false, reason: 'token_failed', error: error.message };
@@ -129,25 +128,25 @@ export const initializeUserNotifications = async (userId: string, userRole: 'cus
     }
 
     if (!token) {
-      console.log('❌ Could not get FCM token after retries');
+      console.log('❌ INIT NOTIFICATIONS: Could not get FCM token after retries');
       return { success: false, reason: 'token_failed' };
     }
 
-    console.log('🔑 FCM Token obtained:', token.substring(0, 20) + '...');
+    console.log('🔑 INIT NOTIFICATIONS: FCM Token obtained:', token.substring(0, 20) + '...');
 
     // Save token to user profile with retry logic
-    console.log('💾 Saving FCM token to profile...');
+    console.log('💾 INIT NOTIFICATIONS: Saving FCM token to profile...');
     try {
       await saveUserFCMToken(userId, token, userRole);
     } catch (error) {
-      console.log('❌ Could not save FCM token:', error.message);
+      console.log('❌ INIT NOTIFICATIONS: Could not save FCM token:', error.message);
       return { success: false, reason: 'save_failed', error: error.message };
     }
 
-    console.log('✅ User notifications initialized successfully');
+    console.log('✅ INIT NOTIFICATIONS: User notifications initialized successfully');
     return { success: true };
   } catch (error) {
-    console.error('❌ Error initializing notifications:', error);
+    console.error('❌ INIT NOTIFICATIONS: Error initializing notifications:', error);
     return { success: false, reason: 'initialization_error', error: error.message };
   }
 };
@@ -158,6 +157,8 @@ export const sendBookingNotification = async (merchantId: string, bookingDetails
   serviceName: string;
   dateTime: string;
 }) => {
+  console.log('📅 BOOKING TRIGGER: Sending booking notification to merchant:', { merchantId, bookingDetails });
+  
   await sendNotificationToUser(merchantId, {
     title: 'New Booking! 📅',
     body: `${bookingDetails.customerName} has booked ${bookingDetails.serviceName} for ${bookingDetails.dateTime}`,
@@ -169,6 +170,8 @@ export const sendBookingNotification = async (merchantId: string, bookingDetails
 };
 
 export const sendCompletionNotification = async (customerId: string, merchantName: string) => {
+  console.log('⭐ COMPLETION TRIGGER: Sending completion notification to customer:', { customerId, merchantName });
+  
   await sendNotificationToUser(customerId, {
     title: 'How was your visit? ⭐',
     body: `Hope you enjoyed your service at ${merchantName}! Tap to leave a review.`,
@@ -180,6 +183,8 @@ export const sendCompletionNotification = async (customerId: string, merchantNam
 };
 
 export const sendWeeklyReminderNotification = async (customerId: string) => {
+  console.log('📅 WEEKLY REMINDER: Sending weekly reminder to customer:', { customerId });
+  
   await sendNotificationToUser(customerId, {
     title: 'Your salon awaits! 💇‍♀️✨',
     body: 'Book your next appointment and look fabulous!',

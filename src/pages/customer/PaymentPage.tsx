@@ -148,11 +148,15 @@ const PaymentPage: React.FC = () => {
 
       // Step 4: Send notification to merchant (non-blocking)
       try {
+        console.log('🔔 PAYMENT_FLOW: Starting merchant notification process...');
+        
         const { data: merchantData } = await supabase
           .from('merchants')
           .select('user_id')
           .eq('id', merchantId)
           .single();
+
+        console.log('🔍 PAYMENT_FLOW: Merchant data lookup result:', merchantData);
 
         if (merchantData?.user_id) {
           const { data: customerProfile } = await supabase
@@ -167,6 +171,14 @@ const PaymentPage: React.FC = () => {
             : selectedServices[0]?.name || 'Service';
           const formattedTime = formatTimeToAmPm(bookingTime);
 
+          console.log('📤 PAYMENT_FLOW: Calling sendNewBookingNotification with:', {
+            merchantUserId: merchantData.user_id,
+            customerName,
+            servicesText,
+            formattedTime,
+            bookingId
+          });
+
           await sendNewBookingNotification(
             merchantData.user_id,
             customerName,
@@ -175,10 +187,12 @@ const PaymentPage: React.FC = () => {
             bookingId
           );
 
-          console.log('PAYMENT_FLOW: Notification sent successfully');
+          console.log('✅ PAYMENT_FLOW: Merchant notification sent successfully');
+        } else {
+          console.warn('⚠️ PAYMENT_FLOW: No merchant user_id found for merchant:', merchantId);
         }
       } catch (notificationError) {
-        console.error('PAYMENT_FLOW: Notification failed (non-critical):', notificationError);
+        console.error('❌ PAYMENT_FLOW: Merchant notification failed (non-critical):', notificationError);
         // Don't fail the booking if notification fails
       }
       
