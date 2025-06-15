@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +17,8 @@ const NotificationTestPanel: React.FC = () => {
       toast.error("Notifications are not supported in this browser.");
       return false;
     }
-    // Already granted
+
+    // If already granted, shortcut
     if (Notification.permission === "granted") {
       return true;
     }
@@ -24,7 +26,7 @@ const NotificationTestPanel: React.FC = () => {
     // Prompt user for permission
     const permissionResult = await requestNotificationPermission();
 
-    // The function returns only boolean, never "granted" string
+    // requestNotificationPermission returns only boolean
     if (permissionResult) {
       toast.success("Notifications permission granted! Proceeding...");
       return true;
