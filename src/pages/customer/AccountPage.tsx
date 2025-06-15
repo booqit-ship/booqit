@@ -9,6 +9,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface Profile {
   id: string;
@@ -22,6 +23,7 @@ interface Profile {
 
 const AccountPage: React.FC = () => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -162,6 +164,10 @@ const AccountPage: React.FC = () => {
       console.log('[handleSave] Profile upserted successfully:', data);
       setProfile(data);
       toast.success('Profile updated successfully');
+      
+      // Invalidate profile cache to sync with ProfilePage
+      queryClient.invalidateQueries({ queryKey: ['profile', user.id] });
+      
     } catch (err: any) {
       console.error('[handleSave] Unexpected error:', err);
       toast.error('An unexpected error occurred while saving');

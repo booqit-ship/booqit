@@ -1,7 +1,6 @@
-
-import React, { Suspense } from 'react';
+import React, { Suspense, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Settings, User, Calendar, Star, ChevronRight, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -109,14 +108,17 @@ const ProfileSkeleton = () => (
 
 const ProfilePage: React.FC = () => {
   const { user, logout } = useAuth();
+  const queryClient = useQueryClient();
 
   // React-query: fetch profile and bookings independently and in parallel
   const { data: profile, isLoading: loadingProfile, error: errorProfile } = useQuery({
     queryKey: ['profile', user?.id],
     queryFn: () => fetchProfile(user?.id ?? null, user?.email ?? null, user?.user_metadata ?? {}),
     enabled: !!user?.id,
-    staleTime: 5 * 60 * 1000, // 5min
-    retry: 1
+    staleTime: 1 * 60 * 1000, // Reduced to 1 minute for better sync
+    retry: 1,
+    refetchOnWindowFocus: true, // Refetch when window gains focus
+    refetchOnMount: true // Always refetch on component mount
   });
 
   const { data: recentBookings = [], isLoading: loadingBookings, error: errorBookings } = useQuery({
@@ -126,6 +128,29 @@ const ProfilePage: React.FC = () => {
     staleTime: 2 * 60 * 1000, // 2min
     retry: 0
   });
+
+  // Refresh profile data when returning to this page
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && user?.id) {
+        queryClient.invalidateQueries({ queryKey: ['profile', user.id] });
+      }
+    };
+
+    const handleFocus = () => {
+      if (user?.id) {
+        queryClient.invalidateQueries({ queryKey: ['profile', user.id] });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [user?.id, queryClient]);
 
   const profileItems = [{
     icon: Calendar,
@@ -288,5 +313,3 @@ export default function ProfilePageWithSuspense() {
     </Suspense>
   );
 }
-
-// ... end of file
