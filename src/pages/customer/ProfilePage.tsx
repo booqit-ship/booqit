@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-
 interface Profile {
   id: string;
   name: string | null;
@@ -15,7 +14,6 @@ interface Profile {
   phone: string | null;
   avatar_url: string | null;
 }
-
 interface RecentBooking {
   id: string;
   date: string;
@@ -28,62 +26,54 @@ interface RecentBooking {
     name: string;
   };
 }
-
-const fetchProfile = async (userId: string|null, email: string|null, user_metadata: any) => {
+const fetchProfile = async (userId: string | null, email: string | null, user_metadata: any) => {
   if (!userId) throw new Error('No user');
   // Try to fetch the profile
-  const { data: profileData, error: profileError } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .maybeSingle();
-
+  const {
+    data: profileData,
+    error: profileError
+  } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
   if (profileError && profileError.code !== 'PGRST116') {
     throw new Error(profileError.message);
   }
-
   if (!profileData) {
     // Create new profile
-    const { data: newProfile, error: createError } = await supabase
-      .from('profiles')
-      .insert({
-        id: userId,
-        name: user_metadata?.name || email?.split('@')[0] || 'Customer',
-        email: email ?? '',
-        phone: user_metadata?.phone || null,
-        role: 'customer'
-      })
-      .select('*')
-      .maybeSingle();
-
+    const {
+      data: newProfile,
+      error: createError
+    } = await supabase.from('profiles').insert({
+      id: userId,
+      name: user_metadata?.name || email?.split('@')[0] || 'Customer',
+      email: email ?? '',
+      phone: user_metadata?.phone || null,
+      role: 'customer'
+    }).select('*').maybeSingle();
     if (createError) throw new Error(createError.message);
     return newProfile;
   }
   return profileData;
 };
-
-const fetchRecentBookings = async (userId: string|null) => {
+const fetchRecentBookings = async (userId: string | null) => {
   if (!userId) return [];
-  const { data: bookingsData, error: bookingsError } = await supabase
-    .from('bookings')
-    .select(`
+  const {
+    data: bookingsData,
+    error: bookingsError
+  } = await supabase.from('bookings').select(`
       id,
       date,
       time_slot,
       status,
       merchant:merchants!inner(shop_name),
       service:services!inner(name)
-    `)
-    .eq('user_id', userId)
-    .order('date', { ascending: false })
-    .order('time_slot', { ascending: false })
-    .limit(3);
+    `).eq('user_id', userId).order('date', {
+    ascending: false
+  }).order('time_slot', {
+    ascending: false
+  }).limit(3);
   if (bookingsError) return [];
   return bookingsData ?? [];
 };
-
-const ProfileSkeleton = () => (
-  <div className="min-h-screen bg-gray-50 flex flex-col">
+const ProfileSkeleton = () => <div className="min-h-screen bg-gray-50 flex flex-col">
     <div className="relative overflow-visible bg-gradient-to-br from-booqit-primary to-booqit-primary/80 shadow-lg rounded-b-3xl">
       <div className="flex flex-col items-center pt-12 pb-3">
         <div className="relative">
@@ -103,29 +93,40 @@ const ProfileSkeleton = () => (
       </div>
       <div className="h-[110px] bg-white rounded-lg shadow animate-pulse" />
     </div>
-  </div>
-);
-
+  </div>;
 const ProfilePage: React.FC = () => {
-  const { user, logout } = useAuth();
+  const {
+    user,
+    logout
+  } = useAuth();
   const queryClient = useQueryClient();
 
   // React-query: fetch profile and bookings independently and in parallel
-  const { data: profile, isLoading: loadingProfile, error: errorProfile } = useQuery({
+  const {
+    data: profile,
+    isLoading: loadingProfile,
+    error: errorProfile
+  } = useQuery({
     queryKey: ['profile', user?.id],
     queryFn: () => fetchProfile(user?.id ?? null, user?.email ?? null, user?.user_metadata ?? {}),
     enabled: !!user?.id,
-    staleTime: 1 * 60 * 1000, // Reduced to 1 minute for better sync
+    staleTime: 1 * 60 * 1000,
+    // Reduced to 1 minute for better sync
     retry: 1,
-    refetchOnWindowFocus: true, // Refetch when window gains focus
+    refetchOnWindowFocus: true,
+    // Refetch when window gains focus
     refetchOnMount: true // Always refetch on component mount
   });
-
-  const { data: recentBookings = [], isLoading: loadingBookings, error: errorBookings } = useQuery({
+  const {
+    data: recentBookings = [],
+    isLoading: loadingBookings,
+    error: errorBookings
+  } = useQuery({
     queryKey: ['recentBookings', user?.id],
     queryFn: () => fetchRecentBookings(user?.id ?? null),
     enabled: !!user?.id,
-    staleTime: 2 * 60 * 1000, // 2min
+    staleTime: 2 * 60 * 1000,
+    // 2min
     retry: 0
   });
 
@@ -133,25 +134,25 @@ const ProfilePage: React.FC = () => {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden && user?.id) {
-        queryClient.invalidateQueries({ queryKey: ['profile', user.id] });
+        queryClient.invalidateQueries({
+          queryKey: ['profile', user.id]
+        });
       }
     };
-
     const handleFocus = () => {
       if (user?.id) {
-        queryClient.invalidateQueries({ queryKey: ['profile', user.id] });
+        queryClient.invalidateQueries({
+          queryKey: ['profile', user.id]
+        });
       }
     };
-
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', handleFocus);
-
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
   }, [user?.id, queryClient]);
-
   const profileItems = [{
     icon: Calendar,
     title: 'My Bookings',
@@ -168,12 +169,10 @@ const ProfilePage: React.FC = () => {
     description: 'Account settings and preferences',
     href: '/settings'
   }];
-
   const getInitials = (name: string) => {
     if (!name) return 'U';
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
-
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -190,29 +189,21 @@ const ProfilePage: React.FC = () => {
 
   // Error state
   if (errorProfile || errorBookings) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+    return <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
         <div className="bg-white p-6 rounded shadow-md max-w-md w-full text-center">
           <p className="text-lg font-semibold text-red-600 mb-4">
             {errorProfile ? errorProfile.message : errorBookings?.message || "Failed to load profile."}
           </p>
           <div className="flex gap-2 justify-center">
-            <button
-              className="bg-booqit-primary rounded px-4 py-2 text-white font-medium"
-              onClick={() => window.location.reload()}
-            >
+            <button className="bg-booqit-primary rounded px-4 py-2 text-white font-medium" onClick={() => window.location.reload()}>
               Refresh Page
             </button>
-            <button
-              className="bg-gray-500 rounded px-4 py-2 text-white font-medium"
-              onClick={() => window.location.href = '/auth'}
-            >
+            <button className="bg-gray-500 rounded px-4 py-2 text-white font-medium" onClick={() => window.location.href = '/auth'}>
               Log In Again
             </button>
           </div>
         </div>
-      </div>
-    );
+      </div>;
   }
 
   // If no user but no error, redirect to auth
@@ -220,9 +211,7 @@ const ProfilePage: React.FC = () => {
     window.location.href = '/auth';
     return null;
   }
-
-  return (
-    <div className="min-h-screen bg-gray-50">
+  return <div className="min-h-screen bg-gray-50">
       {/* Enhanced Header */}
       <div className="relative overflow-visible bg-gradient-to-br from-booqit-primary to-booqit-primary/80 shadow-lg rounded-b-3xl">
         {/* Avatar with white border and shadow */}
@@ -250,11 +239,8 @@ const ProfilePage: React.FC = () => {
         {/* Profile Actions */}
         <Card className="shadow-lg">
           <CardContent className="p-0">
-            {profileItems.map((item, index) => (
-              <Link key={item.href} to={item.href}>
-                <div className={`flex items-center justify-between p-4 hover:bg-gray-50 transition-colors ${
-                  index !== profileItems.length - 1 ? 'border-b border-gray-100' : ''
-                }`}>
+            {profileItems.map((item, index) => <Link key={item.href} to={item.href}>
+                <div className={`flex items-center justify-between p-4 hover:bg-gray-50 transition-colors ${index !== profileItems.length - 1 ? 'border-b border-gray-100' : ''}`}>
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
                       <item.icon className="h-5 w-5 text-gray-600" />
@@ -266,8 +252,7 @@ const ProfilePage: React.FC = () => {
                   </div>
                   <ChevronRight className="h-5 w-5 text-gray-400" />
                 </div>
-              </Link>
-            ))}
+              </Link>)}
           </CardContent>
         </Card>
 
@@ -291,25 +276,19 @@ const ProfilePage: React.FC = () => {
 
         {/* Account Actions */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg font-thin">Account</CardTitle>
-          </CardHeader>
+          
           <CardContent className="space-y-3">
-            <Button variant="outline" className="w-full justify-start" onClick={logout}>
+            <Button variant="outline" onClick={logout} className="w-full justify-start py-[17px] my-[12px]">
               <LogOut className="h-4 w-4 mr-2" />
               Logout
             </Button>
           </CardContent>
         </Card>
       </div>
-    </div>
-  );
+    </div>;
 };
-
 export default function ProfilePageWithSuspense() {
-  return (
-    <Suspense fallback={<ProfileSkeleton />}>
+  return <Suspense fallback={<ProfileSkeleton />}>
       <ProfilePage />
-    </Suspense>
-  );
+    </Suspense>;
 }
