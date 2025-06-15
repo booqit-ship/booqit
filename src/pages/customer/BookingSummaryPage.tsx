@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, CalendarIcon, Clock, User, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -6,7 +6,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useBookingNotifications } from "@/hooks/useBookingNotifications";
-import { motion } from 'framer-motion';
 
 const BookingSummaryPage: React.FC = (props) => {
   const { merchantId } = useParams<{ merchantId: string }>();
@@ -22,8 +21,6 @@ const BookingSummaryPage: React.FC = (props) => {
     selectedTime 
   } = location.state;
 
-  const [countdown, setCountdown] = useState(3);
-
   const handleProceedToPayment = () => {
     navigate(`/payment/${merchantId}`, {
       state: {
@@ -38,20 +35,13 @@ const BookingSummaryPage: React.FC = (props) => {
     });
   };
 
-  // Auto-navigate to payment with countdown
+  // Auto-navigate to payment after 3 seconds
   useEffect(() => {
-    const countdownInterval = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(countdownInterval);
-          handleProceedToPayment();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    const timer = setTimeout(() => {
+      handleProceedToPayment();
+    }, 3000);
 
-    return () => clearInterval(countdownInterval);
+    return () => clearTimeout(timer);
   }, []);
 
   const formatDate = (dateString: string) => {
@@ -97,183 +87,123 @@ const BookingSummaryPage: React.FC = (props) => {
       </div>
 
       <div className="p-4 space-y-6">
-        {/* Enhanced auto-redirect notice with countdown */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <Card className="border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
-            <CardContent className="p-4">
-              <div className="text-center">
-                <motion.div
-                  key={countdown}
-                  initial={{ scale: 1.2, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ duration: 0.3 }}
-                  className="text-3xl font-bold text-blue-600 mb-2"
-                >
-                  {countdown}
-                </motion.div>
-                <p className="text-blue-800 text-sm">
-                  Redirecting to payment...
-                </p>
-                <div className="w-full bg-blue-200 rounded-full h-2 mt-3">
-                  <motion.div
-                    initial={{ width: "100%" }}
-                    animate={{ width: "0%" }}
-                    transition={{ duration: 3, ease: "linear" }}
-                    className="bg-blue-600 h-2 rounded-full"
-                  />
+        {/* Auto-redirect notice */}
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="p-4">
+            <p className="text-blue-800 text-sm text-center">
+              Redirecting to payment in 3 seconds...
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Merchant Info */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-12 h-12 bg-booqit-primary/10 rounded-lg flex items-center justify-center">
+                <span className="font-semibold text-booqit-primary">
+                  {merchant.shop_name.charAt(0)}
+                </span>
+              </div>
+              <div>
+                <h3 className="font-semibold">{merchant.shop_name}</h3>
+                <div className="flex items-center text-gray-500 text-sm">
+                  <MapPin className="h-3 w-3 mr-1" />
+                  <span>{merchant.address}</span>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* Enhanced merchant info with animation */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6, delay: 0.1 }}
-        >
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 bg-booqit-primary/10 rounded-lg flex items-center justify-center">
-                  <span className="font-semibold text-booqit-primary">
-                    {merchant.shop_name.charAt(0)}
-                  </span>
-                </div>
-                <div>
-                  <h3 className="font-semibold">{merchant.shop_name}</h3>
-                  <div className="flex items-center text-gray-500 text-sm">
-                    <MapPin className="h-3 w-3 mr-1" />
-                    <span>{merchant.address}</span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Enhanced services with animation */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-        >
-          <Card>
-            <CardContent className="p-4">
-              <h3 className="font-semibold mb-3">Selected Services</h3>
-              <div className="space-y-3">
-                {selectedServices.map((service: any) => (
-                  <div key={service.id} className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="font-medium">{service.name}</div>
-                      <div className="text-sm text-gray-500">{service.description}</div>
-                      <div className="flex items-center text-sm text-gray-500 mt-1">
-                        <Clock className="h-3 w-3 mr-1" />
-                        <span>{service.duration} mins</span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-medium">₹{service.price}</div>
+        {/* Services */}
+        <Card>
+          <CardContent className="p-4">
+            <h3 className="font-semibold mb-3">Selected Services</h3>
+            <div className="space-y-3">
+              {selectedServices.map((service: any) => (
+                <div key={service.id} className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <div className="font-medium">{service.name}</div>
+                    <div className="text-sm text-gray-500">{service.description}</div>
+                    <div className="flex items-center text-sm text-gray-500 mt-1">
+                      <Clock className="h-3 w-3 mr-1" />
+                      <span>{service.duration} mins</span>
                     </div>
                   </div>
-                ))}
-              </div>
-              <Separator className="my-3" />
-              <div className="flex justify-between font-semibold">
-                <span>Total</span>
-                <span>₹{totalPrice}</span>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Enhanced date & time with animation */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6, delay: 0.3 }}
-        >
-          <Card>
-            <CardContent className="p-4">
-              <h3 className="font-semibold mb-3">Date & Time</h3>
-              <div className="space-y-2">
-                <div className="flex items-center">
-                  <CalendarIcon className="h-4 w-4 mr-3 text-gray-500" />
-                  <span>{formatDate(selectedDate)}</span>
+                  <div className="text-right">
+                    <div className="font-medium">₹{service.price}</div>
+                  </div>
                 </div>
-                <div className="flex items-center">
-                  <Clock className="h-4 w-4 mr-3 text-gray-500" />
-                  <span>{selectedTime} ({totalDuration} minutes)</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+              ))}
+            </div>
+            <Separator className="my-3" />
+            <div className="flex justify-between font-semibold">
+              <span>Total</span>
+              <span>₹{totalPrice}</span>
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* Enhanced stylist with animation */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
-        >
-          <Card>
-            <CardContent className="p-4">
-              <h3 className="font-semibold mb-3">Stylist</h3>
+        {/* Date & Time */}
+        <Card>
+          <CardContent className="p-4">
+            <h3 className="font-semibold mb-3">Date & Time</h3>
+            <div className="space-y-2">
               <div className="flex items-center">
-                <Avatar className="h-10 w-10 mr-3">
-                  <AvatarFallback className="bg-gray-200 text-gray-700">
-                    {selectedStaff ? 'S' : 'A'}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <div className="font-medium">
-                    {selectedStaff ? 'Selected Stylist' : 'Any Available Stylist'}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {selectedStaff ? 'Your preferred choice' : 'We\'ll assign the best available stylist'}
-                  </div>
+                <CalendarIcon className="h-4 w-4 mr-3 text-gray-500" />
+                <span>{formatDate(selectedDate)}</span>
+              </div>
+              <div className="flex items-center">
+                <Clock className="h-4 w-4 mr-3 text-gray-500" />
+                <span>{selectedTime} ({totalDuration} minutes)</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Stylist */}
+        <Card>
+          <CardContent className="p-4">
+            <h3 className="font-semibold mb-3">Stylist</h3>
+            <div className="flex items-center">
+              <Avatar className="h-10 w-10 mr-3">
+                <AvatarFallback className="bg-gray-200 text-gray-700">
+                  {selectedStaff ? 'S' : 'A'}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <div className="font-medium">
+                  {selectedStaff ? 'Selected Stylist' : 'Any Available Stylist'}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {selectedStaff ? 'Your preferred choice' : 'We\'ll assign the best available stylist'}
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* Enhanced payment method info with animation */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.5 }}
-        >
-          <Card className="border-amber-200 bg-amber-50">
-            <CardContent className="p-4">
-              <h3 className="font-semibold mb-2 text-amber-800">Payment Method</h3>
-              <p className="text-sm text-amber-700">
-                You will pay ₹{totalPrice} in cash when you arrive for your appointment.
-              </p>
-            </CardContent>
-          </Card>
-        </motion.div>
+        {/* Payment Method Info */}
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="p-4">
+            <h3 className="font-semibold mb-2 text-amber-800">Payment Method</h3>
+            <p className="text-sm text-amber-700">
+              You will pay ₹{totalPrice} in cash when you arrive for your appointment.
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, delay: 0.6 }}
-        className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t"
-      >
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
         <Button 
           className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6"
           size="lg"
           onClick={handleProceedToPayment}
         >
-          Skip Wait - Proceed Now (₹{totalPrice})
+          Confirm Booking - ₹{totalPrice}
         </Button>
-      </motion.div>
+      </div>
     </div>
   );
 };
