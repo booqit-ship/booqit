@@ -133,11 +133,17 @@ serve(async (req) => {
     // Send the notification using Firebase v1 API
     let notificationResult;
     try {
-      notificationResult = await sendNotificationToToken(profile.fcm_token, title, body, data || {});
+      notificationResult = await sendNotificationToToken(
+        profile.fcm_token, 
+        title, 
+        body, 
+        { ...data, debug_id: `${userId}:${Date.now()}` } // add debug ID.
+      );
       console.log('✅ FCM notification sent successfully:', notificationResult);
     } catch (fcmError) {
-      console.error('❌ FCM send error:', fcmError)
-      
+      let errorMsg = fcmError?.message || String(fcmError);
+      console.error('❌ FCM send error:', errorMsg);
+
       // Log the failed notification
       await supabaseClient
         .from('notification_logs')
@@ -147,13 +153,13 @@ serve(async (req) => {
           body,
           type: data?.type || 'general',
           status: 'failed',
-          error_message: fcmError.message
+          error_message: errorMsg
         })
 
       return new Response(
         JSON.stringify({ 
           error: 'Failed to send notification',
-          details: fcmError.message 
+          details: errorMsg 
         }), 
         {
           status: 500,
@@ -171,7 +177,7 @@ serve(async (req) => {
         body,
         type: data?.type || 'general',
         status: 'sent',
-        fcm_response: notificationResult
+        fcm_response: JSON.stringify(notificationResult).slice(0,499) // avoid overly long
       })
 
     if (logError) {
@@ -194,12 +200,13 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('❌ Unexpected error in send-notification function:', error)
+    let errMsg = error?.message || String(error);
+    console.error('❌ Unexpected error in send-notification function:', errMsg)
     
     return new Response(
       JSON.stringify({ 
         error: 'Internal server error',
-        details: error.message 
+        details: errMsg 
       }), 
       {
         status: 500,

@@ -16,10 +16,11 @@ const messaging = firebase.messaging();
 // Handle background messages (when app is not in focus)
 messaging.onBackgroundMessage((payload) => {
   console.log('📱 Background message received:', payload);
-  
+
   const notificationTitle = payload.notification?.title || 'BooqIt Notification';
   const notificationOptions = {
     body: payload.notification?.body || 'You have a new notification',
+    // Ensure the icon exists
     icon: '/icons/icon-192.png',
     badge: '/icons/icon-192.png',
     tag: 'booqit-notification',
@@ -37,16 +38,16 @@ messaging.onBackgroundMessage((payload) => {
   };
 
   console.log('🔔 Showing notification:', notificationTitle, notificationOptions);
-  
+
   return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
 // Handle notification clicks
 self.addEventListener('notificationclick', (event) => {
   console.log('🔔 Notification clicked:', event);
-  
+
   event.notification.close();
-  
+
   // Open the app when notification is clicked
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })

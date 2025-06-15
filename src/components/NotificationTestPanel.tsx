@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +9,8 @@ import { getFCMToken, requestNotificationPermission } from "@/firebase";
 const NotificationTestPanel: React.FC = () => {
   const { user } = useAuth();
   const [sending, setSending] = useState(false);
+  const [successMsg, setSuccessMsg] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
 
   // Helper to request notification permission and block on denied
   const ensurePermissionGranted = async () => {
@@ -100,18 +101,19 @@ const NotificationTestPanel: React.FC = () => {
   };
 
   const handleSendTestNotification = async () => {
+    setSuccessMsg(""); setErrorMsg("");
     if (!user?.id) {
       toast.error("User not logged in!");
+      setErrorMsg("User not logged in!");
       return;
     }
     setSending(true);
-    // 1. Refresh/save token first, then proceed if succeeded
     const tokenSaved = await refreshAndSaveToken();
     if (!tokenSaved) {
       setSending(false);
+      setErrorMsg("Push token not saved or permission not granted.");
       return;
     }
-    // 2. Send notification with latest token
     try {
       const { data, error } = await supabase.functions.invoke(
         "send-notification",
@@ -130,18 +132,22 @@ const NotificationTestPanel: React.FC = () => {
           "Failed to send test notification: " +
             (error.message || "Unknown error")
         );
+        setErrorMsg(error.message || "Unknown error from edge function");
         return;
       }
 
       if (data && data.success) {
         toast.success("Notification sent! Check your device.");
+        setSuccessMsg("Notification sent successfully!");
         console.log("✅ Notification sent:", data);
       } else {
         toast.error(data?.error || "Notification sending failed");
+        setErrorMsg(data?.error || "Notification sending failed");
         console.error("❌ Notification function failed:", data);
       }
     } catch (err: any) {
       toast.error("Unexpected error: " + (err.message || ""));
+      setErrorMsg(err.message || "Unexpected error");
       console.error("❌ Unexpected error:", err);
     } finally {
       setSending(false);
@@ -167,6 +173,12 @@ const NotificationTestPanel: React.FC = () => {
         >
           {sending ? "Sending..." : "Send Test Notification"}
         </Button>
+        {successMsg && (
+          <div className="text-green-600 font-medium mt-2">{successMsg}</div>
+        )}
+        {errorMsg && (
+          <div className="text-red-600 font-medium mt-2">{errorMsg}</div>
+        )}
       </CardContent>
     </Card>
   );
