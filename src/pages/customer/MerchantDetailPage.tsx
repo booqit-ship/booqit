@@ -111,17 +111,16 @@ const MerchantDetailPage: React.FC = () => {
       toast.error('Merchant information not loaded');
       return;
     }
+    if (!services || services.length === 0) {
+      toast.error('Merchant has no services');
+      return;
+    }
 
-    console.log('BOOKING_FLOW: Navigating to service selection with:', {
-      merchantId,
-      merchant: merchant.shop_name,
-      servicesCount: services.length
-    });
-
+    // Forcefully provide both merchant and services as state on navigation
     navigate(`/booking/${merchantId}/services`, {
       state: {
         merchant,
-        services
+        services,
       }
     });
   };

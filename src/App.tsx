@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import {
   BrowserRouter as Router,
@@ -87,7 +86,6 @@ const App: React.FC = () => {
         <Route path="/booking/:merchantId/datetime" element={<ProtectedRoute><CustomerLayout><DateTimeSelectionPage /></CustomerLayout></ProtectedRoute>} />
         <Route path="/booking-summary" element={<ProtectedRoute><CustomerLayout><BookingSummaryPage /></CustomerLayout></ProtectedRoute>} />
         <Route path="/payment/:merchantId" element={<ProtectedRoute><CustomerLayout><PaymentPage /></CustomerLayout></ProtectedRoute>} />
-        
         <Route path="/receipt/:bookingId" element={<ProtectedRoute><CustomerLayout><ReceiptPage /></CustomerLayout></ProtectedRoute>} />
         <Route path="/calendar" element={<ProtectedRoute><CustomerLayout><CalendarPage /></CustomerLayout></ProtectedRoute>} />
         <Route path="/bookings-history" element={<ProtectedRoute><CustomerLayout><BookingsHistoryPage /></CustomerLayout></ProtectedRoute>} />
