@@ -3,12 +3,12 @@ import { initializeApp } from "firebase/app";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCDB3Lm4ni3jz0oQjgQPye4Pedau_H3S-4",
+  apiKey: "AIzaSyBZXQp0IuO9nQBFUyhLRGsnRuLTJ-UQu44",
   authDomain: "booqit09-f4cfc.firebaseapp.com",
   projectId: "booqit09-f4cfc",
   storageBucket: "booqit09-f4cfc.firebasestorage.app",
   messagingSenderId: "486416254991",
-  appId: "1:486416254991:web:3aaa6b9fb5c5a6f5d2fb7a",
+  appId: "1:486416254991:android:e30bffb187fd8e0ad2fb7a",
   measurementId: "G-14QPC3C9TJ"
 };
 
@@ -26,7 +26,7 @@ if (typeof window !== 'undefined') {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/firebase-messaging-sw.js')
       .then((registration) => {
-        console.log('✅ Service Worker registered successfully:', registration);
+        console.log('✅ /firebase-messaging-sw.js Service Worker registered successfully:', registration);
       })
       .catch((error) => {
         console.error('❌ Service Worker registration failed:', error);

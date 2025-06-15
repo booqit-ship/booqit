@@ -42,16 +42,28 @@ if (!rootElement) {
   throw new Error('Root element not found');
 }
 
-// Enhanced service worker registration for PWA support
+// --- PATCH: only register /pwabuilder-sw.js if not on test notification path ---
+const avoidPwaSwRoutes = ["/test-notifications", "/test-notification", "/NotificationTestPage"];
+const isNotificationTestRoute = avoidPwaSwRoutes.some((route) =>
+  window.location.pathname.startsWith(route)
+);
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/pwabuilder-sw.js')
-      .then((registration) => {
-        console.log('✅ SW registered: ', registration);
-      })
-      .catch((registrationError) => {
-        console.log('❌ SW registration failed: ', registrationError);
-      });
+    if (!isNotificationTestRoute) {
+      navigator.serviceWorker.register('/pwabuilder-sw.js')
+        .then((registration) => {
+          console.log('✅ SW registered: ', registration);
+        })
+        .catch((registrationError) => {
+          console.log('❌ SW registration failed: ', registrationError);
+        });
+    } else {
+      // Debug info for developers
+      console.log(
+        '🟢 Skipped /pwabuilder-sw.js registration to allow /firebase-messaging-sw.js for push testing'
+      );
+    }
   });
 }
 
