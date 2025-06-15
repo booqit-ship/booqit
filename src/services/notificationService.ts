@@ -179,7 +179,7 @@ export const initializeUserNotifications = async (userId: string, userRole: 'cus
   }
 };
 
-// Enhanced notification checking function
+// Enhanced notification checking function - now creates profile if missing
 const canSendNotification = async (userId: string) => {
   try {
     console.log('🔍 NOTIFICATION CHECK: Checking if user can receive notifications:', userId);
@@ -196,7 +196,31 @@ const canSendNotification = async (userId: string) => {
     }
 
     if (!profile) {
-      console.log('⚠️ NOTIFICATION CHECK: No profile found for user - they need to enable notifications first');
+      console.log('⚠️ NOTIFICATION CHECK: No profile found for user - creating basic profile:', userId);
+      
+      // Create a basic profile for this user
+      try {
+        const { error: createError } = await supabase
+          .from('profiles')
+          .insert({
+            id: userId,
+            name: 'User',
+            email: '',
+            role: 'customer',
+            notification_enabled: false,
+            fcm_token: null
+          });
+
+        if (createError) {
+          console.error('❌ NOTIFICATION CHECK: Failed to create profile:', createError);
+        } else {
+          console.log('✅ NOTIFICATION CHECK: Basic profile created for user:', userId);
+        }
+      } catch (createProfileError) {
+        console.error('❌ NOTIFICATION CHECK: Error creating profile:', createProfileError);
+      }
+      
+      console.log('🚫 NOTIFICATION CHECK: User needs to enable notifications in the app first');
       return false;
     }
 

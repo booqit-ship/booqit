@@ -29,6 +29,7 @@ export const useNotifications = () => {
       
       if (!isAuthenticated || !userId || !userRole) {
         console.log('🔔 NOTIFICATION HOOK: Skipping - user not authenticated or missing data');
+        setIsInitialized(false);
         return;
       }
 
@@ -87,6 +88,14 @@ export const useNotifications = () => {
           console.error('❌ NOTIFICATION HOOK: FCM token registration failed:', result);
           setIsInitialized(false);
           setInitializationError(result?.reason || 'Unknown error');
+          
+          // Auto-retry for certain types of failures
+          if (result?.reason === 'token_failed' && retryCount < 2) {
+            console.log('🔄 NOTIFICATION HOOK: Retrying FCM token registration in 2 seconds...');
+            setTimeout(() => {
+              setRetryCount(prev => prev + 1);
+            }, 2000);
+          }
         }
       } catch (error: any) {
         console.error('❌ NOTIFICATION HOOK: Error during auto-initialization:', error);
@@ -97,7 +106,7 @@ export const useNotifications = () => {
 
     // Run auto-initialization when user logs in or role changes
     autoInitialize();
-  }, [isAuthenticated, userId, userRole]);
+  }, [isAuthenticated, userId, userRole, retryCount]);
 
   const requestPermissionManually = async () => {
     try {
