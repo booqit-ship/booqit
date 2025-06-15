@@ -157,7 +157,7 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
         {/* Venue count */}
         <div className="px-4 w-full">
           <p className="text-sm text-gray-500 text-left font-poppins">
-            {merchants.length} salons & spas found {userCity && `in ${userCity}`}
+            {merchants.length} salons found {userCity && `in ${userCity}`}
           </p>
         </div>
       </div>
