@@ -46,6 +46,7 @@ import MerchantAboutPage from '@/pages/merchant/settings/AboutPage';
 import MerchantPrivacyPolicyPage from '@/pages/merchant/settings/PrivacyPolicyPage';
 import MerchantTermsConditionsPage from '@/pages/merchant/settings/TermsConditionsPage';
 import MerchantDeleteAccountPage from '@/pages/merchant/settings/DeleteAccountPage';
+import NotificationsPage from '@/pages/settings/NotificationsPage';
 
 const App: React.FC = () => {
   const { user, isAuthenticated } = useAuth();
@@ -104,6 +105,16 @@ const App: React.FC = () => {
             <ProtectedRoute requiredRole="merchant">
               <MerchantLayout>
                 <MerchantBankingDetailsPage />
+              </MerchantLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/merchant/settings/notifications"
+          element={
+            <ProtectedRoute requiredRole="merchant">
+              <MerchantLayout>
+                <NotificationsPage />
               </MerchantLayout>
             </ProtectedRoute>
           }

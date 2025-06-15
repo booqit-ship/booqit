@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -6,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Merchant, BankInfo } from '@/types';
-import { LogOut, Settings, Mail, Info, Shield, FileText, Trash2, ChevronRight, User, CreditCard } from 'lucide-react';
+import { LogOut, Settings, Mail, Info, Shield, FileText, Trash2, ChevronRight, User, CreditCard, Bell } from 'lucide-react';
 import SettingsBusinessForm from '@/components/merchant/SettingsBusinessForm';
 import SettingsBankingForm from '@/components/merchant/SettingsBankingForm';
 import { Separator } from '@/components/ui/separator';
@@ -83,6 +84,12 @@ const SettingsPage: React.FC = () => {
       title: 'Banking Details',
       description: 'Manage payment and banking information',
       href: '/merchant/settings/banking-details'
+    },
+    {
+      icon: Bell,
+      title: 'Notifications',
+      description: 'Manage and test push notifications',
+      href: '/merchant/settings/notifications'
     },
     {
       icon: Mail,
@@ -165,7 +172,7 @@ const SettingsPage: React.FC = () => {
         {/* Business Management */}
         <div className="space-y-1">
           <h2 className="text-lg font-semibold px-1 mb-3">Business Management</h2>
-          {settingsItems.slice(0, 2).map((item) => (
+          {settingsItems.slice(0, 3).map((item) => (
             <Link key={item.href} to={item.href}>
               <Card className="hover:bg-gray-50 transition-colors">
                 <CardContent className="p-4">
@@ -190,7 +197,7 @@ const SettingsPage: React.FC = () => {
         {/* General Settings */}
         <div className="space-y-1">
           <h2 className="text-lg font-semibold px-1 mb-3">General Settings</h2>
-          {settingsItems.slice(2).map((item) => (
+          {settingsItems.slice(3).map((item) => (
             <Link key={item.href} to={item.href}>
               <Card className="hover:bg-gray-50 transition-colors">
                 <CardContent className="p-4">
