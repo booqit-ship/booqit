@@ -1,13 +1,13 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { Suspense } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { Settings, User, Calendar, Star, ChevronRight, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
 
 interface Profile {
   id: string;
@@ -30,12 +30,102 @@ interface RecentBooking {
   };
 }
 
+const fetchProfile = async (userId: string|null, email: string|null, user_metadata: any) => {
+  if (!userId) throw new Error('No user');
+  // Try to fetch the profile
+  const { data: profileData, error: profileError } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (profileError && profileError.code !== 'PGRST116') {
+    throw new Error(profileError.message);
+  }
+
+  if (!profileData) {
+    // Create new profile
+    const { data: newProfile, error: createError } = await supabase
+      .from('profiles')
+      .insert({
+        id: userId,
+        name: user_metadata?.name || email?.split('@')[0] || 'Customer',
+        email: email ?? '',
+        phone: user_metadata?.phone || null,
+        role: 'customer'
+      })
+      .select('*')
+      .maybeSingle();
+
+    if (createError) throw new Error(createError.message);
+    return newProfile;
+  }
+  return profileData;
+};
+
+const fetchRecentBookings = async (userId: string|null) => {
+  if (!userId) return [];
+  const { data: bookingsData, error: bookingsError } = await supabase
+    .from('bookings')
+    .select(`
+      id,
+      date,
+      time_slot,
+      status,
+      merchant:merchants!inner(shop_name),
+      service:services!inner(name)
+    `)
+    .eq('user_id', userId)
+    .order('date', { ascending: false })
+    .order('time_slot', { ascending: false })
+    .limit(3);
+  if (bookingsError) return [];
+  return bookingsData ?? [];
+};
+
+const ProfileSkeleton = () => (
+  <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="relative overflow-visible bg-gradient-to-br from-booqit-primary to-booqit-primary/80 shadow-lg rounded-b-3xl">
+      <div className="flex flex-col items-center pt-12 pb-3">
+        <div className="relative">
+          <div className="w-24 h-24 shadow-lg border-4 border-white bg-white/30 rounded-full animate-pulse" />
+        </div>
+        <div className="mt-4 mb-2">
+          <div className="h-7 w-40 bg-white/30 rounded mb-2 animate-pulse" />
+          <div className="h-5 w-32 bg-white/20 rounded animate-pulse" />
+        </div>
+      </div>
+    </div>
+    <div className="p-4 space-y-4 pb-24 -mt-6 flex-1">
+      <div className="h-[90px] bg-white rounded-lg shadow animate-pulse" />
+      <div className="grid grid-cols-2 gap-4">
+        <div className="h-24 bg-white rounded-lg shadow animate-pulse" />
+        <div className="h-24 bg-white rounded-lg shadow animate-pulse" />
+      </div>
+      <div className="h-[110px] bg-white rounded-lg shadow animate-pulse" />
+    </div>
+  </div>
+);
+
 const ProfilePage: React.FC = () => {
   const { user, logout } = useAuth();
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [recentBookings, setRecentBookings] = useState<RecentBooking[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+
+  // React-query: fetch profile and bookings independently and in parallel
+  const { data: profile, isLoading: loadingProfile, error: errorProfile } = useQuery({
+    queryKey: ['profile', user?.id],
+    queryFn: () => fetchProfile(user?.id ?? null, user?.email ?? null, user?.user_metadata ?? {}),
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000, // 5min
+    retry: 1
+  });
+
+  const { data: recentBookings = [], isLoading: loadingBookings, error: errorBookings } = useQuery({
+    queryKey: ['recentBookings', user?.id],
+    queryFn: () => fetchRecentBookings(user?.id ?? null),
+    enabled: !!user?.id,
+    staleTime: 2 * 60 * 1000, // 2min
+    retry: 0
+  });
 
   const profileItems = [{
     icon: Calendar,
@@ -54,111 +144,6 @@ const ProfilePage: React.FC = () => {
     href: '/settings'
   }];
 
-  useEffect(() => {
-    const fetchUserData = async () => {
-      if (!user?.id) {
-        console.log('⚠️ No user ID available, but not setting error - waiting for auth');
-        setLoading(false);
-        return;
-      }
-
-      try {
-        console.log('📡 Fetching data for user:', user.id);
-
-        // Fetch profile with more specific error handling
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single();
-
-        if (profileError && profileError.code !== 'PGRST116') {
-          console.error('❌ Profile fetch error:', profileError);
-          
-          // Only set error for authentication/permission issues
-          if (profileError.message?.includes('JWT') || 
-              profileError.message?.includes('permission') ||
-              profileError.message?.includes('auth')) {
-            setError("Session issue detected. Please try refreshing the page.");
-          } else {
-            // For other errors, try to create profile instead of erroring
-            console.log('🔧 Non-auth error, attempting to create profile');
-          }
-        }
-
-        // If no profile exists, create one
-        if (!profileData) {
-          console.log('👤 Creating new profile for user');
-          const { data: newProfile, error: createError } = await supabase
-            .from('profiles')
-            .insert({
-              id: user.id,
-              name: user.user_metadata?.name || user.email?.split('@')[0] || 'Customer',
-              email: user.email || '',
-              phone: user.user_metadata?.phone || null,
-              role: 'customer'
-            })
-            .select()
-            .single();
-
-          if (createError) {
-            console.error('❌ Error creating profile:', createError);
-            // Only show error for auth issues, not data issues
-            if (createError.message?.includes('JWT') || 
-                createError.message?.includes('permission')) {
-              setError("Authentication issue. Please try logging in again.");
-            }
-          } else {
-            setProfile(newProfile);
-          }
-        } else {
-          setProfile(profileData);
-        }
-
-        // Fetch recent bookings with better error handling
-        const { data: bookingsData, error: bookingsError } = await supabase
-          .from('bookings')
-          .select(`
-            id,
-            date,
-            time_slot,
-            status,
-            merchant:merchants!inner(shop_name),
-            service:services!inner(name)
-          `)
-          .eq('user_id', user.id)
-          .order('date', { ascending: false })
-          .order('time_slot', { ascending: false })
-          .limit(3);
-
-        if (bookingsError) {
-          console.error('❌ Error fetching bookings:', bookingsError);
-          // Don't set error for booking fetch failures - just log and continue
-          console.log('⚠️ Could not load bookings, but continuing with profile');
-        } else {
-          console.log('✅ Recent bookings loaded:', bookingsData?.length || 0);
-          setRecentBookings(bookingsData || []);
-        }
-
-      } catch (error) {
-        console.error('❌ Exception in fetchUserData:', error);
-        // Only set error for critical failures
-        if (error?.message?.includes('JWT') || 
-            error?.message?.includes('auth') ||
-            error?.message?.includes('permission')) {
-          setError("Authentication session issue. Please try refreshing the page.");
-        } else {
-          // For other errors, just log and continue
-          console.log('⚠️ Non-critical error, continuing with partial data');
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUserData();
-  }, [user?.id]);
-
   const getInitials = (name: string) => {
     if (!name) return 'U';
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -173,20 +158,19 @@ const ProfilePage: React.FC = () => {
     });
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-booqit-primary"></div>
-      </div>
-    );
+  // Loading state: skeleton loader for fast perceived load
+  if (loadingProfile || loadingBookings) {
+    return <ProfileSkeleton />;
   }
 
-  // Show error UI only for critical authentication errors
-  if (error) {
+  // Error state
+  if (errorProfile || errorBookings) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
         <div className="bg-white p-6 rounded shadow-md max-w-md w-full text-center">
-          <p className="text-lg font-semibold text-red-600 mb-4">{error}</p>
+          <p className="text-lg font-semibold text-red-600 mb-4">
+            {errorProfile ? errorProfile.message : errorBookings?.message || "Failed to load profile."}
+          </p>
           <div className="flex gap-2 justify-center">
             <button
               className="bg-booqit-primary rounded px-4 py-2 text-white font-medium"
@@ -273,7 +257,7 @@ const ProfilePage: React.FC = () => {
           <Card>
             <CardContent className="p-4 text-center">
               <h3 className="text-2xl font-bold text-green-600">
-                {recentBookings.filter(b => b.status === 'completed').length}
+                {recentBookings.filter((b: RecentBooking) => b.status === 'completed').length}
               </h3>
               <p className="text-sm text-gray-600">Completed</p>
             </CardContent>
@@ -297,5 +281,12 @@ const ProfilePage: React.FC = () => {
   );
 };
 
-export default ProfilePage;
+export default function ProfilePageWithSuspense() {
+  return (
+    <Suspense fallback={<ProfileSkeleton />}>
+      <ProfilePage />
+    </Suspense>
+  );
+}
 
+// ... end of file
