@@ -1,5 +1,3 @@
-
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -20,52 +18,52 @@ serve(async (req) => {
 
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders });
   }
 
   if (req.method !== 'POST') {
     return new Response(
-      JSON.stringify({ error: 'Method not allowed' }), 
-      { 
+      JSON.stringify({ error: 'Method not allowed' }),
+      {
         status: 405,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
-    )
+    );
   }
 
   try {
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    );
 
     let requestBody: NotificationRequest;
-    
+
     try {
-      requestBody = await req.json()
+      requestBody = await req.json();
       console.log('📋 Request body received:', JSON.stringify(requestBody, null, 2));
     } catch (error) {
-      console.error('❌ Invalid JSON in request body:', error)
+      console.error('❌ Invalid JSON in request body:', error);
       return new Response(
-        JSON.stringify({ error: 'Invalid JSON in request body' }), 
-        { 
+        JSON.stringify({ error: 'Invalid JSON in request body' }),
+        {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
-      )
+      );
     }
 
     const { userId, title, body, data } = requestBody;
 
     if (!userId || !title || !body) {
-      console.error('❌ Missing required fields:', { userId, title, body })
+      console.error('❌ Missing required fields:', { userId, title, body });
       return new Response(
-        JSON.stringify({ error: 'Missing required fields: userId, title, body' }), 
-        { 
+        JSON.stringify({ error: 'Missing required fields: userId, title, body' }),
+        {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
-      )
+      );
     }
 
     console.log('🔍 Looking up user profile for:', userId);
@@ -75,78 +73,99 @@ serve(async (req) => {
       .from('profiles')
       .select('fcm_token, notification_enabled')
       .eq('id', userId)
-      .single()
+      .single();
 
     if (profileError) {
-      console.error('❌ Profile lookup error:', profileError)
+      console.error('❌ Profile lookup error:', profileError);
       return new Response(
-        JSON.stringify({ error: 'User profile not found', details: profileError.message }), 
-        { 
+        JSON.stringify({ error: 'User profile not found', details: profileError.message }),
+        {
           status: 404,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
-      )
+      );
     }
 
     if (!profile) {
-      console.error('❌ No profile found for user:', userId)
+      console.error('❌ No profile found for user:', userId);
       return new Response(
-        JSON.stringify({ error: 'User profile not found' }), 
-        { 
+        JSON.stringify({ error: 'User profile not found' }),
+        {
           status: 404,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
-      )
+      );
     }
 
-    console.log('👤 Profile found:', {
-      hasToken: !!profile.fcm_token,
-      tokenLength: profile.fcm_token?.length || 0,
-      tokenPreview: profile.fcm_token?.substring(0, 20) + '...' || 'none',
-      notificationEnabled: profile.notification_enabled
-    });
+    const { fcm_token, notification_enabled } = profile;
 
-    if (!profile.fcm_token) {
-      console.log('⚠️ No FCM token for user:', userId)
+    if (!fcm_token) {
+      console.warn('⚠️ User has no FCM token - user must enable push notifications in their app');
+      // Log this attempt in notification_logs for better visibility
+      await supabaseClient.from('notification_logs')
+        .insert({
+          user_id: userId,
+          title,
+          body,
+          type: data?.type || 'general',
+          status: 'failed',
+          error_message: 'No FCM token found for user'
+        });
       return new Response(
-        JSON.stringify({ error: 'No FCM token found for user' }), 
-        { 
+        JSON.stringify({ error: 'No FCM token found for user' }),
+        {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
-      )
+      );
     }
 
-    if (profile.notification_enabled === false) {
-      console.log('🔕 Notifications disabled for user:', userId)
+    if (notification_enabled === false) {
+      console.log('🔕 Notifications disabled for user:', userId);
+      await supabaseClient.from('notification_logs')
+        .insert({
+          user_id: userId,
+          title,
+          body,
+          type: data?.type || 'general',
+          status: 'failed',
+          error_message: 'Notifications are disabled in user profile'
+        });
       return new Response(
-        JSON.stringify({ message: 'Notifications disabled for user' }), 
-        { 
+        JSON.stringify({ message: 'Notifications disabled for user' }),
+        {
           status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
-      )
+      );
     }
 
-    console.log('🚀 Sending notification to FCM token:', profile.fcm_token.substring(0, 20) + '...');
+    console.log('🚀 Attempting to send notification to FCM token:', fcm_token.substring(0, 20) + '...');
 
     // Send the notification using Firebase v1 API
     let notificationResult;
     try {
       notificationResult = await sendNotificationToToken(
-        profile.fcm_token, 
-        title, 
-        body, 
-        { ...data, debug_id: `${userId}:${Date.now()}` } // add debug ID.
+        fcm_token,
+        title,
+        body,
+        { ...data, debug_id: `${userId}:${Date.now()}` }
       );
       console.log('✅ FCM notification sent successfully:', notificationResult);
+      // Log success in notification_logs
+      await supabaseClient.from('notification_logs')
+        .insert({
+          user_id: userId,
+          title,
+          body,
+          type: data?.type || 'general',
+          status: 'sent',
+          fcm_response: JSON.stringify(notificationResult).slice(0, 499)
+        });
     } catch (fcmError) {
       let errorMsg = fcmError?.message || String(fcmError);
       console.error('❌ FCM send error:', errorMsg);
-
-      // Log the failed notification
-      await supabaseClient
-        .from('notification_logs')
+      await supabaseClient.from('notification_logs')
         .insert({
           user_id: userId,
           title,
@@ -154,67 +173,45 @@ serve(async (req) => {
           type: data?.type || 'general',
           status: 'failed',
           error_message: errorMsg
-        })
-
+        });
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: 'Failed to send notification',
-          details: errorMsg 
-        }), 
+          details: errorMsg
+        }),
         {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
-      )
+      );
     }
-
-    // Log the successful notification
-    const { error: logError } = await supabaseClient
-      .from('notification_logs')
-      .insert({
-        user_id: userId,
-        title,
-        body,
-        type: data?.type || 'general',
-        status: 'sent',
-        fcm_response: JSON.stringify(notificationResult).slice(0,499) // avoid overly long
-      })
-
-    if (logError) {
-      console.error('⚠️ Failed to log notification:', logError);
-    } else {
-      console.log('📝 Notification logged successfully');
-    }
-
-    console.log('✅ Notification sent successfully:', notificationResult)
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         message: 'Notification sent successfully',
-        result: notificationResult 
-      }), 
+        result: notificationResult
+      }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
-    )
+    );
 
   } catch (error) {
     let errMsg = error?.message || String(error);
-    console.error('❌ Unexpected error in send-notification function:', errMsg)
-    
+    console.error('❌ Unexpected error in send-notification function:', errMsg);
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         error: 'Internal server error',
-        details: errMsg 
-      }), 
+        details: errMsg
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
-    )
+    );
   }
-})
+});
 
 async function getAccessToken() {
   const FIREBASE_SERVICE_ACCOUNT = Deno.env.get('FIREBASE_SERVICE_ACCOUNT')
@@ -401,4 +398,3 @@ async function sendNotificationToToken(token: string, title: string, body: strin
     throw error;
   }
 }
-
