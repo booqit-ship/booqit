@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -104,6 +103,46 @@ serve(async (req) => {
 
     if (!profile) {
       console.warn('⚠️ No profile found for user:', userId);
+      
+      // Try to create a profile for this user automatically
+      console.log('🔄 Attempting to create profile for user:', userId);
+      
+      try {
+        // Get user data from auth.users
+        const { data: authUser, error: authError } = await supabaseClient.auth.admin.getUserById(userId);
+        
+        if (authError) {
+          console.error('❌ Failed to get auth user data:', authError);
+        }
+        
+        // Determine user role based on context or default
+        let userRole = 'customer';
+        if (data?.type === 'new_booking') {
+          userRole = 'merchant'; // If receiving new booking notification, likely a merchant
+        }
+        
+        // Create profile with available data
+        const { error: createError } = await supabaseClient
+          .from('profiles')
+          .insert({
+            id: userId,
+            name: authUser?.user?.user_metadata?.name || authUser?.user?.email || (userRole === 'merchant' ? 'Merchant' : 'Customer'),
+            email: authUser?.user?.email || '',
+            phone: authUser?.user?.user_metadata?.phone || '',
+            role: userRole,
+            notification_enabled: false, // Will be enabled when they set up FCM
+            fcm_token: null
+          });
+
+        if (createError) {
+          console.error('❌ Failed to create profile:', createError);
+        } else {
+          console.log('✅ Profile created for user:', userId);
+        }
+      } catch (createProfileError) {
+        console.error('❌ Error creating profile:', createProfileError);
+      }
+      
       // Log this attempt for visibility
       await supabaseClient.from('notification_logs')
         .insert({
@@ -118,7 +157,8 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           error: 'No profile found for user',
-          message: 'User needs to enable notifications in the app first'
+          message: 'User needs to enable notifications in the app first',
+          autoProfileCreated: true
         }),
         {
           status: 400,
