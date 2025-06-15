@@ -1,5 +1,5 @@
 
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
@@ -20,7 +20,11 @@ let app;
 let messaging;
 
 // Initialize Firebase
-app = initializeApp(firebaseConfig);
+if (getApps().length === 0) {
+  app = initializeApp(firebaseConfig);
+} else {
+  app = getApp();
+}
 
 // Initialize messaging for web only
 if (!Capacitor.isNativePlatform()) {

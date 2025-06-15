@@ -1,5 +1,5 @@
 
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 
 const firebaseConfig = {
@@ -19,7 +19,11 @@ let messaging;
 
 // Initialize Firebase only once and register service worker
 if (typeof window !== 'undefined') {
-  app = initializeApp(firebaseConfig);
+  if (getApps().length === 0) {
+    app = initializeApp(firebaseConfig);
+  } else {
+    app = getApp();
+  }
   messaging = getMessaging(app);
   
   // Register service worker for background messages
