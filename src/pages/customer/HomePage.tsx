@@ -302,12 +302,12 @@ const HomePage: React.FC = () => {
           {/* Categories Section */}
           <motion.div variants={itemVariants}>
             <h2 className="mb-4 font-normal text-xl">Categories</h2>
-            <div className="grid grid-cols-2 gap-4 mb-8">
-              {featuredCategories.map(category => <Button key={category.id} variant="outline" className={`h-auto flex flex-col items-center justify-center p-4 border transition-all
+            <div className="grid grid-cols-2 gap-3 mb-8">
+              {featuredCategories.map(category => <Button key={category.id} variant="outline" className={`h-auto flex flex-col items-center justify-center p-3 border transition-all
                     ${activeCategory === category.name ? 'border-booqit-primary bg-booqit-primary/10 shadow-md' : 'border-gray-200 shadow-sm hover:shadow-md hover:border-booqit-primary'}`} style={{
               backgroundColor: activeCategory === category.name ? `${category.color}20` : `${category.color}10`
             }} onClick={() => handleCategoryClick(category.name)}>
-                  <div className="w-16 h-16 mb-2 flex items-center justify-center">
+                  <div className="w-12 h-12 mb-1 flex items-center justify-center">
                     <img 
                       src={category.image} 
                       alt={category.name}
@@ -319,7 +319,7 @@ const HomePage: React.FC = () => {
                       }}
                     />
                   </div>
-                  <span className="text-base font-medium">{category.name}</span>
+                  <span className="text-sm font-medium">{category.name}</span>
                 </Button>)}
             </div>
           </motion.div>
