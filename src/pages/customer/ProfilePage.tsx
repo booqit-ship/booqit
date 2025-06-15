@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Settings, User, Calendar, Star, ChevronRight, LogOut } from 'lucide-react';
@@ -213,20 +214,25 @@ const ProfilePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-gradient-to-br from-booqit-primary to-booqit-primary/80 text-white">
-        <div className="p-6 pt-12">
-          <div className="text-center">
-            <Avatar className="w-20 h-20 mx-auto mb-4">
+      {/* Enhanced Header */}
+      <div className="relative overflow-visible bg-gradient-to-br from-booqit-primary to-booqit-primary/80 shadow-lg rounded-b-3xl">
+        {/* Avatar with white border and shadow */}
+        <div className="flex flex-col items-center pt-12 pb-3">
+          <div className="relative">
+            <Avatar className="w-24 h-24 shadow-lg border-4 border-white bg-white/30">
               <AvatarImage src={profile?.avatar_url || ''} />
-              <AvatarFallback className="bg-white/20 text-white text-lg">
+              <AvatarFallback className="bg-booqit-primary/80 text-white text-xl font-semibold">
                 {getInitials(profile?.name || user?.email || 'User')}
               </AvatarFallback>
             </Avatar>
-            <h1 className="text-2xl font-bold">
-              {profile?.name || user?.email?.split('@')[0] || 'Customer'}
+          </div>
+          <div className="mt-4 mb-2">
+            <h1 className="text-3xl font-righteous tracking-wide font-bold text-white drop-shadow-sm text-center">
+              {(profile?.name || user?.email?.split('@')[0] || 'Customer').toUpperCase()}
             </h1>
-            <p className="text-booqit-primary/20 mt-1">{profile?.email || user?.email}</p>
+            <p className="text-sm text-white/70 font-medium mt-1 text-center">
+              {profile?.email || user?.email}
+            </p>
           </div>
         </div>
       </div>
@@ -292,3 +298,4 @@ const ProfilePage: React.FC = () => {
 };
 
 export default ProfilePage;
+
