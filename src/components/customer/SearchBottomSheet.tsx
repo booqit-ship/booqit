@@ -129,7 +129,6 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
                 <SelectItem value="all" className="font-poppins">All</SelectItem>
                 <SelectItem value="barber_shop" className="font-poppins">Salon</SelectItem>
                 <SelectItem value="beauty_parlour" className="font-poppins">Beauty</SelectItem>
-                <SelectItem value="spa" className="font-poppins">Spa</SelectItem>
               </SelectContent>
             </Select>
 
