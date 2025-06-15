@@ -115,7 +115,7 @@ const UpcomingBookings: React.FC = () => {
         <Card className="animate-pulse bg-white shadow-sm rounded-xl">
           <CardContent className="p-4">
             <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 bg-gray-200 rounded-lg"></div>
+              <div className="w-16 h-16 bg-gray-200 rounded-lg"></div>
               <div className="flex-1">
                 <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
                 <div className="h-3 bg-gray-200 rounded w-1/2"></div>
@@ -148,7 +148,7 @@ const UpcomingBookings: React.FC = () => {
         className="bg-white shadow-sm rounded-xl overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
         onClick={handleBookingClick}
       >
-        {/* Compact Status Banner */}
+        {/* Status Banner */}
         <div className="bg-gradient-to-r from-booqit-primary to-purple-600 px-4 py-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
@@ -162,10 +162,10 @@ const UpcomingBookings: React.FC = () => {
         </div>
 
         <CardContent className="p-4">
-          <div className="flex items-start space-x-3">
-            {/* Compact Shop Image */}
+          <div className="flex items-start space-x-4">
+            {/* Larger Shop Image */}
             <div className="relative flex-shrink-0">
-              <div className="w-12 h-12 rounded-lg overflow-hidden">
+              <div className="w-20 h-20 rounded-lg overflow-hidden">
                 <img 
                   src={getShopImage(nextBooking.merchant)} 
                   alt={nextBooking.merchant.shop_name}
@@ -177,11 +177,11 @@ const UpcomingBookings: React.FC = () => {
                 />
               </div>
               <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
-                <div className="w-1 h-1 bg-white rounded-full"></div>
+                <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
               </div>
             </div>
             
-            {/* Compact Booking Details */}
+            {/* Text Content on Right Side */}
             <div className="flex-1 min-w-0">
               {/* Shop Name & Service */}
               <div className="mb-2">
@@ -193,27 +193,27 @@ const UpcomingBookings: React.FC = () => {
                 </p>
               </div>
               
-              {/* Compact Date & Time */}
-              <div className="flex items-center space-x-4 mb-2">
-                <div className="flex items-center space-x-2">
-                  <CalendarIcon className="h-3 w-3 text-blue-600" />
+              {/* Date & Time in Grid */}
+              <div className="grid grid-cols-2 gap-3 mb-2">
+                <div className="flex items-center space-x-1">
+                  <CalendarIcon className="h-3.5 w-3.5 text-blue-600" />
                   <span className="text-xs font-medium text-gray-700">
                     {formatDateInIST(new Date(nextBooking.date), 'MMM d')}
                   </span>
                 </div>
                 
-                <div className="flex items-center space-x-2">
-                  <Clock className="h-3 w-3 text-purple-600" />
+                <div className="flex items-center space-x-1">
+                  <Clock className="h-3.5 w-3.5 text-purple-600" />
                   <span className="text-xs font-medium text-gray-700">
                     {formatTimeToAmPm(nextBooking.time_slot)}
                   </span>
                 </div>
               </div>
 
-              {/* Compact Additional Info */}
+              {/* Stylist Name */}
               {nextBooking.stylist_name && (
-                <div className="flex items-center space-x-1 mb-1">
-                  <User className="h-3 w-3 text-gray-400" />
+                <div className="flex items-center space-x-1 mb-2">
+                  <User className="h-3.5 w-3.5 text-gray-400" />
                   <span className="text-xs text-gray-600">
                     {nextBooking.stylist_name}
                   </span>
