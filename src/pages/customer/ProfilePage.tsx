@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Settings, User, Calendar, Star, ChevronRight, LogOut } from 'lucide-react';
@@ -41,7 +40,7 @@ const ProfilePage: React.FC = () => {
     icon: Calendar,
     title: 'My Bookings',
     description: 'View your appointment history',
-    href: '/calendar'
+    href: '/bookings-history'
   }, {
     icon: Star,
     title: 'Reviews',
@@ -233,44 +232,6 @@ const ProfilePage: React.FC = () => {
       </div>
 
       <div className="p-4 space-y-4 pb-24 -mt-6">
-        {/* Recent Bookings */}
-        {recentBookings.length > 0 && (
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-lg font-light">Recent Bookings</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              {recentBookings.map((booking, index) => (
-                <div 
-                  key={booking.id} 
-                  className={`p-4 ${index !== recentBookings.length - 1 ? 'border-b border-gray-100' : ''}`}
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-medium">{booking.merchant.shop_name}</h3>
-                      <p className="text-sm text-gray-600">{booking.service.name}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {formatDate(booking.date)} at {booking.time_slot}
-                      </p>
-                    </div>
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      booking.status === 'confirmed' ? 'bg-green-100 text-green-700' :
-                      booking.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                      booking.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                      'bg-gray-100 text-gray-700'
-                    }`}>
-                      {booking.status}
-                    </span>
-                  </div>
-                </div>
-              ))}
-              <Link to="/calendar" className="block p-4 text-center text-booqit-primary hover:bg-gray-50">
-                View All Bookings
-              </Link>
-            </CardContent>
-          </Card>
-        )}
-
         {/* Profile Actions */}
         <Card className="shadow-lg">
           <CardContent className="p-0">
