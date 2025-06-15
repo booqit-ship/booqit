@@ -22,9 +22,32 @@ const NotificationTestPanel: React.FC = () => {
     }
 
     // Prompt user for permission
-    // Force requestNotificationPermission to always return 'granted' | 'denied' | 'default'
-    const permission: string = await requestNotificationPermission();
+    const permission = await requestNotificationPermission();
 
+    // Handle permission if it's a boolean
+    if (typeof permission === "boolean") {
+      if (permission === true) {
+        toast.success("Notifications permission granted! Proceeding...");
+        return true;
+      } else {
+        toast("To enable test notifications, please allow notifications in your browser settings.", {
+          description:
+            'Click the lock icon in your address bar and set "Notifications" to "Allow", then try again.',
+          duration: 9000,
+          action: {
+            label: "Learn How",
+            onClick: () =>
+              window.open(
+                "https://support.google.com/chrome/answer/3220216",
+                "_blank"
+              ),
+          },
+        });
+        return false;
+      }
+    }
+
+    // Otherwise, permission is a string
     if (permission === "granted") {
       toast.success("Notifications permission granted! Proceeding...");
       return true;
