@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import {
   BrowserRouter as Router,
@@ -34,7 +33,7 @@ import MerchantProfile from '@/pages/merchant/ProfilePage';
 import MerchantLayout from '@/layouts/MerchantLayout';
 import AnalyticsPage from '@/pages/merchant/AnalyticsPage';
 import ProtectedRoute from '@/components/ProtectedRoute';
-// Import the actual working pages
+import MerchantSettingsPage from '@/pages/merchant/SettingsPage';
 import PrivacyPolicy from '@/pages/PrivacyPolicy';
 import TermsAndConditions from '@/pages/TermsAndConditions';
 import DeleteAccountPage from '@/pages/settings/DeleteAccountPage';
@@ -79,6 +78,7 @@ const App: React.FC = () => {
         <Route path="/merchant/calendar" element={<ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantCalendar /></MerchantLayout></ProtectedRoute>} />
         <Route path="/merchant/profile" element={<ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantProfile /></MerchantLayout></ProtectedRoute>} />
         <Route path="/merchant/analytics" element={<ProtectedRoute requiredRole="merchant"><MerchantLayout><AnalyticsPage /></MerchantLayout></ProtectedRoute>} />
+        <Route path="/merchant/settings" element={<ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantSettingsPage /></MerchantLayout></ProtectedRoute>} />
 
         {/* Customer Routes */}
         <Route path="/" element={<Index />} />

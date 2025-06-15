@@ -1,48 +1,71 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+
+import React, { useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, User, Shield, Mail, Info, Trash2, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
+
 const CustomerSettingsPage: React.FC = () => {
   const {
     user,
-    logout
+    logout,
+    userRole,
   } = useAuth();
-  const settingsItems = [{
-    icon: User,
-    title: 'Account Information',
-    description: 'Manage your personal details',
-    href: '/settings/account'
-  }, {
-    icon: Shield,
-    title: 'Privacy Policy',
-    description: 'Learn how we protect your data',
-    href: '/settings/privacy-policy'
-  }, {
-    icon: Info,
-    title: 'Terms & Conditions',
-    description: 'Our terms of service',
-    href: '/settings/terms-conditions'
-  }, {
-    icon: Mail,
-    title: 'Contact Us',
-    description: 'Get in touch with our support team',
-    href: '/settings/contact'
-  }, {
-    icon: Info,
-    title: 'About BooqIt',
-    description: 'App information and version details',
-    href: '/settings/about'
-  }];
-  const dangerItems = [{
-    icon: Trash2,
-    title: 'Delete Account',
-    description: 'Permanently delete your account and data',
-    href: '/settings/delete-account',
-    isDestructive: true
-  }];
-  return <div className="min-h-screen bg-gray-50">
+  const navigate = useNavigate();
+
+  // Redirect merchant users away from this page
+  useEffect(() => {
+    if (userRole === 'merchant') {
+      navigate('/merchant/settings', { replace: true });
+    }
+  }, [userRole, navigate]);
+
+  const settingsItems = [
+    {
+      icon: User,
+      title: 'Account Information',
+      description: 'Manage your personal details',
+      href: '/settings/account'
+    },
+    {
+      icon: Shield,
+      title: 'Privacy Policy',
+      description: 'Learn how we protect your data',
+      href: '/settings/privacy-policy'
+    },
+    {
+      icon: Info,
+      title: 'Terms & Conditions',
+      description: 'Our terms of service',
+      href: '/settings/terms-conditions'
+    },
+    {
+      icon: Mail,
+      title: 'Contact Us',
+      description: 'Get in touch with our support team',
+      href: '/settings/contact'
+    },
+    {
+      icon: Info,
+      title: 'About BooqIt',
+      description: 'App information and version details',
+      href: '/settings/about'
+    }
+  ];
+
+  const dangerItems = [
+    {
+      icon: Trash2,
+      title: 'Delete Account',
+      description: 'Permanently delete your account and data',
+      href: '/settings/delete-account',
+      isDestructive: true
+    }
+  ];
+
+  return (
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b sticky top-0 z-10">
         <div className="flex items-center justify-between p-4">
@@ -73,12 +96,13 @@ const CustomerSettingsPage: React.FC = () => {
               </div>
               <div>
                 <h3 className="font-medium">{user?.email}</h3>
-                <p className="text-sm text-gray-600">Customer Account</p>
+                <p className="text-sm text-gray-600">
+                  {userRole === 'merchant' ? 'Merchant Account' : 'Customer Account'}
+                </p>
               </div>
             </div>
           </CardContent>
         </Card>
-
         {/* General Settings */}
         <div className="space-y-1">
           <h2 className="text-lg font-semibold px-1 mb-3">General</h2>
@@ -101,7 +125,6 @@ const CustomerSettingsPage: React.FC = () => {
               </Card>
             </Link>)}
         </div>
-
         {/* Danger Zone */}
         <div className="space-y-1">
           <h2 className="text-lg px-1 mb-3 text-red-600 font-thin">Danger Zone</h2>
@@ -125,6 +148,7 @@ const CustomerSettingsPage: React.FC = () => {
             </Link>)}
         </div>
       </div>
-    </div>;
+    </div>
+  );
 };
 export default CustomerSettingsPage;
