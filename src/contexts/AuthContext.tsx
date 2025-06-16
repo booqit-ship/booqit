@@ -103,6 +103,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsAuthenticated(true);
         setUserId(session.user.id);
         
+        // Ensure profile exists first
+        try {
+          await supabase.rpc('ensure_user_profile');
+        } catch (profileError) {
+          console.warn('⚠️ Profile ensure error (may be ok):', profileError);
+        }
+        
         // Fetch user role
         const role = await fetchUserRole(session.user.id);
         setUserRole(role);
@@ -205,7 +212,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (detectCacheClearing()) {
           console.log('🔄 Redirecting to auth due to cache clearing');
         }
-      }, 8000); // Increased timeout for better tab switch handling
+      }, 10000); // Increased timeout for better reliability
 
       // STEP 1: Try instant restoration from permanent cache
       const instantlyRestored = await restoreSessionInstantly();
@@ -266,12 +273,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // STEP 3: Only check Supabase if no cached session was found
-      let supabaseSessionChecked = false;
       if (!instantlyRestored) {
         try {
           console.log('📦 Attempting to get fresh session from Supabase');
           const { data: { session }, error } = await supabase.auth.getSession();
-          supabaseSessionChecked = true;
           
           if (session && !error) {
             console.log('📦 Got fresh session from Supabase');
@@ -281,7 +286,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } catch (error) {
           console.error('❌ Failed to get fresh session:', error);
-          supabaseSessionChecked = true;
         }
       }
 
