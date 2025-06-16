@@ -21,49 +21,26 @@ export const ensureUserProfile = async (userId: string, userEmail: string, userM
       return existingProfile;
     }
     
-    // Use RPC function to ensure profile creation
-    const { data: profileData, error: rpcError } = await supabase
-      .rpc('ensure_merchant_profile', { p_user_id: userId });
-    
-    if (rpcError) {
-      console.error('❌ RPC function failed:', rpcError);
-      
-      // Fallback: try direct insert
-      const { data: newProfile, error: insertError } = await supabase
-        .from('profiles')
-        .insert({
-          id: userId,
-          name: userMetadata?.name || userEmail?.split('@')[0] || 'User',
-          email: userEmail || '',
-          phone: userMetadata?.phone || null,
-          role: userMetadata?.role || 'customer'
-        })
-        .select('*')
-        .single();
-      
-      if (insertError) {
-        console.error('❌ Direct insert failed:', insertError);
-        return null;
-      }
-      
-      console.log('✅ Profile created via direct insert');
-      return newProfile;
-    }
-    
-    // Get the created profile
-    const { data: createdProfile, error: getError } = await supabase
+    // Create profile directly since RPC doesn't exist
+    const { data: newProfile, error: insertError } = await supabase
       .from('profiles')
+      .insert({
+        id: userId,
+        name: userMetadata?.name || userEmail?.split('@')[0] || 'User',
+        email: userEmail || '',
+        phone: userMetadata?.phone || null,
+        role: userMetadata?.role || 'customer'
+      })
       .select('*')
-      .eq('id', userId)
       .single();
     
-    if (getError) {
-      console.error('❌ Error fetching created profile:', getError);
+    if (insertError) {
+      console.error('❌ Profile creation failed:', insertError);
       return null;
     }
     
-    console.log('✅ Profile ensured via RPC function');
-    return createdProfile;
+    console.log('✅ Profile created successfully');
+    return newProfile;
     
   } catch (error) {
     console.error('❌ Exception in ensureUserProfile:', error);
