@@ -6,9 +6,6 @@ import type { Database } from './types';
 const SUPABASE_URL = "https://ggclvurfcykbwmhfftkn.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdnY2x2dXJmY3lrYndtaGZmdGtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc3MTQ3OTUsImV4cCI6MjA2MzI5MDc5NX0.0lpqHKUCWh47YTnRuksWDmv6Y5JPEanMwVyoQy9zeHw";
 
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
-
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: localStorage,
@@ -30,45 +27,3 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     }
   }
 });
-
-// Enhanced session management to prevent disconnections
-let sessionRefreshInterval: NodeJS.Timeout | null = null;
-
-const startSessionMaintenance = () => {
-  if (sessionRefreshInterval) {
-    clearInterval(sessionRefreshInterval);
-  }
-  
-  // Check session every 5 minutes and refresh if needed
-  sessionRefreshInterval = setInterval(async () => {
-    try {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      
-      if (session && !error) {
-        // Check if token expires in next 10 minutes
-        const expiresAt = session.expires_at ? session.expires_at * 1000 : 0;
-        const now = Date.now();
-        const tenMinutes = 10 * 60 * 1000;
-        
-        if (expiresAt - now < tenMinutes) {
-          console.log('🔄 Proactively refreshing session');
-          await supabase.auth.refreshSession();
-        }
-      }
-    } catch (error) {
-      console.error('❌ Session maintenance error:', error);
-    }
-  }, 5 * 60 * 1000); // 5 minutes
-};
-
-// Start session maintenance when client is created
-startSessionMaintenance();
-
-// Clean up on window unload
-if (typeof window !== 'undefined') {
-  window.addEventListener('beforeunload', () => {
-    if (sessionRefreshInterval) {
-      clearInterval(sessionRefreshInterval);
-    }
-  });
-}

@@ -38,18 +38,43 @@ const fetchProfile = async (userId: string | null): Promise<Profile | null> => {
   try {
     console.log('🔍 Fetching profile for user:', userId);
     
-    // First, ensure profile exists by calling the database function
-    const { error: ensureError } = await supabase.rpc('ensure_user_profile');
-    if (ensureError) {
-      console.warn('⚠️ Profile ensure error (may be ok):', ensureError);
-    }
-
-    // Now fetch the profile
+    // First try to get the profile
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .single();
+
+    if (profileError && profileError.code === 'PGRST116') {
+      // Profile doesn't exist, create it from auth user data
+      console.log('📝 Profile not found, creating new profile');
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('No authenticated user found');
+      }
+
+      const { data: newProfile, error: insertError } = await supabase
+        .from('profiles')
+        .insert({
+          id: userId,
+          name: user.user_metadata?.name || user.email?.split('@')[0] || 'User',
+          email: user.email || '',
+          phone: user.user_metadata?.phone || '',
+          role: 'customer',
+          notification_enabled: true
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('❌ Failed to create profile:', insertError);
+        throw new Error(`Failed to create profile: ${insertError.message}`);
+      }
+
+      console.log('✅ Profile created successfully:', newProfile);
+      return newProfile;
+    }
 
     if (profileError) {
       console.error('❌ Profile fetch error:', profileError);
@@ -125,9 +150,8 @@ const ProfileSkeleton = () => (
 const ProfilePage: React.FC = () => {
   const { user, logout } = useAuth();
   const queryClient = useQueryClient();
-  const [retryCount, setRetryCount] = useState(0);
 
-  // Fetch profile with enhanced error handling
+  // Fetch profile with better error handling
   const {
     data: profile,
     isLoading: loadingProfile,
@@ -137,13 +161,8 @@ const ProfilePage: React.FC = () => {
     queryKey: ['profile', user?.id],
     queryFn: () => fetchProfile(user?.id ?? null),
     enabled: !!user?.id,
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    retry: (failureCount, error) => {
-      console.log(`🔄 Profile query retry ${failureCount}:`, error);
-      return failureCount < 2; // Retry up to 2 times
-    },
-    refetchOnWindowFocus: true,
-    refetchOnMount: true
+    retry: 2,
+    staleTime: 5 * 60 * 1000 // 5 minutes
   });
 
   // Fetch recent bookings
@@ -155,52 +174,9 @@ const ProfilePage: React.FC = () => {
     queryKey: ['recentBookings', user?.id],
     queryFn: () => fetchRecentBookings(user?.id ?? null),
     enabled: !!user?.id,
-    staleTime: 2 * 60 * 1000,
-    retry: 1
+    retry: 1,
+    staleTime: 2 * 60 * 1000
   });
-
-  // Auto-retry profile fetch on auth changes
-  useEffect(() => {
-    if (user?.id && errorProfile && retryCount < 3) {
-      const timer = setTimeout(() => {
-        console.log('🔄 Auto-retrying profile fetch');
-        setRetryCount(prev => prev + 1);
-        refetchProfile();
-      }, 1000 * (retryCount + 1)); // Exponential backoff
-
-      return () => clearTimeout(timer);
-    }
-  }, [user?.id, errorProfile, retryCount, refetchProfile]);
-
-  // Reset retry count on successful load
-  useEffect(() => {
-    if (profile && !errorProfile) {
-      setRetryCount(0);
-    }
-  }, [profile, errorProfile]);
-
-  // Refresh data when returning to this page
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden && user?.id) {
-        queryClient.invalidateQueries({ queryKey: ['profile', user.id] });
-      }
-    };
-
-    const handleFocus = () => {
-      if (user?.id) {
-        queryClient.invalidateQueries({ queryKey: ['profile', user.id] });
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleFocus);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, [user?.id, queryClient]);
 
   const profileItems = [
     {
@@ -229,37 +205,34 @@ const ProfilePage: React.FC = () => {
   };
 
   // Loading state
-  if (loadingProfile || loadingBookings) {
+  if (loadingProfile) {
     return <ProfileSkeleton />;
   }
 
   // Error state with retry option
   if (errorProfile) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
-        <div className="bg-white p-6 rounded shadow-md max-w-md w-full text-center">
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+        <div className="bg-white p-6 rounded-lg shadow-md max-w-md w-full text-center">
           <p className="text-lg font-semibold text-red-600 mb-4">
-            Failed to load profile data
+            Unable to load profile
           </p>
           <p className="text-sm text-gray-600 mb-4">
-            {errorProfile.message || 'Something went wrong while loading your profile.'}
+            Please try again in a moment.
           </p>
           <div className="flex gap-2 justify-center">
-            <button 
-              className="bg-booqit-primary rounded px-4 py-2 text-white font-medium"
-              onClick={() => {
-                setRetryCount(0);
-                refetchProfile();
-              }}
+            <Button 
+              onClick={() => refetchProfile()}
+              className="bg-booqit-primary hover:bg-booqit-primary/90"
             >
               Try Again
-            </button>
-            <button 
-              className="bg-gray-500 rounded px-4 py-2 text-white font-medium"
+            </Button>
+            <Button 
+              variant="outline"
               onClick={() => window.location.reload()}
             >
               Refresh Page
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -274,7 +247,7 @@ const ProfilePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Enhanced Header */}
+      {/* Header */}
       <div className="relative overflow-visible bg-gradient-to-br from-booqit-primary to-booqit-primary/80 shadow-lg rounded-b-3xl">
         <div className="flex flex-col items-center pt-12 pb-3">
           <div className="relative">
@@ -325,14 +298,16 @@ const ProfilePage: React.FC = () => {
         <div className="grid grid-cols-2 gap-4">
           <Card>
             <CardContent className="p-4 text-center">
-              <h3 className="text-2xl font-bold text-booqit-primary">{recentBookings.length}</h3>
+              <h3 className="text-2xl font-bold text-booqit-primary">
+                {loadingBookings ? '-' : recentBookings.length}
+              </h3>
               <p className="text-sm text-gray-600">Recent Bookings</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
               <h3 className="text-2xl font-bold text-green-600">
-                {recentBookings.filter((b: RecentBooking) => b.status === 'completed').length}
+                {loadingBookings ? '-' : recentBookings.filter((b: RecentBooking) => b.status === 'completed').length}
               </h3>
               <p className="text-sm text-gray-600">Completed</p>
             </CardContent>
