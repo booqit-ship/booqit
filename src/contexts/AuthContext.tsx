@@ -6,6 +6,7 @@ import { Session, User } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { PermanentSession } from '@/utils/permanentSession';
+import { SessionManager } from '@/utils/sessionManager';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -31,6 +32,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const queryClient = useQueryClient();
   const timeoutRef = useRef<NodeJS.Timeout>();
   const authValidationRef = useRef(false);
+  const sessionCheckRef = useRef<NodeJS.Timeout>();
 
   const fetchUserRole = async (userId: string): Promise<UserRole | null> => {
     try {
@@ -55,6 +57,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const ensureProfile = async (user: User) => {
+    try {
+      console.log('🔧 Ensuring profile exists for user:', user.id);
+      
+      // First try to get existing profile
+      const { data: existingProfile, error: fetchError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+      
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error('Error fetching profile:', fetchError);
+        return 'customer';
+      }
+      
+      if (existingProfile) {
+        console.log('✅ Profile already exists');
+        return existingProfile.role as UserRole;
+      }
+      
+      // Create profile if it doesn't exist
+      console.log('📝 Creating new profile...');
+      const { data: newProfile, error: createError } = await supabase
+        .from('profiles')
+        .insert({
+          id: user.id,
+          name: user.user_metadata?.name || user.email?.split('@')[0] || 'User',
+          email: user.email || '',
+          phone: user.user_metadata?.phone || null,
+          role: user.user_metadata?.role || 'customer'
+        })
+        .select('role')
+        .single();
+      
+      if (createError) {
+        console.error('❌ Error creating profile:', createError);
+        return 'customer';
+      }
+      
+      console.log('✅ Profile created successfully');
+      return newProfile?.role as UserRole || 'customer';
+    } catch (error) {
+      console.error('❌ Exception in ensureProfile:', error);
+      return 'customer';
+    }
+  };
+
   const clearAuthState = () => {
     console.log('🧹 Clearing auth state');
     setIsAuthenticated(false);
@@ -63,38 +113,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSession(null);
     setUser(null);
     PermanentSession.clearSession();
+    SessionManager.clearSessionBackup();
   };
 
-  const detectCacheClearing = (): boolean => {
-    try {
-      // Check for Supabase auth keys in localStorage
-      const supabaseKeys = Object.keys(localStorage).filter(key => 
-        key.startsWith('sb-') || key.includes('supabase') || key.includes('auth')
-      );
-      
-      const permanentSession = PermanentSession.getSession();
-      const permanentLoggedIn = localStorage.getItem('booqit-logged-in');
-      
-      // Enhanced cache clearing detection
-      if ((permanentSession.isLoggedIn && supabaseKeys.length === 0) || 
-          (!permanentLoggedIn && supabaseKeys.length > 0)) {
-        console.log('🚨 Cache clearing detected');
-        clearAuthState();
-        setTimeout(() => {
-          window.location.href = '/auth';
-        }, 100);
-        return true;
-      }
-      
-      return false;
-    } catch (error) {
-      console.error('❌ Error detecting cache clearing:', error);
-      return false;
-    }
-  };
-
-  const updateAuthStateFromSupabase = async (session: Session | null) => {
-    console.log('🔄 Updating auth state from Supabase session:', !!session);
+  const updateAuthStateFromSession = async (session: Session | null) => {
+    console.log('🔄 Updating auth state from session:', !!session);
     
     if (session?.user) {
       try {
@@ -103,21 +126,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsAuthenticated(true);
         setUserId(session.user.id);
         
-        // Fetch user role
-        const role = await fetchUserRole(session.user.id);
+        // Save session backup
+        SessionManager.saveSessionBackup(session);
+        
+        // Ensure profile exists and get role
+        const role = await ensureProfile(session.user);
         setUserRole(role);
         
         // Save permanently
         PermanentSession.saveSession(session, role || 'customer', session.user.id);
         
-        console.log('✅ Auth state updated from Supabase with role:', role);
+        console.log('✅ Auth state updated from session with role:', role);
       } catch (error) {
-        console.error('❌ Error updating auth state from Supabase:', error);
+        console.error('❌ Error updating auth state from session:', error);
         setUserRole('customer');
         PermanentSession.saveSession(session, 'customer', session.user.id);
       }
     } else {
-      console.log('🔄 No Supabase session, checking permanent session');
+      console.log('🔄 No session, checking permanent session');
       const permanentData = PermanentSession.getSession();
       
       if (permanentData.isLoggedIn) {
@@ -131,6 +157,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         clearAuthState();
       }
+    }
+  };
+
+  // Periodic session validation
+  const validateSession = async () => {
+    try {
+      const currentSession = session;
+      if (!currentSession) return;
+      
+      // Check if session needs refresh
+      if (SessionManager.needsRefresh(currentSession)) {
+        console.log('🔄 Session needs refresh, attempting...');
+        const { session: refreshedSession, error } = await SessionManager.refreshSession();
+        
+        if (refreshedSession) {
+          await updateAuthStateFromSession(refreshedSession);
+        } else if (error) {
+          console.error('❌ Session refresh failed:', error);
+          clearAuthState();
+          setTimeout(() => {
+            window.location.href = '/auth';
+          }, 100);
+        }
+      } else {
+        // Update activity
+        SessionManager.updateActivity();
+      }
+    } catch (error) {
+      console.error('❌ Error during session validation:', error);
     }
   };
 
@@ -149,27 +204,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSession(permanentData.session);
         setUser(permanentData.session?.user || null);
         
-        // Validate tokens with Supabase in background (non-blocking)
-        if (permanentData.session?.access_token && permanentData.session?.refresh_token) {
-          setTimeout(async () => {
-            try {
-              console.log('🔍 Background token validation');
-              const { error } = await supabase.auth.setSession({
-                access_token: permanentData.session.access_token,
-                refresh_token: permanentData.session.refresh_token
-              });
-              
-              if (error) {
-                console.log('⚠️ Background token validation failed:', error);
-                // Don't clear state immediately, let session persistence handle it
-              } else {
-                console.log('✅ Background tokens validated successfully');
-              }
-            } catch (error) {
-              console.log('⚠️ Background token validation error:', error);
-            }
-          }, 100); // Small delay to not block UI
-        }
+        // Validate session in background
+        setTimeout(validateSession, 1000);
         
         return true;
       }
@@ -179,7 +215,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return false;
   };
 
-  // Enhanced auth initialization with better timing
+  // Enhanced auth initialization
   const initializeAuth = async () => {
     if (authValidationRef.current) {
       console.log('🔄 Auth validation already in progress, skipping');
@@ -195,17 +231,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         clearTimeout(timeoutRef.current);
       }
 
-      // Set timeout to prevent infinite loading - but longer for tab switches
+      // Set timeout to prevent infinite loading
       timeoutRef.current = setTimeout(() => {
         console.log('⏰ Auth initialization timeout - setting loading false');
         setLoading(false);
         authValidationRef.current = false;
-        
-        // Check if cache was cleared during timeout
-        if (detectCacheClearing()) {
-          console.log('🔄 Redirecting to auth due to cache clearing');
-        }
-      }, 8000); // Increased timeout for better tab switch handling
+      }, 8000);
 
       // STEP 1: Try instant restoration from permanent cache
       const instantlyRestored = await restoreSessionInstantly();
@@ -217,8 +248,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             console.log('🔐 Auth state changed:', event, session?.user?.id);
             
             if (event === 'SIGNED_IN' && session?.user) {
-              console.log('👤 User signed in, updating permanent session');
-              await updateAuthStateFromSupabase(session);
+              console.log('👤 User signed in, updating session');
+              await updateAuthStateFromSession(session);
               
               // Send welcome notification after successful login
               try {
@@ -247,7 +278,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               clearAuthState();
               queryClient.clear();
             } else if (event === 'TOKEN_REFRESHED' && session) {
-              console.log('🔄 Token refreshed, updating permanent session');
+              console.log('🔄 Token refreshed, updating session');
+              SessionManager.saveSessionBackup(session);
               const currentRole = userRole || 'customer';
               PermanentSession.saveSession(session, currentRole, session.user.id);
               setSession(session);
@@ -256,36 +288,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         );
 
+        // Set up periodic session validation (every 5 minutes)
+        sessionCheckRef.current = setInterval(validateSession, 5 * 60 * 1000);
+
         // Store subscription for cleanup
+        initialized.current = true;
+        
         return () => {
           subscription.unsubscribe();
           if (timeoutRef.current) {
             clearTimeout(timeoutRef.current);
           }
+          if (sessionCheckRef.current) {
+            clearInterval(sessionCheckRef.current);
+          }
         };
       }
 
       // STEP 3: Only check Supabase if no cached session was found
-      let supabaseSessionChecked = false;
       if (!instantlyRestored) {
         try {
           console.log('📦 Attempting to get fresh session from Supabase');
           const { data: { session }, error } = await supabase.auth.getSession();
-          supabaseSessionChecked = true;
           
           if (session && !error) {
             console.log('📦 Got fresh session from Supabase');
-            await updateAuthStateFromSupabase(session);
+            await updateAuthStateFromSession(session);
           } else {
             console.log('📦 No fresh session available from Supabase');
           }
         } catch (error) {
           console.error('❌ Failed to get fresh session:', error);
-          supabaseSessionChecked = true;
         }
       }
 
-      // STEP 4: Set loading to false - CRITICAL: Wait for both instant restore AND Supabase check
+      // STEP 4: Set loading to false
       console.log('⏹️ Auth initialization complete, setting loading false');
       setLoading(false);
       authValidationRef.current = false;
@@ -307,13 +344,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (!initialized.current) {
-      initialized.current = true;
       initializeAuth();
     }
     
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
+      }
+      if (sessionCheckRef.current) {
+        clearInterval(sessionCheckRef.current);
       }
     };
   }, []);
@@ -335,8 +374,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         clearTimeout(timeoutRef.current);
       }
       
+      if (sessionCheckRef.current) {
+        clearInterval(sessionCheckRef.current);
+      }
+      
       // Clear permanent session first
       PermanentSession.clearSession();
+      SessionManager.clearSessionBackup();
       
       // Clear all Supabase-related localStorage keys
       const keysToRemove = Object.keys(localStorage).filter(key => 
