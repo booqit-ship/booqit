@@ -1,151 +1,136 @@
 
-import React from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import React, { useEffect } from "react";
 import { Switch } from "@/components/ui/switch";
-import { Bell, BellOff, Loader2, CheckCircle } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
-import { useSimpleNotifications } from "@/hooks/useSimpleNotifications";
 import { useNotificationPreferences } from "@/hooks/useNotificationPreferences";
+import { toast } from "sonner";
+
+const notificationTypes = [
+  { type: 'new_booking', label: "New Bookings (merchant)" },
+  { type: 'booking_confirmed', label: "Booking Confirmations" },
+  { type: 'booking_completed', label: "Completion/Review Reminders" },
+  { type: 'upcoming_appointment', label: "Upcoming Appointment Reminders" },
+  { type: 'booking_cancelled', label: "Booking Cancellations" },
+];
 
 export default function NotificationPreferencesPanel() {
-  const { userId, userRole } = useAuth();
-  const { isInitialized, hasPermission, enableNotifications } = useSimpleNotifications();
-  const { preferences, isLoading, updatePreference } = useNotificationPreferences(userId);
+  const { user } = useAuth();
+  const { preferences, isLoading, updatePreference } = useNotificationPreferences(user?.id ?? null);
 
-  // Get preference by type
-  const getPreferenceEnabled = (type: string) => {
-    const pref = preferences.find(p => p.notification_type === type);
-    return pref?.enabled ?? true; // Default to enabled
-  };
+  useEffect(() => {
+    console.log('🔔 NOTIFICATION PREFS: Current preferences:', preferences);
+    console.log('🔔 NOTIFICATION PREFS: User ID:', user?.id);
+  }, [preferences, user?.id]);
 
-  const notificationTypes = [
-    {
-      type: 'new_booking',
-      label: 'New Bookings',
-      description: 'Get notified when customers book appointments',
-      merchantOnly: true
-    },
-    {
-      type: 'booking_confirmed',
-      label: 'Booking Confirmations',
-      description: 'Get notified when your booking is confirmed',
-      customerOnly: true
-    },
-    {
-      type: 'booking_completed',
-      label: 'Review Requests',
-      description: 'Get notified to leave reviews after appointments',
-      customerOnly: true
-    },
-    {
-      type: 'daily_reminder',
-      label: 'Daily Reminders',
-      description: 'Get daily reminders about your business or bookings'
-    },
-    {
-      type: 'weekly_reminder',
-      label: 'Weekly Reminders',
-      description: 'Get weekly reminders to book appointments',
-      customerOnly: true
-    }
-  ];
+  // Initialize default preferences if none exist
+  useEffect(() => {
+    const initializeDefaultPreferences = async () => {
+      if (!user?.id || isLoading) return;
+      
+      console.log('🔔 NOTIFICATION PREFS: Checking if initialization needed...');
+      
+      // If no preferences exist, create default ones
+      if (preferences && preferences.length === 0) {
+        console.log('🔔 NOTIFICATION PREFS: No preferences found, creating defaults...');
+        
+        for (const notifType of notificationTypes) {
+          try {
+            await new Promise(resolve => setTimeout(resolve, 100)); // Small delay to avoid rate limiting
+            updatePreference({ 
+              notificationType: notifType.type, 
+              enabled: true 
+            });
+          } catch (error) {
+            console.error('Failed to initialize preference:', notifType.type, error);
+          }
+        }
+      }
+    };
 
-  const filteredTypes = notificationTypes.filter(type => {
-    if (type.merchantOnly && userRole !== 'merchant') return false;
-    if (type.customerOnly && userRole !== 'customer') return false;
-    return true;
-  });
+    initializeDefaultPreferences();
+  }, [user?.id, preferences, isLoading, updatePreference]);
 
-  const handleTogglePreference = (type: string, enabled: boolean) => {
-    updatePreference({ notificationType: type, enabled });
-  };
-
-  if (isLoading) {
+  if (!user) {
     return (
-      <Card className="mx-4 mb-4">
-        <CardContent className="flex items-center justify-center py-8">
-          <Loader2 className="w-6 h-6 animate-spin" />
+      <Card className="max-w-lg mx-auto mt-10">
+        <CardContent className="p-6 text-center">
+          <p className="text-gray-500">Please log in to manage notification preferences</p>
         </CardContent>
       </Card>
     );
   }
 
+  if (isLoading) {
+    return (
+      <Card className="max-w-lg mx-auto mt-10">
+        <CardContent className="p-6 text-center">
+          <p className="text-gray-500">Loading notification preferences...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Create preference map with defaults
+  const prefMap = Object.fromEntries(
+    notificationTypes.map(nt => {
+      const existingPref = preferences?.find((p: any) => p.notification_type === nt.type);
+      return [nt.type, existingPref?.enabled ?? true]; // Default to true if not found
+    })
+  );
+
+  console.log('🔔 NOTIFICATION PREFS: Preference map:', prefMap);
+
+  const handlePreferenceChange = async (notificationType: string, enabled: boolean) => {
+    console.log('🔔 NOTIFICATION PREFS: Updating preference:', { notificationType, enabled });
+    
+    try {
+      updatePreference({ notificationType, enabled });
+    } catch (error) {
+      console.error('🔔 NOTIFICATION PREFS: Failed to update preference:', error);
+      toast.error('Failed to update notification preference');
+    }
+  };
+
   return (
-    <Card className="mx-4 mb-4">
+    <Card className="max-w-lg mx-auto mt-10">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Bell className="w-5 h-5" />
-          Notification Settings
-        </CardTitle>
+        <CardTitle>Notification Preferences</CardTitle>
+        <p className="text-sm text-gray-600">
+          Manage which notifications you want to receive
+        </p>
       </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Main Notification Toggle */}
+      <CardContent>
         <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div className="flex items-center gap-3">
-              {isInitialized ? (
-                <CheckCircle className="w-5 h-5 text-green-500" />
-              ) : (
-                <BellOff className="w-5 h-5 text-gray-400" />
-              )}
-              <div>
-                <p className="font-medium">
-                  {isInitialized ? "Notifications Enabled" : "Enable Notifications"}
-                </p>
-                <p className="text-sm text-gray-600">
-                  {isInitialized 
-                    ? "You'll receive notifications for important updates" 
-                    : "Allow notifications to stay updated on bookings and reminders"
-                  }
-                </p>
-              </div>
-            </div>
-            {!isInitialized && (
-              <Button 
-                onClick={enableNotifications}
-                size="sm"
-              >
-                Enable
-              </Button>
-            )}
-          </div>
-
-          {!hasPermission && (
-            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-sm text-yellow-800">
-                <strong>Browser Permission Required:</strong> Please allow notifications in your browser to receive updates.
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Individual Notification Preferences */}
-        {isInitialized && (
-          <div className="space-y-4">
-            <h3 className="font-medium text-gray-900">Notification Types</h3>
-            <div className="space-y-3">
-              {filteredTypes.map((type) => (
-                <div key={type.type} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div className="flex-1">
-                    <p className="font-medium text-sm">{type.label}</p>
-                    <p className="text-xs text-gray-600">{type.description}</p>
-                  </div>
-                  <Switch
-                    checked={getPreferenceEnabled(type.type)}
-                    onCheckedChange={(enabled) => handleTogglePreference(type.type, enabled)}
-                  />
+          {notificationTypes.map((nt) => {
+            const isEnabled = prefMap[nt.type];
+            
+            return (
+              <div key={nt.type} className="flex items-center justify-between py-3 border-b last:border-0">
+                <div className="flex-1">
+                  <span className="font-medium">{nt.label}</span>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {nt.type === 'new_booking' && 'Get notified when customers book appointments'}
+                    {nt.type === 'booking_confirmed' && 'Get notified when your bookings are confirmed'}
+                    {nt.type === 'booking_completed' && 'Get reminded to leave reviews after appointments'}
+                    {nt.type === 'upcoming_appointment' && 'Get reminded about upcoming appointments'}
+                    {nt.type === 'booking_cancelled' && 'Get notified when bookings are cancelled'}
+                  </p>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Status Information */}
-        <div className="text-xs text-gray-500 p-3 bg-gray-50 rounded-lg">
-          <p><strong>Status:</strong> {isInitialized ? 'Active' : 'Inactive'}</p>
-          <p><strong>Permission:</strong> {hasPermission ? 'Granted' : 'Not granted'}</p>
-          {userRole && <p><strong>Role:</strong> {userRole}</p>}
+                <Switch
+                  checked={isEnabled}
+                  onCheckedChange={(checked) => handlePreferenceChange(nt.type, checked)}
+                  className="ml-4"
+                />
+              </div>
+            );
+          })}
+        </div>
+        
+        <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+          <p className="text-sm text-blue-800">
+            <strong>Note:</strong> Make sure to allow notifications in your browser settings to receive push notifications.
+          </p>
         </div>
       </CardContent>
     </Card>
