@@ -1,11 +1,16 @@
+
 [
   {
-    "relation": ["delegate_permission/common.handle_all_urls"],
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
     "target": {
       "namespace": "android_app",
       "package_name": "com.x16studios.booqit",
       "sha256_cert_fingerprints": [
-        "8A:0B:56:55:54:D4:C7:31:F1:26:0F:35:C8:AF:4A:80:1F:55:83:EB:B3:D7:A8:FF:C4:BC:B7:87:0A:2A:A3:4A"
+        "8A:0B:56:55:54:D4:C7:31:F1:26:0F:35:C8:AF:4A:80:1F:55:83:EB:B3:D7:A8:FF:C4:BC:B7:87:0A:2A:A3:4A",
+        "48:94:30:E6:13:2E:F3:3B:82:AB:30:8D:B7:5C:FA:53:1F:51:5C:24:5B:F5:3D:95:23:F0:F8:AA:A7:FF:59:0B"
       ]
     }
   }
