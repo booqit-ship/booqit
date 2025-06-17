@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Smartphone } from 'lucide-react';
@@ -8,7 +9,7 @@ import { toast } from 'sonner';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { formatDateInIST } from '@/utils/dateUtils';
 import { useAuth } from '@/contexts/AuthContext';
-import { sendNewBookingNotification } from '@/services/eventNotificationService';
+import { sendNewBookingNotification } from '@/services/simpleNotificationService';
 import BookingSuccessAnimation from '@/components/customer/BookingSuccessAnimation';
 import BookingFailureAnimation from '@/components/customer/BookingFailureAnimation';
 
@@ -55,24 +56,13 @@ const PaymentPage: React.FC = () => {
     
     try {
       console.log('PAYMENT_FLOW: Starting payment processing...');
-      console.log('Services:', selectedServices?.map(s => ({ name: s.name, duration: s.duration })));
-      console.log('Total duration:', totalDuration, 'minutes');
-      console.log('Total price:', totalPrice);
 
       // Simulate payment processing (2 seconds)
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       const serviceId = selectedServices[0]?.id;
       
-      console.log('PAYMENT_FLOW: Creating booking with params:', {
-        p_user_id: userId,
-        p_merchant_id: merchantId,
-        p_service_id: serviceId,
-        p_staff_id: selectedStaff,
-        p_date: bookingDate,
-        p_time_slot: bookingTime,
-        p_service_duration: totalDuration
-      });
+      console.log('PAYMENT_FLOW: Creating booking...');
 
       // Step 1: Reserve the slot with total duration
       const { data: reserveResult, error: reserveError } = await supabase.rpc('reserve_slot_immediately', {
@@ -148,7 +138,7 @@ const PaymentPage: React.FC = () => {
         console.error('PAYMENT_FLOW: Payment record creation failed:', paymentCreationError);
       }
 
-      // Step 4: Send notification to merchant (simplified - non-blocking)
+      // Step 4: Send notification to merchant (simple approach)
       try {
         console.log('PAYMENT_FLOW: Sending notification to merchant...');
         
@@ -174,13 +164,7 @@ const PaymentPage: React.FC = () => {
           const timeSlotFormatted = formatTimeToAmPm(bookingTime);
           const dateFormatted = formatDateInIST(new Date(bookingDate), 'MMM d, yyyy');
 
-          console.log('PAYMENT_FLOW: Sending simple notification to merchant:', {
-            merchantUserId: merchantData.user_id,
-            customerName,
-            serviceNames,
-            timeSlot: `${dateFormatted} at ${timeSlotFormatted}`,
-            bookingId
-          });
+          console.log('PAYMENT_FLOW: Sending simple notification to merchant');
 
           await sendNewBookingNotification(
             merchantData.user_id,
