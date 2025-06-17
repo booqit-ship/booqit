@@ -1,3 +1,4 @@
+
 importScripts('https://www.gstatic.com/firebasejs/10.12.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.12.1/firebase-messaging-compat.js');
 
@@ -13,14 +14,23 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+// Get current domain for click actions
+const getCurrentDomain = () => {
+  if (typeof location !== 'undefined') {
+    return location.origin;
+  }
+  return 'https://app.booqit.in'; // fallback to production domain
+};
+
 // Handle background messages (when app is not in focus)
 messaging.onBackgroundMessage((payload) => {
   console.log('📱 Background message received:', payload);
-
+  
+  const currentDomain = getCurrentDomain();
+  
   const notificationTitle = payload.notification?.title || 'BooqIt Notification';
   const notificationOptions = {
     body: payload.notification?.body || 'You have a new notification',
-    // Ensure the icon exists
     icon: '/icons/icon-192.png',
     badge: '/icons/icon-192.png',
     tag: 'booqit-notification',
@@ -34,10 +44,10 @@ messaging.onBackgroundMessage((payload) => {
         icon: '/icons/icon-192.png'
       }
     ],
-    data: payload.data
+    data: { ...payload.data, click_action: currentDomain }
   };
 
-  console.log('🔔 Showing notification:', notificationTitle, notificationOptions);
+  console.log('🔔 Showing notification with domain:', currentDomain, notificationOptions);
 
   return self.registration.showNotification(notificationTitle, notificationOptions);
 });
@@ -47,6 +57,11 @@ self.addEventListener('notificationclick', (event) => {
   console.log('🔔 Notification clicked:', event);
 
   event.notification.close();
+  
+  const currentDomain = getCurrentDomain();
+  const targetUrl = event.notification.data?.click_action || currentDomain;
+
+  console.log('🔔 Opening URL:', targetUrl);
 
   // Open the app when notification is clicked
   event.waitUntil(
@@ -54,13 +69,13 @@ self.addEventListener('notificationclick', (event) => {
       .then((clientList) => {
         // If app is already open, focus it
         for (const client of clientList) {
-          if (client.url.includes('booqit') && 'focus' in client) {
+          if (client.url.includes(new URL(currentDomain).hostname) && 'focus' in client) {
             return client.focus();
           }
         }
         // Otherwise open new window
         if (clients.openWindow) {
-          return clients.openWindow('/');
+          return clients.openWindow(targetUrl);
         }
       })
   );

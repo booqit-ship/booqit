@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { sendNotificationToUser } from './notificationService';
 
@@ -76,15 +77,15 @@ const getMerchantReminderMessages = (merchantName: string) => {
   ];
 };
 
-// Simple notification check - just verify if user has notifications enabled
+// Enhanced notification check - create profile if missing
 const canSendNotification = async (userId: string) => {
   try {
     console.log('🔍 NOTIFICATION CHECK: Checking if user can receive notifications:', userId);
     
     // Get user's notification preferences
-    const { data: profile, error } = await supabase
+    let { data: profile, error } = await supabase
       .from('profiles')
-      .select('notification_enabled, fcm_token')
+      .select('notification_enabled, fcm_token, name, role')
       .eq('id', userId)
       .maybeSingle();
 
@@ -94,13 +95,63 @@ const canSendNotification = async (userId: string) => {
     }
 
     if (!profile) {
-      console.log('⚠️ NOTIFICATION CHECK: No profile found for user - they need to enable notifications first');
-      return false;
+      console.log('⚠️ NOTIFICATION CHECK: No profile found, attempting to create one...');
+      
+      // Try to get user data from auth and create profile
+      try {
+        const { data: { user }, error: userError } = await supabase.auth.admin.getUserById(userId);
+        
+        if (userError) {
+          console.error('❌ NOTIFICATION CHECK: Could not get user from auth:', userError);
+          return false;
+        }
+
+        if (!user) {
+          console.error('❌ NOTIFICATION CHECK: User not found in auth');
+          return false;
+        }
+
+        // Determine role - check if user owns a merchant account
+        const { data: merchantData } = await supabase
+          .from('merchants')
+          .select('id')
+          .eq('user_id', userId)
+          .limit(1);
+
+        const userRole = merchantData && merchantData.length > 0 ? 'merchant' : 'customer';
+
+        // Create profile
+        const { error: createError } = await supabase
+          .from('profiles')
+          .insert({
+            id: userId,
+            name: user.user_metadata?.name || user.email || (userRole === 'merchant' ? 'Merchant' : 'Customer'),
+            email: user.email || '',
+            phone: user.user_metadata?.phone || '',
+            role: userRole,
+            notification_enabled: false, // Will be enabled when they set up notifications
+            fcm_token: null
+          });
+
+        if (createError) {
+          console.error('❌ NOTIFICATION CHECK: Failed to create profile:', createError);
+          return false;
+        }
+
+        console.log('✅ NOTIFICATION CHECK: Profile created for user:', userId);
+        
+        // Profile was just created without FCM token, so can't send notifications yet
+        return false;
+      } catch (createError) {
+        console.error('❌ NOTIFICATION CHECK: Error creating profile:', createError);
+        return false;
+      }
     }
 
     console.log('👤 NOTIFICATION CHECK: Profile data:', {
       hasToken: !!profile.fcm_token,
-      notificationEnabled: profile.notification_enabled
+      notificationEnabled: profile.notification_enabled,
+      role: profile.role
     });
 
     if (profile.notification_enabled === false) {
@@ -153,7 +204,7 @@ export const sendWelcomeNotification = async (userId: string, userRole: 'custome
   }
 };
 
-// Send new booking notification to merchant - SIMPLIFIED
+// Send new booking notification to merchant - ENHANCED
 export const sendNewBookingNotification = async (
   merchantUserId: string,
   customerName: string,

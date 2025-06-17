@@ -1,3 +1,4 @@
+
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 
@@ -12,6 +13,14 @@ const firebaseConfig = {
 };
 
 const VAPID_KEY = "BKvU-PqQVLX4l5_UF0Ps1g4wFLH38gUO5ahkyYP7MipfUauIasKBLTZrc_bJhDpGb4-e7hebZoJDaYP1zRiht3w";
+
+// Get the current domain for click actions
+const getCurrentDomain = () => {
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+  return 'https://app.booqit.in'; // fallback to production domain
+};
 
 let app;
 let messaging;
@@ -29,7 +38,7 @@ if (typeof window !== 'undefined') {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/firebase-messaging-sw.js')
       .then((registration) => {
-        console.log('✅ /firebase-messaging-sw.js Service Worker registered successfully:', registration);
+        console.log('✅ Service Worker registered successfully:', registration);
       })
       .catch((error) => {
         console.error('❌ Service Worker registration failed:', error);
@@ -71,7 +80,7 @@ export const requestNotificationPermission = async () => {
     if (permission === 'granted') {
       console.log('✅ Notification permission granted');
       
-      // Test browser notification capability
+      // Test browser notification capability with correct domain
       new Notification('BooqIt Notifications Enabled! 🔔', {
         body: 'You will now receive booking updates and reminders.',
         icon: '/icons/icon-192.png',
@@ -108,8 +117,10 @@ export const getFCMToken = async () => {
     });
     
     if (token) {
-      console.log('🔑 FCM Token generated successfully:', token.substring(0, 20) + '...');
-      console.log('📱 Full token for debugging:', token);
+      console.log('🔑 FCM Token generated successfully:', {
+        tokenPreview: token.substring(0, 30) + '...',
+        tokenLength: token.length
+      });
       return token;
     } else {
       console.error('❌ No FCM token available - check VAPID key and permissions');
@@ -133,11 +144,12 @@ export const setupForegroundMessaging = (callback?: (payload: any) => void) => {
     console.log('📲 Foreground message received:', payload);
     
     try {
-      // Always show browser notification for foreground messages
+      // Always show browser notification for foreground messages with correct domain
       if (payload.notification && Notification.permission === 'granted') {
         const { title, body } = payload.notification;
+        const currentDomain = getCurrentDomain();
         
-        console.log('🔔 Creating browser notification:', { title, body });
+        console.log('🔔 Creating browser notification with domain:', currentDomain);
         
         const notification = new Notification(title || 'BooqIt Notification', {
           body: body || 'You have a new notification',
@@ -146,12 +158,12 @@ export const setupForegroundMessaging = (callback?: (payload: any) => void) => {
           tag: 'foreground-notification',
           requireInteraction: true,
           silent: false,
-          data: payload.data
+          data: { ...payload.data, click_action: currentDomain }
         });
 
         // Handle notification click
         notification.onclick = () => {
-          console.log('🔔 Foreground notification clicked');
+          console.log('🔔 Foreground notification clicked, opening:', currentDomain);
           window.focus();
           notification.close();
         };

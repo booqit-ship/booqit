@@ -30,15 +30,23 @@ export const saveUserFCMToken = async (userId: string, token: string, userRole: 
       .single();
 
     if (profileError && profileError.code === 'PGRST116') {
-      // Profile doesn't exist, create it
+      // Profile doesn't exist, create it with user data from auth
       console.log('📝 FCM TOKEN SAVE: Creating new profile for user:', userId);
+      
+      // Get user data from auth.users
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError) {
+        console.error('❌ FCM TOKEN SAVE: Error getting user data:', userError);
+      }
       
       const { error: createError } = await supabase
         .from('profiles')
         .insert({
           id: userId,
-          name: userRole === 'merchant' ? 'Merchant' : 'Customer',
-          email: '',
+          name: user?.user_metadata?.name || (userRole === 'merchant' ? 'Merchant' : 'Customer'),
+          email: user?.email || '',
+          phone: user?.user_metadata?.phone || '',
           role: userRole,
           fcm_token: token,
           notification_enabled: true,
