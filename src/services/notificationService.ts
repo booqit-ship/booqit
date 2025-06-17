@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { getFCMToken } from '@/firebase';
 
@@ -56,8 +57,6 @@ export const saveUserFCMToken = async (userId: string, token: string, userRole: 
     } else {
       // Profile exists, update FCM token
       console.log('📝 FCM TOKEN SAVE: Updating existing profile for user:', userId);
-      console.log('📝 FCM TOKEN SAVE: Old token:', existingProfile.fcm_token ? existingProfile.fcm_token.substring(0, 20) + '...' : 'none');
-      console.log('📝 FCM TOKEN SAVE: New token:', token.substring(0, 20) + '...');
       
       const { error: updateError } = await supabase
         .from('profiles')
@@ -75,24 +74,6 @@ export const saveUserFCMToken = async (userId: string, token: string, userRole: 
     }
 
     console.log('✅ FCM TOKEN SAVE: Successfully saved FCM token for user:', userId);
-    
-    // Verify the save
-    const { data: verifyProfile, error: verifyError } = await supabase
-      .from('profiles')
-      .select('fcm_token, notification_enabled')
-      .eq('id', userId)
-      .single();
-    
-    if (verifyError) {
-      console.error('❌ FCM TOKEN SAVE: Error verifying save:', verifyError);
-    } else {
-      console.log('✅ FCM TOKEN SAVE: Verification successful', {
-        hasToken: !!verifyProfile.fcm_token,
-        tokenMatch: verifyProfile.fcm_token === token,
-        notificationEnabled: verifyProfile.notification_enabled
-      });
-    }
-    
     return true;
   } catch (error) {
     console.error('❌ FCM TOKEN SAVE: Critical error in saveUserFCMToken:', error);
@@ -179,78 +160,6 @@ export const initializeUserNotifications = async (userId: string, userRole: 'cus
   }
 };
 
-// Enhanced notification checking function - now creates profile if missing
-const canSendNotification = async (userId: string) => {
-  try {
-    console.log('🔍 NOTIFICATION CHECK: Checking if user can receive notifications:', userId);
-    
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('fcm_token, notification_enabled, name, role')
-      .eq('id', userId)
-      .maybeSingle();
-
-    if (error) {
-      console.error('❌ NOTIFICATION CHECK: Error fetching profile:', error);
-      return false;
-    }
-
-    if (!profile) {
-      console.log('⚠️ NOTIFICATION CHECK: No profile found for user - creating basic profile:', userId);
-      
-      // Create a basic profile for this user
-      try {
-        const { error: createError } = await supabase
-          .from('profiles')
-          .insert({
-            id: userId,
-            name: 'User',
-            email: '',
-            role: 'customer',
-            notification_enabled: false,
-            fcm_token: null
-          });
-
-        if (createError) {
-          console.error('❌ NOTIFICATION CHECK: Failed to create profile:', createError);
-        } else {
-          console.log('✅ NOTIFICATION CHECK: Basic profile created for user:', userId);
-        }
-      } catch (createProfileError) {
-        console.error('❌ NOTIFICATION CHECK: Error creating profile:', createProfileError);
-      }
-      
-      console.log('🚫 NOTIFICATION CHECK: User needs to enable notifications in the app first');
-      return false;
-    }
-
-    console.log('👤 NOTIFICATION CHECK: Profile found:', {
-      userId: userId,
-      name: profile.name,
-      role: profile.role,
-      hasToken: !!profile.fcm_token,
-      tokenPreview: profile.fcm_token ? profile.fcm_token.substring(0, 20) + '...' : 'none',
-      notificationEnabled: profile.notification_enabled
-    });
-
-    if (profile.notification_enabled === false) {
-      console.log('🚫 NOTIFICATION CHECK: Notifications disabled for user');
-      return false;
-    }
-
-    if (!profile.fcm_token) {
-      console.log('🚫 NOTIFICATION CHECK: No FCM token found - user needs to enable notifications');
-      return false;
-    }
-
-    console.log('✅ NOTIFICATION CHECK: User can receive notifications');
-    return true;
-  } catch (error) {
-    console.error('❌ NOTIFICATION CHECK: Error checking notification permissions:', error);
-    return false;
-  }
-};
-
 export const sendNotificationToUser = async (userId: string, payload: NotificationPayload) => {
   try {
     console.log('📤 SEND NOTIFICATION: Starting send to user:', { userId, payload });
@@ -268,18 +177,7 @@ export const sendNotificationToUser = async (userId: string, payload: Notificati
 
     if (error) {
       console.error('❌ SEND NOTIFICATION: Error calling Edge Function:', error);
-      
-      if (error.message.includes('No profile found')) {
-        throw new Error('User needs to enable notifications in the app first. The merchant should open the app and allow notifications.');
-      } else if (error.message.includes('No FCM token')) {
-        throw new Error('User needs to enable push notifications in their browser.');
-      } else if (error.message.includes('disabled')) {
-        throw new Error('Notifications are disabled for this user.');
-      } else if (error.message.includes('Profile lookup failed')) {
-        throw new Error('User profile not found. The merchant should open the app to set up notifications.');
-      } else {
-        throw new Error(`Notification failed: ${error.message}`);
-      }
+      throw new Error(`Notification failed: ${error.message}`);
     }
 
     if (data && !data.success) {
@@ -295,42 +193,77 @@ export const sendNotificationToUser = async (userId: string, payload: Notificati
   }
 };
 
-// Auto-initialize notifications for users who don't have FCM tokens
-export const autoInitializeNotifications = async (userId: string, userRole: 'customer' | 'merchant') => {
+/**
+ * Fetch user notification preferences
+ */
+export const getUserNotificationPreferences = async (userId: string) => {
   try {
-    console.log('🔄 AUTO INIT: Checking if user needs FCM setup:', { userId, userRole });
+    console.log('🔍 FETCH PREFS: Getting notification preferences for user:', userId);
     
-    // Check if user already has FCM token
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('fcm_token, notification_enabled')
-      .eq('id', userId)
-      .single();
+    const { data, error } = await supabase
+      .from("user_notification_preferences")
+      .select("*")
+      .eq("user_id", userId);
 
-    if (profileError || !profile || !profile.fcm_token) {
-      console.log('🚀 AUTO INIT: User needs FCM setup, attempting auto-initialization...');
-      
-      // Request permission first
-      if ('Notification' in window && Notification.permission === 'default') {
-        const permission = await Notification.requestPermission();
-        if (permission !== 'granted') {
-          console.log('❌ AUTO INIT: Permission denied by user');
-          return { success: false, reason: 'permission_denied' };
-        }
-      }
-      
-      // Initialize notifications
-      const result = await initializeUserNotifications(userId, userRole);
-      console.log('🔄 AUTO INIT: Initialization result:', result);
-      return result;
-    } else {
-      console.log('✅ AUTO INIT: User already has FCM token');
-      return { success: true, reason: 'already_initialized' };
+    if (error) {
+      console.error('❌ FETCH PREFS: Error fetching preferences:', error);
+      throw new Error(error.message);
     }
+
+    console.log('✅ FETCH PREFS: Retrieved preferences:', data);
+    return data || [];
   } catch (error) {
-    console.error('❌ AUTO INIT: Error in auto-initialization:', error);
-    return { success: false, reason: 'auto_init_error', error: error.message };
+    console.error('❌ FETCH PREFS: Critical error:', error);
+    throw error;
   }
+};
+
+export const updateUserNotificationPreference = async (
+  userId: string, 
+  notificationType: string, 
+  enabled: boolean
+) => {
+  try {
+    console.log('💾 UPDATE PREF: Updating preference:', { userId, notificationType, enabled });
+
+    const { data, error } = await supabase
+      .from("user_notification_preferences")
+      .upsert(
+        { 
+          user_id: userId, 
+          notification_type: notificationType, 
+          enabled,
+          updated_at: new Date().toISOString()
+        }, 
+        { 
+          onConflict: "user_id,notification_type" 
+        }
+      )
+      .select();
+
+    if (error) {
+      console.error('❌ UPDATE PREF: Error updating preference:', error);
+      throw new Error(error.message);
+    }
+
+    console.log('✅ UPDATE PREF: Successfully updated preference:', data);
+    return data;
+  } catch (error) {
+    console.error('❌ UPDATE PREF: Critical error:', error);
+    throw error;
+  }
+};
+
+export const getNotificationLogs = async (userId: string, limit = 25) => {
+  const { data, error } = await supabase
+    .from("notification_logs")
+    .select("*")
+    .eq("user_id", userId)
+    .order('sent_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(error.message);
+  return data;
 };
 
 // Notification triggers for different events
@@ -352,31 +285,6 @@ export const sendBookingNotification = async (merchantId: string, bookingDetails
     });
   } catch (error) {
     console.error('❌ BOOKING TRIGGER: Failed to send notification:', error);
-    
-    // If notification fails due to missing FCM token, try to auto-initialize
-    if (error.message.includes('profile') || error.message.includes('FCM token')) {
-      console.log('🔄 BOOKING TRIGGER: Attempting auto-initialization for merchant...');
-      const autoInitResult = await autoInitializeNotifications(merchantId, 'merchant');
-      
-      if (autoInitResult.success) {
-        console.log('🔄 BOOKING TRIGGER: Auto-initialization successful, retrying notification...');
-        try {
-          await sendNotificationToUser(merchantId, {
-            title: 'New Booking! 📅',
-            body: `${bookingDetails.customerName} has booked ${bookingDetails.serviceName} for ${bookingDetails.dateTime}`,
-            data: {
-              type: 'new_booking',
-              merchantId: merchantId
-            }
-          });
-          console.log('✅ BOOKING TRIGGER: Notification sent after auto-initialization');
-        } catch (retryError) {
-          console.error('❌ BOOKING TRIGGER: Failed to send notification even after auto-initialization:', retryError);
-        }
-      } else {
-        console.log('❌ BOOKING TRIGGER: Auto-initialization failed:', autoInitResult);
-      }
-    }
   }
 };
 
@@ -404,54 +312,4 @@ export const sendWeeklyReminderNotification = async (customerId: string) => {
       customerId: customerId
     }
   });
-};
-
-/**
- * NEW: Fetch user notification preferences
- */
-export const getUserNotificationPreferences = async (userId: string) => {
-  const { data, error } = await supabase
-    .from("user_notification_preferences")
-    .select("*")
-    .eq("user_id", userId);
-
-  if (error) throw new Error(error.message);
-  return data;
-};
-
-export const updateUserNotificationPreference = async (
-  userId: string, notificationType: string, enabled: boolean
-) => {
-  const { data, error } = await supabase
-    .from("user_notification_preferences")
-    .upsert([{ user_id: userId, notification_type: notificationType, enabled }], { onConflict: "user_id,notification_type" })
-    .select();
-
-  if (error) throw new Error(error.message);
-  return data;
-};
-
-export const getNotificationLogs = async (userId: string, limit = 25) => {
-  const { data, error } = await supabase
-    .from("notification_logs")
-    .select("*")
-    .eq("user_id", userId)
-    .order('sent_at', { ascending: false })
-    .limit(limit);
-
-  if (error) throw new Error(error.message);
-  return data;
-};
-
-export const runScheduledNotifications = async (adminSecret: string) => {
-  const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-scheduled-notifications`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Admin-Secret": adminSecret
-    }
-  });
-  if (!res.ok) throw new Error(await res.text());
-  const response = await res.json();
-  return response;
 };

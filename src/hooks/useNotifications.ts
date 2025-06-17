@@ -1,7 +1,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { requestNotificationPermission, setupForegroundMessaging } from '@/firebase';
+import { requestNotificationPermission, setupForegroundMessaging } from '@/lib/capacitor-firebase';
 import { initializeUserNotifications } from '@/services/notificationService';
 import { toast } from 'sonner';
 
@@ -22,7 +22,7 @@ export const useNotifications = () => {
     setHasPermission(Notification.permission === 'granted');
   }, []);
 
-  // CRITICAL: Auto-initialize FCM token on every login/role change
+  // Auto-initialize FCM token on every login/role change
   useEffect(() => {
     const autoInitialize = async () => {
       console.log('🔔 NOTIFICATION HOOK: Auto-initialization triggered', { isAuthenticated, userId, userRole });
@@ -43,7 +43,6 @@ export const useNotifications = () => {
       try {
         setIsInitialized(false);
         setInitializationError(null);
-        setRetryCount(0);
 
         console.log('🔔 NOTIFICATION HOOK: Starting FCM token registration for user:', userId, 'role:', userRole);
 
@@ -53,7 +52,8 @@ export const useNotifications = () => {
 
         if (permission === 'default') {
           console.log('📱 NOTIFICATION HOOK: Requesting notification permission...');
-          permission = await Notification.requestPermission();
+          const granted = await requestNotificationPermission();
+          permission = granted ? 'granted' : 'denied';
           console.log('📱 NOTIFICATION HOOK: Permission response:', permission);
         }
 
