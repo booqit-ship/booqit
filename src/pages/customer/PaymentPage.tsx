@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +9,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, CreditCard, Wallet, MapPin, Clock, User, Scissors } from "lucide-react";
 import { sendBookingNotificationToMerchant } from "@/services/simpleNotificationService";
+
+// Type for the reserve_slot response
+interface ReserveSlotResponse {
+  success: boolean;
+  booking_id?: string;
+  error?: string;
+  message?: string;
+}
 
 export default function PaymentPage() {
   const location = useLocation();
@@ -67,17 +74,33 @@ export default function PaymentPage() {
 
       console.log("PAYMENT_FLOW: Creating booking with params:", bookingParams);
 
-      // Reserve slot
+      // Reserve slot with proper typing
       const { data: slotData, error: slotError } = await supabase.rpc('reserve_slot', bookingParams);
 
-      if (slotError || !slotData?.success) {
-        console.error("PAYMENT_FLOW: Slot reservation failed:", slotError || slotData);
+      if (slotError) {
+        console.error("PAYMENT_FLOW: Slot reservation failed:", slotError);
         toast.error("Failed to reserve time slot. Please try again.");
         return;
       }
 
-      console.log("PAYMENT_FLOW: Slot reservation response:", slotData);
-      const bookingId = slotData.booking_id;
+      // Type assertion for the response
+      const slotResponse = slotData as ReserveSlotResponse;
+
+      if (!slotResponse?.success) {
+        console.error("PAYMENT_FLOW: Slot reservation failed:", slotResponse);
+        toast.error("Failed to reserve time slot. Please try again.");
+        return;
+      }
+
+      console.log("PAYMENT_FLOW: Slot reservation response:", slotResponse);
+      const bookingId = slotResponse.booking_id;
+      
+      if (!bookingId) {
+        console.error("PAYMENT_FLOW: No booking ID returned");
+        toast.error("Failed to create booking. Please try again.");
+        return;
+      }
+
       console.log("PAYMENT_FLOW: Booking created with ID:", bookingId);
 
       // Confirm booking
