@@ -823,10 +823,6 @@ export type Database = {
         }
         Returns: Json
       }
-      ensure_user_profile: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
       fix_completed_bookings_payment_status: {
         Args: Record<PropertyKey, never>
         Returns: Json

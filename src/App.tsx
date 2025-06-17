@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import {
   BrowserRouter as Router,
@@ -26,7 +25,6 @@ import AccountPage from '@/pages/customer/AccountPage';
 import ReviewsPage from '@/pages/customer/ReviewsPage';
 import SettingsPage from '@/pages/customer/SettingsPage';
 import BookingsHistoryPage from '@/pages/customer/BookingsHistoryPage';
-import NearbyShopsPage from '@/pages/customer/NearbyShopsPage';
 import Auth from '@/pages/AuthPage';
 import CustomerLayout from '@/layouts/CustomerLayout';
 import MerchantDashboard from '@/pages/merchant/DashboardPage';
@@ -179,7 +177,6 @@ const App: React.FC = () => {
         <Route path="/home" element={<ProtectedRoute><CustomerLayout><HomePage /></CustomerLayout></ProtectedRoute>} />
         <Route path="/search" element={<ProtectedRoute><CustomerLayout><SearchPage /></CustomerLayout></ProtectedRoute>} />
         <Route path="/map" element={<ProtectedRoute><CustomerLayout><MapPage /></CustomerLayout></ProtectedRoute>} />
-        <Route path="/nearby-shops" element={<ProtectedRoute><CustomerLayout><NearbyShopsPage /></CustomerLayout></ProtectedRoute>} />
         <Route path="/merchant/:merchantId" element={<ProtectedRoute><CustomerLayout><MerchantDetailPage /></CustomerLayout></ProtectedRoute>} />
 
         {/* Booking Flow Routes */}
