@@ -83,8 +83,8 @@ export default function PaymentPage() {
         return;
       }
 
-      // Type assertion for the response
-      const slotResponse = slotData as ReserveSlotResponse;
+      // Type assertion for the response - convert through unknown for type safety
+      const slotResponse = slotData as unknown as ReserveSlotResponse;
 
       if (!slotResponse?.success) {
         console.error("PAYMENT_FLOW: Slot reservation failed:", slotResponse);
