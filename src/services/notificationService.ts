@@ -141,7 +141,7 @@ export const initializeUserNotifications = async (userId: string, userRole: stri
   }
 };
 
-// Send notification to a specific user
+// Send notification to a specific user with detailed debugging
 export const sendNotificationToUser = async (
   userId: string,
   notification: {
@@ -152,13 +152,25 @@ export const sendNotificationToUser = async (
 ) => {
   try {
     console.log('📤 SEND NOTIFICATION: Sending to user:', userId);
+    console.log('📤 SEND NOTIFICATION: Notification data:', notification);
+
+    // Debug: First check if user exists in profiles table
+    const { data: debugProfile, error: debugError } = await supabase
+      .from('profiles')
+      .select('id, name, fcm_token, notification_enabled')
+      .eq('id', userId);
+
+    console.log('🔍 DEBUG: Profile query result:', debugProfile);
+    if (debugError) {
+      console.log('🔍 DEBUG: Profile query error:', debugError);
+    }
 
     // Get user's FCM token and notification settings
     const { data: profile, error } = await supabase
       .from('profiles')
       .select('fcm_token, notification_enabled')
       .eq('id', userId)
-      .maybeSingle();
+      .single();
 
     if (error) {
       console.error('❌ SEND NOTIFICATION: Error fetching profile:', error);
@@ -169,6 +181,11 @@ export const sendNotificationToUser = async (
       console.log('❌ SEND NOTIFICATION: No profile found for user:', userId);
       return false;
     }
+
+    console.log('✅ SEND NOTIFICATION: Found profile:', {
+      hasFcmToken: !!profile.fcm_token,
+      notificationEnabled: profile.notification_enabled
+    });
 
     if (!profile.fcm_token) {
       console.log('❌ SEND NOTIFICATION: No FCM token for user:', userId);

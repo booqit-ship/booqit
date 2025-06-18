@@ -10,12 +10,12 @@ export const sendSimpleNotification = async (
   try {
     console.log('🔔 SIMPLE NOTIFICATION: Sending to user:', userId);
 
-    // Get the user's FCM token from their profile using .single() instead of auto-detection
+    // Get the user's FCM token from their profile
     const { data: profile, error } = await supabase
       .from('profiles')
       .select('fcm_token, notification_enabled')
       .eq('id', userId)
-      .maybeSingle(); // Use maybeSingle() to avoid 406 errors
+      .single();
 
     if (error) {
       console.log('❌ SIMPLE NOTIFICATION: Error fetching profile:', error);
@@ -26,6 +26,8 @@ export const sendSimpleNotification = async (
       console.log('❌ SIMPLE NOTIFICATION: No profile found for user:', userId);
       return false;
     }
+
+    console.log('✅ SIMPLE NOTIFICATION: Found profile with FCM token:', profile.fcm_token ? 'present' : 'missing');
 
     if (!profile.fcm_token) {
       console.log('❌ SIMPLE NOTIFICATION: No FCM token for user:', userId);
