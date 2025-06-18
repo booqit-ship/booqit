@@ -23,21 +23,24 @@ export default function NotificationPreferencesPanel() {
     console.log('🔔 NOTIFICATION PREFS: User ID:', user?.id);
   }, [preferences, user?.id]);
 
-  // Initialize default preferences if none exist
+  // Initialize default preferences if none exist - but only for missing types
   useEffect(() => {
     const initializeDefaultPreferences = async () => {
       if (!user?.id || isLoading) return;
       
       console.log('🔔 NOTIFICATION PREFS: Checking if initialization needed...');
       
-      // If no preferences exist, create default ones
-      if (preferences && preferences.length === 0) {
-        console.log('🔔 NOTIFICATION PREFS: No preferences found, creating defaults...');
+      // Check which notification types are missing
+      const existingTypes = preferences?.map(p => p.notification_type) || [];
+      const missingTypes = notificationTypes.filter(nt => !existingTypes.includes(nt.type));
+      
+      if (missingTypes.length > 0) {
+        console.log('🔔 NOTIFICATION PREFS: Creating missing preferences:', missingTypes.map(t => t.type));
         
-        for (const notifType of notificationTypes) {
+        for (const notifType of missingTypes) {
           try {
-            await new Promise(resolve => setTimeout(resolve, 100)); // Small delay to avoid rate limiting
-            updatePreference({ 
+            await new Promise(resolve => setTimeout(resolve, 200)); // Small delay to avoid rate limiting
+            await updatePreference({ 
               notificationType: notifType.type, 
               enabled: true 
             });
@@ -48,7 +51,10 @@ export default function NotificationPreferencesPanel() {
       }
     };
 
-    initializeDefaultPreferences();
+    // Only run if we have preferences data (not initial load)
+    if (preferences !== undefined) {
+      initializeDefaultPreferences();
+    }
   }, [user?.id, preferences, isLoading, updatePreference]);
 
   if (!user) {
@@ -85,7 +91,7 @@ export default function NotificationPreferencesPanel() {
     console.log('🔔 NOTIFICATION PREFS: Updating preference:', { notificationType, enabled });
     
     try {
-      updatePreference({ notificationType, enabled });
+      await updatePreference({ notificationType, enabled });
     } catch (error) {
       console.error('🔔 NOTIFICATION PREFS: Failed to update preference:', error);
       toast.error('Failed to update notification preference');
