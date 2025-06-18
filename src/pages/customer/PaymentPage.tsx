@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Smartphone } from 'lucide-react';
@@ -138,20 +137,12 @@ const PaymentPage: React.FC = () => {
         console.error('PAYMENT_FLOW: Payment record creation failed:', paymentCreationError);
       }
 
-      // Step 4: Send notification to merchant (simple approach)
+      // Step 4: Send notification to merchant (simple approach - using merchant.user_id directly)
       try {
         console.log('PAYMENT_FLOW: Sending notification to merchant...');
+        console.log('PAYMENT_FLOW: Merchant user_id from state:', merchant?.user_id);
         
-        // Get merchant user_id
-        const { data: merchantData, error: merchantError } = await supabase
-          .from('merchants')
-          .select('user_id')
-          .eq('id', merchantId)
-          .single();
-
-        if (merchantError) {
-          console.error('PAYMENT_FLOW: Error fetching merchant data:', merchantError);
-        } else if (merchantData?.user_id) {
+        if (merchant?.user_id) {
           // Get customer name for notification
           const { data: profileData } = await supabase
             .from('profiles')
@@ -164,10 +155,10 @@ const PaymentPage: React.FC = () => {
           const timeSlotFormatted = formatTimeToAmPm(bookingTime);
           const dateFormatted = formatDateInIST(new Date(bookingDate), 'MMM d, yyyy');
 
-          console.log('PAYMENT_FLOW: Sending simple notification to merchant');
+          console.log('PAYMENT_FLOW: Sending notification to merchant user_id:', merchant.user_id);
 
           await sendNewBookingNotification(
-            merchantData.user_id,
+            merchant.user_id, // Use merchant.user_id directly from the state
             customerName,
             serviceNames,
             `${dateFormatted} at ${timeSlotFormatted}`,
@@ -175,6 +166,8 @@ const PaymentPage: React.FC = () => {
           );
 
           console.log('PAYMENT_FLOW: Notification sent successfully');
+        } else {
+          console.error('PAYMENT_FLOW: No merchant user_id found in state');
         }
       } catch (notificationError) {
         console.error('PAYMENT_FLOW: Error sending notification:', notificationError);
