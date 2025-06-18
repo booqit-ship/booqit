@@ -170,7 +170,7 @@ export const sendNotificationToUser = async (
       .from('profiles')
       .select('fcm_token, notification_enabled')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error('❌ SEND NOTIFICATION: Error fetching profile:', error);

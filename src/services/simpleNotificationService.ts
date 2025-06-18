@@ -15,7 +15,7 @@ export const sendSimpleNotification = async (
       .from('profiles')
       .select('fcm_token, notification_enabled')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.log('❌ SIMPLE NOTIFICATION: Error fetching profile:', error);
@@ -24,6 +24,34 @@ export const sendSimpleNotification = async (
 
     if (!profile) {
       console.log('❌ SIMPLE NOTIFICATION: No profile found for user:', userId);
+      
+      // Try to create profile from auth.users if it doesn't exist
+      console.log('🔄 SIMPLE NOTIFICATION: Attempting to create profile...');
+      try {
+        const { data: authUser } = await supabase.auth.admin.getUserById(userId);
+        
+        if (authUser?.user) {
+          const { error: createError } = await supabase
+            .from('profiles')
+            .insert({
+              id: userId,
+              name: authUser.user.user_metadata?.name || authUser.user.email || 'User',
+              email: authUser.user.email || '',
+              phone: authUser.user.user_metadata?.phone || '',
+              role: 'merchant', // Assuming merchant for booking notifications
+              notification_enabled: true
+            });
+
+          if (createError) {
+            console.error('❌ SIMPLE NOTIFICATION: Failed to create profile:', createError);
+          } else {
+            console.log('✅ SIMPLE NOTIFICATION: Profile created, but no FCM token yet');
+          }
+        }
+      } catch (createProfileError) {
+        console.error('❌ SIMPLE NOTIFICATION: Error creating profile:', createProfileError);
+      }
+      
       return false;
     }
 
