@@ -9,6 +9,7 @@ import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { formatDateInIST } from '@/utils/dateUtils';
 import { useAuth } from '@/contexts/AuthContext';
 import { sendNewBookingNotification } from '@/services/simpleNotificationService';
+import { sendNotificationToUser } from '@/services/notificationService';
 import BookingSuccessAnimation from '@/components/customer/BookingSuccessAnimation';
 import BookingFailureAnimation from '@/components/customer/BookingFailureAnimation';
 
@@ -137,44 +138,63 @@ const PaymentPage: React.FC = () => {
         console.error('PAYMENT_FLOW: Payment record creation failed:', paymentCreationError);
       }
 
-      // Step 4: Send notification to merchant (simple approach - using merchant.user_id directly)
+      // Step 4: Get customer name for notifications
+      const { data: customerProfile } = await supabase
+        .from('profiles')
+        .select('name')
+        .eq('id', userId)
+        .single();
+
+      const customerName = customerProfile?.name || 'Customer';
+      const serviceNames = selectedServices.map(s => s.name).join(', ');
+      const timeSlotFormatted = formatTimeToAmPm(bookingTime);
+      const dateFormatted = formatDateInIST(new Date(bookingDate), 'MMM d, yyyy');
+
+      // Step 5: Send notification to customer (booking confirmation)
+      try {
+        console.log('PAYMENT_FLOW: Sending confirmation notification to customer...');
+        
+        await sendNotificationToUser(userId, {
+          title: '🎉 Booking Confirmed!',
+          body: `Your appointment at ${merchant?.shop_name} for ${serviceNames} on ${dateFormatted} at ${timeSlotFormatted} is confirmed!`,
+          data: {
+            type: 'booking_confirmed',
+            bookingId: bookingId
+          }
+        });
+
+        console.log('PAYMENT_FLOW: Customer notification sent successfully');
+      } catch (customerNotificationError) {
+        console.error('PAYMENT_FLOW: Error sending customer notification:', customerNotificationError);
+        // Don't fail the booking for notification issues
+      }
+
+      // Step 6: Send notification to merchant (new booking alert)
       try {
         console.log('PAYMENT_FLOW: Sending notification to merchant...');
         console.log('PAYMENT_FLOW: Merchant user_id from state:', merchant?.user_id);
         
         if (merchant?.user_id) {
-          // Get customer name for notification
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('name')
-            .eq('id', userId)
-            .single();
-
-          const customerName = profileData?.name || 'A customer';
-          const serviceNames = selectedServices.map(s => s.name).join(', ');
-          const timeSlotFormatted = formatTimeToAmPm(bookingTime);
-          const dateFormatted = formatDateInIST(new Date(bookingDate), 'MMM d, yyyy');
-
           console.log('PAYMENT_FLOW: Sending notification to merchant user_id:', merchant.user_id);
 
           await sendNewBookingNotification(
-            merchant.user_id, // Use merchant.user_id directly from the state
+            merchant.user_id,
             customerName,
             serviceNames,
             `${dateFormatted} at ${timeSlotFormatted}`,
             bookingId
           );
 
-          console.log('PAYMENT_FLOW: Notification sent successfully');
+          console.log('PAYMENT_FLOW: Merchant notification sent successfully');
         } else {
           console.error('PAYMENT_FLOW: No merchant user_id found in state');
         }
-      } catch (notificationError) {
-        console.error('PAYMENT_FLOW: Error sending notification:', notificationError);
+      } catch (merchantNotificationError) {
+        console.error('PAYMENT_FLOW: Error sending merchant notification:', merchantNotificationError);
         // Don't fail the booking for notification issues
       }
 
-      // Step 5: Show success animation
+      // Step 7: Show success animation
       console.log('PAYMENT_FLOW: Process completed successfully');
       setShowSuccessAnimation(true);
 
