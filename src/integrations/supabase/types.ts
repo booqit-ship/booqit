@@ -278,6 +278,47 @@ export type Database = {
           },
         ]
       }
+      notification_settings: {
+        Row: {
+          created_at: string
+          failed_notification_count: number
+          fcm_token: string | null
+          last_failure_reason: string | null
+          last_notification_sent: string | null
+          notification_enabled: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          failed_notification_count?: number
+          fcm_token?: string | null
+          last_failure_reason?: string | null
+          last_notification_sent?: string | null
+          notification_enabled?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          failed_notification_count?: number
+          fcm_token?: string | null
+          last_failure_reason?: string | null
+          last_notification_sent?: string | null
+          notification_enabled?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payments: {
         Row: {
           amount: number

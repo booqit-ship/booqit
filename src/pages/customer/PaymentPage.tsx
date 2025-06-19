@@ -10,6 +10,7 @@ import { formatDateInIST } from '@/utils/dateUtils';
 import { useAuth } from '@/contexts/AuthContext';
 import { sendNewBookingNotification } from '@/services/simpleNotificationService';
 import { sendNotificationToUser } from '@/services/notificationService';
+import { sendBookingConfirmation, sendNewBookingAlert } from '@/services/robustNotificationService';
 import BookingSuccessAnimation from '@/components/customer/BookingSuccessAnimation';
 import BookingFailureAnimation from '@/components/customer/BookingFailureAnimation';
 
@@ -150,18 +151,18 @@ const PaymentPage: React.FC = () => {
       const timeSlotFormatted = formatTimeToAmPm(bookingTime);
       const dateFormatted = formatDateInIST(new Date(bookingDate), 'MMM d, yyyy');
 
-      // Step 5: Send notification to customer (booking confirmation)
+      // Step 5: Send notification to customer (booking confirmation) - Using robust service
       try {
         console.log('PAYMENT_FLOW: Sending confirmation notification to customer...');
         
-        await sendNotificationToUser(userId, {
-          title: '🎉 Booking Confirmed!',
-          body: `Your appointment at ${merchant?.shop_name} for ${serviceNames} on ${dateFormatted} at ${timeSlotFormatted} is confirmed!`,
-          data: {
-            type: 'booking_confirmed',
-            bookingId: bookingId
-          }
-        });
+        await sendBookingConfirmation(
+          userId,
+          merchant?.shop_name || 'the shop',
+          serviceNames,
+          dateFormatted,
+          timeSlotFormatted,
+          bookingId
+        );
 
         console.log('PAYMENT_FLOW: Customer notification sent successfully');
       } catch (customerNotificationError) {
@@ -169,7 +170,7 @@ const PaymentPage: React.FC = () => {
         // Don't fail the booking for notification issues
       }
 
-      // Step 6: Send notification to merchant (new booking alert)
+      // Step 6: Send notification to merchant (new booking alert) - Using robust service
       try {
         console.log('PAYMENT_FLOW: Sending notification to merchant...');
         console.log('PAYMENT_FLOW: Merchant user_id from state:', merchant?.user_id);
@@ -177,7 +178,7 @@ const PaymentPage: React.FC = () => {
         if (merchant?.user_id) {
           console.log('PAYMENT_FLOW: Sending notification to merchant user_id:', merchant.user_id);
 
-          await sendNewBookingNotification(
+          await sendNewBookingAlert(
             merchant.user_id,
             customerName,
             serviceNames,

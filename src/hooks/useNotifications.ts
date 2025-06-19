@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { requestNotificationPermission, setupForegroundMessaging } from '@/lib/capacitor-firebase';
-import { initializeUserNotifications } from '@/services/notificationService';
+import { RobustNotificationService } from '@/services/robustNotificationService';
 import { toast } from 'sonner';
 
 export const useNotifications = () => {
@@ -22,7 +22,7 @@ export const useNotifications = () => {
     setHasPermission(Notification.permission === 'granted');
   }, []);
 
-  // Auto-initialize FCM token on every login/role change
+  // Auto-initialize FCM token on every login/role change using robust service
   useEffect(() => {
     const autoInitialize = async () => {
       console.log('🔔 NOTIFICATION HOOK: Auto-initialization triggered', { isAuthenticated, userId, userRole });
@@ -67,10 +67,26 @@ export const useNotifications = () => {
         setHasPermission(true);
         console.log('✅ NOTIFICATION HOOK: Permission granted, initializing notifications...');
 
-        // Step 2: Initialize and save FCM token
-        const result = await initializeUserNotifications(userId, userRole);
+        // Step 2: Initialize using robust notification service
+        const { setupNotifications } = await import('@/lib/capacitor-firebase');
+        const fcmToken = await setupNotifications();
         
-        if (result?.success) {
+        if (!fcmToken) {
+          console.log('❌ NOTIFICATION HOOK: No FCM token received');
+          setInitializationError('token_failed');
+          
+          if (retryCount < 2) {
+            console.log('🔄 NOTIFICATION HOOK: Retrying FCM token registration in 2 seconds...');
+            setTimeout(() => {
+              setRetryCount(prev => prev + 1);
+            }, 2000);
+          }
+          return;
+        }
+
+        const success = await RobustNotificationService.initializeUserSettings(userId, fcmToken);
+        
+        if (success) {
           console.log('✅ NOTIFICATION HOOK: FCM token registration successful');
           setIsInitialized(true);
           setInitializationError(null);
@@ -85,12 +101,12 @@ export const useNotifications = () => {
             });
           });
         } else {
-          console.error('❌ NOTIFICATION HOOK: FCM token registration failed:', result);
+          console.error('❌ NOTIFICATION HOOK: FCM token registration failed');
           setIsInitialized(false);
-          setInitializationError(result?.reason || 'Unknown error');
+          setInitializationError('initialization_failed');
           
           // Auto-retry for certain types of failures
-          if (result?.reason === 'token_failed' && retryCount < 2) {
+          if (retryCount < 2) {
             console.log('🔄 NOTIFICATION HOOK: Retrying FCM token registration in 2 seconds...');
             setTimeout(() => {
               setRetryCount(prev => prev + 1);
@@ -121,14 +137,22 @@ export const useNotifications = () => {
 
       if (permission && userId && userRole) {
         console.log('🔔 MANUAL: Permission granted, initializing notifications...');
-        const result = await initializeUserNotifications(userId, userRole);
-
-        if (result?.success) {
-          setIsInitialized(true);
-          setInitializationError(null);
-          toast.success('Notifications enabled successfully! 🔔');
+        
+        const { setupNotifications } = await import('@/lib/capacitor-firebase');
+        const fcmToken = await setupNotifications();
+        
+        if (fcmToken) {
+          const success = await RobustNotificationService.initializeUserSettings(userId, fcmToken);
+          
+          if (success) {
+            setIsInitialized(true);
+            setInitializationError(null);
+            toast.success('Notifications enabled successfully! 🔔');
+          } else {
+            toast.error('Failed to initialize notifications');
+          }
         } else {
-          toast.error(`Failed to initialize notifications: ${result?.reason || initializationError}`);
+          toast.error('Failed to get notification token');
         }
       } else {
         toast('To get booking updates, please enable notifications in your browser settings', {
@@ -159,17 +183,28 @@ export const useNotifications = () => {
     console.log('🔄 RETRY: Retrying notification initialization...');
     setInitializationError(null);
     
-    const result = await initializeUserNotifications(userId, userRole);
-
-    if (result?.success) {
-      setIsInitialized(true);
-      setInitializationError(null);
-      toast.success('Notifications initialized successfully! 🔔');
-    } else {
-      toast.error(`Failed to initialize notifications: ${result?.reason || initializationError}`);
+    try {
+      const { setupNotifications } = await import('@/lib/capacitor-firebase');
+      const fcmToken = await setupNotifications();
+      
+      if (fcmToken) {
+        const success = await RobustNotificationService.initializeUserSettings(userId, fcmToken);
+        
+        if (success) {
+          setIsInitialized(true);
+          setInitializationError(null);
+          toast.success('Notifications initialized successfully! 🔔');
+          return true;
+        }
+      }
+      
+      toast.error('Failed to initialize notifications');
+      return false;
+    } catch (error: any) {
+      console.error('❌ RETRY: Error during retry:', error);
+      toast.error('Failed to initialize notifications: ' + error.message);
+      return false;
     }
-
-    return result?.success || false;
   };
 
   return {

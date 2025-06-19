@@ -1,5 +1,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
+import { RobustNotificationService } from './robustNotificationService';
+import { NotificationSettingsService } from './notificationSettingsService';
 import { setupNotifications } from '@/lib/capacitor-firebase';
 
 export const getUserNotificationPreferences = async (userId: string) => {
@@ -104,7 +106,7 @@ export const getNotificationLogs = async (userId: string) => {
   return data || [];
 };
 
-// Initialize user notifications with FCM token
+// Initialize user notifications with FCM token - now uses robust service
 export const initializeUserNotifications = async (userId: string, userRole: string) => {
   try {
     console.log('🔔 INIT NOTIFICATIONS: Starting for user:', userId, 'role:', userRole);
@@ -117,20 +119,14 @@ export const initializeUserNotifications = async (userId: string, userRole: stri
       return { success: false, reason: 'token_failed' };
     }
 
-    console.log('🔑 INIT NOTIFICATIONS: Got FCM token, saving to profile...');
+    console.log('🔑 INIT NOTIFICATIONS: Got FCM token, initializing settings...');
 
-    // Update user profile with FCM token and enable notifications
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        fcm_token: fcmToken,
-        notification_enabled: true
-      })
-      .eq('id', userId);
+    // Initialize notification settings using robust service
+    const success = await RobustNotificationService.initializeUserSettings(userId, fcmToken);
 
-    if (error) {
-      console.error('❌ INIT NOTIFICATIONS: Error updating profile:', error);
-      return { success: false, reason: 'profile_update_failed' };
+    if (!success) {
+      console.error('❌ INIT NOTIFICATIONS: Failed to initialize settings');
+      return { success: false, reason: 'settings_init_failed' };
     }
 
     console.log('✅ INIT NOTIFICATIONS: Successfully initialized for user:', userId);
@@ -141,7 +137,7 @@ export const initializeUserNotifications = async (userId: string, userRole: stri
   }
 };
 
-// Send notification to a specific user with detailed debugging
+// Send notification to a specific user - now uses robust service
 export const sendNotificationToUser = async (
   userId: string,
   notification: {
@@ -150,74 +146,7 @@ export const sendNotificationToUser = async (
     data?: Record<string, any>;
   }
 ) => {
-  try {
-    console.log('📤 SEND NOTIFICATION: Sending to user:', userId);
-    console.log('📤 SEND NOTIFICATION: Notification data:', notification);
-
-    // Debug: First check if user exists in profiles table
-    const { data: debugProfile, error: debugError } = await supabase
-      .from('profiles')
-      .select('id, name, fcm_token, notification_enabled')
-      .eq('id', userId);
-
-    console.log('🔍 DEBUG: Profile query result:', debugProfile);
-    if (debugError) {
-      console.log('🔍 DEBUG: Profile query error:', debugError);
-    }
-
-    // Get user's FCM token and notification settings
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('fcm_token, notification_enabled')
-      .eq('id', userId)
-      .maybeSingle();
-
-    if (error) {
-      console.error('❌ SEND NOTIFICATION: Error fetching profile:', error);
-      return false;
-    }
-
-    if (!profile) {
-      console.log('❌ SEND NOTIFICATION: No profile found for user:', userId);
-      return false;
-    }
-
-    console.log('✅ SEND NOTIFICATION: Found profile:', {
-      hasFcmToken: !!profile.fcm_token,
-      notificationEnabled: profile.notification_enabled
-    });
-
-    if (!profile.fcm_token) {
-      console.log('❌ SEND NOTIFICATION: No FCM token for user:', userId);
-      return false;
-    }
-
-    if (profile.notification_enabled === false) {
-      console.log('🔕 SEND NOTIFICATION: Notifications disabled for user:', userId);
-      return false;
-    }
-
-    console.log('✅ SEND NOTIFICATION: Sending notification...');
-
-    // Send the notification via edge function
-    const { error: notificationError } = await supabase.functions.invoke('send-notification', {
-      body: {
-        userId,
-        title: notification.title,
-        body: notification.body,
-        data: notification.data
-      }
-    });
-
-    if (notificationError) {
-      console.error('❌ SEND NOTIFICATION: Failed to send:', notificationError);
-      return false;
-    }
-
-    console.log('✅ SEND NOTIFICATION: Sent successfully');
-    return true;
-  } catch (error) {
-    console.error('❌ SEND NOTIFICATION: Error:', error);
-    return false;
-  }
+  console.log('📤 LEGACY: sendNotificationToUser called, redirecting to robust service');
+  
+  return RobustNotificationService.sendNotification(userId, notification);
 };
