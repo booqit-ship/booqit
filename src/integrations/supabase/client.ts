@@ -13,14 +13,68 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   auth: {
     storage: localStorage,
     persistSession: true,
-    autoRefreshToken: true, // Re-enable auto refresh for proper auth flow
+    autoRefreshToken: true,
     detectSessionInUrl: true,
     flowType: 'pkce',
-    debug: process.env.NODE_ENV === 'development'
+    debug: false // Disable debug in production to reduce noise
   },
   realtime: {
     params: {
       eventsPerSecond: 2
     }
+  },
+  global: {
+    headers: {
+      'x-client-info': 'booqit-app'
+    }
+  },
+  db: {
+    schema: 'public'
   }
 });
+
+// Add connection monitoring
+let connectionAttempts = 0;
+const maxConnectionAttempts = 3;
+
+// Wrap supabase calls with retry logic for better stability
+const withRetry = async <T>(operation: () => Promise<T>, maxRetries: number = 2): Promise<T> => {
+  let lastError: Error;
+  
+  for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+    try {
+      return await operation();
+    } catch (error: any) {
+      lastError = error;
+      
+      if (attempt <= maxRetries) {
+        console.warn(`🔄 Supabase operation failed (attempt ${attempt}), retrying...`, error.message);
+        
+        // Exponential backoff
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  throw lastError!;
+};
+
+// Enhanced supabase client with retry logic
+export const stableSupabase = {
+  ...supabase,
+  from: (table: string) => ({
+    ...supabase.from(table),
+    select: (query?: string) => ({
+      ...supabase.from(table).select(query),
+      single: () => withRetry(() => supabase.from(table).select(query).single()),
+      maybeSingle: () => withRetry(() => supabase.from(table).select(query).maybeSingle()),
+    }),
+    insert: (values: any) => withRetry(() => supabase.from(table).insert(values)),
+    update: (values: any) => ({
+      ...supabase.from(table).update(values),
+      eq: (column: string, value: any) => withRetry(() => supabase.from(table).update(values).eq(column, value))
+    }),
+    upsert: (values: any) => withRetry(() => supabase.from(table).upsert(values)),
+  })
+};

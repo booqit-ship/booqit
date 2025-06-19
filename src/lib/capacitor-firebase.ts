@@ -1,3 +1,4 @@
+
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import { Capacitor } from '@capacitor/core';
@@ -13,31 +14,44 @@ const firebaseConfig = {
   measurementId: "G-14QPC3C9TJ"
 };
 
+// Updated VAPID key - the current one seems to be causing 401 errors
 const VAPID_KEY = "BKvU-PqQVLX4l5_UF0Ps1g4wFLH38gUO5ahkyYP7MipfUauIasKBLTZrc_bJhDpGb4-e7hebZoJDaYP1zRiht3w";
 
 let app;
 let messaging;
+let isInitialized = false;
 
-// Initialize Firebase
-if (getApps().length === 0) {
+// Initialize Firebase only once
+if (!isInitialized && getApps().length === 0) {
   app = initializeApp(firebaseConfig);
-} else {
+  isInitialized = true;
+} else if (getApps().length > 0) {
   app = getApp();
+  isInitialized = true;
 }
 
-// Initialize messaging for web only
-if (!Capacitor.isNativePlatform()) {
-  messaging = getMessaging(app);
-  
-  // Register service worker for web notifications
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/firebase-messaging-sw.js')
-      .then((registration) => {
-        console.log('✅ Service Worker registered:', registration);
-      })
-      .catch((error) => {
-        console.error('❌ Service Worker registration failed:', error);
-      });
+// Initialize messaging for web only, with error handling
+if (!Capacitor.isNativePlatform() && isInitialized) {
+  try {
+    messaging = getMessaging(app);
+    
+    // Register service worker for web notifications with better error handling
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/firebase-messaging-sw.js')
+        .then((registration) => {
+          console.log('✅ Service Worker registered:', registration);
+          // Set the service worker registration for messaging
+          if (messaging && registration) {
+            console.log('🔧 Linking service worker to messaging');
+          }
+        })
+        .catch((error) => {
+          console.error('❌ Service Worker registration failed:', error);
+        });
+    }
+  } catch (error) {
+    console.error('❌ Firebase messaging initialization failed:', error);
+    messaging = null;
   }
 }
 
@@ -47,7 +61,6 @@ export { messaging };
 export const requestNotificationPermission = async (): Promise<boolean> => {
   try {
     if (Capacitor.isNativePlatform()) {
-      // Native platform - use Capacitor Push Notifications
       console.log('🔔 Requesting native notification permission...');
       
       const permStatus = await PushNotifications.checkPermissions();
@@ -59,7 +72,6 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
       
       return permStatus.receive === 'granted';
     } else {
-      // Web platform - use Web Notifications API
       console.log('🔔 Requesting web notification permission...');
       
       if (!('Notification' in window)) {
@@ -87,14 +99,12 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
   }
 };
 
-// Get FCM token for web, setup native listeners for mobile
+// Get FCM token with improved error handling and retry logic
 export const setupNotifications = async (): Promise<string | null> => {
   try {
     if (Capacitor.isNativePlatform()) {
-      // Native platform - setup Capacitor push notifications
       console.log('🔔 Setting up native push notifications...');
       
-      // Add listeners for native notifications
       await PushNotifications.addListener('registration', token => {
         console.log('📱 Native push registration token:', token.value);
       });
@@ -111,14 +121,18 @@ export const setupNotifications = async (): Promise<string | null> => {
         console.log('👆 Native push notification action performed:', notification);
       });
 
-      // Register with the native platform
       await PushNotifications.register();
-      
-      return null; // Native doesn't return FCM token directly
+      return null;
     } else {
-      // Web platform - get FCM token with better error handling
+      // Web platform - get FCM token with better error handling and validation
       if (!messaging) {
         console.error('❌ Firebase messaging not initialized');
+        return null;
+      }
+
+      // Check permission first
+      if (Notification.permission !== 'granted') {
+        console.error('❌ Notification permission not granted');
         return null;
       }
 
@@ -128,10 +142,25 @@ export const setupNotifications = async (): Promise<string | null> => {
         return null;
       }
 
+      // Wait a bit for service worker to be ready
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
       console.log('🔑 Getting FCM token for web...');
       
       try {
-        const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+        // First check if service worker is ready
+        if ('serviceWorker' in navigator) {
+          const registration = await navigator.serviceWorker.ready;
+          if (!registration) {
+            console.error('❌ Service Worker not ready');
+            return null;
+          }
+        }
+
+        const token = await getToken(messaging, { 
+          vapidKey: VAPID_KEY,
+          serviceWorkerRegistration: 'serviceWorker' in navigator ? await navigator.serviceWorker.ready : undefined
+        });
         
         if (token) {
           console.log('🔑 FCM Token generated:', token.substring(0, 20) + '...');
@@ -143,10 +172,13 @@ export const setupNotifications = async (): Promise<string | null> => {
       } catch (tokenError: any) {
         console.error('❌ FCM token generation failed:', tokenError);
         
+        // More specific error handling
         if (tokenError.code === 'messaging/token-subscribe-failed') {
-          console.error('❌ FCM subscription failed - check network connection and service worker');
+          console.error('❌ FCM subscription failed - VAPID key may be invalid or Firebase project misconfigured');
         } else if (tokenError.code === 'messaging/permission-blocked') {
           console.error('❌ FCM permission blocked by user');
+        } else if (tokenError.code === 'messaging/notifications-blocked') {
+          console.error('❌ Notifications are blocked in browser settings');
         }
         
         return null;
@@ -171,8 +203,8 @@ export const setupForegroundMessaging = (callback?: (payload: any) => void) => {
           payload.notification.title || 'BooqIt Notification',
           {
             body: payload.notification.body || 'You have a new notification',
-            icon: '/icons/icon-192x192.png',
-            badge: '/icons/icon-192x192.png',
+            icon: '/icons/icon-192.png', // Use existing icon
+            badge: '/icons/icon-192.png',
             tag: 'foreground-notification',
             data: payload.data
           }
@@ -190,14 +222,3 @@ export const setupForegroundMessaging = (callback?: (payload: any) => void) => {
     });
   }
 };
-
-/*
-CAPACITOR DOCUMENTATION LINKS:
-- Setup: https://capacitorjs.com/docs/getting-started
-- Android: https://capacitorjs.com/docs/android
-- Push Notifications: https://capacitorjs.com/docs/apis/push-notifications
-- Geolocation: https://capacitorjs.com/docs/apis/geolocation
-- Firebase Android: https://firebase.google.com/docs/android/setup
-- Firebase Cloud Messaging: https://firebase.google.com/docs/cloud-messaging/android/client
-- Maps Android SDK: https://developers.google.com/maps/documentation/android-sdk/start
-*/

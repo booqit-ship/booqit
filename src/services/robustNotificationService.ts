@@ -26,50 +26,55 @@ export class RobustNotificationService {
   static async getNotificationSettings(userId: string): Promise<NotificationSettings | null> {
     console.log('🔔 ROBUST NOTIF: Getting settings for user:', userId);
     
-    const { data, error } = await supabase
-      .from('notification_settings')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (error) {
-      console.error('❌ ROBUST NOTIF: Error fetching settings:', error);
-      return null;
-    }
-
-    if (!data) {
-      console.log('⚠️ ROBUST NOTIF: No notification settings found, creating default settings for user:', userId);
-      
-      // Try to create default notification settings for this user
-      const { data: createdSettings, error: createError } = await supabase
+    try {
+      const { data, error } = await supabase
         .from('notification_settings')
-        .insert({
-          user_id: userId,
-          fcm_token: null,
-          notification_enabled: true,
-          failed_notification_count: 0,
-          last_failure_reason: null
-        })
-        .select()
-        .single();
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
 
-      if (createError) {
-        console.error('❌ ROBUST NOTIF: Error creating default settings:', createError);
+      if (error) {
+        console.error('❌ ROBUST NOTIF: Error fetching settings:', error);
         return null;
       }
 
-      console.log('✅ ROBUST NOTIF: Created default settings for user:', userId);
-      return createdSettings;
+      if (!data) {
+        console.log('⚠️ ROBUST NOTIF: No notification settings found, creating default settings for user:', userId);
+        
+        // Try to create default notification settings for this user
+        const { data: createdSettings, error: createError } = await supabase
+          .from('notification_settings')
+          .insert({
+            user_id: userId,
+            fcm_token: null,
+            notification_enabled: true,
+            failed_notification_count: 0,
+            last_failure_reason: null
+          })
+          .select()
+          .single();
+
+        if (createError) {
+          console.error('❌ ROBUST NOTIF: Error creating default settings:', createError);
+          return null;
+        }
+
+        console.log('✅ ROBUST NOTIF: Created default settings for user:', userId);
+        return createdSettings;
+      }
+
+      console.log('✅ ROBUST NOTIF: Found settings:', {
+        user_id: data.user_id,
+        has_fcm_token: !!data.fcm_token,
+        notification_enabled: data.notification_enabled,
+        failed_count: data.failed_notification_count
+      });
+
+      return data;
+    } catch (error) {
+      console.error('❌ ROBUST NOTIF: Unexpected error getting settings:', error);
+      return null;
     }
-
-    console.log('✅ ROBUST NOTIF: Found settings:', {
-      user_id: data.user_id,
-      has_fcm_token: !!data.fcm_token,
-      notification_enabled: data.notification_enabled,
-      failed_count: data.failed_notification_count
-    });
-
-    return data;
   }
 
   /**
@@ -96,19 +101,18 @@ export class RobustNotificationService {
   }
 
   /**
-   * Send notification to a specific user
+   * Send notification to a specific user with better error handling
    */
   static async sendNotification(userId: string, payload: NotificationPayload): Promise<boolean> {
     try {
       console.log('📤 ROBUST NOTIF: Sending to user:', userId);
       console.log('📤 ROBUST NOTIF: Payload:', payload);
 
-      // Step 1: Get notification settings
+      // Step 1: Get notification settings with retry
       const settings = await this.getNotificationSettings(userId);
       
       if (!settings) {
         console.error('❌ ROBUST NOTIF: No notification settings found for user:', userId);
-        console.error('❌ ROBUST NOTIF: This indicates a system/data issue - user should have settings');
         return false;
       }
 
@@ -119,32 +123,49 @@ export class RobustNotificationService {
 
       console.log('✅ ROBUST NOTIF: User eligible, sending notification...');
 
-      // Step 3: Send via Edge Function
-      const { data, error } = await supabase.functions.invoke('send-notification', {
-        body: {
-          userId,
-          title: payload.title,
-          body: payload.body,
-          data: payload.data
+      // Step 3: Send via Edge Function with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+      try {
+        const { data, error } = await supabase.functions.invoke('send-notification', {
+          body: {
+            userId,
+            title: payload.title,
+            body: payload.body,
+            data: payload.data
+          }
+        });
+
+        clearTimeout(timeoutId);
+
+        if (error) {
+          console.error('❌ ROBUST NOTIF: Edge function error:', error);
+          await this.recordFailure(userId, error.message);
+          return false;
         }
-      });
 
-      if (error) {
-        console.error('❌ ROBUST NOTIF: Edge function error:', error);
-        await this.recordFailure(userId, error.message);
+        if (!data?.success) {
+          console.error('❌ ROBUST NOTIF: Notification failed:', data?.error);
+          await this.recordFailure(userId, data?.error || 'Unknown error');
+          return false;
+        }
+
+        // Step 4: Record success
+        await this.recordSuccess(userId);
+        console.log('✅ ROBUST NOTIF: Sent successfully to user:', userId);
+        return true;
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        if (fetchError.name === 'AbortError') {
+          console.error('❌ ROBUST NOTIF: Request timeout');
+          await this.recordFailure(userId, 'Request timeout');
+        } else {
+          console.error('❌ ROBUST NOTIF: Fetch error:', fetchError);
+          await this.recordFailure(userId, fetchError.message);
+        }
         return false;
       }
-
-      if (!data?.success) {
-        console.error('❌ ROBUST NOTIF: Notification failed:', data?.error);
-        await this.recordFailure(userId, data?.error || 'Unknown error');
-        return false;
-      }
-
-      // Step 4: Record success
-      await this.recordSuccess(userId);
-      console.log('✅ ROBUST NOTIF: Sent successfully to user:', userId);
-      return true;
 
     } catch (error: any) {
       console.error('❌ ROBUST NOTIF: Unexpected error:', error);

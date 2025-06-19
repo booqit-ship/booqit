@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { requestNotificationPermission, setupForegroundMessaging } from '@/lib/capacitor-firebase';
 import { RobustNotificationService } from '@/services/robustNotificationService';
@@ -12,6 +12,11 @@ export const useNotifications = () => {
   const [isSupported, setIsSupported] = useState(true);
   const [initializationError, setInitializationError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  
+  // Use refs to prevent infinite loops
+  const initializationAttempted = useRef(false);
+  const lastUserId = useRef<string | null>(null);
+  const isInitializing = useRef(false);
 
   // Check permission status on mount
   useEffect(() => {
@@ -22,14 +27,29 @@ export const useNotifications = () => {
     setHasPermission(Notification.permission === 'granted');
   }, []);
 
-  // Auto-initialize FCM token on every login/role change using robust service
+  // Reset initialization when user changes
+  useEffect(() => {
+    if (lastUserId.current !== userId) {
+      initializationAttempted.current = false;
+      lastUserId.current = userId;
+      setIsInitialized(false);
+      setInitializationError(null);
+      setRetryCount(0);
+    }
+  }, [userId]);
+
+  // Auto-initialize FCM token only once per user session
   useEffect(() => {
     const autoInitialize = async () => {
+      // Prevent multiple simultaneous initializations
+      if (isInitializing.current || initializationAttempted.current) {
+        return;
+      }
+
       console.log('🔔 NOTIFICATION HOOK: Auto-initialization triggered', { isAuthenticated, userId, userRole });
       
       if (!isAuthenticated || !userId || !userRole) {
         console.log('🔔 NOTIFICATION HOOK: Skipping - user not authenticated or missing data');
-        setIsInitialized(false);
         return;
       }
 
@@ -40,8 +60,11 @@ export const useNotifications = () => {
         return;
       }
 
+      // Mark as attempted to prevent loops
+      initializationAttempted.current = true;
+      isInitializing.current = true;
+
       try {
-        setIsInitialized(false);
         setInitializationError(null);
 
         console.log('🔔 NOTIFICATION HOOK: Starting FCM token registration for user:', userId, 'role:', userRole);
@@ -67,20 +90,28 @@ export const useNotifications = () => {
         setHasPermission(true);
         console.log('✅ NOTIFICATION HOOK: Permission granted, initializing notifications...');
 
-        // Step 2: Initialize using robust notification service
+        // Step 2: Initialize using robust notification service with retry logic
         const { setupNotifications } = await import('@/lib/capacitor-firebase');
-        const fcmToken = await setupNotifications();
+        
+        let fcmToken = null;
+        let attempts = 0;
+        const maxAttempts = 2;
+
+        while (!fcmToken && attempts < maxAttempts) {
+          attempts++;
+          console.log(`🔑 NOTIFICATION HOOK: FCM token attempt ${attempts}/${maxAttempts}`);
+          
+          fcmToken = await setupNotifications();
+          
+          if (!fcmToken && attempts < maxAttempts) {
+            console.log('⏳ NOTIFICATION HOOK: Waiting before retry...');
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        }
         
         if (!fcmToken) {
-          console.log('❌ NOTIFICATION HOOK: No FCM token received');
+          console.log('❌ NOTIFICATION HOOK: No FCM token received after all attempts');
           setInitializationError('token_failed');
-          
-          if (retryCount < 2) {
-            console.log('🔄 NOTIFICATION HOOK: Retrying FCM token registration in 2 seconds...');
-            setTimeout(() => {
-              setRetryCount(prev => prev + 1);
-            }, 2000);
-          }
           return;
         }
 
@@ -102,27 +133,18 @@ export const useNotifications = () => {
           });
         } else {
           console.error('❌ NOTIFICATION HOOK: FCM token registration failed');
-          setIsInitialized(false);
           setInitializationError('initialization_failed');
-          
-          // Auto-retry for certain types of failures
-          if (retryCount < 2) {
-            console.log('🔄 NOTIFICATION HOOK: Retrying FCM token registration in 2 seconds...');
-            setTimeout(() => {
-              setRetryCount(prev => prev + 1);
-            }, 2000);
-          }
         }
       } catch (error: any) {
         console.error('❌ NOTIFICATION HOOK: Error during auto-initialization:', error);
         setInitializationError(error?.message || String(error));
-        setIsInitialized(false);
+      } finally {
+        isInitializing.current = false;
       }
     };
 
-    // Run auto-initialization when user logs in or role changes
     autoInitialize();
-  }, [isAuthenticated, userId, userRole, retryCount]);
+  }, [isAuthenticated, userId, userRole]);
 
   const requestPermissionManually = async () => {
     try {
@@ -181,30 +203,19 @@ export const useNotifications = () => {
     }
 
     console.log('🔄 RETRY: Retrying notification initialization...');
-    setInitializationError(null);
     
-    try {
-      const { setupNotifications } = await import('@/lib/capacitor-firebase');
-      const fcmToken = await setupNotifications();
-      
-      if (fcmToken) {
-        const success = await RobustNotificationService.initializeUserSettings(userId, fcmToken);
-        
-        if (success) {
-          setIsInitialized(true);
-          setInitializationError(null);
-          toast.success('Notifications initialized successfully! 🔔');
-          return true;
-        }
-      }
-      
-      toast.error('Failed to initialize notifications');
-      return false;
-    } catch (error: any) {
-      console.error('❌ RETRY: Error during retry:', error);
-      toast.error('Failed to initialize notifications: ' + error.message);
-      return false;
-    }
+    // Reset flags to allow retry
+    initializationAttempted.current = false;
+    isInitializing.current = false;
+    setInitializationError(null);
+    setIsInitialized(false);
+    
+    // Trigger re-initialization
+    setTimeout(() => {
+      setRetryCount(prev => prev + 1);
+    }, 100);
+    
+    return true;
   };
 
   return {
