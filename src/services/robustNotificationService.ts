@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 export interface NotificationPayload {
@@ -22,7 +21,7 @@ export interface NotificationSettings {
  */
 export class RobustNotificationService {
   /**
-   * Get notification settings for a user
+   * Get notification settings for a user, create if missing
    */
   static async getNotificationSettings(userId: string): Promise<NotificationSettings | null> {
     console.log('🔔 ROBUST NOTIF: Getting settings for user:', userId);
@@ -39,8 +38,28 @@ export class RobustNotificationService {
     }
 
     if (!data) {
-      console.log('❌ ROBUST NOTIF: No notification settings found for user:', userId);
-      return null;
+      console.log('⚠️ ROBUST NOTIF: No notification settings found, creating default settings for user:', userId);
+      
+      // Try to create default notification settings for this user
+      const { data: createdSettings, error: createError } = await supabase
+        .from('notification_settings')
+        .insert({
+          user_id: userId,
+          fcm_token: null,
+          notification_enabled: true,
+          failed_notification_count: 0,
+          last_failure_reason: null
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('❌ ROBUST NOTIF: Error creating default settings:', createError);
+        return null;
+      }
+
+      console.log('✅ ROBUST NOTIF: Created default settings for user:', userId);
+      return createdSettings;
     }
 
     console.log('✅ ROBUST NOTIF: Found settings:', {

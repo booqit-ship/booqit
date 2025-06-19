@@ -1,4 +1,3 @@
-
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import { Capacitor } from '@capacitor/core';
@@ -117,20 +116,39 @@ export const setupNotifications = async (): Promise<string | null> => {
       
       return null; // Native doesn't return FCM token directly
     } else {
-      // Web platform - get FCM token
+      // Web platform - get FCM token with better error handling
       if (!messaging) {
         console.error('❌ Firebase messaging not initialized');
         return null;
       }
 
+      // Check if we're online
+      if (!navigator.onLine) {
+        console.warn('⚠️ Device is offline, cannot get FCM token');
+        return null;
+      }
+
       console.log('🔑 Getting FCM token for web...');
-      const token = await getToken(messaging, { vapidKey: VAPID_KEY });
       
-      if (token) {
-        console.log('🔑 FCM Token generated:', token.substring(0, 20) + '...');
-        return token;
-      } else {
-        console.error('❌ No FCM token available');
+      try {
+        const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+        
+        if (token) {
+          console.log('🔑 FCM Token generated:', token.substring(0, 20) + '...');
+          return token;
+        } else {
+          console.error('❌ No FCM token available - user may have denied permission or service worker not ready');
+          return null;
+        }
+      } catch (tokenError: any) {
+        console.error('❌ FCM token generation failed:', tokenError);
+        
+        if (tokenError.code === 'messaging/token-subscribe-failed') {
+          console.error('❌ FCM subscription failed - check network connection and service worker');
+        } else if (tokenError.code === 'messaging/permission-blocked') {
+          console.error('❌ FCM permission blocked by user');
+        }
+        
         return null;
       }
     }
