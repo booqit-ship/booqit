@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 
 export interface NotificationPayload {
@@ -39,28 +40,8 @@ export class RobustNotificationService {
       }
 
       if (!data) {
-        console.log('⚠️ ROBUST NOTIF: No notification settings found, creating default settings for user:', userId);
-        
-        // Try to create default notification settings for this user
-        const { data: createdSettings, error: createError } = await supabase
-          .from('notification_settings')
-          .insert({
-            user_id: userId,
-            fcm_token: null,
-            notification_enabled: true,
-            failed_notification_count: 0,
-            last_failure_reason: null
-          })
-          .select()
-          .single();
-
-        if (createError) {
-          console.error('❌ ROBUST NOTIF: Error creating default settings:', createError);
-          return null;
-        }
-
-        console.log('✅ ROBUST NOTIF: Created default settings for user:', userId);
-        return createdSettings;
+        console.log('⚠️ ROBUST NOTIF: No notification settings found for user:', userId);
+        return null;
       }
 
       console.log('✅ ROBUST NOTIF: Found settings:', {
@@ -108,24 +89,51 @@ export class RobustNotificationService {
       console.log('📤 ROBUST NOTIF: Sending to user:', userId);
       console.log('📤 ROBUST NOTIF: Payload:', payload);
 
-      // Step 1: Get notification settings with retry
+      // Step 1: Get notification settings
       const settings = await this.getNotificationSettings(userId);
       
+      // If no settings found, try to get FCM token from profiles table as fallback
       if (!settings) {
-        console.error('❌ ROBUST NOTIF: No notification settings found for user:', userId);
-        return false;
-      }
-
-      // Step 2: Check eligibility
-      if (!this.isEligibleForNotification(settings)) {
-        return false;
+        console.log('⚠️ ROBUST NOTIF: No notification settings, checking profiles for FCM token...');
+        
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('fcm_token, notification_enabled')
+          .eq('id', userId)
+          .single();
+        
+        if (!profile?.fcm_token) {
+          console.log('❌ ROBUST NOTIF: No FCM token found in profiles either');
+          return false;
+        }
+        
+        // Use profile data as fallback
+        const fallbackSettings = {
+          user_id: userId,
+          fcm_token: profile.fcm_token,
+          notification_enabled: profile.notification_enabled ?? true,
+          last_notification_sent: null,
+          failed_notification_count: 0,
+          last_failure_reason: null
+        };
+        
+        if (!this.isEligibleForNotification(fallbackSettings)) {
+          return false;
+        }
+        
+        console.log('✅ ROBUST NOTIF: Using profile FCM token as fallback');
+      } else {
+        // Step 2: Check eligibility with notification settings
+        if (!this.isEligibleForNotification(settings)) {
+          return false;
+        }
       }
 
       console.log('✅ ROBUST NOTIF: User eligible, sending notification...');
 
       // Step 3: Send via Edge Function with timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
 
       try {
         const { data, error } = await supabase.functions.invoke('send-notification', {
@@ -181,12 +189,12 @@ export class RobustNotificationService {
     try {
       await supabase
         .from('notification_settings')
-        .update({
+        .upsert({
+          user_id: userId,
           last_notification_sent: new Date().toISOString(),
           failed_notification_count: 0,
           last_failure_reason: null
-        })
-        .eq('user_id', userId);
+        });
     } catch (error) {
       console.error('❌ ROBUST NOTIF: Error recording success:', error);
     }
@@ -197,7 +205,7 @@ export class RobustNotificationService {
    */
   private static async recordFailure(userId: string, reason: string): Promise<void> {
     try {
-      // Increment failure count and record reason
+      // Get current failure count
       const { data: current } = await supabase
         .from('notification_settings')
         .select('failed_notification_count')
@@ -208,11 +216,11 @@ export class RobustNotificationService {
 
       await supabase
         .from('notification_settings')
-        .update({
+        .upsert({
+          user_id: userId,
           failed_notification_count: failureCount,
           last_failure_reason: reason
-        })
-        .eq('user_id', userId);
+        });
 
     } catch (error) {
       console.error('❌ ROBUST NOTIF: Error recording failure:', error);
@@ -238,7 +246,24 @@ export class RobustNotificationService {
 
       if (error) {
         console.error('❌ ROBUST NOTIF: Error initializing settings:', error);
-        return false;
+        
+        // Fallback: update profiles table
+        console.log('🔄 ROBUST NOTIF: Fallback to profiles table...');
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: userId,
+            fcm_token: fcmToken,
+            notification_enabled: true
+          });
+        
+        if (profileError) {
+          console.error('❌ ROBUST NOTIF: Fallback also failed:', profileError);
+          return false;
+        }
+        
+        console.log('✅ ROBUST NOTIF: Fallback to profiles successful');
+        return true;
       }
 
       console.log('✅ ROBUST NOTIF: Settings initialized for user:', userId);
@@ -268,7 +293,24 @@ export class RobustNotificationService {
 
       if (error) {
         console.error('❌ ROBUST NOTIF: Error updating FCM token:', error);
-        return false;
+        
+        // Fallback: update profiles table
+        console.log('🔄 ROBUST NOTIF: Fallback to profiles table...');
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: userId,
+            fcm_token: fcmToken,
+            notification_enabled: true
+          });
+        
+        if (profileError) {
+          console.error('❌ ROBUST NOTIF: Fallback also failed:', profileError);
+          return false;
+        }
+        
+        console.log('✅ ROBUST NOTIF: Fallback to profiles successful');
+        return true;
       }
 
       console.log('✅ ROBUST NOTIF: FCM token updated for user:', userId);

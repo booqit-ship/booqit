@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -66,112 +67,104 @@ serve(async (req) => {
       );
     }
 
-    console.log('🔍 Looking up user profile for:', userId);
+    console.log('🔍 Looking up notification settings for user:', userId);
 
-    // Get user's FCM token from profiles
-    const { data: profile, error: profileError } = await supabaseClient
-      .from('profiles')
-      .select('fcm_token, notification_enabled')
-      .eq('id', userId)
+    // Get user's notification settings - try notification_settings table first
+    let userSettings = null;
+    const { data: notificationSettings, error: notificationError } = await supabaseClient
+      .from('notification_settings')
+      .select('*')
+      .eq('user_id', userId)
       .maybeSingle();
 
-    if (profileError) {
-      console.error('❌ Profile lookup error:', profileError);
-      // Log this attempt but don't fail - maybe the user has notifications enabled in another way
-      await supabaseClient.from('notification_logs')
-        .insert({
-          user_id: userId,
-          title,
-          body,
-          type: data?.type || 'general',
-          status: 'failed',
-          error_message: `Profile lookup error: ${profileError.message}`
-        });
-      
-      return new Response(
-        JSON.stringify({ 
-          error: 'Profile lookup failed', 
-          details: profileError.message,
-          message: 'User may not have a profile set up for notifications'
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
+    if (notificationError) {
+      console.error('❌ Error fetching notification settings:', notificationError);
+    } else if (notificationSettings) {
+      userSettings = {
+        fcm_token: notificationSettings.fcm_token,
+        notification_enabled: notificationSettings.notification_enabled
+      };
+      console.log('✅ Found notification settings:', {
+        user_id: userId,
+        has_fcm_token: !!userSettings.fcm_token,
+        notification_enabled: userSettings.notification_enabled
+      });
     }
 
-    if (!profile) {
-      console.warn('⚠️ No profile found for user:', userId);
+    // Fallback to profiles table if no notification settings found
+    if (!userSettings) {
+      console.log('⚠️ No notification settings found, checking profiles table...');
       
-      // Try to create a profile for this user automatically
-      console.log('🔄 Attempting to create profile for user:', userId);
-      
-      try {
-        // Get user data from auth.users
-        const { data: authUser, error: authError } = await supabaseClient.auth.admin.getUserById(userId);
+      const { data: profile, error: profileError } = await supabaseClient
+        .from('profiles')
+        .select('fcm_token, notification_enabled')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (profileError) {
+        console.error('❌ Profile lookup error:', profileError);
         
-        if (authError) {
-          console.error('❌ Failed to get auth user data:', authError);
-        }
-        
-        // Determine user role based on context or default
-        let userRole = 'customer';
-        if (data?.type === 'new_booking') {
-          userRole = 'merchant'; // If receiving new booking notification, likely a merchant
-        }
-        
-        // Create profile with available data
-        const { error: createError } = await supabaseClient
-          .from('profiles')
+        // Log this attempt for visibility
+        await supabaseClient.from('notification_logs')
           .insert({
-            id: userId,
-            name: authUser?.user?.user_metadata?.name || authUser?.user?.email || (userRole === 'merchant' ? 'Merchant' : 'Customer'),
-            email: authUser?.user?.email || '',
-            phone: authUser?.user?.user_metadata?.phone || '',
-            role: userRole,
-            notification_enabled: false, // Will be enabled when they set up FCM
-            fcm_token: null
+            user_id: userId,
+            title,
+            body,
+            type: data?.type || 'general',
+            status: 'failed',
+            error_message: `Profile lookup error: ${profileError.message}`
           });
-
-        if (createError) {
-          console.error('❌ Failed to create profile:', createError);
-        } else {
-          console.log('✅ Profile created for user:', userId);
-        }
-      } catch (createProfileError) {
-        console.error('❌ Error creating profile:', createProfileError);
+        
+        return new Response(
+          JSON.stringify({ 
+            error: 'Profile lookup failed', 
+            details: profileError.message
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
       }
-      
-      // Log this attempt for visibility
-      await supabaseClient.from('notification_logs')
-        .insert({
-          user_id: userId,
-          title,
-          body,
-          type: data?.type || 'general',
-          status: 'failed',
-          error_message: 'No profile found - user needs to enable notifications in the app'
-        });
-      
-      return new Response(
-        JSON.stringify({ 
-          error: 'No profile found for user',
-          message: 'User needs to enable notifications in the app first',
-          autoProfileCreated: true
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
+
+      if (!profile) {
+        console.warn('⚠️ No profile found for user:', userId);
+        
+        // Log this attempt for visibility
+        await supabaseClient.from('notification_logs')
+          .insert({
+            user_id: userId,
+            title,
+            body,
+            type: data?.type || 'general',
+            status: 'failed',
+            error_message: 'No profile found - user needs to enable notifications in the app'
+          });
+        
+        return new Response(
+          JSON.stringify({ 
+            error: 'No profile found for user',
+            message: 'User needs to enable notifications in the app first'
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
+      }
+
+      userSettings = {
+        fcm_token: profile.fcm_token,
+        notification_enabled: profile.notification_enabled
+      };
     }
 
-    const { fcm_token, notification_enabled } = profile;
+    const { fcm_token, notification_enabled } = userSettings;
 
     if (!fcm_token) {
       console.warn('⚠️ User has no FCM token - user must enable push notifications in their app');
-      // Log this attempt in notification_logs for better visibility
+      
+      // Log this attempt for better visibility
       await supabaseClient.from('notification_logs')
         .insert({
           user_id: userId,
@@ -181,6 +174,7 @@ serve(async (req) => {
           status: 'failed',
           error_message: 'No FCM token found - user needs to enable notifications in browser'
         });
+      
       return new Response(
         JSON.stringify({ 
           error: 'No FCM token found for user',
@@ -195,6 +189,7 @@ serve(async (req) => {
 
     if (notification_enabled === false) {
       console.log('🔕 Notifications disabled for user:', userId);
+      
       await supabaseClient.from('notification_logs')
         .insert({
           user_id: userId,
@@ -204,6 +199,7 @@ serve(async (req) => {
           status: 'failed',
           error_message: 'Notifications are disabled in user profile'
         });
+      
       return new Response(
         JSON.stringify({ message: 'Notifications disabled for user' }),
         {
@@ -224,7 +220,9 @@ serve(async (req) => {
         body,
         { ...data, debug_id: `${userId}:${Date.now()}` }
       );
+      
       console.log('✅ FCM notification sent successfully:', notificationResult);
+      
       // Log success in notification_logs
       await supabaseClient.from('notification_logs')
         .insert({
@@ -235,9 +233,11 @@ serve(async (req) => {
           status: 'sent',
           fcm_response: JSON.stringify(notificationResult).slice(0, 499)
         });
+        
     } catch (fcmError) {
       let errorMsg = fcmError?.message || String(fcmError);
       console.error('❌ FCM send error:', errorMsg);
+      
       await supabaseClient.from('notification_logs')
         .insert({
           user_id: userId,
@@ -247,6 +247,7 @@ serve(async (req) => {
           status: 'failed',
           error_message: errorMsg
         });
+      
       return new Response(
         JSON.stringify({
           error: 'Failed to send notification',
@@ -273,6 +274,7 @@ serve(async (req) => {
   } catch (error) {
     let errMsg = error?.message || String(error);
     console.error('❌ Unexpected error in send-notification function:', errMsg);
+    
     return new Response(
       JSON.stringify({
         error: 'Internal server error',
@@ -443,7 +445,7 @@ async function sendNotificationToToken(token: string, title: string, body: strin
       }
     };
 
-    console.log('📤 Sending FCM v1 request:', JSON.stringify(message, null, 2));
+    console.log('📤 Sending FCM v1 request to token:', token.substring(0, 20) + '...');
 
     const response = await fetch(fcmUrl, {
       method: 'POST',
@@ -459,6 +461,12 @@ async function sendNotificationToToken(token: string, title: string, body: strin
     if (!response.ok) {
       const errorText = await response.text();
       console.error('❌ FCM v1 API error response:', response.status, errorText);
+      
+      // Handle specific FCM errors
+      if (response.status === 404 && errorText.includes('UNREGISTERED')) {
+        throw new Error('FCM token is invalid or expired - user needs to refresh token');
+      }
+      
       throw new Error(`FCM v1 API error: ${response.status} - ${errorText}`);
     }
 
