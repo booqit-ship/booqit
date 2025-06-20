@@ -33,12 +33,8 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   }
 });
 
-// Add connection monitoring
-let connectionAttempts = 0;
-const maxConnectionAttempts = 3;
-
-// Wrap supabase calls with retry logic for better stability
-const withRetry = async <T>(operation: () => Promise<T>, maxRetries: number = 2): Promise<T> => {
+// Simple retry logic for better stability
+export const withRetry = async <T>(operation: () => Promise<T>, maxRetries: number = 2): Promise<T> => {
   let lastError: Error;
   
   for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
@@ -58,23 +54,4 @@ const withRetry = async <T>(operation: () => Promise<T>, maxRetries: number = 2)
   }
   
   throw lastError!;
-};
-
-// Enhanced supabase client with retry logic
-export const stableSupabase = {
-  ...supabase,
-  from: (table: string) => ({
-    ...supabase.from(table),
-    select: (query?: string) => ({
-      ...supabase.from(table).select(query),
-      single: () => withRetry(() => supabase.from(table).select(query).single()),
-      maybeSingle: () => withRetry(() => supabase.from(table).select(query).maybeSingle()),
-    }),
-    insert: (values: any) => withRetry(() => supabase.from(table).insert(values)),
-    update: (values: any) => ({
-      ...supabase.from(table).update(values),
-      eq: (column: string, value: any) => withRetry(() => supabase.from(table).update(values).eq(column, value))
-    }),
-    upsert: (values: any) => withRetry(() => supabase.from(table).upsert(values)),
-  })
 };
