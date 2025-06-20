@@ -7,6 +7,7 @@ import {
 } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import AppInit from '@/components/AppInit';
 import Index from '@/pages/Index';
 import HomePage from '@/pages/customer/HomePage';
 import SearchPage from '@/pages/customer/SearchPage';
@@ -74,6 +75,7 @@ const AppContent: React.FC = () => {
 
   return (
     <Router>
+      <AppInit />
       <Routes>
         {/* Auth Routes */}
         <Route path="/auth" element={<Auth />} />
