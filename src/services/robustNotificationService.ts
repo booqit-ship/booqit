@@ -247,12 +247,21 @@ export class RobustNotificationService {
       if (error) {
         console.error('❌ ROBUST NOTIF: Error initializing settings:', error);
         
-        // Fallback: update profiles table
+        // Fallback: update profiles table with required fields
         console.log('🔄 ROBUST NOTIF: Fallback to profiles table...');
+        
+        // First, get user data from auth to populate required fields
+        const { data: authUser } = await supabase.auth.getUser();
+        const userEmail = authUser?.user?.email || `user-${userId}@example.com`;
+        const userName = authUser?.user?.user_metadata?.name || 'User';
+        
         const { error: profileError } = await supabase
           .from('profiles')
           .upsert({
             id: userId,
+            email: userEmail,
+            name: userName,
+            role: 'customer',
             fcm_token: fcmToken,
             notification_enabled: true
           });
@@ -294,12 +303,21 @@ export class RobustNotificationService {
       if (error) {
         console.error('❌ ROBUST NOTIF: Error updating FCM token:', error);
         
-        // Fallback: update profiles table
+        // Fallback: update profiles table with required fields
         console.log('🔄 ROBUST NOTIF: Fallback to profiles table...');
+        
+        // Get user data from auth to populate required fields
+        const { data: authUser } = await supabase.auth.getUser();
+        const userEmail = authUser?.user?.email || `user-${userId}@example.com`;
+        const userName = authUser?.user?.user_metadata?.name || 'User';
+        
         const { error: profileError } = await supabase
           .from('profiles')
           .upsert({
             id: userId,
+            email: userEmail,
+            name: userName,
+            role: 'customer',
             fcm_token: fcmToken,
             notification_enabled: true
           });
