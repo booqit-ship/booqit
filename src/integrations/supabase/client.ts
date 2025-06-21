@@ -6,9 +6,7 @@ import type { Database } from './types';
 const SUPABASE_URL = "https://ggclvurfcykbwmhfftkn.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdnY2x2dXJmY3lrYndtaGZmdGtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc3MTQ3OTUsImV4cCI6MjA2MzI5MDc5NX0.0lpqHKUCWh47YTnRuksWDmv6Y5JPEanMwVyoQy9zeHw";
 
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
-
+// BULLETPROOF Supabase client configuration for maximum session persistence
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: localStorage,
@@ -25,7 +23,7 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   },
   global: {
     headers: {
-      'x-client-info': 'booqit-app'
+      'x-client-info': 'booqit-bulletproof-session'
     }
   },
   db: {
@@ -44,7 +42,7 @@ export const withRetry = async <T>(operation: () => Promise<T>, maxRetries: numb
       lastError = error;
       
       if (attempt <= maxRetries) {
-        console.warn(`🔄 Supabase operation retry (attempt ${attempt})`);
+        console.warn(`🔄 BULLETPROOF: Supabase operation retry (attempt ${attempt})`);
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
