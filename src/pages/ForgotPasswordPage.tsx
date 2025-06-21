@@ -134,11 +134,7 @@ const ForgotPasswordPage: React.FC = () => {
               <p className="text-sm text-gray-600 font-poppins mb-4">
                 Click the link in the email to reset your password. The link will expire in 1 hour.
               </p>
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
-                <p className="text-sm text-yellow-800 font-poppins">
-                  📧 <strong>Check your spam folder!</strong> Reset emails sometimes end up there.
-                </p>
-              </div>
+              
               <p className="text-sm text-gray-500 font-poppins">
                 Didn't receive the email? Try again or contact support.
               </p>
