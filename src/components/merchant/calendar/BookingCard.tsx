@@ -22,6 +22,7 @@ import {
 interface BookingWithCustomerDetails {
   id: string;
   merchant_id: string;
+  user_id: string;
   date: string;
   service?: {
     name: string;
@@ -184,16 +185,17 @@ const BookingCard: React.FC<BookingCardProps> = ({
           
           const merchantName = merchantData?.shop_name || 'the salon';
           
-          // Get customer ID from booking - use user_id instead of customer_id
-          const { data: bookingData } = await supabase
-            .from('bookings')
-            .select('user_id')
-            .eq('id', booking.id)
-            .single();
+          // Use the customer's user_id directly from booking data
+          const customerId = booking.user_id;
           
-          if (bookingData?.user_id) {
-            console.log('Triggering booking completion notification for customer:', bookingData.user_id);
-            onBookingCompleted(bookingData.user_id, merchantName, booking.id);
+          if (customerId) {
+            console.log('Triggering booking completion notification for customer:', customerId);
+            console.log('Merchant name:', merchantName);
+            console.log('Booking ID:', booking.id);
+            
+            onBookingCompleted(customerId, merchantName, booking.id);
+          } else {
+            console.error('No customer user_id found in booking data');
           }
         } catch (notificationError) {
           console.error('Error sending completion notification:', notificationError);
