@@ -44,12 +44,14 @@ const isMerchantNew = (createdAt: string | null | undefined): boolean => {
     return false;
   }
 };
+
 const HomePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [nearbyShops, setNearbyShops] = useState<Merchant[]>([]);
   const [filteredShops, setFilteredShops] = useState<Merchant[]>([]);
   const [displayedShops, setDisplayedShops] = useState<Merchant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [bookingMerchantId, setBookingMerchantId] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{
     lat: number;
     lng: number;
@@ -285,51 +287,91 @@ const HomePage: React.FC = () => {
     return 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
   };
   const handleBookNow = async (merchant: Merchant) => {
-    console.log("Booking merchant:", merchant);
+    console.log("🔍 Starting booking process for merchant:", {
+      id: merchant.id,
+      name: merchant.shop_name,
+      category: merchant.category
+    });
+    
+    // Set loading state for this specific merchant
+    setBookingMerchantId(merchant.id);
     
     try {
-      // First verify the merchant exists and fetch their services
+      console.log("📡 Fetching merchant data from database...");
+      
+      // Use maybeSingle() instead of single() to handle cases where merchant might not be found
       const { data: merchantData, error: merchantError } = await supabase
         .from('merchants')
         .select('*')
         .eq('id', merchant.id)
-        .single();
+        .maybeSingle();
+        
+      console.log("📋 Merchant query result:", { merchantData, merchantError });
         
       if (merchantError) {
-        console.error("Error fetching merchant:", merchantError);
+        console.error("❌ Error fetching merchant:", merchantError);
         toast({
-          title: "Error",
-          description: "Could not find merchant details. Please try again.",
+          title: "Database Error",
+          description: `Could not verify merchant: ${merchantError.message}`,
           variant: "destructive"
         });
         return;
       }
 
+      if (!merchantData) {
+        console.error("❌ Merchant not found in database");
+        toast({
+          title: "Merchant Not Found",
+          description: "This merchant is no longer available. Please try another shop.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      console.log("📡 Fetching services for merchant...");
+      
       // Fetch services for this merchant
       const { data: services, error: servicesError } = await supabase
         .from('services')
         .select('*')
         .eq('merchant_id', merchant.id);
         
+      console.log("🛍️ Services query result:", { 
+        servicesCount: services?.length || 0, 
+        services, 
+        servicesError 
+      });
+        
       if (servicesError) {
-        console.error("Error fetching services:", servicesError);
+        console.error("❌ Error fetching services:", servicesError);
+        
+        // Allow navigation even if services fetch fails - show error on merchant page
+        console.log("⚠️ Services fetch failed, proceeding with basic navigation");
+        navigate(`/merchant/${merchant.id}`);
+        
         toast({
-          title: "Error",
-          description: "Could not load services. Please try again.",
-          variant: "destructive"
+          title: "Warning",
+          description: "Could not load all merchant details. Some features may be limited.",
+          variant: "default"
         });
         return;
       }
 
+      // Navigate even if no services - let merchant page handle the empty state
       if (!services || services.length === 0) {
+        console.log("⚠️ No services found, but proceeding to merchant page");
+        navigate(`/merchant/${merchant.id}`);
+        
         toast({
-          title: "No Services Available",
-          description: "This merchant hasn't added any services yet.",
-          variant: "destructive"
+          title: "Limited Services",
+          description: "This merchant is still setting up their services.",
+          variant: "default"
         });
         return;
       }
 
+      console.log("✅ All data fetched successfully, navigating to merchant page");
+      
       // Navigate to merchant detail page with state
       navigate(`/merchant/${merchant.id}`, {
         state: {
@@ -339,12 +381,20 @@ const HomePage: React.FC = () => {
       });
       
     } catch (error) {
-      console.error("Error in handleBookNow:", error);
+      console.error("💥 Unexpected error in handleBookNow:", error);
+      
+      // Fallback navigation - just go to the merchant page
+      console.log("🔄 Attempting fallback navigation");
+      navigate(`/merchant/${merchant.id}`);
+      
       toast({
-        title: "Error",
-        description: "Something went wrong. Please try again.",
-        variant: "destructive"
+        title: "Navigation Issue",
+        description: "Redirecting to merchant page. Some details may load slowly.",
+        variant: "default"
       });
+    } finally {
+      // Clear loading state
+      setBookingMerchantId(null);
     }
   };
   const handleViewMore = () => {
@@ -454,8 +504,17 @@ const HomePage: React.FC = () => {
                               </svg>
                               {shop.distance}
                             </span>
-                            <Button size="sm" className="bg-booqit-primary hover:bg-booqit-primary/90 text-xs h-8" onClick={() => handleBookNow(shop)}>
-                              Book Now
+                            <Button 
+                              size="sm" 
+                              className="bg-booqit-primary hover:bg-booqit-primary/90 text-xs h-8 min-w-[70px]" 
+                              onClick={() => handleBookNow(shop)}
+                              disabled={bookingMerchantId === shop.id}
+                            >
+                              {bookingMerchantId === shop.id ? (
+                                <div className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full"></div>
+                              ) : (
+                                "Book Now"
+                              )}
                             </Button>
                           </div>
                         </div>
