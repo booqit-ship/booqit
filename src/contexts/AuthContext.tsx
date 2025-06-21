@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { UserRole } from '../types';
 import { supabase } from '@/integrations/supabase/client';
@@ -5,6 +6,7 @@ import { Session, User } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { PermanentSession } from '@/utils/permanentSession';
+import { InstantSessionLoader } from '@/utils/instantSessionLoader';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -20,14 +22,26 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [userRole, setUserRole] = useState<UserRole | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  // Pre-populate state with instantly loaded session data
+  const preloadedSession = InstantSessionLoader.getPreloadedSession();
+  
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(preloadedSession?.isAuthenticated || false);
+  const [userRole, setUserRole] = useState<UserRole | null>(preloadedSession?.userRole || null);
+  const [userId, setUserId] = useState<string | null>(preloadedSession?.userId || null);
+  const [user, setUser] = useState<User | null>(preloadedSession?.user || null);
+  const [session, setSession] = useState<Session | null>(preloadedSession?.session || null);
+  // Only show loading if we don't have instant session
+  const [loading, setLoading] = useState<boolean>(!InstantSessionLoader.hasInstantSession());
+  
   const initialized = useRef(false);
   const queryClient = useQueryClient();
+
+  console.log('🔥 INSTANT AUTH: Context initialized with pre-loaded session:', {
+    isAuthenticated,
+    userRole,
+    userId: !!userId,
+    hasInstantSession: InstantSessionLoader.hasInstantSession()
+  });
 
   const fetchUserRole = async (userId: string): Promise<UserRole | null> => {
     try {
@@ -41,19 +55,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error) {
         console.error('❌ Error fetching user role:', error);
-        return 'customer'; // Default fallback
+        return 'customer';
       }
       
       console.log('✅ User role fetched successfully:', data?.role);
       return data?.role as UserRole;
     } catch (error) {
       console.error('❌ Exception in fetchUserRole:', error);
-      return 'customer'; // Default fallback
+      return 'customer';
     }
   };
 
   const updateAuthStateFromSupabase = async (session: Session | null) => {
-    console.log('🔄 BULLETPROOF: Updating auth state from Supabase session:', !!session);
+    console.log('🔄 INSTANT: Updating auth state from Supabase session:', !!session);
     
     if (session?.user) {
       try {
@@ -62,28 +76,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsAuthenticated(true);
         setUserId(session.user.id);
         
-        // Fetch user role
         const role = await fetchUserRole(session.user.id);
         setUserRole(role);
         
-        // Save permanently - this ensures infinite persistence
         PermanentSession.saveSession(session, role || 'customer', session.user.id);
         
-        console.log('✅ BULLETPROOF: Auth state updated and saved permanently with role:', role);
+        console.log('✅ INSTANT: Auth state updated and saved permanently with role:', role);
       } catch (error) {
         console.error('❌ Error updating auth state from Supabase:', error);
         setUserRole('customer');
         PermanentSession.saveSession(session, 'customer', session.user.id);
       }
     } else {
-      // IMPORTANT: Don't clear state immediately - check permanent session first
       const permanentData = PermanentSession.getSession();
       
       if (permanentData.isLoggedIn) {
-        console.log('🔒 BULLETPROOF: No Supabase session but permanent session exists - keeping user logged in');
-        // Don't change anything - keep the permanent session active
+        console.log('🔒 INSTANT: No Supabase session but permanent session exists - keeping user logged in');
       } else {
-        console.log('🧹 BULLETPROOF: No session anywhere - clearing auth state');
+        console.log('🧹 INSTANT: No session anywhere - clearing auth state');
         setIsAuthenticated(false);
         setUserRole(null);
         setUserId(null);
@@ -93,23 +103,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Simplified initialization - let useSessionPersistence handle the bulletproof restoration
   const initializeAuth = async () => {
     try {
-      console.log('🚀 BULLETPROOF: Initializing auth system...');
+      console.log('🚀 INSTANT: Initializing auth system...');
 
-      // Set up auth listener (only once)
       if (!initialized.current) {
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
           async (event, session) => {
-            console.log('🔐 BULLETPROOF: Auth state changed:', event);
+            console.log('🔐 INSTANT: Auth state changed:', event);
             
             if (event === 'SIGNED_IN' && session?.user) {
-              console.log('👤 BULLETPROOF: User signed in, updating permanent session');
+              console.log('👤 INSTANT: User signed in, updating permanent session');
               await updateAuthStateFromSupabase(session);
             } else if (event === 'SIGNED_OUT') {
-              console.log('👋 BULLETPROOF: User signed out - checking if it was manual');
-              // Only clear if permanent session was also cleared (manual logout)
+              console.log('👋 INSTANT: User signed out - checking if it was manual');
               const permanentData = PermanentSession.getSession();
               if (!permanentData.isLoggedIn) {
                 setIsAuthenticated(false);
@@ -120,7 +127,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 queryClient.clear();
               }
             } else if (event === 'TOKEN_REFRESHED' && session) {
-              console.log('🔄 BULLETPROOF: Token refreshed, updating permanent session');
+              console.log('🔄 INSTANT: Token refreshed, updating permanent session');
               const currentRole = userRole || 'customer';
               PermanentSession.saveSession(session, currentRole, session.user.id);
               setSession(session);
@@ -131,33 +138,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         initialized.current = true;
         
-        // Background Supabase session check (don't wait for this)
-        setTimeout(async () => {
-          try {
-            console.log('📦 BULLETPROOF: Background check for existing Supabase session');
-            const { data: { session }, error } = await supabase.auth.getSession();
-            
-            if (session && !error) {
-              console.log('📦 BULLETPROOF: Found existing Supabase session');
-              await updateAuthStateFromSupabase(session);
+        // Only do background check if we don't have instant session
+        if (!InstantSessionLoader.hasInstantSession()) {
+          setTimeout(async () => {
+            try {
+              console.log('📦 INSTANT: Background check for existing Supabase session');
+              const { data: { session }, error } = await supabase.auth.getSession();
+              
+              if (session && !error) {
+                console.log('📦 INSTANT: Found existing Supabase session');
+                await updateAuthStateFromSupabase(session);
+              }
+            } catch (error) {
+              console.error('❌ INSTANT: Background session check failed:', error);
+            } finally {
+              setLoading(false);
             }
-          } catch (error) {
-            console.error('❌ BULLETPROOF: Background session check failed:', error);
-          } finally {
-            setLoading(false);
-          }
-        }, 100);
+          }, 100);
+        } else {
+          // We have instant session, no loading needed
+          setLoading(false);
+        }
 
         return () => {
           subscription.unsubscribe();
         };
       }
 
-      console.log('⏹️ BULLETPROOF: Auth initialization complete');
+      console.log('⏹️ INSTANT: Auth initialization complete');
       setLoading(false);
 
     } catch (error) {
-      console.error('❌ BULLETPROOF: Error during auth initialization:', error);
+      console.error('❌ INSTANT: Error during auth initialization:', error);
       setLoading(false);
     }
   };
@@ -169,7 +181,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const setAuth = (isAuthenticated: boolean, role: UserRole | null, id: string | null) => {
-    console.log('🔧 BULLETPROOF: Manual setAuth called:', { isAuthenticated, role, id });
+    console.log('🔧 INSTANT: Manual setAuth called:', { isAuthenticated, role, id });
     
     setIsAuthenticated(isAuthenticated);
     setUserRole(role);
@@ -178,37 +190,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
-      console.log('👋 BULLETPROOF: Manual logout initiated...');
+      console.log('👋 INSTANT: Manual logout initiated...');
       
-      // Clear permanent session FIRST (this is the key signal)
       PermanentSession.clearSession();
       
-      // Clear auth state immediately
       setIsAuthenticated(false);
       setUserRole(null);
       setUserId(null);
       setSession(null);
       setUser(null);
       
-      // Clear all caches
       queryClient.clear();
       
-      // Let Supabase handle the logout (but don't wait for it)
       supabase.auth.signOut().catch(error => {
         console.error('❌ Supabase logout error (ignoring):', error);
       });
       
-      console.log('✅ BULLETPROOF: Manual logout successful');
+      console.log('✅ INSTANT: Manual logout successful');
       toast.success('Logged out successfully');
       
-      // Redirect to auth page
       window.location.href = '/auth';
       
     } catch (error) {
-      console.error('❌ BULLETPROOF: Exception during logout:', error);
+      console.error('❌ INSTANT: Exception during logout:', error);
       toast.error('Logout completed with errors');
       
-      // Force redirect even on error
       setTimeout(() => {
         window.location.href = '/auth';
       }, 100);

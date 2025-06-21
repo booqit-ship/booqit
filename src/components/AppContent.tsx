@@ -1,5 +1,4 @@
-
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import {
   BrowserRouter as Router,
   Route,
@@ -7,7 +6,6 @@ import {
 } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSessionPersistence } from '@/hooks/useSessionPersistence';
-import { supabase } from '@/integrations/supabase/client';
 import AppInit from '@/components/AppInit';
 import Index from '@/pages/Index';
 import HomePage from '@/pages/customer/HomePage';
@@ -52,30 +50,12 @@ import NotificationsPage from '@/pages/settings/NotificationsPage';
 
 const AppContent: React.FC = () => {
   const { user } = useAuth();
-  const [loading, setLoading] = useState(true);
 
-  // Use the session persistence hook to handle bulletproof session management
+  // Use the session persistence hook for bulletproof session management
   useSessionPersistence();
 
-  useEffect(() => {
-    const getSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        console.log("Session loaded:", !!session);
-      } catch (error) {
-        console.error("Error fetching session:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    getSession();
-
-    supabase.auth.onAuthStateChange((event, session) => {
-      console.log("Auth State Change:", event);
-      setLoading(false);
-    });
-  }, []);
+  // Remove all async session checking - let the instant loader handle it
+  console.log('🚀 INSTANT APP CONTENT: Rendering with instant session support');
 
   return (
     <Router>
