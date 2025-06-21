@@ -2,79 +2,25 @@
 import { useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { PermanentSession } from '@/utils/permanentSession';
-import { validateCurrentSession } from '@/utils/sessionRecovery';
 
 export const useSessionPersistence = () => {
   const { isAuthenticated, setAuth, logout, loading } = useAuth();
-  const validationInProgress = useRef(false);
-  const lastValidation = useRef(0);
   const hookActive = useRef(false);
-
-  // Very conservative validation - only when really needed
-  const performSessionValidation = async () => {
-    if (validationInProgress.current || loading) return;
-    
-    try {
-      validationInProgress.current = true;
-      lastValidation.current = Date.now();
-      
-      console.log('🔍 Performing minimal session validation');
-      
-      const isValid = await validateCurrentSession();
-      const permanentData = PermanentSession.getSession();
-      
-      // Only act if there's a clear mismatch
-      if (!isValid && permanentData.isLoggedIn) {
-        console.log('⚠️ Session invalid but permanent session exists - logging out');
-        logout();
-      } else if (isValid && permanentData.isLoggedIn && !isAuthenticated) {
-        console.log('✅ Valid session found, updating auth state');
-        if (permanentData.userRole && permanentData.userId) {
-          setAuth(true, permanentData.userRole as 'customer' | 'merchant', permanentData.userId);
-        }
-      }
-      
-    } catch (error) {
-      console.error('❌ Error during session validation:', error);
-      
-      // Only logout on critical auth errors
-      if (error?.message?.includes('Invalid') || error?.message?.includes('Unauthorized')) {
-        console.log('🚨 Critical auth error, forcing logout');
-        logout();
-      }
-    } finally {
-      validationInProgress.current = false;
-    }
-  };
 
   useEffect(() => {
     // Don't start if auth is still loading
     if (loading) {
-      console.log('⏳ Auth still loading, delaying session persistence setup');
       return;
     }
 
     if (hookActive.current) {
-      console.log('🔄 Session persistence already active, skipping setup');
       return;
     }
 
     hookActive.current = true;
-    console.log('📱 Session persistence monitoring active (minimal)');
+    console.log('📱 Session persistence monitoring active (simplified)');
     
-    // Much less frequent validation - only every 15 minutes
-    const validationInterval = setInterval(() => {
-      const permanentData = PermanentSession.getSession();
-      if (permanentData.isLoggedIn && !loading) {
-        const timeSinceLastValidation = Date.now() - lastValidation.current;
-        if (timeSinceLastValidation > 900000) { // 15 minutes
-          console.log('⏰ Periodic session validation (15min)');
-          performSessionValidation();
-        }
-      }
-    }, 900000); // 15 minute interval
-    
-    // Only validate on long absence from tab
+    // Only validate on very long absence from tab (30+ minutes)
     let tabHiddenTime: number | null = null;
     
     const handleVisibilityChange = () => {
@@ -82,14 +28,19 @@ export const useSessionPersistence = () => {
         tabHiddenTime = Date.now();
       } else if (tabHiddenTime && !loading) {
         const hiddenDuration = Date.now() - tabHiddenTime;
-        if (hiddenDuration > 600000) { // Only if hidden for 10+ minutes
+        // Only validate if hidden for more than 30 minutes
+        if (hiddenDuration > 1800000) { // 30 minutes
           const permanentData = PermanentSession.getSession();
-          console.log('👁️ Tab visible after long absence - checking session');
+          console.log('👁️ Tab visible after very long absence - light session check');
           
-          if (permanentData.isLoggedIn) {
-            setTimeout(() => {
-              performSessionValidation();
-            }, 3000);
+          if (!permanentData.isLoggedIn && isAuthenticated) {
+            console.log('⚠️ Session lost during long absence - logging out');
+            logout();
+          } else if (permanentData.isLoggedIn && !isAuthenticated) {
+            console.log('✅ Restoring session after long absence');
+            if (permanentData.userRole && permanentData.userId) {
+              setAuth(true, permanentData.userRole as 'customer' | 'merchant', permanentData.userId);
+            }
           }
         }
         tabHiddenTime = null;
@@ -100,7 +51,6 @@ export const useSessionPersistence = () => {
     
     return () => {
       hookActive.current = false;
-      clearInterval(validationInterval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [loading, isAuthenticated, setAuth, logout]);

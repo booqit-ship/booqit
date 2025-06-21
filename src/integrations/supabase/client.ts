@@ -16,7 +16,7 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     autoRefreshToken: true,
     detectSessionInUrl: true,
     flowType: 'pkce',
-    debug: false // Disable debug in production to reduce noise
+    debug: false
   },
   realtime: {
     params: {
@@ -33,8 +33,8 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   }
 });
 
-// Simple retry logic for better stability
-export const withRetry = async <T>(operation: () => Promise<T>, maxRetries: number = 2): Promise<T> => {
+// Simplified retry logic
+export const withRetry = async <T>(operation: () => Promise<T>, maxRetries: number = 1): Promise<T> => {
   let lastError: Error;
   
   for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
@@ -44,11 +44,8 @@ export const withRetry = async <T>(operation: () => Promise<T>, maxRetries: numb
       lastError = error;
       
       if (attempt <= maxRetries) {
-        console.warn(`🔄 Supabase operation failed (attempt ${attempt}), retrying...`, error.message);
-        
-        // Exponential backoff
-        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        console.warn(`🔄 Supabase operation retry (attempt ${attempt})`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
   }

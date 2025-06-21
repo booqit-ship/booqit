@@ -30,7 +30,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const initialized = useRef(false);
   const queryClient = useQueryClient();
   const timeoutRef = useRef<NodeJS.Timeout>();
-  const authValidationRef = useRef(false);
 
   const fetchUserRole = async (userId: string): Promise<UserRole | null> => {
     try {
@@ -63,34 +62,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSession(null);
     setUser(null);
     PermanentSession.clearSession();
-  };
-
-  const detectCacheClearing = (): boolean => {
-    try {
-      // Check for Supabase auth keys in localStorage
-      const supabaseKeys = Object.keys(localStorage).filter(key => 
-        key.startsWith('sb-') || key.includes('supabase') || key.includes('auth')
-      );
-      
-      const permanentSession = PermanentSession.getSession();
-      const permanentLoggedIn = localStorage.getItem('booqit-logged-in');
-      
-      // Enhanced cache clearing detection
-      if ((permanentSession.isLoggedIn && supabaseKeys.length === 0) || 
-          (!permanentLoggedIn && supabaseKeys.length > 0)) {
-        console.log('🚨 Cache clearing detected');
-        clearAuthState();
-        setTimeout(() => {
-          window.location.href = '/auth';
-        }, 100);
-        return true;
-      }
-      
-      return false;
-    } catch (error) {
-      console.error('❌ Error detecting cache clearing:', error);
-      return false;
-    }
   };
 
   const updateAuthStateFromSupabase = async (session: Session | null) => {
@@ -134,7 +105,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Enhanced session restoration with proper validation
+  // Simplified session restoration
   const restoreSessionInstantly = async (): Promise<boolean> => {
     try {
       const permanentData = PermanentSession.getSession();
@@ -149,28 +120,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSession(permanentData.session);
         setUser(permanentData.session?.user || null);
         
-        // Validate tokens with Supabase in background (non-blocking)
-        if (permanentData.session?.access_token && permanentData.session?.refresh_token) {
-          setTimeout(async () => {
-            try {
-              console.log('🔍 Background token validation');
-              const { error } = await supabase.auth.setSession({
-                access_token: permanentData.session.access_token,
-                refresh_token: permanentData.session.refresh_token
-              });
-              
-              if (error) {
-                console.log('⚠️ Background token validation failed:', error);
-                // Don't clear state immediately, let session persistence handle it
-              } else {
-                console.log('✅ Background tokens validated successfully');
-              }
-            } catch (error) {
-              console.log('⚠️ Background token validation error:', error);
-            }
-          }, 100); // Small delay to not block UI
-        }
-        
         return true;
       }
     } catch (error) {
@@ -179,52 +128,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return false;
   };
 
-  // Enhanced auth initialization with better timing
+  // Simplified auth initialization
   const initializeAuth = async () => {
-    if (authValidationRef.current) {
-      console.log('🔄 Auth validation already in progress, skipping');
-      return;
-    }
-
     try {
-      console.log('🚀 Initializing auth system...');
-      authValidationRef.current = true;
+      console.log('🚀 Initializing auth system (simplified)...');
 
       // Clear any existing timeout
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
 
-      // Set timeout to prevent infinite loading - but longer for tab switches
+      // Shorter timeout for better UX
       timeoutRef.current = setTimeout(() => {
         console.log('⏰ Auth initialization timeout - setting loading false');
         setLoading(false);
-        authValidationRef.current = false;
-        
-        // Check if cache was cleared during timeout
-        if (detectCacheClearing()) {
-          console.log('🔄 Redirecting to auth due to cache clearing');
-        }
-      }, 8000); // Increased timeout for better tab switch handling
+      }, 3000); // Reduced from 8000ms
 
       // STEP 1: Try instant restoration from permanent cache
       const instantlyRestored = await restoreSessionInstantly();
       
-      // STEP 2: Set up auth listener for new logins (only once)
+      // STEP 2: Set up auth listener (only once)
       if (!initialized.current) {
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
           async (event, session) => {
-            console.log('🔐 Auth state changed:', event, session?.user?.id);
+            console.log('🔐 Auth state changed:', event);
             
             if (event === 'SIGNED_IN' && session?.user) {
               console.log('👤 User signed in, updating permanent session');
               await updateAuthStateFromSupabase(session);
               
-              // Send welcome notification after successful login
+              // Send welcome notification
               try {
                 const { sendWelcomeNotification } = await import('@/services/eventNotificationService');
                 
-                // Get user profile to extract name and role
                 const { data: profile } = await supabase
                   .from('profiles')
                   .select('name, role')
@@ -256,6 +192,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         );
 
+        initialized.current = true;
+        
         // Store subscription for cleanup
         return () => {
           subscription.unsubscribe();
@@ -266,29 +204,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // STEP 3: Only check Supabase if no cached session was found
-      let supabaseSessionChecked = false;
       if (!instantlyRestored) {
         try {
-          console.log('📦 Attempting to get fresh session from Supabase');
+          console.log('📦 Checking for existing Supabase session');
           const { data: { session }, error } = await supabase.auth.getSession();
-          supabaseSessionChecked = true;
           
           if (session && !error) {
-            console.log('📦 Got fresh session from Supabase');
+            console.log('📦 Found existing Supabase session');
             await updateAuthStateFromSupabase(session);
           } else {
-            console.log('📦 No fresh session available from Supabase');
+            console.log('📦 No existing Supabase session');
           }
         } catch (error) {
-          console.error('❌ Failed to get fresh session:', error);
-          supabaseSessionChecked = true;
+          console.error('❌ Failed to get existing session:', error);
         }
       }
 
-      // STEP 4: Set loading to false - CRITICAL: Wait for both instant restore AND Supabase check
-      console.log('⏹️ Auth initialization complete, setting loading false');
+      // STEP 4: Set loading to false
+      console.log('⏹️ Auth initialization complete');
       setLoading(false);
-      authValidationRef.current = false;
       
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
@@ -298,7 +232,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('❌ Error during auth initialization:', error);
       setLoading(false);
-      authValidationRef.current = false;
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
@@ -307,7 +240,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (!initialized.current) {
-      initialized.current = true;
       initializeAuth();
     }
     
@@ -338,12 +270,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Clear permanent session first
       PermanentSession.clearSession();
       
-      // Clear all Supabase-related localStorage keys
-      const keysToRemove = Object.keys(localStorage).filter(key => 
-        key.startsWith('sb-') || key.includes('supabase') || key.includes('auth')
-      );
-      keysToRemove.forEach(key => localStorage.removeItem(key));
-      
       // Clear auth state immediately
       clearAuthState();
       
@@ -351,7 +277,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       queryClient.clear();
       
       // Let Supabase handle the logout (but don't wait for it)
-      await supabase.auth.signOut().catch(error => {
+      supabase.auth.signOut().catch(error => {
         console.error('❌ Supabase logout error (ignoring):', error);
       });
       
