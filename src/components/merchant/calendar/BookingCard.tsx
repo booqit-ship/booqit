@@ -178,7 +178,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
 
       console.log('✅ Booking status updated successfully');
       
-      // If booking is completed, send notification to customer
+      // If booking is completed, send notification to customer (NOT merchant)
       if (newStatus === 'completed') {
         console.log('🔔 BOOKING COMPLETION: Starting notification process...');
         
@@ -196,17 +196,18 @@ const BookingCard: React.FC<BookingCardProps> = ({
           }
           
           const merchantName = merchantData?.shop_name || 'the salon';
-          const customerId = booking.user_id;
+          const customerId = booking.user_id; // This is the CUSTOMER's user_id, not merchant's
           
           console.log('🎯 BOOKING COMPLETION: Notification details:', {
             customerId,
             merchantName,
             bookingId: booking.id,
-            hasCustomerId: !!customerId
+            hasCustomerId: !!customerId,
+            customerName: booking.customer_name
           });
           
           if (customerId) {
-            console.log('📨 Sending booking completion notification...');
+            console.log('📨 Sending booking completion notification to CUSTOMER:', customerId);
             
             // Check if customer has FCM token
             const { data: customerNotificationSettings } = await supabase
@@ -221,7 +222,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
               notificationsEnabled: customerNotificationSettings?.notification_enabled
             });
             
-            // Trigger the notification
+            // Trigger the notification - MAKE SURE TO SEND TO CUSTOMER, NOT MERCHANT
             await onBookingCompleted(customerId, merchantName, booking.id);
             
             // Show success message to merchant
