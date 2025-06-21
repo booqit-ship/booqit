@@ -158,7 +158,12 @@ const BookingCard: React.FC<BookingCardProps> = ({
         updateData.payment_status = 'completed';
       }
 
-      console.log('Updating booking status...', { bookingId: booking.id, newStatus });
+      console.log('🎯 BOOKING COMPLETION DEBUG: Starting status update...', {
+        bookingId: booking.id,
+        newStatus,
+        customerId: booking.user_id,
+        merchantId: booking.merchant_id
+      });
 
       const { error } = await supabase
         .from('bookings')
@@ -166,44 +171,72 @@ const BookingCard: React.FC<BookingCardProps> = ({
         .eq('id', booking.id);
 
       if (error) {
-        console.error('Error updating booking status:', error);
+        console.error('❌ Error updating booking status:', error);
         toast.error('Failed to update booking status');
         return;
       }
 
-      console.log('Booking status updated successfully');
+      console.log('✅ Booking status updated successfully');
       
       // If booking is completed, send notification to customer
       if (newStatus === 'completed') {
+        console.log('🔔 BOOKING COMPLETION: Starting notification process...');
+        
         try {
           // Get merchant name from booking data or fetch it
-          const { data: merchantData } = await supabase
+          console.log('📋 Fetching merchant data for shop name...');
+          const { data: merchantData, error: merchantError } = await supabase
             .from('merchants')
             .select('shop_name')
             .eq('id', booking.merchant_id)
             .single();
           
-          const merchantName = merchantData?.shop_name || 'the salon';
+          if (merchantError) {
+            console.error('❌ Error fetching merchant data:', merchantError);
+          }
           
-          // Use the customer's user_id directly from booking data
+          const merchantName = merchantData?.shop_name || 'the salon';
           const customerId = booking.user_id;
           
+          console.log('🎯 BOOKING COMPLETION: Notification details:', {
+            customerId,
+            merchantName,
+            bookingId: booking.id,
+            hasCustomerId: !!customerId
+          });
+          
           if (customerId) {
-            console.log('Triggering booking completion notification for customer:', customerId);
-            console.log('Merchant name:', merchantName);
-            console.log('Booking ID:', booking.id);
+            console.log('📨 Sending booking completion notification...');
             
-            onBookingCompleted(customerId, merchantName, booking.id);
+            // Check if customer has FCM token
+            const { data: customerNotificationSettings } = await supabase
+              .from('notification_settings')
+              .select('fcm_token, notification_enabled')
+              .eq('user_id', customerId)
+              .single();
+            
+            console.log('🔍 Customer notification settings:', {
+              customerId,
+              hasToken: !!customerNotificationSettings?.fcm_token,
+              notificationsEnabled: customerNotificationSettings?.notification_enabled
+            });
+            
+            // Trigger the notification
+            await onBookingCompleted(customerId, merchantName, booking.id);
+            
+            // Show success message to merchant
+            toast.success(`Booking completed! Review request sent to ${booking.customer_name || 'customer'}`);
           } else {
-            console.error('No customer user_id found in booking data');
+            console.error('❌ No customer user_id found in booking data');
+            toast.error('Unable to send notification - customer ID missing');
           }
         } catch (notificationError) {
-          console.error('Error sending completion notification:', notificationError);
-          // Don't fail the status update if notification fails
+          console.error('❌ Error in notification process:', notificationError);
+          toast.error('Booking completed but failed to send notification to customer');
         }
+      } else {
+        toast.success(`Booking ${newStatus} successfully`);
       }
-
-      toast.success(`Booking ${newStatus} successfully`);
       
       // Invalidate and refetch relevant queries
       if (booking.merchant_id) {
@@ -211,9 +244,10 @@ const BookingCard: React.FC<BookingCardProps> = ({
         invalidateBookings(booking.merchant_id, bookingDate);
       }
       
+      // Call the parent's status change handler
       await onStatusChange(booking.id, newStatus);
     } catch (error) {
-      console.error('Error updating booking status:', error);
+      console.error('❌ Error updating booking status:', error);
       toast.error('Failed to update booking status');
     }
   };
@@ -264,6 +298,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
                 <span className={`font-medium ${booking.status === 'cancelled' ? 'text-gray-500' : ''}`}>
                   {booking.customer_name}
                 </span>
+                <span className="text-xs text-gray-400">ID: {booking.user_id.slice(0, 8)}...</span>
               </div>
             )}
             
@@ -336,13 +371,13 @@ const BookingCard: React.FC<BookingCardProps> = ({
           <AlertDialogHeader>
             <AlertDialogTitle>Complete Booking?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to mark this booking as completed? This action will update the booking status and payment information.
+              Are you sure you want to mark this booking as completed? This will send a review request notification to the customer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleCompleteConfirm} className="bg-blue-600 hover:bg-blue-700">
-              Complete Booking
+              Complete & Send Review Request
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

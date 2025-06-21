@@ -10,6 +10,7 @@ import BookingsList from '@/components/merchant/calendar/BookingsList';
 import HolidayManager from '@/components/merchant/calendar/HolidayManager';
 import WeekCalendar from '@/components/merchant/calendar/WeekCalendar';
 import StylistAvailabilityWidget from '@/components/merchant/StylistAvailabilityWidget';
+import NotificationDebugPanel from '@/components/merchant/NotificationDebugPanel';
 import { formatDateInIST, getCurrentDateIST } from '@/utils/dateUtils';
 
 interface BookingWithCustomerDetails {
@@ -64,13 +65,13 @@ const CalendarManagementPage: React.FC = () => {
   const merchantId = merchant?.id;
 
   // Get bookings with enhanced caching and proper typing - FIXED QUERY
-  const { data: bookings = [], isFetching: isBookingsFetching } = useQuery({
+  const { data: bookings = [], isFetching: isBookingsFetching, refetch: refetchBookings } = useQuery({
     queryKey: ['bookings', merchantId, formatDateInIST(selectedDate, 'yyyy-MM-dd')],
     queryFn: async (): Promise<BookingWithCustomerDetails[]> => {
       if (!merchantId) return [];
       
       const dateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
-      console.log('Fetching bookings for date:', dateStr, 'merchant:', merchantId);
+      console.log('🔄 Fetching bookings for date:', dateStr, 'merchant:', merchantId);
       
       const { data, error } = await supabase
         .from('bookings')
@@ -98,11 +99,11 @@ const CalendarManagementPage: React.FC = () => {
         .order('time_slot', { ascending: true });
       
       if (error) {
-        console.error('Error fetching bookings:', error);
+        console.error('❌ Error fetching bookings:', error);
         throw error;
       }
       
-      console.log('Fetched bookings:', data);
+      console.log('✅ Fetched bookings:', data?.length || 0, 'bookings');
       
       // Transform and type the data properly
       return (data || []).map(booking => ({
@@ -125,8 +126,9 @@ const CalendarManagementPage: React.FC = () => {
       }));
     },
     enabled: !!merchantId,
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 30 * 1000, // 30 seconds for more frequent updates
     refetchOnWindowFocus: true,
+    refetchInterval: 60 * 1000, // Auto-refetch every minute
   });
 
   // Get holidays with caching
@@ -184,9 +186,52 @@ const CalendarManagementPage: React.FC = () => {
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
+  // Set up real-time subscription for booking updates
+  React.useEffect(() => {
+    if (!merchantId) return;
+
+    console.log('🔄 Setting up real-time subscription for merchant:', merchantId);
+    
+    const channel = supabase
+      .channel('booking-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'bookings',
+          filter: `merchant_id=eq.${merchantId}`
+        },
+        (payload) => {
+          console.log('📡 Real-time booking update received:', payload);
+          
+          // Invalidate and refetch bookings when changes occur
+          queryClient.invalidateQueries({ queryKey: ['bookings', merchantId] });
+          queryClient.invalidateQueries({ queryKey: ['appointment-counts', merchantId] });
+          
+          // Show toast notification for status changes
+          if (payload.eventType === 'UPDATE') {
+            const oldStatus = payload.old?.status;
+            const newStatus = payload.new?.status;
+            const customerName = payload.new?.customer_name || 'Customer';
+            
+            if (oldStatus !== newStatus) {
+              toast.success(`Booking status updated: ${customerName} - ${newStatus}`);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('🔌 Cleaning up real-time subscription');
+      supabase.removeChannel(channel);
+    };
+  }, [merchantId, queryClient]);
+
   const handleStatusChange = async (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
     try {
-      console.log('Updating booking status:', bookingId, 'to:', newStatus);
+      console.log('🔄 Updating booking status:', bookingId, 'to:', newStatus);
       
       let updateData: any = { status: newStatus };
       
@@ -201,18 +246,21 @@ const CalendarManagementPage: React.FC = () => {
         .eq('id', bookingId);
 
       if (error) {
-        console.error('Error updating booking status:', error);
+        console.error('❌ Error updating booking status:', error);
         toast.error(`Failed to update booking status: ${error.message}`);
         return;
       }
 
-      toast.success(`Booking ${newStatus} successfully`);
+      console.log('✅ Booking status updated successfully');
+      
+      // Force immediate refresh of bookings data
+      refetchBookings();
       
       // Invalidate relevant queries to refresh data
       queryClient.invalidateQueries({ queryKey: ['bookings', merchantId] });
       queryClient.invalidateQueries({ queryKey: ['appointment-counts', merchantId] });
     } catch (error) {
-      console.error('Error updating booking status:', error);
+      console.error('❌ Error updating booking status:', error);
       toast.error('Failed to update booking status. Please try again.');
     }
   };
@@ -244,6 +292,7 @@ const CalendarManagementPage: React.FC = () => {
   };
 
   const refetchData = () => {
+    refetchBookings();
     queryClient.invalidateQueries({ queryKey: ['bookings', merchantId] });
   };
 
@@ -272,6 +321,11 @@ const CalendarManagementPage: React.FC = () => {
           )}
         </div>
         <p className="text-muted-foreground">Manage your bookings and appointments (IST)</p>
+        
+        {/* Debug info for merchant */}
+        <div className="text-xs text-gray-400 mt-1">
+          Merchant ID: {merchantId?.slice(0, 8)}... | Auto-refresh: ON | Last update: {new Date().toLocaleTimeString()}
+        </div>
       </div>
 
       <WeekCalendar 
@@ -310,6 +364,9 @@ const CalendarManagementPage: React.FC = () => {
               refetchHolidaysData();
             }} 
           />
+          
+          {/* Debug Panel for testing notifications */}
+          <NotificationDebugPanel merchantId={merchantId} />
         </div>
       </div>
     </div>
