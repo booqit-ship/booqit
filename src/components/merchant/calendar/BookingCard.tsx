@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -347,7 +346,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
             <AlertDialogDescription>
               Are you sure you want to cancel this booking? This action cannot be undone and the customer will be notified.
             </AlertDialogDescription>
-          </AlertDialogHelper>
+          </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep Booking</AlertDialogCancel>
             <AlertDialogAction onClick={handleCancelConfirm} className="bg-red-600 hover:bg-red-700">
