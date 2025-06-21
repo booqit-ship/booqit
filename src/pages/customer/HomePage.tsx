@@ -375,7 +375,15 @@ const HomePage: React.FC = () => {
                         <div className="p-3 flex-1 py-[6px]">
                           <div className="flex justify-between items-start">
                             <h3 className="font-medium text-base line-clamp-1">{shop.shop_name}</h3>
-                            
+                            {isMerchantNew(shop.created_at) ? (
+                              <span className="text-sm bg-green-100 text-green-800 px-2 py-0.5 rounded-full flex items-center whitespace-nowrap">
+                                New
+                              </span>
+                            ) : (
+                              <span className="text-sm bg-green-100 text-green-800 px-2 py-0.5 rounded-full flex items-center whitespace-nowrap">
+                                ★ {shop.rating?.toFixed(1) || 'New'}
+                              </span>
+                            )}
                           </div>
                           <p className="text-sm text-gray-500 line-clamp-1">{shop.category}</p>
                           <div className="flex justify-between items-center mt-2">
