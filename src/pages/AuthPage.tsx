@@ -24,6 +24,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { UserRole } from '@/types';
 import RoleSelection from '@/components/RoleSelection';
 import { supabase } from '@/integrations/supabase/client';
+import { PermanentSession } from '@/utils/permanentSession';
+import { validateCurrentSession } from '@/utils/sessionRecovery';
 
 const AuthPage: React.FC = () => {
   const location = useLocation();
@@ -57,28 +59,35 @@ const AuthPage: React.FC = () => {
     }
   }, [location.state]);
 
-  // Redirect authenticated users with proper checks
+  // Redirect authenticated users immediately using permanent session
   useEffect(() => {
-    if (hasRedirected.current) return;
+    if (hasRedirected.current) return; // Prevent double navigation
 
-    console.log('🔍 Auth check:', { loading, isAuthenticated, userRole });
+    const permanentData = PermanentSession.getSession();
+    
+    if (permanentData.isLoggedIn) {
+      console.log('🔄 User has permanent session, redirecting...', { userRole: permanentData.userRole });
+      hasRedirected.current = true;
+      if (permanentData.userRole === 'merchant') {
+        navigate('/merchant', { replace: true });
+      } else {
+        navigate('/home', { replace: true });
+      }
+      return;
+    }
 
     if (!loading && isAuthenticated && userRole) {
-      console.log('🔄 User authenticated, redirecting...', { userRole });
+      console.log('🔄 User authenticated via context, redirecting...', { userRole });
       hasRedirected.current = true;
-      
-      // Small delay to ensure state is fully updated
-      setTimeout(() => {
-        if (userRole === 'merchant') {
-          navigate('/merchant', { replace: true });
-        } else {
-          navigate('/home', { replace: true });
-        }
-      }, 100);
+      if (userRole === 'merchant') {
+        navigate('/merchant', { replace: true });
+      } else {
+        navigate('/home', { replace: true });
+      }
     }
   }, [isAuthenticated, userRole, loading, navigate]);
 
-  // Handle role selection
+  // Handle role selection with proper state management
   const handleRoleSelect = (role: UserRole) => {
     console.log('Role selected:', role);
     setSelectedRole(role);
@@ -100,7 +109,7 @@ const AuthPage: React.FC = () => {
 
   // Phone validation function
   const validatePhone = (phone: string): boolean => {
-    if (!phone) return true;
+    if (!phone) return true; // Phone is optional
     const phoneRegex = /^[\+]?[0-9\s\-\(\)]{10,15}$/;
     return phoneRegex.test(phone.replace(/\s/g, ''));
   };
@@ -156,16 +165,19 @@ const AuthPage: React.FC = () => {
       
       // Validate form
       if (!validateForm(false)) {
+        setIsLoading(false);
         return;
       }
 
       if (!agreeToPolicies) {
         setErrors({ general: "Please agree to the Privacy Policy and Terms and Conditions to continue" });
+        setIsLoading(false);
         return;
       }
 
       if (!selectedRole) {
         setErrors({ general: "Please select a role" });
+        setIsLoading(false);
         return;
       }
 
@@ -194,11 +206,13 @@ const AuthPage: React.FC = () => {
         } else {
           setErrors({ general: authError.message || "Failed to create account. Please try again." });
         }
+        setIsLoading(false);
         return;
       }
 
       if (!authData.user) {
         setErrors({ general: 'Failed to create user account' });
+        setIsLoading(false);
         return;
       }
 
@@ -219,23 +233,25 @@ const AuthPage: React.FC = () => {
 
       if (profileError) {
         console.error('❌ Profile creation error:', profileError);
+        // Don't throw here, profile might be created by trigger
         console.log('⚠️ Profile creation failed, but continuing (might be created by trigger)');
       } else {
         console.log('✅ Profile created successfully');
       }
 
-      // Step 3: If merchant role, create basic merchant record
+      // Step 3: If merchant role, create basic merchant record (will be completed in onboarding)
       if (selectedRole === 'merchant') {
         console.log('🏪 Creating basic merchant record for onboarding...');
         
+        // Create minimal merchant record - will be completed during onboarding
         const { error: merchantError } = await supabase
           .from('merchants')
           .insert({
             user_id: authData.user.id,
-            shop_name: `${name.trim()}'s Shop`,
-            address: '',
-            category: 'salon',
-            lat: 0,
+            shop_name: `${name.trim()}'s Shop`, // Temporary name
+            address: '', // Will be filled during onboarding
+            category: 'salon', // Default category
+            lat: 0, // Will be updated during onboarding
             lng: 0,
             open_time: '09:00',
             close_time: '18:00',
@@ -244,6 +260,7 @@ const AuthPage: React.FC = () => {
 
         if (merchantError) {
           console.error('❌ Basic merchant record creation error:', merchantError);
+          // Don't throw here, onboarding can handle creating the record if needed
           console.log('⚠️ Basic merchant record creation failed, onboarding will handle it');
         } else {
           console.log('✅ Basic merchant record created for onboarding');
@@ -254,23 +271,26 @@ const AuthPage: React.FC = () => {
       if (authData.session && authData.user) {
         console.log('✅ Registration successful with session');
         
+        // Save permanent session
+        PermanentSession.saveSession(authData.session, selectedRole, authData.user.id);
+        
         // Update auth context
         setAuth(true, selectedRole, authData.user.id);
         
         console.log('🎯 Navigating after registration...');
-        setTimeout(() => {
-          if (selectedRole === 'merchant') {
-            navigate('/merchant/onboarding', { replace: true });
-          } else {
-            navigate('/home', { replace: true });
-          }
-        }, 100);
+        if (selectedRole === 'merchant') {
+          // Always go to onboarding for new merchants
+          navigate('/merchant/onboarding', { replace: true });
+        } else {
+          navigate('/home', { replace: true });
+        }
 
         toast({
           title: "Welcome to BooqIt!",
           description: "Your account has been created successfully.",
         });
       } else if (authData.user && !authData.session) {
+        // Email confirmation required
         console.log('📧 Email confirmation required');
         toast({
           title: "Check your email",
@@ -298,6 +318,7 @@ const AuthPage: React.FC = () => {
       
       // Validate form
       if (!validateForm(true)) {
+        setIsLoading(false);
         return;
       }
       
@@ -318,11 +339,22 @@ const AuthPage: React.FC = () => {
         } else {
           setErrors({ general: error.message || "Login failed. Please try again." });
         }
+        setIsLoading(false);
         return;
       }
 
       if (data.session && data.user) {
         console.log('✅ Login successful, session created');
+        
+        // Immediate validation of the new session
+        console.log('🔍 Validating new session immediately');
+        const isValid = await validateCurrentSession();
+        
+        if (!isValid) {
+          setErrors({ general: 'Session validation failed after login' });
+          setIsLoading(false);
+          return;
+        }
         
         // Fetch user role from profiles table
         const { data: profileData, error: profileError } = await supabase
@@ -334,40 +366,41 @@ const AuthPage: React.FC = () => {
         if (profileError) {
           console.error('❌ Error fetching user profile:', profileError);
           setErrors({ general: 'Failed to fetch user profile' });
+          setIsLoading(false);
           return;
         }
 
         const userRole = profileData?.role as UserRole;
         console.log('👤 User role fetched:', userRole);
         
-        // Update auth context - the UnifiedAuthManager will handle the rest
+        // Save permanent session with validated data
+        PermanentSession.saveSession(data.session, userRole, data.user.id);
+        
+        // Update auth context
         setAuth(true, userRole, data.user.id);
         
         console.log('🎯 Navigating after login...');
-        setTimeout(() => {
-          if (userRole === 'merchant') {
-            // Check if merchant needs onboarding
-            supabase
-              .from('merchants')
-              .select('address, lat, lng')
-              .eq('user_id', data.user.id)
-              .single()
-              .then(({ data: merchantData }) => {
-                const needsOnboarding = !merchantData || 
-                                      !merchantData.address || 
-                                      merchantData.address.trim() === '' ||
-                                      (merchantData.lat === 0 && merchantData.lng === 0);
-                                      
-                if (needsOnboarding) {
-                  navigate('/merchant/onboarding', { replace: true });
-                } else {
-                  navigate('/merchant', { replace: true });
-                }
-              });
+        if (userRole === 'merchant') {
+          // Check if merchant needs onboarding
+          const { data: merchantData } = await supabase
+            .from('merchants')
+            .select('address, lat, lng')
+            .eq('user_id', data.user.id)
+            .single();
+            
+          const needsOnboarding = !merchantData || 
+                                !merchantData.address || 
+                                merchantData.address.trim() === '' ||
+                                (merchantData.lat === 0 && merchantData.lng === 0);
+                                
+          if (needsOnboarding) {
+            navigate('/merchant/onboarding', { replace: true });
           } else {
-            navigate('/home', { replace: true });
+            navigate('/merchant', { replace: true });
           }
-        }, 100);
+        } else {
+          navigate('/home', { replace: true });
+        }
 
         toast({
           title: "Welcome back!",
@@ -384,13 +417,28 @@ const AuthPage: React.FC = () => {
     }
   };
 
+  // Handle keyboard events for mobile form submission
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleLogin(e as any);
+    }
+  };
+
+  // Handle forgot password navigation with explicit prevention
+  const handleForgotPasswordClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigate('/forgot-password');
+  };
+
   // Show loading while auth is being checked
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-booqit-primary/10 to-white">
         <div className="text-center">
           <div className="animate-spin h-10 w-10 border-4 border-booqit-primary border-t-transparent rounded-full mx-auto mb-4"></div>
-          <h1 className="text-2xl font-righteous mb-2">BooqIt</h1>
+          <h1 className="text-2xl font-righteous mb-2">Loading...</h1>
           <p className="text-gray-500 font-poppins">Checking authentication...</p>
         </div>
       </div>
@@ -463,6 +511,7 @@ const AuthPage: React.FC = () => {
                         setEmail(e.target.value);
                         clearError('email');
                       }}
+                      onKeyDown={handleKeyDown}
                       className={`font-poppins ${errors.email ? 'border-red-500 focus:border-red-500' : ''}`}
                       required
                       disabled={isLoading}
@@ -474,12 +523,11 @@ const AuthPage: React.FC = () => {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Label htmlFor="password" className="font-poppins">Password</Label>
-                      <Link 
-                        to="/forgot-password"
-                        className="text-xs p-0 h-auto font-poppins text-booqit-primary hover:text-booqit-primary/80 hover:underline"
-                      >
-                        Forgot password?
-                      </Link>
+                      <div onClick={handleForgotPasswordClick}>
+                        <span className="text-xs p-0 h-auto font-poppins text-booqit-primary hover:text-booqit-primary/80 cursor-pointer hover:underline">
+                          Forgot password?
+                        </span>
+                      </div>
                     </div>
                     <Input 
                       id="password" 
@@ -489,6 +537,7 @@ const AuthPage: React.FC = () => {
                         setPassword(e.target.value);
                         clearError('password');
                       }}
+                      onKeyDown={handleKeyDown}
                       className={`font-poppins ${errors.password ? 'border-red-500 focus:border-red-500' : ''}`}
                       required
                       disabled={isLoading}
@@ -518,7 +567,6 @@ const AuthPage: React.FC = () => {
                       {errors.general}
                     </div>
                   )}
-                  
                   <div className="space-y-2">
                     <Label htmlFor="name" className="font-poppins">Full Name *</Label>
                     <Input 
