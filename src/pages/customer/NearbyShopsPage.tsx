@@ -19,6 +19,14 @@ import {
 
 const SHOPS_PER_PAGE = 10;
 
+// Helper function to check if merchant is new (within 10 days)
+const isMerchantNew = (createdAt: string): boolean => {
+  const createdDate = new Date(createdAt);
+  const now = new Date();
+  const tenDaysAgo = new Date(now.getTime() - (10 * 24 * 60 * 60 * 1000));
+  return createdDate > tenDaysAgo;
+};
+
 const NearbyShopsPage: React.FC = () => {
   const [nearbyShops, setNearbyShops] = useState<Merchant[]>([]);
   const [filteredShops, setFilteredShops] = useState<Merchant[]>([]);
@@ -220,7 +228,7 @@ const NearbyShopsPage: React.FC = () => {
                   <Card className="overflow-hidden shadow-md hover:shadow-lg transition-shadow">
                     <CardContent className="p-0">
                       <div className="flex">
-                        <div className="w-24 h-24 bg-gray-200 flex-shrink-0">
+                        <div className="w-24 h-24 bg-gray-200 flex-shrink-0 relative">
                           <img 
                             src={getShopImage(shop)} 
                             alt={shop.shop_name} 
@@ -230,6 +238,12 @@ const NearbyShopsPage: React.FC = () => {
                               target.src = 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
                             }} 
                           />
+                          {/* New Badge - Only show if merchant is truly new (within 10 days) */}
+                          {isMerchantNew(shop.created_at) && (
+                            <div className="absolute top-1 right-1 bg-green-500 text-white px-1.5 py-0.5 rounded-full text-xs font-medium">
+                              New
+                            </div>
+                          )}
                         </div>
                         <div className="p-3 flex-1">
                           <div className="flex justify-between items-start">
