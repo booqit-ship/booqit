@@ -1,6 +1,5 @@
-
 import { supabase } from '@/integrations/supabase/client';
-import { sendNotificationToUser } from './notificationService';
+import { ConsolidatedNotificationService } from './consolidatedNotificationService';
 
 export interface NotificationEvent {
   type: 'welcome' | 'new_booking' | 'booking_completed' | 'daily_reminder';
@@ -99,20 +98,11 @@ const canSendNotification = async (userId: string) => {
   try {
     console.log('🔍 NOTIFICATION CHECK: Checking if user can receive notifications:', userId);
     
-    // Get user's notification preferences
-    let { data: profile, error } = await supabase
-      .from('profiles')
-      .select('notification_enabled, fcm_token, name, role')
-      .eq('id', userId)
-      .maybeSingle();
-
-    if (error) {
-      console.error('❌ NOTIFICATION CHECK: Error fetching profile:', error);
-      return false;
-    }
-
-    if (!profile) {
-      console.log('⚠️ NOTIFICATION CHECK: No profile found, attempting to create one...');
+    // Use consolidated service to check notification settings
+    const settings = await ConsolidatedNotificationService.getNotificationSettings(userId);
+    
+    if (!settings) {
+      console.log('⚠️ NOTIFICATION CHECK: No notification settings found, attempting to create profile...');
       
       // Try to get user data from auth and create profile
       try {
@@ -157,26 +147,31 @@ const canSendNotification = async (userId: string) => {
 
         console.log('✅ NOTIFICATION CHECK: Profile created for user:', userId);
         
-        return false;
+        return false; // Still can't send notifications until they enable them
       } catch (createError) {
         console.error('❌ NOTIFICATION CHECK: Error creating profile:', createError);
         return false;
       }
     }
 
-    console.log('👤 NOTIFICATION CHECK: Profile data:', {
-      hasToken: !!profile.fcm_token,
-      notificationEnabled: profile.notification_enabled,
-      role: profile.role
+    console.log('👤 NOTIFICATION CHECK: Settings data:', {
+      hasToken: !!settings.fcm_token,
+      notificationEnabled: settings.notification_enabled,
+      failedCount: settings.failed_notification_count
     });
 
-    if (profile.notification_enabled === false) {
+    if (settings.notification_enabled === false) {
       console.log('🚫 NOTIFICATION CHECK: Notifications disabled for user');
       return false;
     }
 
-    if (!profile.fcm_token) {
+    if (!settings.fcm_token) {
       console.log('🚫 NOTIFICATION CHECK: No FCM token found - user needs to enable notifications');
+      return false;
+    }
+
+    if (settings.failed_notification_count >= 5) {
+      console.log('🚫 NOTIFICATION CHECK: Too many failed attempts');
       return false;
     }
 
@@ -203,7 +198,7 @@ export const sendWelcomeNotification = async (userId: string, userRole: 'custome
     
     console.log('📤 WELCOME NOTIFICATION: Sending notification:', message);
     
-    await sendNotificationToUser(userId, {
+    await ConsolidatedNotificationService.sendNotification(userId, {
       title: message.title,
       body: message.body,
       data: {
@@ -220,7 +215,7 @@ export const sendWelcomeNotification = async (userId: string, userRole: 'custome
   }
 };
 
-// Send new booking notification to merchant - ENHANCED
+// Send new booking notification to merchant
 export const sendNewBookingNotification = async (
   merchantUserId: string,
   customerName: string,
@@ -247,7 +242,7 @@ export const sendNewBookingNotification = async (
     
     console.log('📤 BOOKING NOTIFICATION: Sending notification to merchant:', message);
     
-    await sendNotificationToUser(merchantUserId, {
+    await ConsolidatedNotificationService.sendNotification(merchantUserId, {
       title: message.title,
       body: message.body,
       data: {
@@ -290,7 +285,7 @@ export const sendBookingCompletedNotification = async (
     
     console.log('📤 COMPLETION NOTIFICATION: Sending motivational review request to customer:', message);
     
-    await sendNotificationToUser(customerId, {
+    await ConsolidatedNotificationService.sendNotification(customerId, {
       title: message.title,
       body: message.body,
       data: {
@@ -336,7 +331,7 @@ export const sendDailyReminderNotification = async (
     
     console.log('📤 DAILY REMINDER: Sending notification:', message);
     
-    await sendNotificationToUser(userId, {
+    await ConsolidatedNotificationService.sendNotification(userId, {
       title: message.title,
       body: message.body,
       data: {

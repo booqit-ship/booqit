@@ -1,481 +1,211 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { corsHeaders } from '../_shared/cors.ts'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-interface NotificationRequest {
-  userId: string
-  title: string
-  body: string
-  data?: Record<string, string>
-}
+console.log("Send notification function started")
 
 serve(async (req) => {
-  console.log('📨 Notification request received:', req.method, req.url);
-
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
-  if (req.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: 'Method not allowed' }),
-      {
-        status: 405,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    const { userId, title, body, data } = await req.json()
 
-    let requestBody: NotificationRequest;
-
-    try {
-      requestBody = await req.json();
-      console.log('📋 Request body received:', JSON.stringify(requestBody, null, 2));
-    } catch (error) {
-      console.error('❌ Invalid JSON in request body:', error);
-      return new Response(
-        JSON.stringify({ error: 'Invalid JSON in request body' }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-    }
-
-    const { userId, title, body, data } = requestBody;
+    console.log('📤 SEND NOTIFICATION: Processing request for user:', userId)
+    console.log('📤 SEND NOTIFICATION: Payload:', { title, body, data })
 
     if (!userId || !title || !body) {
-      console.error('❌ Missing required fields:', { userId, title, body });
-      return new Response(
-        JSON.stringify({ error: 'Missing required fields: userId, title, body' }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-    }
-
-    console.log('🔍 Looking up notification settings for user:', userId);
-
-    // Get user's notification settings - try notification_settings table first
-    let userSettings = null;
-    const { data: notificationSettings, error: notificationError } = await supabaseClient
-      .from('notification_settings')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (notificationError) {
-      console.error('❌ Error fetching notification settings:', notificationError);
-    } else if (notificationSettings) {
-      userSettings = {
-        fcm_token: notificationSettings.fcm_token,
-        notification_enabled: notificationSettings.notification_enabled
-      };
-      console.log('✅ Found notification settings:', {
-        user_id: userId,
-        has_fcm_token: !!userSettings.fcm_token,
-        notification_enabled: userSettings.notification_enabled
-      });
-    }
-
-    // Fallback to profiles table if no notification settings found
-    if (!userSettings) {
-      console.log('⚠️ No notification settings found, checking profiles table...');
-      
-      const { data: profile, error: profileError } = await supabaseClient
-        .from('profiles')
-        .select('fcm_token, notification_enabled')
-        .eq('id', userId)
-        .maybeSingle();
-
-      if (profileError) {
-        console.error('❌ Profile lookup error:', profileError);
-        
-        // Log this attempt for visibility
-        await supabaseClient.from('notification_logs')
-          .insert({
-            user_id: userId,
-            title,
-            body,
-            type: data?.type || 'general',
-            status: 'failed',
-            error_message: `Profile lookup error: ${profileError.message}`
-          });
-        
-        return new Response(
-          JSON.stringify({ 
-            error: 'Profile lookup failed', 
-            details: profileError.message
-          }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          }
-        );
-      }
-
-      if (!profile) {
-        console.warn('⚠️ No profile found for user:', userId);
-        
-        // Log this attempt for visibility
-        await supabaseClient.from('notification_logs')
-          .insert({
-            user_id: userId,
-            title,
-            body,
-            type: data?.type || 'general',
-            status: 'failed',
-            error_message: 'No profile found - user needs to enable notifications in the app'
-          });
-        
-        return new Response(
-          JSON.stringify({ 
-            error: 'No profile found for user',
-            message: 'User needs to enable notifications in the app first'
-          }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          }
-        );
-      }
-
-      userSettings = {
-        fcm_token: profile.fcm_token,
-        notification_enabled: profile.notification_enabled
-      };
-    }
-
-    const { fcm_token, notification_enabled } = userSettings;
-
-    if (!fcm_token) {
-      console.warn('⚠️ User has no FCM token - user must enable push notifications in their app');
-      
-      // Log this attempt for better visibility
-      await supabaseClient.from('notification_logs')
-        .insert({
-          user_id: userId,
-          title,
-          body,
-          type: data?.type || 'general',
-          status: 'failed',
-          error_message: 'No FCM token found - user needs to enable notifications in browser'
-        });
-      
+      console.error('❌ SEND NOTIFICATION: Missing required fields')
       return new Response(
         JSON.stringify({ 
-          error: 'No FCM token found for user',
-          message: 'User needs to enable push notifications in their browser'
+          success: false, 
+          error: 'Missing required fields: userId, title, body' 
         }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400 
         }
-      );
+      )
     }
 
-    if (notification_enabled === false) {
-      console.log('🔕 Notifications disabled for user:', userId);
-      
-      await supabaseClient.from('notification_logs')
-        .insert({
-          user_id: userId,
-          title,
-          body,
-          type: data?.type || 'general',
-          status: 'failed',
-          error_message: 'Notifications are disabled in user profile'
-        });
-      
+    // Get FCM server key from environment
+    const fcmServerKey = Deno.env.get('FCM_SERVER_KEY')
+    if (!fcmServerKey) {
+      console.error('❌ SEND NOTIFICATION: FCM_SERVER_KEY not configured')
       return new Response(
-        JSON.stringify({ message: 'Notifications disabled for user' }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-    }
-
-    console.log('🚀 Attempting to send notification to FCM token:', fcm_token.substring(0, 20) + '...');
-
-    // Send the notification using Firebase v1 API
-    let notificationResult;
-    try {
-      notificationResult = await sendNotificationToToken(
-        fcm_token,
-        title,
-        body,
-        { ...data, debug_id: `${userId}:${Date.now()}` }
-      );
-      
-      console.log('✅ FCM notification sent successfully:', notificationResult);
-      
-      // Log success in notification_logs
-      await supabaseClient.from('notification_logs')
-        .insert({
-          user_id: userId,
-          title,
-          body,
-          type: data?.type || 'general',
-          status: 'sent',
-          fcm_response: JSON.stringify(notificationResult).slice(0, 499)
-        });
-        
-    } catch (fcmError) {
-      let errorMsg = fcmError?.message || String(fcmError);
-      console.error('❌ FCM send error:', errorMsg);
-      
-      await supabaseClient.from('notification_logs')
-        .insert({
-          user_id: userId,
-          title,
-          body,
-          type: data?.type || 'general',
-          status: 'failed',
-          error_message: errorMsg
-        });
-      
-      return new Response(
-        JSON.stringify({
-          error: 'Failed to send notification',
-          details: errorMsg
+        JSON.stringify({ 
+          success: false, 
+          error: 'FCM server key not configured' 
         }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500 
         }
-      );
+      )
     }
+
+    // Create Supabase client with service role for database access
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2')
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    // Get user's FCM token from notification_settings table
+    const { data: settings, error: settingsError } = await supabase
+      .from('notification_settings')
+      .select('fcm_token, notification_enabled')
+      .eq('user_id', userId)
+      .single()
+
+    if (settingsError || !settings) {
+      console.error('❌ SEND NOTIFICATION: No notification settings found for user:', userId)
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'User notification settings not found' 
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 404 
+        }
+      )
+    }
+
+    if (!settings.notification_enabled) {
+      console.log('🔕 SEND NOTIFICATION: Notifications disabled for user:', userId)
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Notifications disabled for user' 
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 403 
+        }
+      )
+    }
+
+    if (!settings.fcm_token) {
+      console.error('❌ SEND NOTIFICATION: No FCM token for user:', userId)
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'No FCM token found for user' 
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 404 
+        }
+      )
+    }
+
+    // Prepare FCM message
+    const fcmPayload = {
+      to: settings.fcm_token,
+      notification: {
+        title: title,
+        body: body,
+        icon: '/icons/icon-192.png',
+        badge: '/icons/icon-192.png',
+        click_action: 'https://app.booqit.in'
+      },
+      data: {
+        ...data,
+        click_action: 'https://app.booqit.in'
+      }
+    }
+
+    console.log('🚀 SEND NOTIFICATION: Sending FCM request...')
+
+    // Send notification via FCM
+    const fcmResponse = await fetch('https://fcm.googleapis.com/fcm/send', {
+      method: 'POST',
+      headers: {
+        'Authorization': `key=${fcmServerKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(fcmPayload)
+    })
+
+    const fcmResult = await fcmResponse.json()
+    console.log('📱 SEND NOTIFICATION: FCM response:', fcmResult)
+
+    // Log the notification attempt
+    await supabase
+      .from('notification_logs')
+      .insert({
+        user_id: userId,
+        title: title,
+        body: body,
+        type: data?.type || 'general',
+        status: fcmResponse.ok ? 'sent' : 'failed',
+        fcm_response: JSON.stringify(fcmResult),
+        error_message: fcmResponse.ok ? null : fcmResult.error
+      })
+
+    if (!fcmResponse.ok) {
+      console.error('❌ SEND NOTIFICATION: FCM request failed:', fcmResult)
+      
+      // Update failure count in notification_settings
+      await supabase
+        .from('notification_settings')
+        .update({
+          failed_notification_count: supabase.rpc('increment_failure_count', { user_id: userId }),
+          last_failure_reason: fcmResult.error || 'FCM request failed'
+        })
+        .eq('user_id', userId)
+
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'FCM notification failed',
+          fcm_error: fcmResult
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500 
+        }
+      )
+    }
+
+    // Update success timestamp and reset failure count
+    await supabase
+      .from('notification_settings')
+      .update({
+        last_notification_sent: new Date().toISOString(),
+        failed_notification_count: 0,
+        last_failure_reason: null
+      })
+      .eq('user_id', userId)
+
+    console.log('✅ SEND NOTIFICATION: Successfully sent to user:', userId)
 
     return new Response(
-      JSON.stringify({
-        success: true,
+      JSON.stringify({ 
+        success: true, 
         message: 'Notification sent successfully',
-        result: notificationResult
+        fcm_response: fcmResult
       }),
-      {
+      { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
-    );
+    )
 
   } catch (error) {
-    let errMsg = error?.message || String(error);
-    console.error('❌ Unexpected error in send-notification function:', errMsg);
-    
+    console.error('❌ SEND NOTIFICATION: Unexpected error:', error)
     return new Response(
-      JSON.stringify({
+      JSON.stringify({ 
+        success: false, 
         error: 'Internal server error',
-        details: errMsg
+        details: error.message
       }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500 
       }
-    );
+    )
   }
-});
-
-async function getAccessToken() {
-  const FIREBASE_SERVICE_ACCOUNT = Deno.env.get('FIREBASE_SERVICE_ACCOUNT')
-  
-  if (!FIREBASE_SERVICE_ACCOUNT) {
-    throw new Error('Firebase service account not configured')
-  }
-
-  let serviceAccount;
-  try {
-    serviceAccount = JSON.parse(FIREBASE_SERVICE_ACCOUNT);
-    console.log('🔑 Service account loaded:', {
-      projectId: serviceAccount.project_id,
-      clientEmail: serviceAccount.client_email,
-      hasPrivateKey: !!serviceAccount.private_key
-    });
-  } catch (error) {
-    console.error('❌ Invalid Firebase service account JSON:', error);
-    throw new Error('Invalid Firebase service account JSON');
-  }
-
-  try {
-    console.log('🔐 Creating JWT for Google OAuth...');
-    
-    const { private_key, client_email } = serviceAccount;
-    
-    // Create JWT for Google OAuth
-    const now = Math.floor(Date.now() / 1000);
-    const payload = {
-      iss: client_email,
-      scope: 'https://www.googleapis.com/auth/firebase.messaging',
-      aud: 'https://oauth2.googleapis.com/token',
-      iat: now,
-      exp: now + 3600,
-    };
-
-    const jwt = await createJWT(payload, private_key);
-    
-    console.log('🎫 Requesting access token from Google...');
-    
-    // Exchange JWT for access token
-    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-        assertion: jwt,
-      }),
-    });
-
-    if (!tokenResponse.ok) {
-      const errorText = await tokenResponse.text();
-      console.error('❌ Token request failed:', tokenResponse.status, errorText);
-      throw new Error(`Failed to get access token: ${tokenResponse.status} - ${errorText}`);
-    }
-
-    const tokenData = await tokenResponse.json();
-    console.log('✅ Access token obtained successfully');
-    return tokenData.access_token;
-  } catch (error) {
-    console.error('❌ Access token error:', error);
-    throw new Error(`Failed to get access token: ${error.message}`);
-  }
-}
-
-async function createJWT(payload: any, privateKey: string): Promise<string> {
-  const header = { alg: 'RS256', typ: 'JWT' };
-  
-  // Encode header and payload
-  const encodedHeader = btoa(JSON.stringify(header))
-    .replace(/=/g, '')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_');
-    
-  const encodedPayload = btoa(JSON.stringify(payload))
-    .replace(/=/g, '')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_');
-  
-  const signingInput = `${encodedHeader}.${encodedPayload}`;
-  
-  // Clean up the private key
-  const cleanPrivateKey = privateKey
-    .replace(/\\n/g, '\n')
-    .replace(/-----BEGIN PRIVATE KEY-----/, '')
-    .replace(/-----END PRIVATE KEY-----/, '')
-    .replace(/\s/g, '');
-  
-  // Decode the base64 private key
-  const binaryKey = Uint8Array.from(atob(cleanPrivateKey), c => c.charCodeAt(0));
-  
-  // Import the private key
-  const cryptoKey = await crypto.subtle.importKey(
-    'pkcs8',
-    binaryKey,
-    {
-      name: 'RSASSA-PKCS1-v1_5',
-      hash: 'SHA-256',
-    },
-    false,
-    ['sign']
-  );
-  
-  // Sign the data
-  const signature = await crypto.subtle.sign(
-    'RSASSA-PKCS1-v1_5',
-    cryptoKey,
-    new TextEncoder().encode(signingInput)
-  );
-  
-  // Encode the signature
-  const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature)))
-    .replace(/=/g, '')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_');
-  
-  return `${signingInput}.${encodedSignature}`;
-}
-
-async function sendNotificationToToken(token: string, title: string, body: string, data: Record<string, string> = {}) {
-  const PROJECT_ID = 'booqit09-f4cfc'; // Your Firebase project ID
-  
-  console.log('📤 Getting access token for FCM v1 API...');
-  
-  try {
-    const accessToken = await getAccessToken();
-    console.log('✅ Access token obtained');
-
-    const fcmUrl = `https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`;
-    
-    const message = {
-      message: {
-        token: token,
-        notification: {
-          title,
-          body,
-        },
-        data: {
-          ...data,
-          click_action: 'https://booqit09-f4cfc.web.app'
-        },
-        webpush: {
-          notification: {
-            title,
-            body,
-            icon: '/icons/icon-192.png',
-            click_action: 'https://booqit09-f4cfc.web.app',
-            tag: 'booqit-notification'
-          },
-          fcm_options: {
-            link: 'https://booqit09-f4cfc.web.app'
-          }
-        }
-      }
-    };
-
-    console.log('📤 Sending FCM v1 request to token:', token.substring(0, 20) + '...');
-
-    const response = await fetch(fcmUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(message),
-    });
-
-    console.log('📨 FCM v1 response status:', response.status);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ FCM v1 API error response:', response.status, errorText);
-      
-      // Handle specific FCM errors
-      if (response.status === 404 && errorText.includes('UNREGISTERED')) {
-        throw new Error('FCM token is invalid or expired - user needs to refresh token');
-      }
-      
-      throw new Error(`FCM v1 API error: ${response.status} - ${errorText}`);
-    }
-
-    const result = await response.json();
-    console.log('📨 FCM v1 response data:', result);
-    
-    return result;
-  } catch (error) {
-    console.error('❌ FCM v1 API error:', error);
-    throw error;
-  }
-}
+})
