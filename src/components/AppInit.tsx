@@ -1,16 +1,17 @@
 
 import React from "react";
+import { useSessionPersistence } from "@/hooks/useSessionPersistence";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useCapacitor } from "@/hooks/useCapacitor";
 
 /**
- * Component that initializes notifications and native capacitor features.
- * Session persistence is now handled by useSessionPersistence in AppContent.
- * Must be rendered INSIDE <RouterProvider>.
+ * Component that initializes persisted sessions, notifications,
+ * and native capacitor features. Must be rendered INSIDE <RouterProvider>.
  */
 const AppInit: React.FC = () => {
   console.log('🚀 APP INIT: Initializing app components...');
   
+  useSessionPersistence();
   const notificationState = useNotifications(); // Make sure this runs for FCM registration
   useCapacitor();
   

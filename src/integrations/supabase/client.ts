@@ -6,7 +6,9 @@ import type { Database } from './types';
 const SUPABASE_URL = "https://ggclvurfcykbwmhfftkn.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdnY2x2dXJmY3lrYndtaGZmdGtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc3MTQ3OTUsImV4cCI6MjA2MzI5MDc5NX0.0lpqHKUCWh47YTnRuksWDmv6Y5JPEanMwVyoQy9zeHw";
 
-// BULLETPROOF Supabase client configuration for maximum session persistence
+// Import the supabase client like this:
+// import { supabase } from "@/integrations/supabase/client";
+
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: localStorage,
@@ -14,7 +16,7 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     autoRefreshToken: true,
     detectSessionInUrl: true,
     flowType: 'pkce',
-    debug: false
+    debug: false // Disable debug in production to reduce noise
   },
   realtime: {
     params: {
@@ -23,7 +25,7 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   },
   global: {
     headers: {
-      'x-client-info': 'booqit-bulletproof-session'
+      'x-client-info': 'booqit-app'
     }
   },
   db: {
@@ -31,8 +33,8 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   }
 });
 
-// Simple retry logic for critical operations
-export const withRetry = async <T>(operation: () => Promise<T>, maxRetries: number = 1): Promise<T> => {
+// Simple retry logic for better stability
+export const withRetry = async <T>(operation: () => Promise<T>, maxRetries: number = 2): Promise<T> => {
   let lastError: Error;
   
   for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
@@ -42,8 +44,11 @@ export const withRetry = async <T>(operation: () => Promise<T>, maxRetries: numb
       lastError = error;
       
       if (attempt <= maxRetries) {
-        console.warn(`🔄 BULLETPROOF: Supabase operation retry (attempt ${attempt})`);
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        console.warn(`🔄 Supabase operation failed (attempt ${attempt}), retrying...`, error.message);
+        
+        // Exponential backoff
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
   }

@@ -1,10 +1,9 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types';
 import { PermanentSession } from '@/utils/permanentSession';
-import { InstantSessionLoader } from '@/utils/instantSessionLoader';
 
 interface ProtectedRouteProps {
   children?: React.ReactNode;
@@ -17,19 +16,13 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 }) => {
   const { isAuthenticated, userRole, loading } = useAuth();
 
-  // Get instant session data for immediate decisions
+  // Check permanent session for instant auth check
   const permanentData = PermanentSession.getSession();
-  const instantSession = InstantSessionLoader.getPreloadedSession();
-  
   const hasPermanentSession = permanentData.isLoggedIn;
   const permanentRole = permanentData.userRole as UserRole;
 
-  // Use instant session for immediate auth check
-  const hasInstantAuth = instantSession?.isAuthenticated || false;
-  const instantRole = instantSession?.userRole as UserRole;
-
-  // NEVER show loading if we have any cached session data
-  if (loading && !hasPermanentSession && !hasInstantAuth) {
+  // Show loading only briefly - if we have permanent session, show content immediately
+  if (loading && !hasPermanentSession) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-booqit-primary/10 to-white flex items-center justify-center">
         <div className="text-center">
@@ -40,33 +33,23 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
-  // Use multiple fallbacks for bulletproof auth detection
-  const effectiveAuth = isAuthenticated || hasPermanentSession || hasInstantAuth;
-  const effectiveRole = userRole || permanentRole || instantRole;
-
-  console.log('🛡️ INSTANT PROTECTED ROUTE:', {
-    path: window.location.pathname,
-    effectiveAuth,
-    effectiveRole,
-    requiredRole,
-    sources: {
-      context: { isAuthenticated, userRole },
-      permanent: { hasPermanentSession, permanentRole },
-      instant: { hasInstantAuth, instantRole }
-    }
-  });
+  // Use permanent session for instant redirect if available
+  const effectiveAuth = isAuthenticated || hasPermanentSession;
+  const effectiveRole = userRole || permanentRole;
 
   if (!effectiveAuth) {
-    console.log('🚫 INSTANT: User not authenticated, redirecting to /');
+    console.log('🚫 User not authenticated, redirecting to /');
     return <Navigate to="/" replace />;
   }
 
   if (requiredRole && effectiveRole !== requiredRole) {
-    console.log('🚫 INSTANT: User role mismatch, redirecting based on role:', effectiveRole);
+    console.log('🚫 User role mismatch, redirecting based on role:', effectiveRole);
+    // Redirect to the appropriate dashboard based on role
     return <Navigate to={effectiveRole === 'merchant' ? '/merchant' : '/'} replace />;
   }
 
-  // Render immediately - no delays
+  // If children are provided, render them (for wrapper usage)
+  // If no children, render Outlet (for route element usage)
   return children ? <>{children}</> : <Outlet />;
 };
 
