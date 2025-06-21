@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -108,7 +109,7 @@ const DashboardPage: React.FC = () => {
           setTotalEarnings(0);
         }
 
-        // Fetch recent bookings for today with customer and stylist details
+        // Fetch ALL bookings for today with customer and stylist details - REMOVED .limit(5)
         const { data: recentBookingsData, error: recentBookingsError } = await supabase
           .from('bookings')
           .select(`
@@ -130,8 +131,7 @@ const DashboardPage: React.FC = () => {
           .eq('merchant_id', mId)
           .eq('date', today)
           .in('status', ['pending', 'confirmed', 'completed'])
-          .order('time_slot', { ascending: true })
-          .limit(5);
+          .order('time_slot', { ascending: true });
 
         if (recentBookingsError) {
           console.error('Error fetching recent bookings:', recentBookingsError);
