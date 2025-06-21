@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 interface BookingWithCustomerDetails {
   id: string;
   merchant_id: string;
+  user_id: string;
   date: string;
   service?: {
     name: string;
