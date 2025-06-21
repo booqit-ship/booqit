@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -58,10 +57,14 @@ const StarRating: React.FC<{ rating: number | null }> = ({ rating }) => {
 
 // Helper function to check if merchant is new (within 10 days)
 const isMerchantNew = (createdAt: string): boolean => {
+  if (!createdAt) return false;
+  
   const createdDate = new Date(createdAt);
   const now = new Date();
   const tenDaysAgo = new Date(now.getTime() - (10 * 24 * 60 * 60 * 1000));
-  return createdDate > tenDaysAgo;
+  
+  // Check if the date is valid and within the last 10 days
+  return !isNaN(createdDate.getTime()) && createdDate > tenDaysAgo;
 };
 
 const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({

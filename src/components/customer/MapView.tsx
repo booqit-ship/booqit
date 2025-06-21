@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import GoogleMapComponent from '@/components/common/GoogleMap';
@@ -12,10 +11,14 @@ import { useIsMobile } from '@/hooks/use-mobile';
 
 // Helper function to check if merchant is new (within 10 days)
 const isMerchantNew = (createdAt: string): boolean => {
+  if (!createdAt) return false;
+  
   const createdDate = new Date(createdAt);
   const now = new Date();
   const tenDaysAgo = new Date(now.getTime() - (10 * 24 * 60 * 60 * 1000));
-  return createdDate > tenDaysAgo;
+  
+  // Check if the date is valid and within the last 10 days
+  return !isNaN(createdDate.getTime()) && createdDate > tenDaysAgo;
 };
 
 const MapView: React.FC = () => {

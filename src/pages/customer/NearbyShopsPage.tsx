@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Filter } from 'lucide-react';
@@ -21,10 +20,14 @@ const SHOPS_PER_PAGE = 10;
 
 // Helper function to check if merchant is new (within 10 days)
 const isMerchantNew = (createdAt: string): boolean => {
+  if (!createdAt) return false;
+  
   const createdDate = new Date(createdAt);
   const now = new Date();
   const tenDaysAgo = new Date(now.getTime() - (10 * 24 * 60 * 60 * 1000));
-  return createdDate > tenDaysAgo;
+  
+  // Check if the date is valid and within the last 10 days
+  return !isNaN(createdDate.getTime()) && createdDate > tenDaysAgo;
 };
 
 const NearbyShopsPage: React.FC = () => {
