@@ -46,7 +46,7 @@ const StarRating: React.FC<{ rating: number | null }> = ({ rating }) => {
   return (
     <div className="flex items-center gap-1">
       <div className="flex">{stars}</div>
-      {rating && (
+      {rating && rating > 0 && (
         <span className="text-xs text-gray-600 ml-1 font-poppins">
           ({rating.toFixed(1)})
         </span>

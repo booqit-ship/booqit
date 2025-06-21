@@ -110,7 +110,7 @@ const SearchPage: React.FC = () => {
     }
   };
 
-  // Fetch merchants from database with services and apply filters
+  // Fetch merchants from database with services and calculate ratings from reviews
   const fetchMerchants = async () => {
     setIsLoading(true);
     try {
@@ -144,22 +144,51 @@ const SearchPage: React.FC = () => {
         query = query.eq('category', filters.category);
       }
 
-      // Apply rating filter at database level
-      if (filters.rating !== 'all') {
-        const minRating = parseFloat(filters.rating);
-        console.log(`Applying minimum rating filter: ${minRating}`);
-        query = query.gte('rating', minRating);
-      }
-
-      const { data, error } = await query.order('rating', { ascending: false });
+      const { data, error } = await query.order('created_at', { ascending: false });
         
       if (error) throw error;
       
       console.log(`Fetched ${data?.length || 0} merchants from database`);
       
       if (data) {
+        // Calculate ratings for each merchant from reviews
+        const merchantsWithRatings = await Promise.all(
+          data.map(async (merchant) => {
+            // Get all bookings for this merchant to find associated reviews
+            const { data: bookings } = await supabase
+              .from('bookings')
+              .select('id')
+              .eq('merchant_id', merchant.id)
+              .eq('status', 'completed');
+
+            if (bookings && bookings.length > 0) {
+              const bookingIds = bookings.map(b => b.id);
+              
+              // Get reviews for these bookings
+              const { data: reviews } = await supabase
+                .from('reviews')
+                .select('rating')
+                .in('booking_id', bookingIds);
+
+              if (reviews && reviews.length > 0) {
+                const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
+                const averageRating = totalRating / reviews.length;
+                return {
+                  ...merchant,
+                  rating: Math.round(averageRating * 10) / 10 // Round to 1 decimal place
+                };
+              }
+            }
+            
+            return {
+              ...merchant,
+              rating: null
+            };
+          })
+        );
+
         // Apply price range filter client-side based on services
-        let filteredData = data as Merchant[];
+        let filteredData = merchantsWithRatings as Merchant[];
         
         if (filters.priceRange !== 'all') {
           console.log(`Applying price range filter: ${filters.priceRange}`);
@@ -183,19 +212,27 @@ const SearchPage: React.FC = () => {
           
           console.log(`${filteredData.length} merchants after price filter`);
         }
+
+        // Apply rating filter after calculating ratings
+        if (filters.rating !== 'all') {
+          const minRating = parseFloat(filters.rating);
+          console.log(`Applying minimum rating filter: ${minRating}`);
+          filteredData = filteredData.filter(merchant => 
+            merchant.rating !== null && merchant.rating >= minRating
+          );
+          console.log(`${filteredData.length} merchants after rating filter`);
+        }
         
         // Set all merchants for the map (no filtering by city)
         setAllMerchants(filteredData);
 
         // Now apply city filtering for the bottom sheet
-        if (filteredData) {
-          let filtered = filteredData as Merchant[];
-          // Only filter by user's city if no search term
-          if (userCity) {
-            filtered = filtered.filter((merchant) => merchant.address?.toLowerCase().includes(userCity.toLowerCase()));
-          }
-          setCityFilteredMerchants(filtered);
+        let filtered = filteredData as Merchant[];
+        // Only filter by user's city if no search term
+        if (userCity) {
+          filtered = filtered.filter((merchant) => merchant.address?.toLowerCase().includes(userCity.toLowerCase()));
         }
+        setCityFilteredMerchants(filtered);
       }
     } catch (error: any) {
       console.error('Error fetching merchants:', error);
