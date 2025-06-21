@@ -29,25 +29,21 @@ const featuredCategories = [{
 // Helper function to check if merchant is new (within 10 days)
 const isMerchantNew = (createdAt: string | null | undefined): boolean => {
   if (!createdAt) return false;
-  
   try {
     const createdDate = new Date(createdAt);
-    
+
     // Check if the date is valid
     if (isNaN(createdDate.getTime())) {
       return false;
     }
-    
     const now = new Date();
-    const tenDaysAgo = new Date(now.getTime() - (10 * 24 * 60 * 60 * 1000));
-    
+    const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
     return createdDate > tenDaysAgo;
   } catch (error) {
     console.error('Error checking merchant creation date:', error);
     return false;
   }
 };
-
 const HomePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [nearbyShops, setNearbyShops] = useState<Merchant[]>([]);
@@ -154,7 +150,6 @@ const HomePage: React.FC = () => {
   useEffect(() => {
     setDisplayedShops(filteredShops.slice(0, 6));
   }, [filteredShops]);
-
   const fetchLocationName = async (lat: number, lng: number) => {
     try {
       const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=AIzaSyB28nWHDBaEoMGIEoqfWDh6L2VRkM5AMwc`);
@@ -292,13 +287,11 @@ const HomePage: React.FC = () => {
   const handleBookNow = (merchantId: string) => {
     navigate(`/merchant/${merchantId}`);
   };
-
   const handleViewMore = () => {
     // Navigate to a dedicated page showing all nearby shops
     const categoryParam = activeCategory ? `?category=${encodeURIComponent(activeCategory)}` : '';
     navigate(`/nearby-shops${categoryParam}`);
   };
-
   return <div className="pb-20"> {/* Add padding to account for bottom navigation */}
       {/* Header Section */}
       <motion.div className="bg-gradient-to-r from-booqit-primary to-purple-700 text-white p-6 rounded-b-3xl shadow-lg" initial={{
@@ -347,16 +340,11 @@ const HomePage: React.FC = () => {
               backgroundColor: activeCategory === category.name ? `${category.color}20` : `${category.color}10`
             }} onClick={() => handleCategoryClick(category.name)}>
                   <div className="w-16 h-16 mb-1 flex items-center justify-center">
-                    <img 
-                      src={category.image} 
-                      alt={category.name}
-                      className="w-full h-full object-contain"
-                      onError={(e) => {
-                        console.error(`Failed to load image for ${category.name}`);
-                        // Fallback to a simple colored div if image fails to load
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
+                    <img src={category.image} alt={category.name} className="w-full h-full object-contain" onError={e => {
+                  console.error(`Failed to load image for ${category.name}`);
+                  // Fallback to a simple colored div if image fails to load
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }} />
                   </div>
                   <span className="text-sm font-medium">{category.name}</span>
                 </Button>)}
@@ -387,14 +375,7 @@ const HomePage: React.FC = () => {
                         <div className="p-3 flex-1 py-[6px]">
                           <div className="flex justify-between items-start">
                             <h3 className="font-medium text-base line-clamp-1">{shop.shop_name}</h3>
-                            <span className="text-sm bg-green-100 text-green-800 px-2 py-0.5 rounded-full flex items-center whitespace-nowrap">
-                              ★ {shop.rating?.toFixed(1) || 'New'}
-                              {isMerchantNew(shop.created_at) && (
-                                <span className="ml-1 bg-green-500 text-white px-1.5 py-0.5 rounded text-xs font-medium">
-                                  New
-                                </span>
-                              )}
-                            </span>
+                            
                           </div>
                           <p className="text-sm text-gray-500 line-clamp-1">{shop.category}</p>
                           <div className="flex justify-between items-center mt-2">
@@ -414,17 +395,11 @@ const HomePage: React.FC = () => {
                     </CardContent>
                   </Card>)}
                 
-                {filteredShops.length > 6 && (
-                  <div className="flex justify-center mt-4">
-                    <Button 
-                      variant="outline" 
-                      onClick={handleViewMore}
-                      className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary hover:text-white"
-                    >
+                {filteredShops.length > 6 && <div className="flex justify-center mt-4">
+                    <Button variant="outline" onClick={handleViewMore} className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary hover:text-white">
                       View More ({filteredShops.length - 6} more shops)
                     </Button>
-                  </div>
-                )}
+                  </div>}
               </div> : <div className="text-center py-8 bg-gray-50 rounded-lg">
                 <p className="text-gray-500">
                   {activeCategory ? `No ${activeCategory} shops found within 5km` : "No shops found within 5km"}
