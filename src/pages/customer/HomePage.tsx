@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Search } from 'lucide-react';
@@ -377,12 +378,7 @@ const HomePage: React.FC = () => {
                 {displayedShops.map(shop => <Card key={shop.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow">
                     <CardContent className="p-0">
                       <div className="flex">
-                        <div className="w-24 h-24 bg-gray-200 flex-shrink-0 relative">
-                          {isMerchantNew(shop.created_at) && (
-                            <div className="absolute top-1 left-1 bg-green-500 text-white px-1.5 py-0.5 rounded text-xs font-medium z-10">
-                              New
-                            </div>
-                          )}
+                        <div className="w-24 h-24 bg-gray-200 flex-shrink-0">
                           <img src={getShopImage(shop)} alt={shop.shop_name} className="w-full h-full object-cover" onError={e => {
                       const target = e.target as HTMLImageElement;
                       target.src = 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
@@ -394,6 +390,11 @@ const HomePage: React.FC = () => {
                             <h3 className="font-medium text-base line-clamp-1">{shop.shop_name}</h3>
                             <span className="text-sm bg-green-100 text-green-800 px-2 py-0.5 rounded-full flex items-center whitespace-nowrap">
                               ★ {shop.rating?.toFixed(1) || 'New'}
+                              {isMerchantNew(shop.created_at) && (
+                                <span className="ml-1 bg-green-500 text-white px-1.5 py-0.5 rounded text-xs font-medium">
+                                  New
+                                </span>
+                              )}
                             </span>
                           </div>
                           <p className="text-sm text-gray-500 line-clamp-1">{shop.category}</p>
