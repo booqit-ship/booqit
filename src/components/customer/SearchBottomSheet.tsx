@@ -55,18 +55,6 @@ const StarRating: React.FC<{ rating: number | null }> = ({ rating }) => {
   );
 };
 
-// Helper function to check if merchant is new (within 10 days)
-const isMerchantNew = (createdAt: string): boolean => {
-  if (!createdAt) return false;
-  
-  const createdDate = new Date(createdAt);
-  const now = new Date();
-  const tenDaysAgo = new Date(now.getTime() - (10 * 24 * 60 * 60 * 1000));
-  
-  // Check if the date is valid and within the last 10 days
-  return !isNaN(createdDate.getTime()) && createdDate > tenDaysAgo;
-};
-
 const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
   merchants,
   filters,
@@ -230,7 +218,7 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
                 <div className="absolute -top-2 -right-2 w-8 h-8 bg-gradient-to-br from-pink-100 to-orange-100 rounded-full flex items-center justify-center">
                   <Star className="w-4 h-4 text-pink-400" />
                 </div>
-                <div className="absolute -bottom-2 -left-2 w-6 -6 bg-gradient-to-br from-green-100 to-teal-100 rounded-full flex items-center justify-center">
+                <div className="absolute -bottom-2 -left-2 w-6 h-6 bg-gradient-to-br from-green-100 to-teal-100 rounded-full flex items-center justify-center">
                   <MapPin className="w-3 h-3 text-green-400" />
                 </div>
               </div>
@@ -248,12 +236,6 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
                     <div className="w-full h-48 relative">
                       <img src={merchant.image_url || '/placeholder.svg'} alt={merchant.shop_name} className="w-full h-full object-cover rounded-t-2xl" />
                       
-                      {/* New Badge - Only show if merchant is truly new (within 10 days) */}
-                      {isMerchantNew(merchant.created_at) && (
-                        <div className="absolute top-3 right-3 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-medium font-poppins">
-                          New
-                        </div>
-                      )}
                     </div>
                     
                     <CardContent className="p-4">

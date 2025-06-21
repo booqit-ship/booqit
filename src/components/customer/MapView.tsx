@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import GoogleMapComponent from '@/components/common/GoogleMap';
@@ -8,18 +9,6 @@ import { Merchant } from '@/types';
 import { MapPin, Star, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
-
-// Helper function to check if merchant is new (within 10 days)
-const isMerchantNew = (createdAt: string): boolean => {
-  if (!createdAt) return false;
-  
-  const createdDate = new Date(createdAt);
-  const now = new Date();
-  const tenDaysAgo = new Date(now.getTime() - (10 * 24 * 60 * 60 * 1000));
-  
-  // Check if the date is valid and within the last 10 days
-  return !isNaN(createdDate.getTime()) && createdDate > tenDaysAgo;
-};
 
 const MapView: React.FC = () => {
   const [merchants, setMerchants] = useState<Merchant[]>([]);
@@ -206,7 +195,7 @@ const MapView: React.FC = () => {
       
       {selectedMerchant && (
         <div className={`absolute ${isMobile ? 'bottom-24 left-0 right-0 mx-4' : 'bottom-8 left-8 max-w-md'} z-10`}>
-          <Card className="shadow-lg relative">
+          <Card className="shadow-lg">
             <CardContent className="p-4 pr-10 relative">
               <button 
                 className="absolute top-2 right-2 rounded-full p-1 bg-gray-100 hover:bg-gray-200"
@@ -215,13 +204,6 @@ const MapView: React.FC = () => {
               >
                 <X className="h-4 w-4" />
               </button>
-              
-              {/* New Badge - Only show if merchant is truly new (within 10 days) */}
-              {isMerchantNew(selectedMerchant.created_at) && (
-                <div className="absolute top-2 left-2 bg-green-500 text-white px-2 py-1 rounded-full text-xs font-medium">
-                  New
-                </div>
-              )}
               
               <div className="flex items-center justify-between">
                 <h3 className="font-medium">{selectedMerchant.shop_name}</h3>
