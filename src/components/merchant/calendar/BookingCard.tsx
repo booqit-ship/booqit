@@ -184,16 +184,16 @@ const BookingCard: React.FC<BookingCardProps> = ({
           
           const merchantName = merchantData?.shop_name || 'the salon';
           
-          // Get customer ID from booking
+          // Get customer ID from booking - use user_id instead of customer_id
           const { data: bookingData } = await supabase
             .from('bookings')
-            .select('customer_id')
+            .select('user_id')
             .eq('id', booking.id)
             .single();
           
-          if (bookingData?.customer_id) {
-            console.log('Triggering booking completion notification for customer:', bookingData.customer_id);
-            onBookingCompleted(bookingData.customer_id, merchantName, booking.id);
+          if (bookingData?.user_id) {
+            console.log('Triggering booking completion notification for customer:', bookingData.user_id);
+            onBookingCompleted(bookingData.user_id, merchantName, booking.id);
           }
         } catch (notificationError) {
           console.error('Error sending completion notification:', notificationError);
