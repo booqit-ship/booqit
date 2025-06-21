@@ -284,8 +284,68 @@ const HomePage: React.FC = () => {
     // Return a default image if no image URL exists
     return 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
   };
-  const handleBookNow = (merchantId: string) => {
-    navigate(`/merchant/${merchantId}`);
+  const handleBookNow = async (merchant: Merchant) => {
+    console.log("Booking merchant:", merchant);
+    
+    try {
+      // First verify the merchant exists and fetch their services
+      const { data: merchantData, error: merchantError } = await supabase
+        .from('merchants')
+        .select('*')
+        .eq('id', merchant.id)
+        .single();
+        
+      if (merchantError) {
+        console.error("Error fetching merchant:", merchantError);
+        toast({
+          title: "Error",
+          description: "Could not find merchant details. Please try again.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Fetch services for this merchant
+      const { data: services, error: servicesError } = await supabase
+        .from('services')
+        .select('*')
+        .eq('merchant_id', merchant.id);
+        
+      if (servicesError) {
+        console.error("Error fetching services:", servicesError);
+        toast({
+          title: "Error",
+          description: "Could not load services. Please try again.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (!services || services.length === 0) {
+        toast({
+          title: "No Services Available",
+          description: "This merchant hasn't added any services yet.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Navigate to merchant detail page with state
+      navigate(`/merchant/${merchant.id}`, {
+        state: {
+          merchant: merchantData,
+          services: services
+        }
+      });
+      
+    } catch (error) {
+      console.error("Error in handleBookNow:", error);
+      toast({
+        title: "Error",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
   const handleViewMore = () => {
     // Navigate to a dedicated page showing all nearby shops
@@ -394,7 +454,7 @@ const HomePage: React.FC = () => {
                               </svg>
                               {shop.distance}
                             </span>
-                            <Button size="sm" className="bg-booqit-primary hover:bg-booqit-primary/90 text-xs h-8" onClick={() => handleBookNow(shop.id)}>
+                            <Button size="sm" className="bg-booqit-primary hover:bg-booqit-primary/90 text-xs h-8" onClick={() => handleBookNow(shop)}>
                               Book Now
                             </Button>
                           </div>
