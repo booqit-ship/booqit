@@ -1,10 +1,10 @@
 
-import React, { Suspense, useEffect } from 'react';
+import React, { Suspense } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Settings, User, Calendar, Star, ChevronRight, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -35,21 +35,6 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
   
   console.log('🔍 Fetching profile for user:', userId);
   
-  // First verify we have a valid session
-  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-  
-  if (sessionError || !sessionData.session) {
-    console.error('❌ No valid session found:', sessionError);
-    throw new Error('Authentication required. Please log in again.');
-  }
-  
-  if (sessionData.session.user.id !== userId) {
-    console.error('❌ Session user ID mismatch');
-    throw new Error('Session mismatch. Please log in again.');
-  }
-  
-  console.log('✅ Valid session confirmed for user:', userId);
-  
   try {
     // Try to fetch the existing profile first
     const { data: profileData, error: profileError } = await supabase
@@ -58,7 +43,7 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
       .eq('id', userId)
       .maybeSingle();
     
-    if (profileError && profileError.code !== 'PGRST116') {
+    if (profileError) {
       console.error('❌ Error fetching profile:', profileError);
       throw new Error(`Failed to fetch profile: ${profileError.message}`);
     }
@@ -68,59 +53,29 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
       return profileData;
     }
     
-    // Profile doesn't exist, use the ensure_user_profile function
-    console.log('📝 Profile not found, creating new profile using server function');
+    // Profile doesn't exist, create a new one
+    console.log('📝 Profile not found, creating new profile');
     
-    const { data: newProfile, error: createError } = await supabase
-      .rpc('ensure_user_profile');
+    const newProfile = {
+      id: userId,
+      name: user_metadata?.name || email?.split('@')[0] || 'Customer',
+      email: email || '',
+      phone: user_metadata?.phone || null,
+      role: 'customer'
+    };
     
-    if (createError) {
-      console.error('❌ Error creating profile via function:', createError);
-      
-      // Fallback: try direct insert with session context
-      console.log('🔄 Trying fallback profile creation');
-      
-      // Ensure we have current user data
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      
-      if (userError || !user) {
-        throw new Error('Failed to get current user for profile creation');
-      }
-      
-      const { data: fallbackProfile, error: fallbackError } = await supabase
-        .from('profiles')
-        .insert({
-          id: user.id,
-          name: user_metadata?.name || user.email?.split('@')[0] || 'Customer',
-          email: user.email || '',
-          phone: user_metadata?.phone || null,
-          role: 'customer'
-        })
-        .select('*')
-        .single();
-      
-      if (fallbackError) {
-        console.error('❌ Fallback profile creation failed:', fallbackError);
-        throw new Error(`Failed to create profile: ${fallbackError.message}`);
-      }
-      
-      console.log('✅ Profile created via fallback');
-      return fallbackProfile;
-    }
-    
-    // If ensure_user_profile succeeded, fetch the created profile
-    const { data: createdProfile, error: fetchNewError } = await supabase
+    const { data: createdProfile, error: createError } = await supabase
       .from('profiles')
+      .insert(newProfile)
       .select('*')
-      .eq('id', userId)
       .single();
     
-    if (fetchNewError) {
-      console.error('❌ Error fetching newly created profile:', fetchNewError);
-      throw new Error(`Profile created but failed to fetch: ${fetchNewError.message}`);
+    if (createError) {
+      console.error('❌ Error creating profile:', createError);
+      throw new Error(`Failed to create profile: ${createError.message}`);
     }
     
-    console.log('✅ New profile created and fetched');
+    console.log('✅ New profile created');
     return createdProfile;
     
   } catch (error) {
@@ -131,14 +86,6 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
 
 const fetchRecentBookings = async (userId: string | null) => {
   if (!userId) return [];
-  
-  // Verify session before fetching bookings
-  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-  
-  if (sessionError || !sessionData.session) {
-    console.warn('⚠️ No valid session for bookings fetch');
-    return [];
-  }
   
   const { data: bookingsData, error: bookingsError } = await supabase
     .from('bookings')
@@ -189,9 +136,8 @@ const ProfileSkeleton = () => (
 
 const ProfilePage: React.FC = () => {
   const { user, logout } = useAuth();
-  const queryClient = useQueryClient();
 
-  // React-query: fetch profile and bookings independently and in parallel
+  // Fetch profile and bookings
   const {
     data: profile,
     isLoading: loadingProfile,
@@ -201,56 +147,19 @@ const ProfilePage: React.FC = () => {
     queryFn: () => fetchProfile(user?.id ?? null, user?.email ?? null, user?.user_metadata ?? {}),
     enabled: !!user?.id,
     staleTime: 1 * 60 * 1000,
-    retry: (failureCount, error) => {
-      // Don't retry authentication errors
-      if (error?.message?.includes('Authentication required') || 
-          error?.message?.includes('Session mismatch')) {
-        return false;
-      }
-      return failureCount < 2;
-    },
-    refetchOnWindowFocus: true,
-    refetchOnMount: true
+    retry: 2
   });
 
   const {
     data: recentBookings = [],
-    isLoading: loadingBookings,
-    error: errorBookings
+    isLoading: loadingBookings
   } = useQuery({
     queryKey: ['recentBookings', user?.id],
     queryFn: () => fetchRecentBookings(user?.id ?? null),
     enabled: !!user?.id,
     staleTime: 2 * 60 * 1000,
-    retry: 0
+    retry: 1
   });
-
-  // Refresh profile data when returning to this page
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden && user?.id) {
-        queryClient.invalidateQueries({
-          queryKey: ['profile', user.id]
-        });
-      }
-    };
-
-    const handleFocus = () => {
-      if (user?.id) {
-        queryClient.invalidateQueries({
-          queryKey: ['profile', user.id]
-        });
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleFocus);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, [user?.id, queryClient]);
 
   const profileItems = [
     {
@@ -278,68 +187,39 @@ const ProfilePage: React.FC = () => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
-  };
-
-  // Loading state: skeleton loader for fast perceived load
+  // Loading state
   if (loadingProfile || loadingBookings) {
     return <ProfileSkeleton />;
   }
 
-  // Error state with specific handling for authentication errors
-  if (errorProfile || errorBookings) {
-    const isAuthError = errorProfile?.message?.includes('Authentication required') || 
-                       errorProfile?.message?.includes('Session mismatch');
-    
+  // Error state
+  if (errorProfile) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
         <div className="bg-white p-6 rounded shadow-md max-w-md w-full text-center">
           <p className="text-lg font-semibold text-red-600 mb-4">
-            {isAuthError 
-              ? "Authentication required. Please log in again." 
-              : errorProfile?.message || errorBookings?.message || "Failed to load profile."
-            }
+            {errorProfile?.message || "Failed to load profile."}
           </p>
           <div className="flex gap-2 justify-center">
-            {isAuthError ? (
-              <button 
-                className="bg-booqit-primary rounded px-4 py-2 text-white font-medium" 
-                onClick={() => {
-                  logout();
-                  window.location.href = '/auth';
-                }}
-              >
-                Log In Again
-              </button>
-            ) : (
-              <>
-                <button 
-                  className="bg-booqit-primary rounded px-4 py-2 text-white font-medium" 
-                  onClick={() => window.location.reload()}
-                >
-                  Refresh Page
-                </button>
-                <button 
-                  className="bg-gray-500 rounded px-4 py-2 text-white font-medium" 
-                  onClick={() => window.location.href = '/auth'}
-                >
-                  Log In Again
-                </button>
-              </>
-            )}
+            <button 
+              className="bg-booqit-primary rounded px-4 py-2 text-white font-medium" 
+              onClick={() => window.location.reload()}
+            >
+              Refresh Page
+            </button>
+            <button 
+              className="bg-gray-500 rounded px-4 py-2 text-white font-medium" 
+              onClick={() => window.location.href = '/auth'}
+            >
+              Go to Login
+            </button>
           </div>
         </div>
       </div>
     );
   }
 
-  // If no user but no error, redirect to auth
+  // If no user, redirect to auth
   if (!user) {
     window.location.href = '/auth';
     return null;
@@ -347,9 +227,8 @@ const ProfilePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Enhanced Header */}
+      {/* Header */}
       <div className="relative overflow-visible bg-gradient-to-br from-booqit-primary to-booqit-primary/80 shadow-lg rounded-b-3xl">
-        {/* Avatar with white border and shadow */}
         <div className="flex flex-col items-center pt-12 pb-3">
           <div className="relative">
             <Avatar className="w-24 h-24 shadow-lg border-4 border-white bg-white/30">
