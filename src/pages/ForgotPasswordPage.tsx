@@ -15,16 +15,37 @@ import {
 } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Mail } from 'lucide-react';
+import { ArrowLeft, Mail, Clock } from 'lucide-react';
 
 const ForgotPasswordPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const { toast } = useToast();
+
+  // Cooldown timer effect
+  React.useEffect(() => {
+    if (cooldownSeconds > 0) {
+      const timer = setTimeout(() => {
+        setCooldownSeconds(cooldownSeconds - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [cooldownSeconds]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (cooldownSeconds > 0) {
+      toast({
+        title: "Please wait",
+        description: `You can request another reset in ${cooldownSeconds} seconds.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -39,7 +60,6 @@ const ForgotPasswordPage: React.FC = () => {
       }
 
       console.log('Sending password reset email to:', email);
-      console.log('Site URL:', window.location.origin);
 
       // Call Supabase to send password reset email
       const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -52,21 +72,20 @@ const ForgotPasswordPage: React.FC = () => {
         console.error('Reset password error:', error);
         
         // Handle specific error cases
-        if (error.message.includes('rate limit')) {
-          throw new Error("Too many reset attempts. Please wait a few minutes and try again.");
+        if (error.message.includes('rate limit') || error.message.includes('30 seconds')) {
+          setCooldownSeconds(30);
+          throw new Error("Too many reset attempts. Please wait 30 seconds before trying again.");
         } else if (error.message.includes('invalid_email')) {
           throw new Error("Please enter a valid email address.");
-        } else if (error.message.includes('user_not_found')) {
-          // For security, we don't reveal if email exists or not
-          // Still show success message
+        } else {
+          // For any other error, still show success message for security
+          console.log('Showing success message despite error for security');
           setEmailSent(true);
           toast({
             title: "Reset link sent!",
             description: "If an account with this email exists, you'll receive a password reset link.",
           });
           return;
-        } else {
-          throw new Error(error.message || "Failed to send reset email. Please try again.");
         }
       }
 
@@ -181,17 +200,23 @@ const ForgotPasswordPage: React.FC = () => {
                   className="font-poppins"
                   required
                   autoComplete="email"
-                  disabled={isLoading}
+                  disabled={isLoading || cooldownSeconds > 0}
                 />
               </div>
+              {cooldownSeconds > 0 && (
+                <div className="flex items-center gap-2 text-sm text-orange-600 bg-orange-50 p-3 rounded-md">
+                  <Clock className="w-4 h-4" />
+                  <span>Please wait {cooldownSeconds} seconds before trying again</span>
+                </div>
+              )}
             </CardContent>
             <CardFooter>
               <Button 
                 type="submit" 
                 className="w-full bg-booqit-primary hover:bg-booqit-primary/90 font-poppins"
-                disabled={isLoading || !email}
+                disabled={isLoading || !email || cooldownSeconds > 0}
               >
-                {isLoading ? "Sending..." : "Send Reset Link"}
+                {isLoading ? "Sending..." : cooldownSeconds > 0 ? `Wait ${cooldownSeconds}s` : "Send Reset Link"}
               </Button>
             </CardFooter>
           </form>
