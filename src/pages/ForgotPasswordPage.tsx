@@ -60,8 +60,8 @@ const ForgotPasswordPage: React.FC = () => {
 
       console.log('Sending password reset email to:', email);
 
-      // Use the correct redirect URL - this should match your Supabase configuration
-      const redirectUrl = `${window.location.origin}/reset-password`;
+      // Use the /verify redirect URL to handle Supabase's callback
+      const redirectUrl = `${window.location.origin}/verify`;
 
       // Call Supabase to send password reset email
       const { data, error } = await supabase.auth.resetPasswordForEmail(email, {

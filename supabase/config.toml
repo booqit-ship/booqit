@@ -30,6 +30,9 @@ site_url = "http://localhost:3000"
 additional_redirect_urls = [
   "https://localhost:3000",
   "https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com",
+  "http://localhost:3000/verify",
+  "https://localhost:3000/verify",
+  "https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com/verify",
   "http://localhost:3000/reset-password",
   "https://localhost:3000/reset-password",
   "https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com/reset-password"

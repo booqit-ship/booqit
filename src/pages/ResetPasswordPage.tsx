@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -32,88 +31,36 @@ const ResetPasswordPage: React.FC = () => {
     const handlePasswordReset = async () => {
       console.log('Checking for password reset session...');
       
-      // Check for access_token and refresh_token in URL parameters
-      const accessToken = searchParams.get('access_token');
-      const refreshToken = searchParams.get('refresh_token');
-      const type = searchParams.get('type');
-      const error = searchParams.get('error');
-      const errorDescription = searchParams.get('error_description');
-      
-      console.log('URL params:', { 
-        accessToken: !!accessToken, 
-        refreshToken: !!refreshToken, 
-        type, 
-        error,
-        errorDescription 
-      });
-
-      // Handle error cases first
-      if (error) {
-        console.error('URL contains error:', error, errorDescription);
-        let errorMessage = 'The reset link is invalid or has expired.';
-        
-        if (error === 'access_denied') {
-          errorMessage = 'Access denied. Please request a new reset link.';
-        } else if (errorDescription) {
-          errorMessage = errorDescription;
-        }
-
-        toast({
-          title: "Reset Link Error",
-          description: errorMessage,
-          variant: "destructive",
-        });
-        navigate('/forgot-password');
-        return;
-      }
-      
-      if (type === 'recovery' && accessToken && refreshToken) {
-        console.log('Valid reset link detected, setting session...');
-        
-        try {
-          const { data, error } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          });
-          
-          if (error) {
-            console.error('Error setting session:', error);
-            throw error;
-          }
-          
-          console.log('Session set successfully:', data);
-          setIsValidSession(true);
-        } catch (error) {
-          console.error('Failed to set session:', error);
-          toast({
-            title: "Invalid Reset Link",
-            description: "The reset link is invalid or has expired. Please request a new one.",
-            variant: "destructive",
-          });
-          navigate('/forgot-password');
-        }
-      } else {
-        // Check if there's already a valid session (e.g., user came here directly)
+      try {
+        // Check if there's already a valid session (from VerifyPage)
         const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
         console.log('Session check:', sessionData, 'Error:', sessionError);
         
-        if (sessionData?.session) {
-          console.log('Found existing valid session');
+        if (sessionData?.session && !sessionError) {
+          console.log('Found valid session for password reset');
           setIsValidSession(true);
         } else {
-          console.log('No valid session or reset parameters found');
+          console.log('No valid session found');
           toast({
-            title: "Invalid Reset Link",
-            description: "The reset link is invalid or has expired. Please request a new one.",
+            title: "Invalid Reset Session",
+            description: "Your reset session has expired. Please request a new reset link.",
             variant: "destructive",
           });
           navigate('/forgot-password');
         }
+      } catch (error) {
+        console.error('Failed to check session:', error);
+        toast({
+          title: "Session Error",
+          description: "Unable to verify your reset session. Please request a new reset link.",
+          variant: "destructive",
+        });
+        navigate('/forgot-password');
       }
     };
 
     handlePasswordReset();
-  }, [navigate, toast, searchParams]);
+  }, [navigate, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

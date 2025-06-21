@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import {
   BrowserRouter as Router,
@@ -28,6 +27,7 @@ import BookingsHistoryPage from '@/pages/customer/BookingsHistoryPage';
 import Auth from '@/pages/AuthPage';
 import ForgotPasswordPage from '@/pages/ForgotPasswordPage';
 import ResetPasswordPage from '@/pages/ResetPasswordPage';
+import VerifyPage from '@/pages/VerifyPage';
 import CustomerLayout from '@/layouts/CustomerLayout';
 import MerchantDashboard from '@/pages/merchant/DashboardPage';
 import MerchantServices from '@/pages/merchant/ServicesPage';
@@ -83,6 +83,7 @@ const AppContent: React.FC = () => {
         <Route path="/auth" element={<Auth />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/verify" element={<VerifyPage />} />
 
         {/* Merchant Routes - using Auth for now since MerchantAuth doesn't exist */}
         <Route path="/merchant/auth" element={<Auth />} />
