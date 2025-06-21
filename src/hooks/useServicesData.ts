@@ -18,8 +18,8 @@ export const useServicesData = (merchantId: string | null) => {
       return data || [];
     },
     enabled: !!merchantId,
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 30 * 1000, // Reduced from 2 minutes to 30 seconds
+    gcTime: 5 * 60 * 1000, // Reduced garbage collection time
     refetchOnWindowFocus: true,
     refetchOnMount: true,
     retry: 2,
@@ -42,8 +42,8 @@ export const useStaffData = (merchantId: string | null) => {
       return data || [];
     },
     enabled: !!merchantId,
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 30 * 1000, // Reduced from 2 minutes to 30 seconds
+    gcTime: 5 * 60 * 1000, // Reduced garbage collection time
     refetchOnWindowFocus: true,
     refetchOnMount: true,
     retry: 2,

@@ -28,12 +28,12 @@ export const useBookingsData = (merchantId: string | null, selectedDate: Date) =
       return data || [];
     },
     enabled: !!merchantId,
-    staleTime: 30 * 1000, // 30 seconds instead of 2 minutes
-    gcTime: 5 * 60 * 1000, // 5 minutes garbage collection
-    refetchOnWindowFocus: true, // Refetch when window regains focus
-    refetchOnMount: true, // Always refetch on mount
+    staleTime: 10 * 1000, // Reduced from 30 seconds to 10 seconds for faster updates
+    gcTime: 2 * 60 * 1000, // Reduced garbage collection time
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
     retry: 2,
-    refetchInterval: 60 * 1000, // Refetch every minute when page is active
+    refetchInterval: 30 * 1000, // Reduced from 60 seconds to 30 seconds
   });
 };
 

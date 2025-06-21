@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { User, Session } from '@supabase/supabase-js';
 
@@ -25,6 +24,7 @@ export class UnifiedAuthManager {
 
   private constructor() {
     this.initialize();
+    this.setupTabFocusHandling();
   }
 
   static getInstance(): UnifiedAuthManager {
@@ -32,6 +32,31 @@ export class UnifiedAuthManager {
       UnifiedAuthManager.instance = new UnifiedAuthManager();
     }
     return UnifiedAuthManager.instance;
+  }
+
+  private setupTabFocusHandling() {
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && this.currentState.isAuthenticated) {
+        console.log('🔄 Tab became visible, refreshing auth state');
+        this.refreshAuthState();
+      }
+    });
+
+    window.addEventListener('focus', () => {
+      if (this.currentState.isAuthenticated) {
+        console.log('🎯 Window focused, checking session validity');
+        this.refreshAuthState();
+      }
+    });
+  }
+
+  private async refreshAuthState() {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      await this.updateAuthState(session);
+    } catch (error) {
+      console.warn('⚠️ Failed to refresh auth state:', error);
+    }
   }
 
   private async initialize() {
@@ -44,13 +69,13 @@ export class UnifiedAuthManager {
         await this.updateAuthState(session);
       });
 
-      // Check for existing session with timeout
+      // Check for existing session with faster timeout
       const sessionPromise = supabase.auth.getSession();
       const timeoutPromise = new Promise<{ data: { session: null }, error: any }>((resolve) => {
         setTimeout(() => {
-          console.log('⏰ Session check timeout');
+          console.log('⏰ Session check timeout (reduced to 500ms)');
           resolve({ data: { session: null }, error: { message: 'Timeout' } });
-        }, 3000);
+        }, 500); // Reduced from 3000ms to 500ms
       });
 
       const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]);
@@ -85,13 +110,13 @@ export class UnifiedAuthManager {
         }));
         
       } else {
-        // Try to recover from localStorage
+        // Try to recover from localStorage with faster timeout
         const stored = localStorage.getItem('booqit-session');
         if (stored) {
           try {
             const { user, userRole, userId, timestamp } = JSON.parse(stored);
-            // Only use stored session if it's less than 1 hour old
-            if (Date.now() - timestamp < 3600000) {
+            // Reduced storage validity from 1 hour to 30 minutes for fresher data
+            if (Date.now() - timestamp < 1800000) {
               this.updateState({
                 isAuthenticated: true,
                 user,
