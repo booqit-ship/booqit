@@ -29,7 +29,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState<boolean>(true);
   const initialized = useRef(false);
   const queryClient = useQueryClient();
-  const timeoutRef = useRef<NodeJS.Timeout>();
 
   const fetchUserRole = async (userId: string): Promise<UserRole | null> => {
     try {
@@ -61,7 +60,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUserId(null);
     setSession(null);
     setUser(null);
-    PermanentSession.clearSession();
   };
 
   const updateAuthStateFromSupabase = async (session: Session | null) => {
@@ -78,34 +76,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const role = await fetchUserRole(session.user.id);
         setUserRole(role);
         
-        // Save permanently
+        // Save permanently - this is the key for infinite persistence
         PermanentSession.saveSession(session, role || 'customer', session.user.id);
         
-        console.log('✅ Auth state updated from Supabase with role:', role);
+        console.log('✅ Auth state updated and saved permanently with role:', role);
       } catch (error) {
         console.error('❌ Error updating auth state from Supabase:', error);
         setUserRole('customer');
         PermanentSession.saveSession(session, 'customer', session.user.id);
       }
     } else {
-      console.log('🔄 No Supabase session, checking permanent session');
+      // Check permanent session before clearing
       const permanentData = PermanentSession.getSession();
       
       if (permanentData.isLoggedIn) {
-        // Use permanent session even if Supabase session is gone
+        console.log('✅ Using permanent session instead of clearing');
         setIsAuthenticated(true);
         setUserId(permanentData.userId);
         setUserRole(permanentData.userRole as UserRole);
         setSession(permanentData.session);
         setUser(permanentData.session?.user || null);
-        console.log('✅ Using permanent session instead of Supabase');
       } else {
         clearAuthState();
+        PermanentSession.clearSession();
       }
     }
   };
 
-  // Simplified session restoration
+  // Instant session restoration from permanent cache
   const restoreSessionInstantly = async (): Promise<boolean> => {
     try {
       const permanentData = PermanentSession.getSession();
@@ -113,7 +111,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (permanentData.isLoggedIn) {
         console.log('⚡ INSTANT session restoration from permanent cache');
         
-        // Set auth state immediately for instant UI update
         setIsAuthenticated(true);
         setUserId(permanentData.userId);
         setUserRole(permanentData.userRole as UserRole);
@@ -131,18 +128,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Simplified auth initialization
   const initializeAuth = async () => {
     try {
-      console.log('🚀 Initializing auth system (simplified)...');
-
-      // Clear any existing timeout
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-
-      // Shorter timeout for better UX
-      timeoutRef.current = setTimeout(() => {
-        console.log('⏰ Auth initialization timeout - setting loading false');
-        setLoading(false);
-      }, 3000); // Reduced from 8000ms
+      console.log('🚀 Initializing auth system (permanent session mode)...');
 
       // STEP 1: Try instant restoration from permanent cache
       const instantlyRestored = await restoreSessionInstantly();
@@ -180,8 +166,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               }
             } else if (event === 'SIGNED_OUT') {
               console.log('👋 User signed out');
-              clearAuthState();
-              queryClient.clear();
+              // Only clear if it's an actual signout, not a session refresh
+              const permanentData = PermanentSession.getSession();
+              if (!permanentData.isLoggedIn) {
+                clearAuthState();
+                queryClient.clear();
+              }
             } else if (event === 'TOKEN_REFRESHED' && session) {
               console.log('🔄 Token refreshed, updating permanent session');
               const currentRole = userRole || 'customer';
@@ -194,12 +184,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         initialized.current = true;
         
-        // Store subscription for cleanup
         return () => {
           subscription.unsubscribe();
-          if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-          }
         };
       }
 
@@ -220,21 +206,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
-      // STEP 4: Set loading to false
       console.log('⏹️ Auth initialization complete');
       setLoading(false);
-      
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = undefined;
-      }
 
     } catch (error) {
       console.error('❌ Error during auth initialization:', error);
       setLoading(false);
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
     }
   };
 
@@ -242,12 +219,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!initialized.current) {
       initializeAuth();
     }
-    
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
   }, []);
 
   const setAuth = (isAuthenticated: boolean, role: UserRole | null, id: string | null) => {
@@ -262,12 +233,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('👋 Logging out user...');
       
-      // Clear timeout if running
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-      
-      // Clear permanent session first
+      // Clear permanent session FIRST
       PermanentSession.clearSession();
       
       // Clear auth state immediately

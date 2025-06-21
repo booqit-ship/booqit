@@ -9,19 +9,21 @@ export class PermanentSession {
   // Save session permanently - NEVER expires
   static saveSession(session: any, userRole: string, userId: string) {
     try {
-      localStorage.setItem(this.SESSION_KEY, JSON.stringify({
+      const sessionData = {
         user_id: userId,
         access_token: session.access_token,
         refresh_token: session.refresh_token,
         expires_at: session.expires_at,
         user: session.user,
         saved_at: Date.now()
-      }));
+      };
+      
+      localStorage.setItem(this.SESSION_KEY, JSON.stringify(sessionData));
       localStorage.setItem(this.USER_ROLE_KEY, userRole);
       localStorage.setItem(this.USER_ID_KEY, userId);
       localStorage.setItem(this.LOGGED_IN_KEY, 'true');
       
-      console.log('💾 Session saved permanently');
+      console.log('💾 Session saved permanently - will persist across all tab switches and app restarts');
     } catch (error) {
       console.error('❌ Failed to save permanent session:', error);
     }
@@ -42,7 +44,7 @@ export class PermanentSession {
 
       if (isLoggedIn && sessionData && userRole && userId) {
         const session = JSON.parse(sessionData);
-        console.log('⚡ Using permanent cached session');
+        console.log('⚡ Using permanent cached session - no expiration checks');
         return {
           isLoggedIn: true,
           session,
@@ -75,7 +77,7 @@ export class PermanentSession {
       localStorage.removeItem(this.USER_ROLE_KEY);
       localStorage.removeItem(this.USER_ID_KEY);
       localStorage.removeItem(this.LOGGED_IN_KEY);
-      console.log('🗑️ Permanent session cleared');
+      console.log('🗑️ Permanent session cleared - user manually logged out');
     } catch (error) {
       console.error('❌ Failed to clear permanent session:', error);
     }

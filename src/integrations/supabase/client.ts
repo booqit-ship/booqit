@@ -33,7 +33,7 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   }
 });
 
-// Simplified retry logic
+// Simple retry logic for critical operations
 export const withRetry = async <T>(operation: () => Promise<T>, maxRetries: number = 1): Promise<T> => {
   let lastError: Error;
   
