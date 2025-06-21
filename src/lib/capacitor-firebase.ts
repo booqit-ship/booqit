@@ -1,3 +1,4 @@
+
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import { Capacitor } from '@capacitor/core';
@@ -98,7 +99,7 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
   }
 };
 
-// Enhanced FCM token setup with better retry logic for new devices
+// Get FCM token with improved error handling and retry logic
 export const setupNotifications = async (): Promise<string | null> => {
   try {
     if (Capacitor.isNativePlatform()) {
@@ -123,7 +124,7 @@ export const setupNotifications = async (): Promise<string | null> => {
       await PushNotifications.register();
       return null;
     } else {
-      // Web platform - enhanced FCM token generation
+      // Web platform - get FCM token with better error handling and validation
       if (!messaging) {
         console.error('❌ Firebase messaging not initialized');
         return null;
@@ -141,43 +142,31 @@ export const setupNotifications = async (): Promise<string | null> => {
         return null;
       }
 
-      console.log('🔑 Getting FCM token for web (new device)...');
+      // Wait a bit for service worker to be ready
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      console.log('🔑 Getting FCM token for web...');
       
       try {
-        // Wait for service worker to be ready with longer timeout
-        let registration = null;
+        // First check if service worker is ready
         if ('serviceWorker' in navigator) {
-          const maxWait = 10000; // 10 seconds
-          const startTime = Date.now();
-          
-          while (!registration && (Date.now() - startTime) < maxWait) {
-            try {
-              registration = await navigator.serviceWorker.ready;
-              break;
-            } catch (e) {
-              console.log('⏳ Waiting for service worker...');
-              await new Promise(resolve => setTimeout(resolve, 500));
-            }
-          }
-          
+          const registration = await navigator.serviceWorker.ready;
           if (!registration) {
-            console.error('❌ Service Worker not ready after timeout');
+            console.error('❌ Service Worker not ready');
             return null;
           }
         }
 
-        // Force get a fresh token for this device
         const token = await getToken(messaging, { 
           vapidKey: VAPID_KEY,
-          serviceWorkerRegistration: registration
+          serviceWorkerRegistration: 'serviceWorker' in navigator ? await navigator.serviceWorker.ready : undefined
         });
         
         if (token) {
-          console.log('🔑 FCM Token generated for new device:', token.substring(0, 20) + '...');
-          console.log('📱 Token length:', token.length);
+          console.log('🔑 FCM Token generated:', token.substring(0, 20) + '...');
           return token;
         } else {
-          console.error('❌ No FCM token available - service worker or VAPID issues');
+          console.error('❌ No FCM token available - user may have denied permission or service worker not ready');
           return null;
         }
       } catch (tokenError: any) {
@@ -185,13 +174,11 @@ export const setupNotifications = async (): Promise<string | null> => {
         
         // More specific error handling
         if (tokenError.code === 'messaging/token-subscribe-failed') {
-          console.error('❌ FCM subscription failed - VAPID key may be invalid');
+          console.error('❌ FCM subscription failed - VAPID key may be invalid or Firebase project misconfigured');
         } else if (tokenError.code === 'messaging/permission-blocked') {
           console.error('❌ FCM permission blocked by user');
         } else if (tokenError.code === 'messaging/notifications-blocked') {
           console.error('❌ Notifications are blocked in browser settings');
-        } else if (tokenError.message?.includes('messaging/token-subscribe-no-token')) {
-          console.error('❌ Unable to subscribe to FCM - check Firebase configuration');
         }
         
         return null;

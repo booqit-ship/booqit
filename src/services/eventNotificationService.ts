@@ -1,5 +1,6 @@
+
 import { supabase } from '@/integrations/supabase/client';
-import { ConsolidatedNotificationService } from './consolidatedNotificationService';
+import { sendNotificationToUser } from './notificationService';
 
 export interface NotificationEvent {
   type: 'welcome' | 'new_booking' | 'booking_completed' | 'daily_reminder';
@@ -34,29 +35,12 @@ const getNewBookingMessage = (customerName: string, serviceName: string, timeSlo
   };
 };
 
-// Enhanced booking completion messages for customers - more motivational and aesthetic
+// Booking completion messages for customers
 const getBookingCompletedMessage = (merchantName: string) => {
-  const messages = [
-    {
-      title: "✨ Looking fabulous! How was your experience?",
-      body: `Your session at ${merchantName} is complete! Share your glow-up experience and help others discover their beauty transformation 💫`
-    },
-    {
-      title: "🌟 New look, new you! Rate your experience",
-      body: `Hope you're loving your fresh new style from ${merchantName}! Your review helps our community find the perfect beauty experience ✨`
-    },
-    {
-      title: "💅 Transformation complete! Tell us about it",
-      body: `Your beauty session at ${merchantName} is done! Share how amazing you feel and inspire others to book their perfect look 🎉`
-    },
-    {
-      title: "✨ Gorgeous results! How did we do?",
-      body: `You just experienced the magic at ${merchantName}! Rate your service and let others know about this amazing beauty destination 💖`
-    }
-  ];
-  
-  const randomIndex = Math.floor(Math.random() * messages.length);
-  return messages[randomIndex];
+  return {
+    title: "Wow, got a new look? ✨",
+    body: `Rate your experience with ${merchantName} — we value your feedback 💖`
+  };
 };
 
 // Daily reminder messages
@@ -98,11 +82,20 @@ const canSendNotification = async (userId: string) => {
   try {
     console.log('🔍 NOTIFICATION CHECK: Checking if user can receive notifications:', userId);
     
-    // Use consolidated service to check notification settings
-    const settings = await ConsolidatedNotificationService.getNotificationSettings(userId);
-    
-    if (!settings) {
-      console.log('⚠️ NOTIFICATION CHECK: No notification settings found, attempting to create profile...');
+    // Get user's notification preferences
+    let { data: profile, error } = await supabase
+      .from('profiles')
+      .select('notification_enabled, fcm_token, name, role')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('❌ NOTIFICATION CHECK: Error fetching profile:', error);
+      return false;
+    }
+
+    if (!profile) {
+      console.log('⚠️ NOTIFICATION CHECK: No profile found, attempting to create one...');
       
       // Try to get user data from auth and create profile
       try {
@@ -136,7 +129,7 @@ const canSendNotification = async (userId: string) => {
             email: user.email || '',
             phone: user.user_metadata?.phone || '',
             role: userRole,
-            notification_enabled: false, 
+            notification_enabled: false, // Will be enabled when they set up notifications
             fcm_token: null
           });
 
@@ -147,31 +140,27 @@ const canSendNotification = async (userId: string) => {
 
         console.log('✅ NOTIFICATION CHECK: Profile created for user:', userId);
         
-        return false; // Still can't send notifications until they enable them
+        // Profile was just created without FCM token, so can't send notifications yet
+        return false;
       } catch (createError) {
         console.error('❌ NOTIFICATION CHECK: Error creating profile:', createError);
         return false;
       }
     }
 
-    console.log('👤 NOTIFICATION CHECK: Settings data:', {
-      hasToken: !!settings.fcm_token,
-      notificationEnabled: settings.notification_enabled,
-      failedCount: settings.failed_notification_count
+    console.log('👤 NOTIFICATION CHECK: Profile data:', {
+      hasToken: !!profile.fcm_token,
+      notificationEnabled: profile.notification_enabled,
+      role: profile.role
     });
 
-    if (settings.notification_enabled === false) {
+    if (profile.notification_enabled === false) {
       console.log('🚫 NOTIFICATION CHECK: Notifications disabled for user');
       return false;
     }
 
-    if (!settings.fcm_token) {
+    if (!profile.fcm_token) {
       console.log('🚫 NOTIFICATION CHECK: No FCM token found - user needs to enable notifications');
-      return false;
-    }
-
-    if (settings.failed_notification_count >= 5) {
-      console.log('🚫 NOTIFICATION CHECK: Too many failed attempts');
       return false;
     }
 
@@ -198,7 +187,7 @@ export const sendWelcomeNotification = async (userId: string, userRole: 'custome
     
     console.log('📤 WELCOME NOTIFICATION: Sending notification:', message);
     
-    await ConsolidatedNotificationService.sendNotification(userId, {
+    await sendNotificationToUser(userId, {
       title: message.title,
       body: message.body,
       data: {
@@ -215,7 +204,7 @@ export const sendWelcomeNotification = async (userId: string, userRole: 'custome
   }
 };
 
-// Send new booking notification to merchant
+// Send new booking notification to merchant - ENHANCED
 export const sendNewBookingNotification = async (
   merchantUserId: string,
   customerName: string,
@@ -242,7 +231,7 @@ export const sendNewBookingNotification = async (
     
     console.log('📤 BOOKING NOTIFICATION: Sending notification to merchant:', message);
     
-    await ConsolidatedNotificationService.sendNotification(merchantUserId, {
+    await sendNotificationToUser(merchantUserId, {
       title: message.title,
       body: message.body,
       data: {
@@ -262,7 +251,7 @@ export const sendNewBookingNotification = async (
   }
 };
 
-// Send booking completion notification to customer - ENHANCED with motivational messaging
+// Send booking completion notification to customer
 export const sendBookingCompletedNotification = async (
   customerId: string,
   merchantName: string,
@@ -283,9 +272,9 @@ export const sendBookingCompletedNotification = async (
 
     const message = getBookingCompletedMessage(merchantName);
     
-    console.log('📤 COMPLETION NOTIFICATION: Sending motivational review request to customer:', message);
+    console.log('📤 COMPLETION NOTIFICATION: Sending notification to customer:', message);
     
-    await ConsolidatedNotificationService.sendNotification(customerId, {
+    await sendNotificationToUser(customerId, {
       title: message.title,
       body: message.body,
       data: {
@@ -297,7 +286,7 @@ export const sendBookingCompletedNotification = async (
       }
     });
 
-    console.log('✅ COMPLETION NOTIFICATION: Successfully sent motivational review request to customer');
+    console.log('✅ COMPLETION NOTIFICATION: Successfully sent to customer');
   } catch (error) {
     console.error('❌ COMPLETION NOTIFICATION: Error sending notification to customer:', error);
   }
@@ -331,7 +320,7 @@ export const sendDailyReminderNotification = async (
     
     console.log('📤 DAILY REMINDER: Sending notification:', message);
     
-    await ConsolidatedNotificationService.sendNotification(userId, {
+    await sendNotificationToUser(userId, {
       title: message.title,
       body: message.body,
       data: {

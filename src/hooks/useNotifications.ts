@@ -1,8 +1,8 @@
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { requestNotificationPermission, setupForegroundMessaging } from '@/lib/capacitor-firebase';
-import { ConsolidatedNotificationService } from '@/services/consolidatedNotificationService';
+import { RobustNotificationService } from '@/services/robustNotificationService';
 import { toast } from 'sonner';
 
 export const useNotifications = () => {
@@ -13,23 +13,10 @@ export const useNotifications = () => {
   const [initializationError, setInitializationError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   
-  // Use refs to prevent infinite loops and memory leaks
+  // Use refs to prevent infinite loops
   const initializationAttempted = useRef(false);
   const lastUserId = useRef<string | null>(null);
   const isInitializing = useRef(false);
-  const cleanupFunctions = useRef<Array<() => void>>([]);
-
-  // Cleanup function to prevent memory leaks
-  const cleanup = useCallback(() => {
-    cleanupFunctions.current.forEach(fn => {
-      try {
-        fn();
-      } catch (error) {
-        console.error('❌ NOTIFICATIONS: Error during cleanup:', error);
-      }
-    });
-    cleanupFunctions.current = [];
-  }, []);
 
   // Check permission status on mount
   useEffect(() => {
@@ -43,20 +30,19 @@ export const useNotifications = () => {
   // Reset initialization when user changes
   useEffect(() => {
     if (lastUserId.current !== userId) {
-      cleanup(); // Clean up previous user's resources
       initializationAttempted.current = false;
       lastUserId.current = userId;
       setIsInitialized(false);
       setInitializationError(null);
       setRetryCount(0);
     }
-  }, [userId, cleanup]);
+  }, [userId]);
 
-  // Main initialization effect
+  // Auto-initialize FCM token only once per user session
   useEffect(() => {
     const autoInitialize = async () => {
       // Prevent multiple simultaneous initializations
-      if (isInitializing.current) {
+      if (isInitializing.current || initializationAttempted.current) {
         return;
       }
 
@@ -74,7 +60,8 @@ export const useNotifications = () => {
         return;
       }
 
-      // Mark as initializing to prevent loops
+      // Mark as attempted to prevent loops
+      initializationAttempted.current = true;
       isInitializing.current = true;
 
       try {
@@ -101,14 +88,14 @@ export const useNotifications = () => {
         }
 
         setHasPermission(true);
-        console.log('✅ NOTIFICATION HOOK: Permission granted, getting FCM token...');
+        console.log('✅ NOTIFICATION HOOK: Permission granted, initializing notifications...');
 
-        // Step 2: Get FCM token with retry logic
+        // Step 2: Initialize using robust notification service with retry logic
         const { setupNotifications } = await import('@/lib/capacitor-firebase');
         
         let fcmToken = null;
         let attempts = 0;
-        const maxAttempts = 3;
+        const maxAttempts = 2;
 
         while (!fcmToken && attempts < maxAttempts) {
           attempts++;
@@ -118,10 +105,7 @@ export const useNotifications = () => {
           
           if (!fcmToken && attempts < maxAttempts) {
             console.log('⏳ NOTIFICATION HOOK: Waiting before retry...');
-            await new Promise(resolve => {
-              const timeoutId = setTimeout(resolve, 2000 * attempts);
-              cleanupFunctions.current.push(() => clearTimeout(timeoutId));
-            });
+            await new Promise(resolve => setTimeout(resolve, 2000));
           }
         }
         
@@ -131,19 +115,15 @@ export const useNotifications = () => {
           return;
         }
 
-        console.log('🔑 NOTIFICATION HOOK: FCM token received, updating settings...');
-
-        // Step 3: Update FCM token using consolidated service
-        const success = await ConsolidatedNotificationService.updateFCMToken(userId, fcmToken);
+        const success = await RobustNotificationService.initializeUserSettings(userId, fcmToken);
         
         if (success) {
-          console.log('✅ NOTIFICATION HOOK: FCM token updated successfully');
+          console.log('✅ NOTIFICATION HOOK: FCM token registration successful');
           setIsInitialized(true);
           setInitializationError(null);
           setRetryCount(0);
-          initializationAttempted.current = true;
           
-          // Step 4: Setup foreground messaging handler
+          // Step 3: Setup foreground messaging handler
           setupForegroundMessaging((payload) => {
             console.log('📱 NOTIFICATION HOOK: Foreground notification received:', payload);
             toast(payload.notification?.title || 'Notification', {
@@ -152,7 +132,7 @@ export const useNotifications = () => {
             });
           });
         } else {
-          console.error('❌ NOTIFICATION HOOK: FCM token update failed');
+          console.error('❌ NOTIFICATION HOOK: FCM token registration failed');
           setInitializationError('initialization_failed');
         }
       } catch (error: any) {
@@ -164,10 +144,7 @@ export const useNotifications = () => {
     };
 
     autoInitialize();
-
-    // Cleanup on unmount
-    return cleanup;
-  }, [isAuthenticated, userId, userRole, cleanup]);
+  }, [isAuthenticated, userId, userRole]);
 
   const requestPermissionManually = async () => {
     try {
@@ -181,13 +158,13 @@ export const useNotifications = () => {
       setHasPermission(permission);
 
       if (permission && userId && userRole) {
-        console.log('🔔 MANUAL: Permission granted, getting FCM token...');
+        console.log('🔔 MANUAL: Permission granted, initializing notifications...');
         
         const { setupNotifications } = await import('@/lib/capacitor-firebase');
         const fcmToken = await setupNotifications();
         
         if (fcmToken) {
-          const success = await ConsolidatedNotificationService.updateFCMToken(userId, fcmToken);
+          const success = await RobustNotificationService.initializeUserSettings(userId, fcmToken);
           
           if (success) {
             setIsInitialized(true);

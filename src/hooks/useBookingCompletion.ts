@@ -1,40 +1,23 @@
+import { useBookingNotifications } from "@/hooks/useBookingNotifications";
 
-import { useCallback } from 'react';
-import { sendBookingCompletedNotification } from '@/services/eventNotificationService';
+// Define a type for the booking completion data
+interface BookingCompletionData {
+  customerId: string;
+  merchantName: string;
+  bookingId: string;
+}
 
-export const useBookingCompletion = () => {
-  const onBookingCompleted = useCallback(async (
-    customerId: string, 
-    merchantName: string, 
-    bookingId: string
-  ) => {
-    console.log('🎯 BOOKING COMPLETION: Triggering completion notification');
-    console.log('🎯 BOOKING COMPLETION: Customer ID:', customerId);
-    console.log('🎯 BOOKING COMPLETION: Merchant Name:', merchantName);
-    console.log('🎯 BOOKING COMPLETION: Booking ID:', bookingId);
+// This hook is called when a booking is marked completed.
+export function useBookingCompletion() {
+  const { notifyBookingComplete } = useBookingNotifications();
 
-    if (!customerId) {
-      console.error('❌ BOOKING COMPLETION: Missing customer ID');
-      return;
-    }
-
-    if (!merchantName) {
-      console.error('❌ BOOKING COMPLETION: Missing merchant name');
-      return;
-    }
-
-    if (!bookingId) {
-      console.error('❌ BOOKING COMPLETION: Missing booking ID');
-      return;
-    }
-
-    try {
-      await sendBookingCompletedNotification(customerId, merchantName, bookingId);
-      console.log('✅ BOOKING COMPLETION: Notification sent successfully');
-    } catch (error) {
-      console.error('❌ BOOKING COMPLETION: Error sending notification:', error);
-    }
-  }, []);
+  // Call this when marking booking as completed.
+  const onBookingCompleted = (customerId: string, merchantName: string, bookingId: string) => {
+    notifyBookingComplete(customerId, merchantName, bookingId);
+    // Here you can add any other logic that needs to be executed after a booking is completed
+    // For example, you might want to update the booking status in the database
+    // or send a confirmation email to the customer.
+  };
 
   return { onBookingCompleted };
-};
+}
