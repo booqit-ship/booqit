@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 
 export interface NotificationPayload {
@@ -88,7 +89,7 @@ export class RobustNotificationService {
       console.log('📤 ROBUST NOTIF: Sending to user:', userId);
       console.log('📤 ROBUST NOTIF: Payload:', payload);
 
-      // Get notification settings - no fallback to profiles table
+      // Get notification settings - only from notification_settings table
       const settings = await this.getNotificationSettings(userId);
       
       if (!settings) {
@@ -201,11 +202,14 @@ export class RobustNotificationService {
 
   /**
    * Initialize notification settings for a user (called during login/registration)
+   * This will ALWAYS update the FCM token to ensure new devices work
    */
   static async initializeUserSettings(userId: string, fcmToken: string): Promise<boolean> {
     try {
-      console.log('🔧 ROBUST NOTIF: Initializing settings for user:', userId);
+      console.log('🔧 ROBUST NOTIF: Initializing/updating settings for user:', userId);
+      console.log('🔑 ROBUST NOTIF: New FCM token length:', fcmToken.length);
 
+      // Always upsert to ensure FCM token is updated for new devices
       const { error } = await supabase
         .from('notification_settings')
         .upsert({
@@ -214,6 +218,8 @@ export class RobustNotificationService {
           notification_enabled: true,
           failed_notification_count: 0,
           last_failure_reason: null
+        }, {
+          onConflict: 'user_id'
         });
 
       if (error) {
@@ -221,7 +227,7 @@ export class RobustNotificationService {
         return false;
       }
 
-      console.log('✅ ROBUST NOTIF: Settings initialized for user:', userId);
+      console.log('✅ ROBUST NOTIF: Settings initialized/updated for user:', userId);
       return true;
     } catch (error) {
       console.error('❌ ROBUST NOTIF: Error during initialization:', error);
@@ -230,11 +236,12 @@ export class RobustNotificationService {
   }
 
   /**
-   * Update FCM token for a user
+   * Update FCM token for a user - force update for new devices
    */
   static async updateFCMToken(userId: string, fcmToken: string): Promise<boolean> {
     try {
-      console.log('🔑 ROBUST NOTIF: Updating FCM token for user:', userId);
+      console.log('🔑 ROBUST NOTIF: Force updating FCM token for user:', userId);
+      console.log('🔑 ROBUST NOTIF: Token preview:', fcmToken.substring(0, 30) + '...');
 
       const { error } = await supabase
         .from('notification_settings')
@@ -244,6 +251,8 @@ export class RobustNotificationService {
           notification_enabled: true,
           failed_notification_count: 0, // Reset on token update
           last_failure_reason: null
+        }, {
+          onConflict: 'user_id'
         });
 
       if (error) {
@@ -251,11 +260,41 @@ export class RobustNotificationService {
         return false;
       }
 
-      console.log('✅ ROBUST NOTIF: FCM token updated for user:', userId);
+      console.log('✅ ROBUST NOTIF: FCM token force updated for user:', userId);
       return true;
     } catch (error) {
       console.error('❌ ROBUST NOTIF: Error during token update:', error);
       return false;
+    }
+  }
+
+  /**
+   * Check if FCM token needs to be refreshed for current device
+   */
+  static async shouldRefreshToken(userId: string, currentToken: string): Promise<boolean> {
+    try {
+      const settings = await this.getNotificationSettings(userId);
+      
+      if (!settings || !settings.fcm_token) {
+        console.log('🔄 ROBUST NOTIF: No existing token, needs refresh');
+        return true;
+      }
+
+      if (settings.fcm_token !== currentToken) {
+        console.log('🔄 ROBUST NOTIF: Token changed, needs refresh');
+        return true;
+      }
+
+      // If too many failures, try refreshing token
+      if (settings.failed_notification_count >= 3) {
+        console.log('🔄 ROBUST NOTIF: Too many failures, needs refresh');
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error('❌ ROBUST NOTIF: Error checking token refresh:', error);
+      return true; // Default to refresh on error
     }
   }
 }
