@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { User, Session } from '@supabase/supabase-js';
 
@@ -69,13 +70,13 @@ export class UnifiedAuthManager {
         await this.updateAuthState(session);
       });
 
-      // Check for existing session with faster timeout
+      // Check for existing session with proper timeout
       const sessionPromise = supabase.auth.getSession();
       const timeoutPromise = new Promise<{ data: { session: null }, error: any }>((resolve) => {
         setTimeout(() => {
-          console.log('⏰ Session check timeout (reduced to 500ms)');
+          console.log('⏰ Session check timeout (3 seconds)');
           resolve({ data: { session: null }, error: { message: 'Timeout' } });
-        }, 500); // Reduced from 3000ms to 500ms
+        }, 3000); // Restored to 3 seconds for stability
       });
 
       const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]);
@@ -110,13 +111,14 @@ export class UnifiedAuthManager {
         }));
         
       } else {
-        // Try to recover from localStorage with faster timeout
+        // Try to recover from localStorage with proper validation
         const stored = localStorage.getItem('booqit-session');
         if (stored) {
           try {
             const { user, userRole, userId, timestamp } = JSON.parse(stored);
-            // Reduced storage validity from 1 hour to 30 minutes for fresher data
-            if (Date.now() - timestamp < 1800000) {
+            // Check if stored session is still valid (1 hour)
+            if (Date.now() - timestamp < 3600000) {
+              console.log('🔄 Recovering from stored session');
               this.updateState({
                 isAuthenticated: true,
                 user,
@@ -126,9 +128,13 @@ export class UnifiedAuthManager {
                 loading: false
               });
               return;
+            } else {
+              console.log('🗑️ Stored session expired, clearing');
+              localStorage.removeItem('booqit-session');
             }
           } catch (e) {
             console.warn('Failed to parse stored session');
+            localStorage.removeItem('booqit-session');
           }
         }
         

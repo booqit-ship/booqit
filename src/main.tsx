@@ -9,11 +9,12 @@ import './index.css';
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 30 * 1000, // Reduced default stale time to 30 seconds
-      gcTime: 5 * 60 * 1000, // 5 minutes garbage collection
-      retry: 2, // Reduced retries for faster failure detection
+      staleTime: 5 * 60 * 1000, // 5 minutes default stale time
+      gcTime: 10 * 60 * 1000, // 10 minutes garbage collection
+      retry: 3, // Restore retry count for stability
       refetchOnWindowFocus: true, // Enable refetch on window focus globally
       refetchOnMount: true, // Always refetch on mount
+      refetchOnReconnect: true, // Refetch when connection is restored
     },
   },
 });
