@@ -16,6 +16,8 @@ const VerifyPage: React.FC = () => {
   useEffect(() => {
     const processVerification = async () => {
       console.log('Processing verification callback...');
+      console.log('Current URL:', window.location.href);
+      console.log('Search params:', Object.fromEntries(searchParams.entries()));
       
       // Get parameters from URL
       const accessToken = searchParams.get('access_token');
@@ -48,7 +50,11 @@ const VerifyPage: React.FC = () => {
           description: errorMessage,
           variant: "destructive",
         });
-        navigate('/forgot-password');
+        
+        // Wait a moment before redirecting to let user see the error
+        setTimeout(() => {
+          navigate('/forgot-password');
+        }, 2000);
         return;
       }
       
@@ -69,8 +75,16 @@ const VerifyPage: React.FC = () => {
           
           console.log('Session set successfully, redirecting to reset password...');
           
-          // Redirect to reset password page
-          navigate('/reset-password', { replace: true });
+          toast({
+            title: "Reset Link Verified",
+            description: "You can now set your new password.",
+          });
+          
+          // Small delay to ensure session is properly set
+          setTimeout(() => {
+            navigate('/reset-password', { replace: true });
+          }, 500);
+          
         } catch (error) {
           console.error('Failed to set session:', error);
           toast({
@@ -78,7 +92,10 @@ const VerifyPage: React.FC = () => {
             description: "The reset link is invalid or has expired. Please request a new one.",
             variant: "destructive",
           });
-          navigate('/forgot-password');
+          
+          setTimeout(() => {
+            navigate('/forgot-password');
+          }, 2000);
         }
       } else {
         console.log('Invalid verification parameters');
@@ -87,7 +104,10 @@ const VerifyPage: React.FC = () => {
           description: "The reset link is invalid or has expired. Please request a new one.",
           variant: "destructive",
         });
-        navigate('/forgot-password');
+        
+        setTimeout(() => {
+          navigate('/forgot-password');
+        }, 2000);
       }
     };
 

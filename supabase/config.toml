@@ -26,8 +26,9 @@ name = "merchant_images"
 public = true
 
 [auth]
-site_url = "http://localhost:3000"
+site_url = "https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com"
 additional_redirect_urls = [
+  "http://localhost:3000",
   "https://localhost:3000",
   "https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com",
   "http://localhost:3000/verify",
@@ -43,3 +44,4 @@ refresh_token_reuse_interval = 10
 enable_signup = true
 enable_email_confirmations = false
 refresh_token_expiry = 3600 # 1 hour for password reset tokens
+

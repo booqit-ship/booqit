@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -22,6 +23,14 @@ const ForgotPasswordPage: React.FC = () => {
   const [emailSent, setEmailSent] = useState(false);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const { toast } = useToast();
+
+  // Get the current domain dynamically
+  const getCurrentDomain = () => {
+    if (typeof window !== 'undefined') {
+      return window.location.origin;
+    }
+    return 'https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com';
+  };
 
   // Cooldown timer effect
   React.useEffect(() => {
@@ -60,8 +69,9 @@ const ForgotPasswordPage: React.FC = () => {
 
       console.log('Sending password reset email to:', email);
 
-      // Use the /verify redirect URL to handle Supabase's callback
-      const redirectUrl = `${window.location.origin}/verify`;
+      // Use the current domain for redirect URL
+      const redirectUrl = `${getCurrentDomain()}/verify`;
+      console.log('Using redirect URL:', redirectUrl);
 
       // Call Supabase to send password reset email
       const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -85,7 +95,7 @@ const ForgotPasswordPage: React.FC = () => {
           setEmailSent(true);
           toast({
             title: "Reset link sent!",
-            description: "If an account with this email exists, you'll receive a password reset link.",
+            description: "If an account with this email exists, you'll receive a password reset link. Please check your spam folder if you don't see it.",
           });
           return;
         }
@@ -95,7 +105,7 @@ const ForgotPasswordPage: React.FC = () => {
       setEmailSent(true);
       toast({
         title: "Reset link sent!",
-        description: "Check your email for a password reset link.",
+        description: "Check your email for a password reset link. Please also check your spam folder.",
       });
     } catch (error: any) {
       console.error('Password reset error:', error);
@@ -132,10 +142,15 @@ const ForgotPasswordPage: React.FC = () => {
             </CardHeader>
             <CardContent className="text-center">
               <p className="text-sm text-gray-600 font-poppins mb-4">
-                Click the link in the email to reset your password. The link will expire in 24 hours.
+                Click the link in the email to reset your password. The link will expire in 1 hour.
               </p>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+                <p className="text-sm text-yellow-800 font-poppins">
+                  📧 <strong>Check your spam folder!</strong> Reset emails sometimes end up there.
+                </p>
+              </div>
               <p className="text-sm text-gray-500 font-poppins">
-                Didn't receive the email? Check your spam folder or try again.
+                Didn't receive the email? Try again or contact support.
               </p>
             </CardContent>
             <CardFooter className="flex flex-col gap-3">
@@ -211,6 +226,11 @@ const ForgotPasswordPage: React.FC = () => {
                   <span>Please wait {cooldownSeconds} seconds before trying again</span>
                 </div>
               )}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-800 font-poppins">
+                  💡 <strong>Tip:</strong> Check your spam folder if you don't receive the email within a few minutes.
+                </p>
+              </div>
             </CardContent>
             <CardFooter>
               <Button 
