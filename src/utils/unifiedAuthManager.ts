@@ -66,20 +66,21 @@ export class UnifiedAuthManager {
     try {
       // Set up auth state listener first
       supabase.auth.onAuthStateChange(async (event, session) => {
-        console.log('🔐 Auth state changed:', event);
+        console.log('🔐 Auth state changed:', event, !!session);
         await this.updateAuthState(session);
       });
 
-      // Check for existing session with proper timeout
+      // Check for existing session with a shorter timeout
       const sessionPromise = supabase.auth.getSession();
       const timeoutPromise = new Promise<{ data: { session: null }, error: any }>((resolve) => {
         setTimeout(() => {
-          console.log('⏰ Session check timeout (3 seconds)');
+          console.log('⏰ Session check timeout (1 second)');
           resolve({ data: { session: null }, error: { message: 'Timeout' } });
-        }, 3000); // Restored to 3 seconds for stability
+        }, 1000); // Reduced to 1 second for faster initialization
       });
 
       const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]);
+      console.log('📱 Initial session check result:', !!session);
       await this.updateAuthState(session);
       
     } catch (error) {
@@ -89,18 +90,24 @@ export class UnifiedAuthManager {
   }
 
   private async updateAuthState(session: Session | null) {
+    console.log('🔄 Updating auth state, session exists:', !!session);
+    
     try {
       if (session?.user) {
+        console.log('✅ Valid session found, fetching user role');
         const userRole = await this.fetchUserRole(session.user.id);
         
-        this.updateState({
+        const newState = {
           isAuthenticated: true,
           user: session.user,
           session: session,
           userRole: userRole,
           userId: session.user.id,
           loading: false
-        });
+        };
+        
+        console.log('🎯 Setting authenticated state:', { userRole, userId: session.user.id });
+        this.updateState(newState);
         
         // Store session in localStorage for quick recovery
         localStorage.setItem('booqit-session', JSON.stringify({
@@ -111,33 +118,7 @@ export class UnifiedAuthManager {
         }));
         
       } else {
-        // Try to recover from localStorage with proper validation
-        const stored = localStorage.getItem('booqit-session');
-        if (stored) {
-          try {
-            const { user, userRole, userId, timestamp } = JSON.parse(stored);
-            // Check if stored session is still valid (1 hour)
-            if (Date.now() - timestamp < 3600000) {
-              console.log('🔄 Recovering from stored session');
-              this.updateState({
-                isAuthenticated: true,
-                user,
-                session: null,
-                userRole,
-                userId,
-                loading: false
-              });
-              return;
-            } else {
-              console.log('🗑️ Stored session expired, clearing');
-              localStorage.removeItem('booqit-session');
-            }
-          } catch (e) {
-            console.warn('Failed to parse stored session');
-            localStorage.removeItem('booqit-session');
-          }
-        }
-        
+        console.log('❌ No valid session, clearing auth state');
         this.clearAuthState();
       }
     } catch (error) {
@@ -148,6 +129,7 @@ export class UnifiedAuthManager {
 
   private async fetchUserRole(userId: string): Promise<'customer' | 'merchant'> {
     try {
+      console.log('🔍 Fetching user role for:', userId);
       const { data, error } = await supabase
         .from('profiles')
         .select('role')
@@ -159,7 +141,9 @@ export class UnifiedAuthManager {
         return 'customer';
       }
       
-      return data?.role as 'customer' | 'merchant' || 'customer';
+      const role = data?.role as 'customer' | 'merchant' || 'customer';
+      console.log('👤 User role fetched:', role);
+      return role;
     } catch (error) {
       console.warn('Exception fetching user role:', error);
       return 'customer';
@@ -167,6 +151,7 @@ export class UnifiedAuthManager {
   }
 
   private clearAuthState() {
+    console.log('🧹 Clearing auth state');
     localStorage.removeItem('booqit-session');
     this.updateState({
       isAuthenticated: false,
@@ -179,8 +164,21 @@ export class UnifiedAuthManager {
   }
 
   private updateState(newState: AuthState) {
+    console.log('📊 State update:', { 
+      wasAuthenticated: this.currentState.isAuthenticated,
+      nowAuthenticated: newState.isAuthenticated,
+      loading: newState.loading,
+      userRole: newState.userRole
+    });
+    
     this.currentState = newState;
-    this.listeners.forEach(listener => listener(newState));
+    this.listeners.forEach(listener => {
+      try {
+        listener(newState);
+      } catch (error) {
+        console.error('❌ Error in auth listener:', error);
+      }
+    });
   }
 
   getState(): AuthState {
@@ -190,7 +188,11 @@ export class UnifiedAuthManager {
   subscribe(listener: (state: AuthState) => void): () => void {
     this.listeners.push(listener);
     // Immediately call with current state
-    listener(this.currentState);
+    try {
+      listener(this.currentState);
+    } catch (error) {
+      console.error('❌ Error in initial auth listener call:', error);
+    }
     
     return () => {
       const index = this.listeners.indexOf(listener);
@@ -214,6 +216,7 @@ export class UnifiedAuthManager {
   }
 
   setAuth(isAuthenticated: boolean, role: 'customer' | 'merchant' | null, id: string | null) {
+    console.log('🔧 Manual auth state update:', { isAuthenticated, role, id });
     this.updateState({
       ...this.currentState,
       isAuthenticated,

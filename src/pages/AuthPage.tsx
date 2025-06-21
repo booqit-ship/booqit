@@ -57,18 +57,24 @@ const AuthPage: React.FC = () => {
     }
   }, [location.state]);
 
-  // Redirect authenticated users
+  // Redirect authenticated users with proper checks
   useEffect(() => {
     if (hasRedirected.current) return;
+
+    console.log('🔍 Auth check:', { loading, isAuthenticated, userRole });
 
     if (!loading && isAuthenticated && userRole) {
       console.log('🔄 User authenticated, redirecting...', { userRole });
       hasRedirected.current = true;
-      if (userRole === 'merchant') {
-        navigate('/merchant', { replace: true });
-      } else {
-        navigate('/home', { replace: true });
-      }
+      
+      // Small delay to ensure state is fully updated
+      setTimeout(() => {
+        if (userRole === 'merchant') {
+          navigate('/merchant', { replace: true });
+        } else {
+          navigate('/home', { replace: true });
+        }
+      }, 100);
     }
   }, [isAuthenticated, userRole, loading, navigate]);
 
@@ -252,11 +258,13 @@ const AuthPage: React.FC = () => {
         setAuth(true, selectedRole, authData.user.id);
         
         console.log('🎯 Navigating after registration...');
-        if (selectedRole === 'merchant') {
-          navigate('/merchant/onboarding', { replace: true });
-        } else {
-          navigate('/home', { replace: true });
-        }
+        setTimeout(() => {
+          if (selectedRole === 'merchant') {
+            navigate('/merchant/onboarding', { replace: true });
+          } else {
+            navigate('/home', { replace: true });
+          }
+        }, 100);
 
         toast({
           title: "Welcome to BooqIt!",
@@ -336,27 +344,30 @@ const AuthPage: React.FC = () => {
         setAuth(true, userRole, data.user.id);
         
         console.log('🎯 Navigating after login...');
-        if (userRole === 'merchant') {
-          // Check if merchant needs onboarding
-          const { data: merchantData } = await supabase
-            .from('merchants')
-            .select('address, lat, lng')
-            .eq('user_id', data.user.id)
-            .single();
-            
-          const needsOnboarding = !merchantData || 
-                                !merchantData.address || 
-                                merchantData.address.trim() === '' ||
-                                (merchantData.lat === 0 && merchantData.lng === 0);
-                                
-          if (needsOnboarding) {
-            navigate('/merchant/onboarding', { replace: true });
+        setTimeout(() => {
+          if (userRole === 'merchant') {
+            // Check if merchant needs onboarding
+            supabase
+              .from('merchants')
+              .select('address, lat, lng')
+              .eq('user_id', data.user.id)
+              .single()
+              .then(({ data: merchantData }) => {
+                const needsOnboarding = !merchantData || 
+                                      !merchantData.address || 
+                                      merchantData.address.trim() === '' ||
+                                      (merchantData.lat === 0 && merchantData.lng === 0);
+                                      
+                if (needsOnboarding) {
+                  navigate('/merchant/onboarding', { replace: true });
+                } else {
+                  navigate('/merchant', { replace: true });
+                }
+              });
           } else {
-            navigate('/merchant', { replace: true });
+            navigate('/home', { replace: true });
           }
-        } else {
-          navigate('/home', { replace: true });
-        }
+        }, 100);
 
         toast({
           title: "Welcome back!",
@@ -379,7 +390,7 @@ const AuthPage: React.FC = () => {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-booqit-primary/10 to-white">
         <div className="text-center">
           <div className="animate-spin h-10 w-10 border-4 border-booqit-primary border-t-transparent rounded-full mx-auto mb-4"></div>
-          <h1 className="text-2xl font-righteous mb-2">Loading...</h1>
+          <h1 className="text-2xl font-righteous mb-2">BooqIt</h1>
           <p className="text-gray-500 font-poppins">Checking authentication...</p>
         </div>
       </div>
