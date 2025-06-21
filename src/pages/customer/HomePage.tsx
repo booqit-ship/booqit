@@ -26,32 +26,12 @@ const featuredCategories = [{
   color: '#FF6B6B'
 }];
 
-// Helper function to check if merchant is new (within 10 days)
-const isMerchantNew = (createdAt: string | null | undefined): boolean => {
-  if (!createdAt) return false;
-  try {
-    const createdDate = new Date(createdAt);
-
-    // Check if the date is valid
-    if (isNaN(createdDate.getTime())) {
-      return false;
-    }
-    const now = new Date();
-    const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
-    return createdDate > tenDaysAgo;
-  } catch (error) {
-    console.error('Error checking merchant creation date:', error);
-    return false;
-  }
-};
-
 const HomePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [nearbyShops, setNearbyShops] = useState<Merchant[]>([]);
   const [filteredShops, setFilteredShops] = useState<Merchant[]>([]);
   const [displayedShops, setDisplayedShops] = useState<Merchant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [bookingMerchantId, setBookingMerchantId] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{
     lat: number;
     lng: number;
@@ -152,6 +132,7 @@ const HomePage: React.FC = () => {
   useEffect(() => {
     setDisplayedShops(filteredShops.slice(0, 6));
   }, [filteredShops]);
+
   const fetchLocationName = async (lat: number, lng: number) => {
     try {
       const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=AIzaSyB28nWHDBaEoMGIEoqfWDh6L2VRkM5AMwc`);
@@ -192,11 +173,11 @@ const HomePage: React.FC = () => {
         console.log("Fetched merchants:", merchants); // Debug log to check merchant data
 
         // Calculate distance for each merchant (simplified version)
-        const shopsWithDistance = merchants.map(shop => {
+        const shopsWithDistance = merchants.map(merchant => {
           // Simple distance calculation (this is just an approximation)
-          const distance = calculateDistance(location.lat, location.lng, shop.lat, shop.lng);
+          const distance = calculateDistance(location.lat, location.lng, merchant.lat, merchant.lng);
           return {
-            ...shop,
+            ...merchant,
             distance: `${distance.toFixed(1)} km`,
             distanceValue: distance // Add numeric distance for filtering
           } as Merchant; // Explicitly cast to Merchant type
@@ -286,122 +267,16 @@ const HomePage: React.FC = () => {
     // Return a default image if no image URL exists
     return 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
   };
-  const handleBookNow = async (merchant: Merchant) => {
-    console.log("🔍 Starting booking process for merchant:", {
-      id: merchant.id,
-      name: merchant.shop_name,
-      category: merchant.category
-    });
-    
-    // Set loading state for this specific merchant
-    setBookingMerchantId(merchant.id);
-    
-    try {
-      console.log("📡 Fetching merchant data from database...");
-      
-      // Use maybeSingle() instead of single() to handle cases where merchant might not be found
-      const { data: merchantData, error: merchantError } = await supabase
-        .from('merchants')
-        .select('*')
-        .eq('id', merchant.id)
-        .maybeSingle();
-        
-      console.log("📋 Merchant query result:", { merchantData, merchantError });
-        
-      if (merchantError) {
-        console.error("❌ Error fetching merchant:", merchantError);
-        toast({
-          title: "Database Error",
-          description: `Could not verify merchant: ${merchantError.message}`,
-          variant: "destructive"
-        });
-        return;
-      }
-
-      if (!merchantData) {
-        console.error("❌ Merchant not found in database");
-        toast({
-          title: "Merchant Not Found",
-          description: "This merchant is no longer available. Please try another shop.",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      console.log("📡 Fetching services for merchant...");
-      
-      // Fetch services for this merchant
-      const { data: services, error: servicesError } = await supabase
-        .from('services')
-        .select('*')
-        .eq('merchant_id', merchant.id);
-        
-      console.log("🛍️ Services query result:", { 
-        servicesCount: services?.length || 0, 
-        services, 
-        servicesError 
-      });
-        
-      if (servicesError) {
-        console.error("❌ Error fetching services:", servicesError);
-        
-        // Allow navigation even if services fetch fails - show error on merchant page
-        console.log("⚠️ Services fetch failed, proceeding with basic navigation");
-        navigate(`/merchant/${merchant.id}`);
-        
-        toast({
-          title: "Warning",
-          description: "Could not load all merchant details. Some features may be limited.",
-          variant: "default"
-        });
-        return;
-      }
-
-      // Navigate even if no services - let merchant page handle the empty state
-      if (!services || services.length === 0) {
-        console.log("⚠️ No services found, but proceeding to merchant page");
-        navigate(`/merchant/${merchant.id}`);
-        
-        toast({
-          title: "Limited Services",
-          description: "This merchant is still setting up their services.",
-          variant: "default"
-        });
-        return;
-      }
-
-      console.log("✅ All data fetched successfully, navigating to merchant page");
-      
-      // Navigate to merchant detail page with state
-      navigate(`/merchant/${merchant.id}`, {
-        state: {
-          merchant: merchantData,
-          services: services
-        }
-      });
-      
-    } catch (error) {
-      console.error("💥 Unexpected error in handleBookNow:", error);
-      
-      // Fallback navigation - just go to the merchant page
-      console.log("🔄 Attempting fallback navigation");
-      navigate(`/merchant/${merchant.id}`);
-      
-      toast({
-        title: "Navigation Issue",
-        description: "Redirecting to merchant page. Some details may load slowly.",
-        variant: "default"
-      });
-    } finally {
-      // Clear loading state
-      setBookingMerchantId(null);
-    }
+  const handleBookNow = (merchantId: string) => {
+    navigate(`/merchant/${merchantId}`);
   };
+
   const handleViewMore = () => {
     // Navigate to a dedicated page showing all nearby shops
     const categoryParam = activeCategory ? `?category=${encodeURIComponent(activeCategory)}` : '';
     navigate(`/nearby-shops${categoryParam}`);
   };
+
   return <div className="pb-20"> {/* Add padding to account for bottom navigation */}
       {/* Header Section */}
       <motion.div className="bg-gradient-to-r from-booqit-primary to-purple-700 text-white p-6 rounded-b-3xl shadow-lg" initial={{
@@ -450,11 +325,16 @@ const HomePage: React.FC = () => {
               backgroundColor: activeCategory === category.name ? `${category.color}20` : `${category.color}10`
             }} onClick={() => handleCategoryClick(category.name)}>
                   <div className="w-16 h-16 mb-1 flex items-center justify-center">
-                    <img src={category.image} alt={category.name} className="w-full h-full object-contain" onError={e => {
-                  console.error(`Failed to load image for ${category.name}`);
-                  // Fallback to a simple colored div if image fails to load
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }} />
+                    <img 
+                      src={category.image} 
+                      alt={category.name}
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        console.error(`Failed to load image for ${category.name}`);
+                        // Fallback to a simple colored div if image fails to load
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
                   </div>
                   <span className="text-sm font-medium">{category.name}</span>
                 </Button>)}
@@ -485,15 +365,9 @@ const HomePage: React.FC = () => {
                         <div className="p-3 flex-1 py-[6px]">
                           <div className="flex justify-between items-start">
                             <h3 className="font-medium text-base line-clamp-1">{shop.shop_name}</h3>
-                            {isMerchantNew(shop.created_at) ? (
-                              <span className="text-sm bg-green-100 text-green-800 px-2 py-0.5 rounded-full flex items-center whitespace-nowrap">
-                                New
-                              </span>
-                            ) : (
-                              <span className="text-sm bg-green-100 text-green-800 px-2 py-0.5 rounded-full flex items-center whitespace-nowrap">
-                                ★ {shop.rating?.toFixed(1) || 'New'}
-                              </span>
-                            )}
+                            <span className="text-sm bg-green-100 text-green-800 px-2 py-0.5 rounded-full flex items-center whitespace-nowrap">
+                              ★ {shop.rating?.toFixed(1) || 'New'}
+                            </span>
                           </div>
                           <p className="text-sm text-gray-500 line-clamp-1">{shop.category}</p>
                           <div className="flex justify-between items-center mt-2">
@@ -504,17 +378,8 @@ const HomePage: React.FC = () => {
                               </svg>
                               {shop.distance}
                             </span>
-                            <Button 
-                              size="sm" 
-                              className="bg-booqit-primary hover:bg-booqit-primary/90 text-xs h-8 min-w-[70px]" 
-                              onClick={() => handleBookNow(shop)}
-                              disabled={bookingMerchantId === shop.id}
-                            >
-                              {bookingMerchantId === shop.id ? (
-                                <div className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full"></div>
-                              ) : (
-                                "Book Now"
-                              )}
+                            <Button size="sm" className="bg-booqit-primary hover:bg-booqit-primary/90 text-xs h-8" onClick={() => handleBookNow(shop.id)}>
+                              Book Now
                             </Button>
                           </div>
                         </div>
@@ -522,11 +387,17 @@ const HomePage: React.FC = () => {
                     </CardContent>
                   </Card>)}
                 
-                {filteredShops.length > 6 && <div className="flex justify-center mt-4">
-                    <Button variant="outline" onClick={handleViewMore} className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary hover:text-white">
+                {filteredShops.length > 6 && (
+                  <div className="flex justify-center mt-4">
+                    <Button 
+                      variant="outline" 
+                      onClick={handleViewMore}
+                      className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary hover:text-white"
+                    >
                       View More ({filteredShops.length - 6} more shops)
                     </Button>
-                  </div>}
+                  </div>
+                )}
               </div> : <div className="text-center py-8 bg-gray-50 rounded-lg">
                 <p className="text-gray-500">
                   {activeCategory ? `No ${activeCategory} shops found within 5km` : "No shops found within 5km"}
