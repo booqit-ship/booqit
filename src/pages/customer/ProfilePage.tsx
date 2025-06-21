@@ -1,4 +1,3 @@
-
 import React, { Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -111,7 +110,7 @@ const fetchRecentBookings = async (userId: string | null) => {
 };
 
 const ProfileSkeleton = () => (
-  <div className="min-h-screen bg-gray-50 flex flex-col">
+  <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
     <div className="relative overflow-visible bg-gradient-to-br from-booqit-primary to-booqit-primary/80 shadow-lg rounded-b-3xl">
       <div className="flex flex-col items-center pt-12 pb-3">
         <div className="relative">
@@ -123,7 +122,7 @@ const ProfileSkeleton = () => (
         </div>
       </div>
     </div>
-    <div className="p-4 space-y-4 pb-24 -mt-6 flex-1">
+    <div className="p-4 space-y-4 flex-1 overflow-hidden -mt-6">
       <div className="h-[90px] bg-white rounded-lg shadow animate-pulse" />
       <div className="grid grid-cols-2 gap-4">
         <div className="h-24 bg-white rounded-lg shadow animate-pulse" />
@@ -195,7 +194,7 @@ const ProfilePage: React.FC = () => {
   // Error state
   if (errorProfile) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+      <div className="h-screen bg-gray-50 flex flex-col items-center justify-center overflow-hidden">
         <div className="bg-white p-6 rounded shadow-md max-w-md w-full text-center">
           <p className="text-lg font-semibold text-red-600 mb-4">
             {errorProfile?.message || "Failed to load profile."}
@@ -226,9 +225,9 @@ const ProfilePage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="relative overflow-visible bg-gradient-to-br from-booqit-primary to-booqit-primary/80 shadow-lg rounded-b-3xl">
+      <div className="relative overflow-visible bg-gradient-to-br from-booqit-primary to-booqit-primary/80 shadow-lg rounded-b-3xl flex-shrink-0">
         <div className="flex flex-col items-center pt-12 pb-3">
           <div className="relative">
             <Avatar className="w-24 h-24 shadow-lg border-4 border-white bg-white/30">
@@ -249,7 +248,7 @@ const ProfilePage: React.FC = () => {
         </div>
       </div>
 
-      <div className="p-4 space-y-4 pb-24 -mt-6">
+      <div className="p-4 space-y-4 flex-1 overflow-hidden -mt-6">
         {/* Profile Actions */}
         <Card className="shadow-lg">
           <CardContent className="p-0">
@@ -291,7 +290,7 @@ const ProfilePage: React.FC = () => {
         </div>
 
         {/* Account Actions */}
-        <Card>
+        <Card className="flex-shrink-0">
           <CardContent className="space-y-3">
             <Button variant="outline" onClick={logout} className="w-full justify-start py-[17px] my-[12px]">
               <LogOut className="h-4 w-4 mr-2" />
