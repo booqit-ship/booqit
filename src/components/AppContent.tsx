@@ -26,6 +26,8 @@ import ReviewsPage from '@/pages/customer/ReviewsPage';
 import SettingsPage from '@/pages/customer/SettingsPage';
 import BookingsHistoryPage from '@/pages/customer/BookingsHistoryPage';
 import Auth from '@/pages/AuthPage';
+import ForgotPasswordPage from '@/pages/ForgotPasswordPage';
+import ResetPasswordPage from '@/pages/ResetPasswordPage';
 import CustomerLayout from '@/layouts/CustomerLayout';
 import MerchantDashboard from '@/pages/merchant/DashboardPage';
 import MerchantServices from '@/pages/merchant/ServicesPage';
@@ -79,6 +81,8 @@ const AppContent: React.FC = () => {
       <Routes>
         {/* Auth Routes */}
         <Route path="/auth" element={<Auth />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
 
         {/* Merchant Routes - using Auth for now since MerchantAuth doesn't exist */}
         <Route path="/merchant/auth" element={<Auth />} />
@@ -193,7 +197,6 @@ const AppContent: React.FC = () => {
         <Route path="/reviews" element={<ProtectedRoute><CustomerLayout><ReviewsPage /></CustomerLayout></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><CustomerLayout><SettingsPage /></CustomerLayout></ProtectedRoute>} />
 
-        {/* Customer Settings Routes - Updated to use the correct functional pages */}
         <Route path="/settings/account" element={<ProtectedRoute><CustomerLayout><AccountPage /></CustomerLayout></ProtectedRoute>} />
         <Route path="/settings/privacy-policy" element={<ProtectedRoute><CustomerLayout><PrivacyPolicy /></CustomerLayout></ProtectedRoute>} />
         <Route path="/settings/terms-conditions" element={<ProtectedRoute><CustomerLayout><TermsAndConditions /></CustomerLayout></ProtectedRoute>} />
