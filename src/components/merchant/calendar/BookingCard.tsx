@@ -7,6 +7,7 @@ import { formatTimeToAmPm, timeToMinutes, minutesToTime } from '@/utils/timeUtil
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useInvalidateBookingsData } from '@/hooks/useBookingsData';
+import { useBookingCompletion } from '@/hooks/useBookingCompletion';
 import { 
   AlertDialog, 
   AlertDialogAction, 
@@ -48,6 +49,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const invalidateBookings = useInvalidateBookingsData();
+  const { onBookingCompleted } = useBookingCompletion();
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -169,6 +171,36 @@ const BookingCard: React.FC<BookingCardProps> = ({
       }
 
       console.log('Booking status updated successfully');
+      
+      // If booking is completed, send notification to customer
+      if (newStatus === 'completed') {
+        try {
+          // Get merchant name from booking data or fetch it
+          const { data: merchantData } = await supabase
+            .from('merchants')
+            .select('shop_name')
+            .eq('id', booking.merchant_id)
+            .single();
+          
+          const merchantName = merchantData?.shop_name || 'the salon';
+          
+          // Get customer ID from booking
+          const { data: bookingData } = await supabase
+            .from('bookings')
+            .select('customer_id')
+            .eq('id', booking.id)
+            .single();
+          
+          if (bookingData?.customer_id) {
+            console.log('Triggering booking completion notification for customer:', bookingData.customer_id);
+            onBookingCompleted(bookingData.customer_id, merchantName, booking.id);
+          }
+        } catch (notificationError) {
+          console.error('Error sending completion notification:', notificationError);
+          // Don't fail the status update if notification fails
+        }
+      }
+
       toast.success(`Booking ${newStatus} successfully`);
       
       // Invalidate and refetch relevant queries
