@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
+import ProfileImageUpload from '@/components/customer/ProfileImageUpload';
 
 interface Profile {
   id: string;
@@ -105,6 +106,16 @@ const AccountPage: React.FC = () => {
       setLoading(false);
     }
   }, [fetchProfile, user?.id]);
+
+  const handleImageUpdate = (newImageUrl: string | null) => {
+    if (profile) {
+      const updatedProfile = { ...profile, avatar_url: newImageUrl };
+      setProfile(updatedProfile);
+      
+      // Invalidate profile cache to sync with other pages
+      queryClient.invalidateQueries({ queryKey: ['profile', user?.id] });
+    }
+  };
 
   // Create or Update profile
   const handleSave = async () => {
@@ -241,22 +252,14 @@ const AccountPage: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center gap-5 py-4">
-              <Avatar className="w-20 h-20 shadow-md flex-shrink-0">
-                <AvatarImage src={profile?.avatar_url ?? ''} />
-                <AvatarFallback className="bg-booqit-primary/10 text-booqit-primary text-lg">
-                  {getInitials(name || profile?.name || user?.email?.split('@')[0] || 'U')}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex flex-col justify-center min-w-0">
-                <span className="font-bold text-lg uppercase text-gray-900 truncate">
-                  {name || profile?.name || 'No name set'}
-                </span>
-                <span className="text-base text-gray-500 break-all">
-                  {profile?.email || user?.email}
-                </span>
-              </div>
-            </div>
+            {profile && user && (
+              <ProfileImageUpload
+                currentImageUrl={profile.avatar_url}
+                userName={name || profile.name || user.email?.split('@')[0] || 'User'}
+                userId={user.id}
+                onImageUpdate={handleImageUpdate}
+              />
+            )}
           </CardContent>
         </Card>
 
