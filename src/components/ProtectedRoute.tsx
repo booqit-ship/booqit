@@ -1,9 +1,8 @@
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types';
-import { PermanentSession } from '@/utils/permanentSession';
 
 interface ProtectedRouteProps {
   children?: React.ReactNode;
@@ -16,13 +15,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 }) => {
   const { isAuthenticated, userRole, loading } = useAuth();
 
-  // Check permanent session for instant auth check
-  const permanentData = PermanentSession.getSession();
-  const hasPermanentSession = permanentData.isLoggedIn;
-  const permanentRole = permanentData.userRole as UserRole;
-
-  // Show loading only briefly - if we have permanent session, show content immediately
-  if (loading && !hasPermanentSession) {
+  // Show loading with shorter timeout
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-booqit-primary/10 to-white flex items-center justify-center">
         <div className="text-center">
@@ -33,23 +27,16 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
-  // Use permanent session for instant redirect if available
-  const effectiveAuth = isAuthenticated || hasPermanentSession;
-  const effectiveRole = userRole || permanentRole;
-
-  if (!effectiveAuth) {
-    console.log('🚫 User not authenticated, redirecting to /');
-    return <Navigate to="/" replace />;
+  if (!isAuthenticated) {
+    console.log('🚫 User not authenticated, redirecting to auth');
+    return <Navigate to="/auth" replace />;
   }
 
-  if (requiredRole && effectiveRole !== requiredRole) {
-    console.log('🚫 User role mismatch, redirecting based on role:', effectiveRole);
-    // Redirect to the appropriate dashboard based on role
-    return <Navigate to={effectiveRole === 'merchant' ? '/merchant' : '/'} replace />;
+  if (requiredRole && userRole !== requiredRole) {
+    console.log('🚫 User role mismatch, redirecting based on role:', userRole);
+    return <Navigate to={userRole === 'merchant' ? '/merchant' : '/home'} replace />;
   }
 
-  // If children are provided, render them (for wrapper usage)
-  // If no children, render Outlet (for route element usage)
   return children ? <>{children}</> : <Outlet />;
 };
 

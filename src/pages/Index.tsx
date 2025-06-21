@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import RoleSelection from "@/components/RoleSelection";
 import { UserRole } from "@/types";
-import { PermanentSession } from "@/utils/permanentSession";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -17,26 +16,9 @@ const Index = () => {
       loading 
     });
 
-    // Check permanent session first for instant redirect
-    const permanentData = PermanentSession.getSession();
-    
-    if (permanentData.isLoggedIn && permanentData.userRole) {
-      console.log('⚡ Using permanent session for instant redirect:', permanentData.userRole);
-      
-      if (permanentData.userRole === "merchant") {
-        console.log('🏪 Navigating to merchant dashboard (permanent)');
-        navigate("/merchant", { replace: true });
-        return;
-      } else if (permanentData.userRole === "customer") {
-        console.log('👤 Navigating to customer home (permanent)');
-        navigate("/home", { replace: true });
-        return;
-      }
-    }
-
-    // Fallback to context auth state (only if loading is false)
-    if (isAuthenticated && userRole && !loading) {
-      console.log('✅ User authenticated via context, redirecting based on role:', userRole);
+    // Only redirect if fully loaded and authenticated
+    if (!loading && isAuthenticated && userRole) {
+      console.log('✅ User authenticated, redirecting based on role:', userRole);
       
       if (userRole === "merchant") {
         console.log('🏪 Navigating to merchant dashboard');
@@ -48,9 +30,8 @@ const Index = () => {
     }
   }, [isAuthenticated, userRole, loading, navigate]);
 
-  // Only show loading if we don't have permanent session AND auth is loading
-  const permanentData = PermanentSession.getSession();
-  if (loading && !permanentData.isLoggedIn) {
+  // Show loading for a shorter time
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-booqit-primary/20 to-white">
         <div className="text-center">
@@ -61,8 +42,8 @@ const Index = () => {
     );
   }
 
-  // Show role selection immediately for unauthenticated users - NO LOADING STATE
-  if (!isAuthenticated && !PermanentSession.isLoggedIn()) {
+  // Show role selection for unauthenticated users
+  if (!isAuthenticated) {
     const handleRoleSelect = (role: UserRole) => {
       console.log('🎯 Role selected:', role);
       navigate("/auth", { state: { selectedRole: role }, replace: true });
@@ -71,14 +52,7 @@ const Index = () => {
     return <RoleSelection onRoleSelect={handleRoleSelect} />;
   }
 
-  // If authenticated but no clear role, default redirect
-  if (isAuthenticated && !userRole) {
-    console.log('⚠️ Authenticated but no role, defaulting to customer');
-    navigate("/home", { replace: true });
-    return null;
-  }
-
-  // Fallback - should not reach here
+  // Fallback
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-booqit-primary/20 to-white">
       <div className="text-center">
