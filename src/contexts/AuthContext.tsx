@@ -52,24 +52,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // BULLETPROOF: Instant session restoration
-  const instantSessionRestore = () => {
-    const permanentData = PermanentSession.getSession();
-    
-    if (permanentData.isLoggedIn && permanentData.userId && permanentData.userRole) {
-      console.log('⚡ BULLETPROOF: Instant session restore from permanent storage');
-      
-      setIsAuthenticated(true);
-      setUserId(permanentData.userId);
-      setUserRole(permanentData.userRole as UserRole);
-      setSession(permanentData.session);
-      setUser(permanentData.session?.user || null);
-      
-      return true;
-    }
-    return false;
-  };
-
   const updateAuthStateFromSupabase = async (session: Session | null) => {
     console.log('🔄 BULLETPROOF: Updating auth state from Supabase session:', !!session);
     
@@ -111,20 +93,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // BULLETPROOF initialization
+  // Simplified initialization - let useSessionPersistence handle the bulletproof restoration
   const initializeAuth = async () => {
     try {
       console.log('🚀 BULLETPROOF: Initializing auth system...');
 
-      // STEP 1: Try instant restoration FIRST (no waiting)
-      const instantlyRestored = instantSessionRestore();
-      
-      if (instantlyRestored) {
-        console.log('⚡ BULLETPROOF: Session restored instantly - user should see app immediately');
-        setLoading(false); // Stop loading immediately
-      }
-      
-      // STEP 2: Set up auth listener (only once)
+      // Set up auth listener (only once)
       if (!initialized.current) {
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
           async (event, session) => {
@@ -157,7 +131,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         initialized.current = true;
         
-        // STEP 3: Background Supabase session check (don't wait for this)
+        // Background Supabase session check (don't wait for this)
         setTimeout(async () => {
           try {
             console.log('📦 BULLETPROOF: Background check for existing Supabase session');
@@ -169,6 +143,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           } catch (error) {
             console.error('❌ BULLETPROOF: Background session check failed:', error);
+          } finally {
+            setLoading(false);
           }
         }, 100);
 
@@ -178,9 +154,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       console.log('⏹️ BULLETPROOF: Auth initialization complete');
-      if (!instantlyRestored) {
-        setLoading(false);
-      }
+      setLoading(false);
 
     } catch (error) {
       console.error('❌ BULLETPROOF: Error during auth initialization:', error);

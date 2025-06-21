@@ -6,6 +6,7 @@ import {
   Routes,
 } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSessionPersistence } from '@/hooks/useSessionPersistence';
 import { supabase } from '@/integrations/supabase/client';
 import AppInit from '@/components/AppInit';
 import Index from '@/pages/Index';
@@ -52,6 +53,9 @@ import NotificationsPage from '@/pages/settings/NotificationsPage';
 const AppContent: React.FC = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
+
+  // Use the session persistence hook to handle bulletproof session management
+  useSessionPersistence();
 
   useEffect(() => {
     const getSession = async () => {
