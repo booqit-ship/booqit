@@ -10,7 +10,6 @@ import BookingsList from '@/components/merchant/calendar/BookingsList';
 import HolidayManager from '@/components/merchant/calendar/HolidayManager';
 import WeekCalendar from '@/components/merchant/calendar/WeekCalendar';
 import StylistAvailabilityWidget from '@/components/merchant/StylistAvailabilityWidget';
-import NotificationDebugPanel from '@/components/merchant/NotificationDebugPanel';
 import { formatDateInIST, getCurrentDateIST } from '@/utils/dateUtils';
 
 interface BookingWithCustomerDetails {
@@ -22,7 +21,7 @@ interface BookingWithCustomerDetails {
     name: string;
     duration?: number;
   };
-  services?: string | any; // JSON string or parsed object
+  services?: string | any;
   total_duration?: number;
   time_slot: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
@@ -59,19 +58,18 @@ const CalendarManagementPage: React.FC = () => {
       return data;
     },
     enabled: !!userId,
-    staleTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 10 * 60 * 1000,
   });
 
   const merchantId = merchant?.id;
 
-  // Get bookings with enhanced caching and proper typing - FIXED QUERY
+  // Get bookings with enhanced caching and proper typing
   const { data: bookings = [], isFetching: isBookingsFetching, refetch: refetchBookings } = useQuery({
     queryKey: ['bookings', merchantId, formatDateInIST(selectedDate, 'yyyy-MM-dd')],
     queryFn: async (): Promise<BookingWithCustomerDetails[]> => {
       if (!merchantId) return [];
       
       const dateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
-      console.log('🔄 Fetching bookings for date:', dateStr, 'merchant:', merchantId);
       
       const { data, error } = await supabase
         .from('bookings')
@@ -99,11 +97,9 @@ const CalendarManagementPage: React.FC = () => {
         .order('time_slot', { ascending: true });
       
       if (error) {
-        console.error('❌ Error fetching bookings:', error);
+        console.error('Error fetching bookings:', error);
         throw error;
       }
-      
-      console.log('✅ Fetched bookings:', data?.length || 0, 'bookings');
       
       // Transform and type the data properly
       return (data || []).map(booking => ({
@@ -115,7 +111,7 @@ const CalendarManagementPage: React.FC = () => {
           name: booking.serviceDetails.name,
           duration: booking.serviceDetails.duration
         } : undefined,
-        services: booking.services, // Include the JSON services field
+        services: booking.services,
         total_duration: booking.total_duration,
         time_slot: booking.time_slot,
         status: booking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
@@ -126,9 +122,9 @@ const CalendarManagementPage: React.FC = () => {
       }));
     },
     enabled: !!merchantId,
-    staleTime: 30 * 1000, // 30 seconds for more frequent updates
+    staleTime: 30 * 1000,
     refetchOnWindowFocus: true,
-    refetchInterval: 60 * 1000, // Auto-refetch every minute
+    refetchInterval: 60 * 1000,
   });
 
   // Get holidays with caching
@@ -147,10 +143,10 @@ const CalendarManagementPage: React.FC = () => {
       return data || [];
     },
     enabled: !!merchantId,
-    staleTime: 15 * 60 * 1000, // 15 minutes
+    staleTime: 15 * 60 * 1000,
   });
 
-  // Generate visible days for appointment counts (5 days from selected date)
+  // Generate visible days for appointment counts
   const visibleDays = React.useMemo(() => {
     return Array.from({ length: 5 }, (_, i) => addDays(selectedDate, i));
   }, [selectedDate]);
@@ -183,14 +179,12 @@ const CalendarManagementPage: React.FC = () => {
       return counts;
     },
     enabled: !!merchantId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
 
   // Set up real-time subscription for booking updates
   React.useEffect(() => {
     if (!merchantId) return;
-
-    console.log('🔄 Setting up real-time subscription for merchant:', merchantId);
     
     const channel = supabase
       .channel('booking-changes')
@@ -203,8 +197,6 @@ const CalendarManagementPage: React.FC = () => {
           filter: `merchant_id=eq.${merchantId}`
         },
         (payload) => {
-          console.log('📡 Real-time booking update received:', payload);
-          
           // Invalidate and refetch bookings when changes occur
           queryClient.invalidateQueries({ queryKey: ['bookings', merchantId] });
           queryClient.invalidateQueries({ queryKey: ['appointment-counts', merchantId] });
@@ -224,18 +216,14 @@ const CalendarManagementPage: React.FC = () => {
       .subscribe();
 
     return () => {
-      console.log('🔌 Cleaning up real-time subscription');
       supabase.removeChannel(channel);
     };
   }, [merchantId, queryClient]);
 
   const handleStatusChange = async (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
     try {
-      console.log('🔄 Updating booking status:', bookingId, 'to:', newStatus);
-      
       let updateData: any = { status: newStatus };
       
-      // If completing, also set payment status to completed for earnings calculation
       if (newStatus === 'completed') {
         updateData.payment_status = 'completed';
       }
@@ -246,26 +234,24 @@ const CalendarManagementPage: React.FC = () => {
         .eq('id', bookingId);
 
       if (error) {
-        console.error('❌ Error updating booking status:', error);
+        console.error('Error updating booking status:', error);
         toast.error(`Failed to update booking status: ${error.message}`);
         return;
       }
-
-      console.log('✅ Booking status updated successfully');
       
-      // Force immediate refresh of bookings data
+      // Force immediate refresh
       refetchBookings();
       
-      // Invalidate relevant queries to refresh data
+      // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ['bookings', merchantId] });
       queryClient.invalidateQueries({ queryKey: ['appointment-counts', merchantId] });
     } catch (error) {
-      console.error('❌ Error updating booking status:', error);
+      console.error('Error updating booking status:', error);
       toast.error('Failed to update booking status. Please try again.');
     }
   };
 
-  // Navigate by single day (like customer calendar)
+  // Navigate by single day
   const navigateDay = (direction: 'prev' | 'next') => {
     if (direction === 'next') {
       setSelectedDate(addDays(selectedDate, 1));
@@ -321,11 +307,6 @@ const CalendarManagementPage: React.FC = () => {
           )}
         </div>
         <p className="text-muted-foreground">Manage your bookings and appointments (IST)</p>
-        
-        {/* Debug info for merchant */}
-        <div className="text-xs text-gray-400 mt-1">
-          Merchant ID: {merchantId?.slice(0, 8)}... | Auto-refresh: ON | Last update: {new Date().toLocaleTimeString()}
-        </div>
       </div>
 
       <WeekCalendar 
@@ -342,7 +323,7 @@ const CalendarManagementPage: React.FC = () => {
           <BookingsList 
             date={selectedDate} 
             bookings={bookings} 
-            isLoading={false} // Always show cached data, use isFetching for spinner
+            isLoading={false}
             onStatusChange={handleStatusChange} 
           />
         </div>
@@ -351,7 +332,7 @@ const CalendarManagementPage: React.FC = () => {
           <HolidayManager 
             merchantId={merchantId} 
             holidays={holidays} 
-            isLoading={false} // Always show cached data
+            isLoading={false}
             onDeleteHoliday={handleDeleteHoliday} 
             onHolidayAdded={refetchHolidaysData} 
           />
@@ -364,9 +345,6 @@ const CalendarManagementPage: React.FC = () => {
               refetchHolidaysData();
             }} 
           />
-          
-          {/* Debug Panel for testing notifications */}
-          <NotificationDebugPanel merchantId={merchantId} />
         </div>
       </div>
     </div>

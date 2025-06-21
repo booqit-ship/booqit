@@ -9,26 +9,15 @@ interface BookingCompletionData {
   bookingId: string;
 }
 
-// This hook is called when a booking is marked completed.
+// This hook handles all booking-related notifications
 export function useBookingCompletion() {
-  // Call this when marking booking as completed.
+  // Called when marking booking as completed
   const onBookingCompleted = useCallback(async (customerId: string, merchantName: string, bookingId: string) => {
-    console.log('🎯 BOOKING COMPLETION HOOK: Sending notification to CUSTOMER:', { 
-      customerId, 
-      merchantName, 
-      bookingId,
-      isCustomerIdValid: !!customerId && customerId !== 'undefined' && customerId.length > 0
-    });
-    
-    // Validate customer ID
     if (!customerId || customerId === 'undefined' || customerId.trim().length === 0) {
-      console.error('❌ BOOKING COMPLETION: Invalid customer ID provided:', customerId);
       return;
     }
     
     try {
-      console.log('📤 BOOKING COMPLETION: Calling ConsolidatedNotificationService with customer ID:', customerId);
-      
       const success = await ConsolidatedNotificationService.sendNotification(customerId, {
         title: "✨ Looking fabulous? We hope so!",
         body: `How was your experience at ${merchantName}? Share your thoughts and help others discover great service! 💫`,
@@ -40,15 +29,74 @@ export function useBookingCompletion() {
         }
       });
       
-      if (success) {
-        console.log('✅ BOOKING COMPLETION: Notification sent successfully to customer:', customerId);
-      } else {
-        console.log('❌ BOOKING COMPLETION: Failed to send notification to customer:', customerId);
-      }
+      return success;
     } catch (error) {
-      console.error('❌ BOOKING COMPLETION: Error sending notification to customer:', customerId, error);
+      console.error('Error sending booking completion notification:', error);
+      return false;
     }
   }, []);
 
-  return { onBookingCompleted };
+  // Called when booking is confirmed
+  const onBookingConfirmed = useCallback(async (customerId: string, merchantName: string, serviceName: string, date: string, time: string, bookingId: string) => {
+    if (!customerId) return false;
+    
+    try {
+      return await ConsolidatedNotificationService.sendNotification(customerId, {
+        title: "🎉 Booking Confirmed!",
+        body: `Your appointment at ${merchantName} for ${serviceName} on ${date} at ${time} is confirmed!`,
+        data: {
+          type: 'booking_confirmed',
+          bookingId
+        }
+      });
+    } catch (error) {
+      console.error('Error sending booking confirmation notification:', error);
+      return false;
+    }
+  }, []);
+
+  // Called when booking is cancelled
+  const onBookingCancelled = useCallback(async (customerId: string, merchantName: string, bookingId: string) => {
+    if (!customerId) return false;
+    
+    try {
+      return await ConsolidatedNotificationService.sendNotification(customerId, {
+        title: "Booking Cancelled",
+        body: `Your booking at ${merchantName} has been cancelled. We apologize for any inconvenience.`,
+        data: {
+          type: 'booking_cancelled',
+          bookingId
+        }
+      });
+    } catch (error) {
+      console.error('Error sending booking cancellation notification:', error);
+      return false;
+    }
+  }, []);
+
+  // Called when new booking is created (notify merchant)
+  const onNewBooking = useCallback(async (merchantUserId: string, customerName: string, serviceName: string, date: string, time: string, bookingId: string) => {
+    if (!merchantUserId) return false;
+    
+    try {
+      return await ConsolidatedNotificationService.sendNotification(merchantUserId, {
+        title: "New Booking! 📅",
+        body: `${customerName} has booked ${serviceName} for ${date} at ${time}`,
+        data: {
+          type: 'new_booking',
+          bookingId
+        }
+      });
+    } catch (error) {
+      console.error('Error sending new booking notification:', error);
+      return false;
+    }
+  }, []);
+
+  return { 
+    onBookingCompleted, 
+    onBookingConfirmed, 
+    onBookingCancelled, 
+    onNewBooking 
+  };
 }

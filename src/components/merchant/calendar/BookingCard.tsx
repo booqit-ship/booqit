@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -28,7 +29,7 @@ interface BookingWithCustomerDetails {
     name: string;
     duration?: number;
   };
-  services?: string | any; // JSON string or parsed object
+  services?: string | any;
   total_duration?: number;
   time_slot: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
@@ -50,7 +51,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const invalidateBookings = useInvalidateBookingsData();
-  const { onBookingCompleted } = useBookingCompletion();
+  const { onBookingCompleted, onBookingCancelled } = useBookingCompletion();
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -67,10 +68,6 @@ const BookingCard: React.FC<BookingCardProps> = ({
   };
 
   const getServiceInfo = () => {
-    console.log('BookingCard - Raw booking data:', booking);
-    console.log('BookingCard - Services field:', booking.services);
-    console.log('BookingCard - Total duration field:', booking.total_duration);
-    
     let serviceNames = 'Unknown Service';
     let totalDuration = booking.total_duration || 30;
     
@@ -79,14 +76,10 @@ const BookingCard: React.FC<BookingCardProps> = ({
         let services;
         
         if (typeof booking.services === 'string') {
-          console.log('BookingCard - Parsing string services');
           services = JSON.parse(booking.services);
         } else {
-          console.log('BookingCard - Services already parsed');
           services = booking.services;
         }
-        
-        console.log('BookingCard - Parsed services:', services);
         
         if (Array.isArray(services) && services.length > 0) {
           const serviceNamesList = services
@@ -96,38 +89,29 @@ const BookingCard: React.FC<BookingCardProps> = ({
           if (serviceNamesList.length > 0) {
             serviceNames = serviceNamesList.join(', ');
             totalDuration = booking.total_duration || services.reduce((sum, service) => sum + (service.duration || 0), 0);
-            
-            console.log('BookingCard - Multiple services found:', { names: serviceNames, duration: totalDuration });
             return { names: serviceNames, duration: totalDuration };
           }
         }
         else if (services && services.name) {
           serviceNames = services.name.trim();
           totalDuration = booking.total_duration || services.duration || 30;
-          
-          console.log('BookingCard - Single service object found:', { names: serviceNames, duration: totalDuration });
           return { names: serviceNames, duration: totalDuration };
         }
       } catch (error) {
-        console.error('BookingCard - Error parsing services JSON:', error);
+        console.error('Error parsing services JSON:', error);
       }
     }
     
     if (booking.service?.name) {
       serviceNames = booking.service.name.trim();
       totalDuration = booking.total_duration || booking.service.duration || 30;
-      
-      console.log('BookingCard - Using single service fallback:', { names: serviceNames, duration: totalDuration });
       return { names: serviceNames, duration: totalDuration };
     }
     
-    const fallbackData = {
-      names: serviceNames, // Will be 'Unknown Service'
-      duration: totalDuration // Will be booking.total_duration or 30
+    return {
+      names: serviceNames,
+      duration: totalDuration
     };
-    
-    console.log('BookingCard - Using final fallback:', fallbackData);
-    return fallbackData;
   };
 
   const serviceInfo = getServiceInfo();
@@ -158,82 +142,55 @@ const BookingCard: React.FC<BookingCardProps> = ({
         updateData.payment_status = 'completed';
       }
 
-      console.log('🎯 BOOKING COMPLETION DEBUG: Starting status update...', {
-        bookingId: booking.id,
-        newStatus,
-        customerId: booking.user_id,
-        merchantId: booking.merchant_id
-      });
-
       const { error } = await supabase
         .from('bookings')
         .update(updateData)
         .eq('id', booking.id);
 
       if (error) {
-        console.error('❌ Error updating booking status:', error);
+        console.error('Error updating booking status:', error);
         toast.error('Failed to update booking status');
         return;
       }
 
-      console.log('✅ Booking status updated successfully');
-      
-      // If booking is completed, send notification to customer (NOT merchant)
+      // Send notifications based on status change
       if (newStatus === 'completed') {
-        console.log('🔔 BOOKING COMPLETION: Starting notification process...');
-        
         try {
-          // Get merchant name from booking data or fetch it
-          console.log('📋 Fetching merchant data for shop name...');
-          const { data: merchantData, error: merchantError } = await supabase
+          const { data: merchantData } = await supabase
             .from('merchants')
             .select('shop_name')
             .eq('id', booking.merchant_id)
             .single();
           
-          if (merchantError) {
-            console.error('❌ Error fetching merchant data:', merchantError);
-          }
-          
           const merchantName = merchantData?.shop_name || 'the salon';
-          const customerId = booking.user_id; // This is the CUSTOMER's user_id, not merchant's
-          
-          console.log('🎯 BOOKING COMPLETION: Notification details:', {
-            customerId,
-            merchantName,
-            bookingId: booking.id,
-            hasCustomerId: !!customerId,
-            customerName: booking.customer_name
-          });
+          const customerId = booking.user_id;
           
           if (customerId) {
-            console.log('📨 Sending booking completion notification to CUSTOMER:', customerId);
-            
-            // Check if customer has FCM token
-            const { data: customerNotificationSettings } = await supabase
-              .from('notification_settings')
-              .select('fcm_token, notification_enabled')
-              .eq('user_id', customerId)
-              .single();
-            
-            console.log('🔍 Customer notification settings:', {
-              customerId,
-              hasToken: !!customerNotificationSettings?.fcm_token,
-              notificationsEnabled: customerNotificationSettings?.notification_enabled
-            });
-            
-            // Trigger the notification - MAKE SURE TO SEND TO CUSTOMER, NOT MERCHANT
             await onBookingCompleted(customerId, merchantName, booking.id);
-            
-            // Show success message to merchant
             toast.success(`Booking completed! Review request sent to ${booking.customer_name || 'customer'}`);
-          } else {
-            console.error('❌ No customer user_id found in booking data');
-            toast.error('Unable to send notification - customer ID missing');
           }
         } catch (notificationError) {
-          console.error('❌ Error in notification process:', notificationError);
+          console.error('Error sending completion notification:', notificationError);
           toast.error('Booking completed but failed to send notification to customer');
+        }
+      } else if (newStatus === 'cancelled') {
+        try {
+          const { data: merchantData } = await supabase
+            .from('merchants')
+            .select('shop_name')
+            .eq('id', booking.merchant_id)
+            .single();
+          
+          const merchantName = merchantData?.shop_name || 'the salon';
+          const customerId = booking.user_id;
+          
+          if (customerId) {
+            await onBookingCancelled(customerId, merchantName, booking.id);
+            toast.success(`Booking cancelled. Customer has been notified.`);
+          }
+        } catch (notificationError) {
+          console.error('Error sending cancellation notification:', notificationError);
+          toast.error('Booking cancelled but failed to send notification to customer');
         }
       } else {
         toast.success(`Booking ${newStatus} successfully`);
@@ -248,7 +205,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
       // Call the parent's status change handler
       await onStatusChange(booking.id, newStatus);
     } catch (error) {
-      console.error('❌ Error updating booking status:', error);
+      console.error('Error updating booking status:', error);
       toast.error('Failed to update booking status');
     }
   };
@@ -299,7 +256,6 @@ const BookingCard: React.FC<BookingCardProps> = ({
                 <span className={`font-medium ${booking.status === 'cancelled' ? 'text-gray-500' : ''}`}>
                   {booking.customer_name}
                 </span>
-                <span className="text-xs text-gray-400">ID: {booking.user_id.slice(0, 8)}...</span>
               </div>
             )}
             
@@ -391,7 +347,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
             <AlertDialogDescription>
               Are you sure you want to cancel this booking? This action cannot be undone and the customer will be notified.
             </AlertDialogDescription>
-          </AlertDialogHeader>
+          </AlertDialogHelper>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep Booking</AlertDialogCancel>
             <AlertDialogAction onClick={handleCancelConfirm} className="bg-red-600 hover:bg-red-700">

@@ -25,9 +25,6 @@ export class ConsolidatedNotificationService {
    */
   static async sendNotification(userId: string, payload: NotificationPayload): Promise<boolean> {
     try {
-      console.log('📤 CONSOLIDATED NOTIF: Sending to user:', userId);
-      console.log('📤 CONSOLIDATED NOTIF: Payload:', payload);
-
       // Send via Edge Function
       const { data, error } = await supabase.functions.invoke('send-notification', {
         body: {
@@ -39,19 +36,18 @@ export class ConsolidatedNotificationService {
       });
 
       if (error) {
-        console.error('❌ CONSOLIDATED NOTIF: Edge function error:', error);
+        console.error('Edge function error:', error);
         return false;
       }
 
       if (!data?.success) {
-        console.error('❌ CONSOLIDATED NOTIF: Notification failed:', data?.error);
+        console.error('Notification failed:', data?.error);
         return false;
       }
 
-      console.log('✅ CONSOLIDATED NOTIF: Sent successfully to user:', userId);
       return true;
     } catch (error: any) {
-      console.error('❌ CONSOLIDATED NOTIF: Unexpected error:', error);
+      console.error('Unexpected notification error:', error);
       return false;
     }
   }
@@ -61,8 +57,6 @@ export class ConsolidatedNotificationService {
    */
   static async initializeUserSettings(userId: string, fcmToken: string): Promise<boolean> {
     try {
-      console.log('🔧 CONSOLIDATED NOTIF: Initializing settings for user:', userId);
-
       const { error } = await supabase
         .from('notification_settings')
         .upsert({
@@ -74,14 +68,13 @@ export class ConsolidatedNotificationService {
         });
 
       if (error) {
-        console.error('❌ CONSOLIDATED NOTIF: Error initializing settings:', error);
+        console.error('Error initializing settings:', error);
         return false;
       }
 
-      console.log('✅ CONSOLIDATED NOTIF: Settings initialized for user:', userId);
       return true;
     } catch (error) {
-      console.error('❌ CONSOLIDATED NOTIF: Error during initialization:', error);
+      console.error('Error during initialization:', error);
       return false;
     }
   }
@@ -91,27 +84,24 @@ export class ConsolidatedNotificationService {
    */
   static async updateFCMToken(userId: string, fcmToken: string): Promise<boolean> {
     try {
-      console.log('🔑 CONSOLIDATED NOTIF: Updating FCM token for user:', userId);
-
       const { error } = await supabase
         .from('notification_settings')
         .upsert({
           user_id: userId,
           fcm_token: fcmToken,
           notification_enabled: true,
-          failed_notification_count: 0, // Reset on token update
+          failed_notification_count: 0,
           last_failure_reason: null
         });
 
       if (error) {
-        console.error('❌ CONSOLIDATED NOTIF: Error updating FCM token:', error);
+        console.error('Error updating FCM token:', error);
         return false;
       }
 
-      console.log('✅ CONSOLIDATED NOTIF: FCM token updated for user:', userId);
       return true;
     } catch (error) {
-      console.error('❌ CONSOLIDATED NOTIF: Error during token update:', error);
+      console.error('Error during token update:', error);
       return false;
     }
   }
@@ -137,13 +127,13 @@ export const sendBookingConfirmation = async (
 };
 
 export const sendNewBookingAlert = async (
-  merchantId: string,
+  merchantUserId: string,
   customerName: string,
   serviceNames: string,
   dateTime: string,
   bookingId: string
 ) => {
-  return ConsolidatedNotificationService.sendNotification(merchantId, {
+  return ConsolidatedNotificationService.sendNotification(merchantUserId, {
     title: 'New Booking! 📅',
     body: `${customerName} has booked ${serviceNames} for ${dateTime}`,
     data: {
