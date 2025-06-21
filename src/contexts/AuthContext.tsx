@@ -52,7 +52,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(authState.session);
     });
 
-    return unsubscribe;
+    // Return cleanup function that calls unsubscribe
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const setAuth = (isAuthenticated: boolean, role: UserRole | null, id: string | null) => {
