@@ -23,24 +23,49 @@ const ResetPasswordPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isValidSession, setIsValidSession] = useState(false);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
-    // Check if we have the required URL parameters for password reset
     const handlePasswordReset = async () => {
       console.log('Checking for password reset session...');
-      
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      console.log('Session data:', sessionData, 'Error:', sessionError);
       
       // Check for access_token and refresh_token in URL parameters
       const accessToken = searchParams.get('access_token');
       const refreshToken = searchParams.get('refresh_token');
       const type = searchParams.get('type');
+      const error = searchParams.get('error');
+      const errorDescription = searchParams.get('error_description');
       
-      console.log('URL params:', { accessToken: !!accessToken, refreshToken: !!refreshToken, type });
+      console.log('URL params:', { 
+        accessToken: !!accessToken, 
+        refreshToken: !!refreshToken, 
+        type, 
+        error,
+        errorDescription 
+      });
+
+      // Handle error cases first
+      if (error) {
+        console.error('URL contains error:', error, errorDescription);
+        let errorMessage = 'The reset link is invalid or has expired.';
+        
+        if (error === 'access_denied') {
+          errorMessage = 'Access denied. Please request a new reset link.';
+        } else if (errorDescription) {
+          errorMessage = errorDescription;
+        }
+
+        toast({
+          title: "Reset Link Error",
+          description: errorMessage,
+          variant: "destructive",
+        });
+        navigate('/forgot-password');
+        return;
+      }
       
       if (type === 'recovery' && accessToken && refreshToken) {
         console.log('Valid reset link detected, setting session...');
@@ -57,6 +82,7 @@ const ResetPasswordPage: React.FC = () => {
           }
           
           console.log('Session set successfully:', data);
+          setIsValidSession(true);
         } catch (error) {
           console.error('Failed to set session:', error);
           toast({
@@ -66,14 +92,23 @@ const ResetPasswordPage: React.FC = () => {
           });
           navigate('/forgot-password');
         }
-      } else if (!sessionData.session) {
-        console.log('No valid session or reset parameters found');
-        toast({
-          title: "Invalid Reset Link",
-          description: "The reset link is invalid or has expired. Please request a new one.",
-          variant: "destructive",
-        });
-        navigate('/forgot-password');
+      } else {
+        // Check if there's already a valid session (e.g., user came here directly)
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        console.log('Session check:', sessionData, 'Error:', sessionError);
+        
+        if (sessionData?.session) {
+          console.log('Found existing valid session');
+          setIsValidSession(true);
+        } else {
+          console.log('No valid session or reset parameters found');
+          toast({
+            title: "Invalid Reset Link",
+            description: "The reset link is invalid or has expired. Please request a new one.",
+            variant: "destructive",
+          });
+          navigate('/forgot-password');
+        }
       }
     };
 
@@ -82,6 +117,17 @@ const ResetPasswordPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!isValidSession) {
+      toast({
+        title: "Session Invalid",
+        description: "Please request a new password reset link.",
+        variant: "destructive",
+      });
+      navigate('/forgot-password');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -105,6 +151,12 @@ const ResetPasswordPage: React.FC = () => {
 
       if (error) {
         console.error('Password update error:', error);
+        
+        // Handle specific error cases
+        if (error.message.includes('session_not_found') || error.message.includes('invalid_token')) {
+          throw new Error("Your session has expired. Please request a new reset link.");
+        }
+        
         throw error;
       }
 
@@ -115,22 +167,53 @@ const ResetPasswordPage: React.FC = () => {
         description: "Your password has been successfully updated.",
       });
 
-      // Sign out the user after successful password reset
+      // Sign out the user after successful password reset for security
       await supabase.auth.signOut();
 
       // Redirect to login page
       navigate('/auth');
     } catch (error: any) {
       console.error('Password reset error:', error);
-      toast({
-        title: "Error!",
-        description: error.message || "Failed to update password.",
-        variant: "destructive",
-      });
+      
+      if (error.message.includes('session') || error.message.includes('token')) {
+        toast({
+          title: "Session Expired",
+          description: "Please request a new password reset link.",
+          variant: "destructive",
+        });
+        navigate('/forgot-password');
+      } else {
+        toast({
+          title: "Error!",
+          description: error.message || "Failed to update password.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Show loading state while validating session
+  if (!isValidSession) {
+    return (
+      <motion.div 
+        className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-booqit-primary/10 to-white p-6"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+      >
+        <div className="w-full max-w-md text-center">
+          <div className="mx-auto mb-4 w-12 h-12 bg-booqit-primary/10 rounded-full flex items-center justify-center animate-spin">
+            <Lock className="w-6 h-6 text-booqit-primary" />
+          </div>
+          <p className="text-booqit-dark/70 font-poppins">
+            Validating reset link...
+          </p>
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div 

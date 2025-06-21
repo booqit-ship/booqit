@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -61,9 +60,12 @@ const ForgotPasswordPage: React.FC = () => {
 
       console.log('Sending password reset email to:', email);
 
+      // Use the correct redirect URL - this should match your Supabase configuration
+      const redirectUrl = `${window.location.origin}/reset-password`;
+
       // Call Supabase to send password reset email
       const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: redirectUrl,
       });
 
       console.log('Reset password response:', { data, error });
