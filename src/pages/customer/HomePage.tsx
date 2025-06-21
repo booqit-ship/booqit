@@ -26,6 +26,28 @@ const featuredCategories = [{
   color: '#FF6B6B'
 }];
 
+// Helper function to check if merchant is new (within 10 days)
+const isMerchantNew = (createdAt: string | null | undefined): boolean => {
+  if (!createdAt) return false;
+  
+  try {
+    const createdDate = new Date(createdAt);
+    
+    // Check if the date is valid
+    if (isNaN(createdDate.getTime())) {
+      return false;
+    }
+    
+    const now = new Date();
+    const tenDaysAgo = new Date(now.getTime() - (10 * 24 * 60 * 60 * 1000));
+    
+    return createdDate > tenDaysAgo;
+  } catch (error) {
+    console.error('Error checking merchant creation date:', error);
+    return false;
+  }
+};
+
 const HomePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [nearbyShops, setNearbyShops] = useState<Merchant[]>([]);
@@ -173,11 +195,11 @@ const HomePage: React.FC = () => {
         console.log("Fetched merchants:", merchants); // Debug log to check merchant data
 
         // Calculate distance for each merchant (simplified version)
-        const shopsWithDistance = merchants.map(merchant => {
+        const shopsWithDistance = merchants.map(shop => {
           // Simple distance calculation (this is just an approximation)
-          const distance = calculateDistance(location.lat, location.lng, merchant.lat, merchant.lng);
+          const distance = calculateDistance(location.lat, location.lng, shop.lat, shop.lng);
           return {
-            ...merchant,
+            ...shop,
             distance: `${distance.toFixed(1)} km`,
             distanceValue: distance // Add numeric distance for filtering
           } as Merchant; // Explicitly cast to Merchant type
@@ -355,7 +377,12 @@ const HomePage: React.FC = () => {
                 {displayedShops.map(shop => <Card key={shop.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow">
                     <CardContent className="p-0">
                       <div className="flex">
-                        <div className="w-24 h-24 bg-gray-200 flex-shrink-0">
+                        <div className="w-24 h-24 bg-gray-200 flex-shrink-0 relative">
+                          {isMerchantNew(shop.created_at) && (
+                            <div className="absolute top-1 left-1 bg-green-500 text-white px-1.5 py-0.5 rounded text-xs font-medium z-10">
+                              New
+                            </div>
+                          )}
                           <img src={getShopImage(shop)} alt={shop.shop_name} className="w-full h-full object-cover" onError={e => {
                       const target = e.target as HTMLImageElement;
                       target.src = 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
