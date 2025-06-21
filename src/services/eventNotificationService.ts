@@ -35,12 +35,29 @@ const getNewBookingMessage = (customerName: string, serviceName: string, timeSlo
   };
 };
 
-// Booking completion messages for customers
+// Enhanced booking completion messages for customers - more motivational and aesthetic
 const getBookingCompletedMessage = (merchantName: string) => {
-  return {
-    title: "Wow, got a new look? ✨",
-    body: `Rate your experience with ${merchantName} — we value your feedback 💖`
-  };
+  const messages = [
+    {
+      title: "✨ Looking fabulous! How was your experience?",
+      body: `Your session at ${merchantName} is complete! Share your glow-up experience and help others discover their beauty transformation 💫`
+    },
+    {
+      title: "🌟 New look, new you! Rate your experience",
+      body: `Hope you're loving your fresh new style from ${merchantName}! Your review helps our community find the perfect beauty experience ✨`
+    },
+    {
+      title: "💅 Transformation complete! Tell us about it",
+      body: `Your beauty session at ${merchantName} is done! Share how amazing you feel and inspire others to book their perfect look 🎉`
+    },
+    {
+      title: "✨ Gorgeous results! How did we do?",
+      body: `You just experienced the magic at ${merchantName}! Rate your service and let others know about this amazing beauty destination 💖`
+    }
+  ];
+  
+  const randomIndex = Math.floor(Math.random() * messages.length);
+  return messages[randomIndex];
 };
 
 // Daily reminder messages
@@ -129,7 +146,7 @@ const canSendNotification = async (userId: string) => {
             email: user.email || '',
             phone: user.user_metadata?.phone || '',
             role: userRole,
-            notification_enabled: false, // Will be enabled when they set up notifications
+            notification_enabled: false, 
             fcm_token: null
           });
 
@@ -140,7 +157,6 @@ const canSendNotification = async (userId: string) => {
 
         console.log('✅ NOTIFICATION CHECK: Profile created for user:', userId);
         
-        // Profile was just created without FCM token, so can't send notifications yet
         return false;
       } catch (createError) {
         console.error('❌ NOTIFICATION CHECK: Error creating profile:', createError);
@@ -251,7 +267,7 @@ export const sendNewBookingNotification = async (
   }
 };
 
-// Send booking completion notification to customer
+// Send booking completion notification to customer - ENHANCED with motivational messaging
 export const sendBookingCompletedNotification = async (
   customerId: string,
   merchantName: string,
@@ -272,7 +288,7 @@ export const sendBookingCompletedNotification = async (
 
     const message = getBookingCompletedMessage(merchantName);
     
-    console.log('📤 COMPLETION NOTIFICATION: Sending notification to customer:', message);
+    console.log('📤 COMPLETION NOTIFICATION: Sending motivational review request to customer:', message);
     
     await sendNotificationToUser(customerId, {
       title: message.title,
@@ -286,7 +302,7 @@ export const sendBookingCompletedNotification = async (
       }
     });
 
-    console.log('✅ COMPLETION NOTIFICATION: Successfully sent to customer');
+    console.log('✅ COMPLETION NOTIFICATION: Successfully sent motivational review request to customer');
   } catch (error) {
     console.error('❌ COMPLETION NOTIFICATION: Error sending notification to customer:', error);
   }

@@ -7,6 +7,7 @@ import { formatTimeToAmPm, timeToMinutes, minutesToTime } from '@/utils/timeUtil
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useInvalidateBookingsData } from '@/hooks/useBookingsData';
+import { useBookingCompletion } from '@/hooks/useBookingCompletion';
 import { 
   AlertDialog, 
   AlertDialogAction, 
@@ -21,12 +22,13 @@ import {
 interface BookingWithCustomerDetails {
   id: string;
   merchant_id: string;
+  user_id?: string;
   date: string;
   service?: {
     name: string;
     duration?: number;
   };
-  services?: string | any; // JSON string or parsed object
+  services?: string | any;
   total_duration?: number;
   time_slot: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
@@ -48,6 +50,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const invalidateBookings = useInvalidateBookingsData();
+  const { onBookingCompleted } = useBookingCompletion();
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -169,6 +172,26 @@ const BookingCard: React.FC<BookingCardProps> = ({
       }
 
       console.log('Booking status updated successfully');
+      
+      // If completing booking, trigger completion notification
+      if (newStatus === 'completed' && booking.user_id && booking.customer_name) {
+        console.log('Triggering booking completion notification...');
+        
+        // Get merchant name for the notification
+        const { data: merchantData } = await supabase
+          .from('merchants')
+          .select('shop_name')
+          .eq('id', booking.merchant_id)
+          .single();
+        
+        const merchantName = merchantData?.shop_name || 'the shop';
+        
+        // Trigger the completion notification
+        onBookingCompleted(booking.user_id, merchantName, booking.id);
+        
+        console.log('Booking completion notification triggered for customer:', booking.customer_name);
+      }
+      
       toast.success(`Booking ${newStatus} successfully`);
       
       // Invalidate and refetch relevant queries
