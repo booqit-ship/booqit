@@ -19,6 +19,23 @@ import {
 
 const SHOPS_PER_PAGE = 10;
 
+// Helper function to check if merchant is new (within 10 days)
+const isMerchantNew = (createdAt: string | null | undefined): boolean => {
+  if (!createdAt) return false;
+  try {
+    const createdDate = new Date(createdAt);
+    if (isNaN(createdDate.getTime())) {
+      return false;
+    }
+    const now = new Date();
+    const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
+    return createdDate > tenDaysAgo;
+  } catch (error) {
+    console.error('Error checking merchant creation date:', error);
+    return false;
+  }
+};
+
 const NearbyShopsPage: React.FC = () => {
   const [nearbyShops, setNearbyShops] = useState<Merchant[]>([]);
   const [filteredShops, setFilteredShops] = useState<Merchant[]>([]);
@@ -97,6 +114,8 @@ const NearbyShopsPage: React.FC = () => {
       if (error) throw error;
       
       if (merchants && merchants.length > 0) {
+        console.log("Fetched merchants in nearby shops:", merchants);
+        
         // Calculate distance for each merchant
         const shopsWithDistance = merchants.map(merchant => {
           const distance = calculateDistance(
@@ -159,8 +178,68 @@ const NearbyShopsPage: React.FC = () => {
     return 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
   };
 
-  const handleBookNow = (merchantId: string) => {
-    navigate(`/merchant/${merchantId}`);
+  const handleBookNow = async (merchant: Merchant) => {
+    console.log("Booking merchant:", merchant);
+    
+    try {
+      // First verify the merchant exists and fetch their services
+      const { data: merchantData, error: merchantError } = await supabase
+        .from('merchants')
+        .select('*')
+        .eq('id', merchant.id)
+        .single();
+        
+      if (merchantError) {
+        console.error("Error fetching merchant:", merchantError);
+        toast({
+          title: "Error",
+          description: "Could not find merchant details. Please try again.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Fetch services for this merchant
+      const { data: services, error: servicesError } = await supabase
+        .from('services')
+        .select('*')
+        .eq('merchant_id', merchant.id);
+        
+      if (servicesError) {
+        console.error("Error fetching services:", servicesError);
+        toast({
+          title: "Error",
+          description: "Could not load services. Please try again.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (!services || services.length === 0) {
+        toast({
+          title: "No Services Available",
+          description: "This merchant hasn't added any services yet.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Navigate to merchant detail page with state
+      navigate(`/merchant/${merchant.id}`, {
+        state: {
+          merchant: merchantData,
+          services: services
+        }
+      });
+      
+    } catch (error) {
+      console.error("Error in handleBookNow:", error);
+      toast({
+        title: "Error",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   // Pagination logic
@@ -236,9 +315,15 @@ const NearbyShopsPage: React.FC = () => {
                             <h3 className="font-medium text-base line-clamp-1">
                               {shop.shop_name}
                             </h3>
-                            <span className="text-sm bg-green-100 text-green-800 px-2 py-0.5 rounded-full flex items-center whitespace-nowrap">
-                              ★ {shop.rating?.toFixed(1) || 'New'}
-                            </span>
+                            {isMerchantNew(shop.created_at) ? (
+                              <span className="text-sm bg-green-100 text-green-800 px-2 py-0.5 rounded-full flex items-center whitespace-nowrap">
+                                New
+                              </span>
+                            ) : (
+                              <span className="text-sm bg-green-100 text-green-800 px-2 py-0.5 rounded-full flex items-center whitespace-nowrap">
+                                ★ {shop.rating?.toFixed(1) || 'New'}
+                              </span>
+                            )}
                           </div>
                           <p className="text-sm text-gray-500 line-clamp-1">{shop.category}</p>
                           <p className="text-xs text-gray-400 line-clamp-2 mt-1">{shop.address}</p>
@@ -253,7 +338,7 @@ const NearbyShopsPage: React.FC = () => {
                             <Button 
                               size="sm" 
                               className="bg-booqit-primary hover:bg-booqit-primary/90 text-xs h-8" 
-                              onClick={() => handleBookNow(shop.id)}
+                              onClick={() => handleBookNow(shop)}
                             >
                               Book Now
                             </Button>
