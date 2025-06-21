@@ -15,6 +15,7 @@ import { formatDateInIST, getCurrentDateIST } from '@/utils/dateUtils';
 interface BookingWithCustomerDetails {
   id: string;
   merchant_id: string;
+  user_id: string;
   date: string;
   service?: {
     name: string;
@@ -76,6 +77,7 @@ const CalendarManagementPage: React.FC = () => {
         .select(`
           id,
           merchant_id,
+          user_id,
           date,
           time_slot,
           status,
@@ -106,6 +108,7 @@ const CalendarManagementPage: React.FC = () => {
       return (data || []).map(booking => ({
         id: booking.id,
         merchant_id: booking.merchant_id,
+        user_id: booking.user_id,
         date: booking.date,
         service: booking.serviceDetails ? {
           name: booking.serviceDetails.name,
