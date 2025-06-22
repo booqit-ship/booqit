@@ -4,12 +4,16 @@ import { Outlet, useLocation } from 'react-router-dom';
 import SideNavigation from '@/components/merchant/SideNavigation';
 import OptimizedNavigation from '@/components/merchant/OptimizedNavigation';
 
-const MerchantLayout: React.FC = () => {
+interface MerchantLayoutProps {
+  children?: React.ReactNode;
+}
+
+const MerchantLayout: React.FC<MerchantLayoutProps> = ({ children }) => {
   const location = useLocation();
   
   // Don't show navigation on onboarding page
   if (location.pathname === '/merchant/onboarding') {
-    return <Outlet />;
+    return children ? <>{children}</> : <Outlet />;
   }
   
   return (
@@ -22,7 +26,7 @@ const MerchantLayout: React.FC = () => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <main className="flex-1 overflow-auto">
-          <Outlet />
+          {children ? children : <Outlet />}
         </main>
       </div>
       
