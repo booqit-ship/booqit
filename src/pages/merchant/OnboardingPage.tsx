@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -163,7 +164,7 @@ const OnboardingPage: React.FC = () => {
     setIsSubmitting(true);
     
     try {
-      await saveOnboardingData(false); // false = skip bank details
+      await saveOnboardingData(false); // Pass boolean false instead of string
       
       toast({
         title: "Onboarding Complete!",
@@ -227,8 +228,8 @@ const OnboardingPage: React.FC = () => {
     setIsSubmitting(true);
     
     try {
-      // Include bank details only if they are provided
-      const hasBankDetails = bankDetails.account_holder_name && bankDetails.account_number && bankDetails.ifsc_code && bankDetails.bank_name;
+      // Include bank details only if they are provided - ensure boolean type
+      const hasBankDetails = Boolean(bankDetails.account_holder_name && bankDetails.account_number && bankDetails.ifsc_code && bankDetails.bank_name);
       await saveOnboardingData(hasBankDetails);
       
       toast({
