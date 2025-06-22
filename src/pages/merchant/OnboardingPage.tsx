@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -60,9 +59,15 @@ const OnboardingPage: React.FC = () => {
   // Check if merchant has already completed onboarding properly
   useEffect(() => {
     const checkOnboardingStatus = async () => {
-      if (!userId) return;
+      if (!userId) {
+        console.log('❌ No user ID found, staying on onboarding');
+        setIsLoading(false);
+        return;
+      }
       
       try {
+        console.log('🔍 Checking onboarding status for user:', userId);
+        
         // Check if merchant record exists and if it's properly onboarded
         const { data: merchantData, error } = await supabase
           .from('merchants')
@@ -70,31 +75,58 @@ const OnboardingPage: React.FC = () => {
           .eq('user_id', userId)
           .single();
         
+        if (error && error.code === 'PGRST116') {
+          // No merchant record found - new user needs onboarding
+          console.log('📝 New merchant user - starting onboarding flow');
+          setIsLoading(false);
+          return;
+        }
+        
+        if (error) {
+          console.error('❌ Error checking merchant data:', error);
+          setIsLoading(false);
+          return;
+        }
+        
         if (merchantData) {
-          // Check if merchant has completed onboarding (has proper address and location)
-          const hasCompletedOnboarding = merchantData.address && 
-                                       merchantData.address.trim() !== '' &&
-                                       (merchantData.lat !== 0 || merchantData.lng !== 0);
+          // Check if merchant has completed onboarding (has proper address, location, and bank info)
+          const hasLocation = merchantData.address && 
+                             merchantData.address.trim() !== '' &&
+                             (merchantData.lat !== 0 || merchantData.lng !== 0);
+          
+          // Check if bank info exists
+          const { data: bankData } = await supabase
+            .from('bank_info')
+            .select('*')
+            .eq('merchant_id', merchantData.id)
+            .single();
+          
+          const hasBankInfo = bankData && bankData.account_holder_name && bankData.account_number;
+          
+          const hasCompletedOnboarding = hasLocation && hasBankInfo;
           
           if (hasCompletedOnboarding) {
-            console.log("Merchant has completed onboarding, redirecting to dashboard");
+            console.log('✅ Merchant has completed onboarding, redirecting to dashboard');
             toast({
-              title: "Already onboarded",
+              title: "Welcome back!",
               description: "Your merchant account is already set up.",
             });
             navigate('/merchant');
+            return;
           } else {
-            console.log("Merchant record exists but onboarding incomplete, continuing with onboarding");
+            console.log('⚠️ Merchant record exists but onboarding incomplete, continuing with onboarding');
             // Pre-fill form with existing data
-            setShopInfo(prev => ({
-              ...prev,
-              name: merchantData.shop_name || '',
-              category: merchantData.category || '',
-              gender_focus: merchantData.gender_focus || 'unisex',
-              description: merchantData.description || '',
-              open_time: merchantData.open_time?.slice(0, 5) || '', // Convert HH:MM:SS to HH:MM
-              close_time: merchantData.close_time?.slice(0, 5) || '', // Convert HH:MM:SS to HH:MM
-            }));
+            if (merchantData.shop_name) {
+              setShopInfo(prev => ({
+                ...prev,
+                name: merchantData.shop_name || '',
+                category: merchantData.category || '',
+                gender_focus: merchantData.gender_focus || 'unisex',
+                description: merchantData.description || '',
+                open_time: merchantData.open_time?.slice(0, 5) || '', 
+                close_time: merchantData.close_time?.slice(0, 5) || '', 
+              }));
+            }
             
             if (merchantData.lat && merchantData.lng) {
               setLocationDetails({
@@ -103,13 +135,20 @@ const OnboardingPage: React.FC = () => {
                 address: merchantData.address || '',
               });
             }
+
+            if (bankData) {
+              setBankDetails({
+                account_holder_name: bankData.account_holder_name || '',
+                account_number: bankData.account_number || '',
+                ifsc_code: bankData.ifsc_code || '',
+                bank_name: bankData.bank_name || '',
+                upi_id: bankData.upi_id || '',
+              });
+            }
           }
-        } else {
-          console.log("No merchant record found, continuing with onboarding");
         }
       } catch (error) {
-        console.log("Error checking onboarding status:", error);
-        // Continue with onboarding if there's an error
+        console.error('❌ Error in onboarding check:', error);
       } finally {
         setIsLoading(false);
       }
@@ -171,6 +210,8 @@ const OnboardingPage: React.FC = () => {
     setIsSubmitting(true);
     
     try {
+      console.log('🚀 Starting onboarding completion process...');
+      
       // Check if merchant record already exists
       const { data: existingMerchant } = await supabase
         .from('merchants')
@@ -181,6 +222,7 @@ const OnboardingPage: React.FC = () => {
       let merchantData;
 
       if (existingMerchant) {
+        console.log('📝 Updating existing merchant record...');
         // Update existing merchant record
         const { data: updatedMerchant, error: merchantError } = await supabase
           .from('merchants')
@@ -199,9 +241,13 @@ const OnboardingPage: React.FC = () => {
           .select()
           .single();
         
-        if (merchantError) throw merchantError;
+        if (merchantError) {
+          console.error('❌ Error updating merchant:', merchantError);
+          throw merchantError;
+        }
         merchantData = updatedMerchant;
       } else {
+        console.log('🆕 Creating new merchant record...');
         // Insert new merchant record
         const { data: newMerchant, error: merchantError } = await supabase
           .from('merchants')
@@ -220,12 +266,16 @@ const OnboardingPage: React.FC = () => {
           .select()
           .single();
         
-        if (merchantError) throw merchantError;
+        if (merchantError) {
+          console.error('❌ Error creating merchant:', merchantError);
+          throw merchantError;
+        }
         merchantData = newMerchant;
       }
       
       // Handle bank details
       if (merchantData) {
+        console.log('💳 Setting up bank information...');
         // Check if bank info already exists
         const { data: existingBankInfo } = await supabase
           .from('bank_info')
@@ -246,7 +296,10 @@ const OnboardingPage: React.FC = () => {
             })
             .eq('merchant_id', merchantData.id);
           
-          if (bankError) throw bankError;
+          if (bankError) {
+            console.error('❌ Error updating bank info:', bankError);
+            throw bankError;
+          }
         } else {
           // Insert new bank info
           const { error: bankError } = await supabase
@@ -260,12 +313,16 @@ const OnboardingPage: React.FC = () => {
               upi_id: bankDetails.upi_id || null,
             });
           
-          if (bankError) throw bankError;
+          if (bankError) {
+            console.error('❌ Error creating bank info:', bankError);
+            throw bankError;
+          }
         }
       }
       
       // Upload shop image if provided
       if (shopInfo.image && merchantData) {
+        console.log('📸 Uploading shop image...');
         const fileExt = shopInfo.image.name.split('.').pop();
         const fileName = `${userId}-${Date.now()}.${fileExt}`;
         const filePath = `merchants/${fileName}`;
@@ -290,6 +347,8 @@ const OnboardingPage: React.FC = () => {
         }
       }
       
+      console.log('✅ Onboarding completed successfully!');
+      
       // Show success message
       toast({
         title: "Onboarding Complete!",
@@ -299,7 +358,7 @@ const OnboardingPage: React.FC = () => {
       // Navigate to merchant dashboard
       navigate('/merchant');
     } catch (error: any) {
-      console.error('Onboarding error:', error);
+      console.error('❌ Onboarding error:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to complete onboarding. Please try again.",
@@ -342,7 +401,10 @@ const OnboardingPage: React.FC = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-booqit-primary/10 to-white p-6 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-booqit-primary"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-booqit-primary mx-auto mb-4"></div>
+          <p className="text-booqit-dark">Checking onboarding status...</p>
+        </div>
       </div>
     );
   }
