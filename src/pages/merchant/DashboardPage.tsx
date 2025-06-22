@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -39,26 +38,28 @@ const DashboardPage: React.FC = () => {
   };
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
+    const checkOnboardingAndFetchData = async () => {
       if (!userId) return;
       
       try {
         setIsLoading(true);
 
-        // Get merchant ID first
+        // First check if merchant exists and has completed onboarding
         const { data: merchantData, error: merchantError } = await supabase
           .from('merchants')
-          .select('id, image_url, shop_name')
+          .select('id, image_url, shop_name, address, lat, lng')
           .eq('user_id', userId)
           .single();
 
-        if (merchantError) {
-          console.error('Error fetching merchant ID:', merchantError);
+        if (merchantError && merchantError.code !== 'PGRST116') {
+          console.error('Error fetching merchant data:', merchantError);
           return;
         }
 
-        if (!merchantData) {
-          console.error('No merchant found for user');
+        // If no merchant record or incomplete onboarding, redirect to onboarding
+        if (!merchantData || !merchantData.address || (merchantData.lat === 0 && merchantData.lng === 0)) {
+          console.log('Merchant onboarding incomplete, redirecting to onboarding');
+          navigate('/merchant/onboarding');
           return;
         }
 
@@ -191,7 +192,7 @@ const DashboardPage: React.FC = () => {
       }
     };
 
-    fetchDashboardData();
+    checkOnboardingAndFetchData();
 
     // Set up realtime subscription
     let subscription: any = null;
@@ -205,8 +206,7 @@ const DashboardPage: React.FC = () => {
           table: 'bookings',
           filter: `merchant_id=eq.${merchantId}`
         }, () => {
-          // Refresh data when bookings change
-          fetchDashboardData();
+          checkOnboardingAndFetchData();
         })
         .subscribe();
     }
@@ -217,7 +217,7 @@ const DashboardPage: React.FC = () => {
         supabase.removeChannel(subscription);
       }
     };
-  }, [userId, merchantId]);
+  }, [userId, merchantId, navigate]);
 
   // Dashboard stats - only bookings today and total earnings
   const dashboardStats = [
@@ -335,7 +335,6 @@ const DashboardPage: React.FC = () => {
                       key={booking.id}
                       className="flex flex-col p-4 bg-gray-50 rounded-lg border border-gray-100 space-y-3"
                     >
-                      {/* Header with customer name and status */}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2">
                           <User className="h-4 w-4 text-gray-600" />
@@ -358,7 +357,6 @@ const DashboardPage: React.FC = () => {
                         </span>
                       </div>
 
-                      {/* Service and time information */}
                       <div className="grid grid-cols-1 gap-2 text-sm text-gray-600">
                         <div className="flex items-center justify-between">
                           <span className="font-medium text-gray-800">{booking.service?.name}</span>
@@ -367,7 +365,6 @@ const DashboardPage: React.FC = () => {
                           </span>
                         </div>
                         
-                        {/* Stylist information */}
                         {booking.stylist_name && (
                           <div className="flex items-center space-x-2">
                             <Scissors className="h-4 w-4 text-gray-500" />

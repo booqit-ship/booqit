@@ -1,6 +1,6 @@
 
 import React, { useEffect } from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types';
 import { PermanentSession } from '@/utils/permanentSession';
@@ -15,9 +15,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   requiredRole 
 }) => {
   const { isAuthenticated, userRole, loading } = useAuth();
+  const location = useLocation();
 
   // Check permanent session for instant auth check
-  const permanentData = PermanentSession.getSession();
+  const permanentData = Perman<PermanentSession.getSession();
   const hasPermanentSession = permanentData.isLoggedIn;
   const permanentRole = permanentData.userRole as UserRole;
 
@@ -42,7 +43,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/" replace />;
   }
 
-  if (requiredRole && effectiveRole !== requiredRole) {
+  // Allow merchant onboarding page access for authenticated merchants
+  const isOnboardingPage = location.pathname === '/merchant/onboarding';
+  
+  if (requiredRole && effectiveRole !== requiredRole && !isOnboardingPage) {
     console.log('🚫 User role mismatch, redirecting based on role:', effectiveRole);
     // Redirect to the appropriate dashboard based on role
     return <Navigate to={effectiveRole === 'merchant' ? '/merchant' : '/'} replace />;

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import {
   BrowserRouter as Router,
@@ -39,6 +40,7 @@ import MerchantLayout from '@/layouts/MerchantLayout';
 import AnalyticsPage from '@/pages/merchant/AnalyticsPage';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import MerchantSettingsPage from '@/pages/merchant/SettingsPage';
+import OnboardingPage from '@/pages/merchant/OnboardingPage';
 import PrivacyPolicy from '@/pages/PrivacyPolicy';
 import TermsAndConditions from '@/pages/TermsAndConditions';
 import DeleteAccountPage from '@/pages/settings/DeleteAccountPage';
@@ -90,6 +92,7 @@ const AppContent: React.FC = () => {
 
           {/* Merchant Routes */}
           <Route path="/merchant/auth" element={<LazyRoute><Auth /></LazyRoute>} />
+          <Route path="/merchant/onboarding" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><OnboardingPage /></ProtectedRoute></LazyRoute>} />
           <Route path="/merchant" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantDashboard /></MerchantLayout></ProtectedRoute></LazyRoute>} />
           <Route path="/merchant/dashboard" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantDashboard /></MerchantLayout></ProtectedRoute></LazyRoute>} />
           <Route path="/merchant/services" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantServices /></MerchantLayout></ProtectedRoute></LazyRoute>} />
@@ -135,8 +138,6 @@ const AppContent: React.FC = () => {
               </LazyRoute>
             }
           />
-          
-          {/* ... keep existing code (rest of merchant settings routes) */}
           <Route
             path="/merchant/settings/contact"
             element={
@@ -205,7 +206,6 @@ const AppContent: React.FC = () => {
           <Route path="/map" element={<LazyRoute><ProtectedRoute><CustomerLayout><MapPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
           <Route path="/merchant/:merchantId" element={<LazyRoute><ProtectedRoute><CustomerLayout><MerchantDetailPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
 
-          {/* Booking Flow Routes */}
           <Route path="/booking/:merchantId/services" element={<LazyRoute><ProtectedRoute><CustomerLayout><ServiceSelectionPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
           <Route path="/booking/:merchantId/staff" element={<LazyRoute><ProtectedRoute><CustomerLayout><StaffSelectionPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
           <Route path="/booking/:merchantId/datetime" element={<LazyRoute><ProtectedRoute><CustomerLayout><DateTimeSelectionPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
