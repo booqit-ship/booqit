@@ -9,7 +9,6 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, MapPin, Clock, Star, Phone, Mail, User, Calendar } from 'lucide-react';
 
-// Simple interfaces to avoid complex type inference
 interface MerchantData {
   id: string;
   shop_name: string;
@@ -72,7 +71,7 @@ const GuestShopDetailsPage: React.FC = () => {
     
     setIsLoading(true);
     try {
-      // Fetch merchant data with explicit typing
+      // Fetch merchant data with basic any type to avoid complex inference
       const merchantResponse = await supabase
         .from('merchants')
         .select('*')
@@ -81,21 +80,22 @@ const GuestShopDetailsPage: React.FC = () => {
 
       if (merchantResponse.error) throw merchantResponse.error;
       
-      // Manually construct merchant object
+      // Manually construct merchant object with explicit typing
+      const rawMerchant = merchantResponse.data as any;
       const merchantData: MerchantData = {
-        id: merchantResponse.data.id,
-        shop_name: merchantResponse.data.shop_name || '',
-        category: merchantResponse.data.category || '',
-        address: merchantResponse.data.address || '',
-        description: merchantResponse.data.description || undefined,
-        open_time: merchantResponse.data.open_time || '09:00',
-        close_time: merchantResponse.data.close_time || '18:00',
-        rating: merchantResponse.data.rating || undefined,
-        image_url: merchantResponse.data.image_url || undefined
+        id: rawMerchant.id || '',
+        shop_name: rawMerchant.shop_name || '',
+        category: rawMerchant.category || '',
+        address: rawMerchant.address || '',
+        description: rawMerchant.description || undefined,
+        open_time: rawMerchant.open_time || '09:00',
+        close_time: rawMerchant.close_time || '18:00',
+        rating: rawMerchant.rating || undefined,
+        image_url: rawMerchant.image_url || undefined
       };
       setMerchant(merchantData);
 
-      // Fetch services with explicit typing
+      // Fetch services with basic any type
       const servicesResponse = await supabase
         .from('services')
         .select('*')
@@ -105,8 +105,9 @@ const GuestShopDetailsPage: React.FC = () => {
       if (servicesResponse.error) throw servicesResponse.error;
       
       // Manually construct services array
-      const servicesData: ServiceData[] = (servicesResponse.data || []).map((item: any) => ({
-        id: item.id,
+      const rawServices = servicesResponse.data as any[] || [];
+      const servicesData: ServiceData[] = rawServices.map((item) => ({
+        id: item.id || '',
         name: item.name || '',
         price: Number(item.price) || 0,
         duration: Number(item.duration) || 30,
@@ -115,7 +116,7 @@ const GuestShopDetailsPage: React.FC = () => {
       }));
       setServices(servicesData);
 
-      // Fetch reviews with explicit typing
+      // Fetch reviews with basic any type
       const reviewsResponse = await supabase
         .from('reviews')
         .select('*')
@@ -128,8 +129,9 @@ const GuestShopDetailsPage: React.FC = () => {
         setReviews([]);
       } else {
         // Manually construct reviews array
-        const reviewsData: ReviewData[] = (reviewsResponse.data || []).map((item: any) => ({
-          id: item.id,
+        const rawReviews = reviewsResponse.data as any[] || [];
+        const reviewsData: ReviewData[] = rawReviews.map((item) => ({
+          id: item.id || '',
           rating: Number(item.rating) || 0,
           review: item.review || '',
           customer_name: item.customer_name || 'Anonymous',
