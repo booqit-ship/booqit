@@ -10,7 +10,7 @@ export const useSessionPersistence = () => {
   const lastValidation = useRef(0);
   const hookActive = useRef(false);
 
-  // Very conservative validation - only when really needed
+  // Conservative validation - only when really needed
   const performSessionValidation = async () => {
     if (validationInProgress.current || loading) return;
     
@@ -38,7 +38,11 @@ export const useSessionPersistence = () => {
       console.error('❌ Error during session validation:', error);
       
       // Only logout on critical auth errors
-      if (error?.message?.includes('Invalid') || error?.message?.includes('Unauthorized')) {
+      if (error instanceof Error && (
+        error.message?.includes('Invalid') || 
+        error.message?.includes('Unauthorized') ||
+        error.message?.includes('expired')
+      )) {
         console.log('🚨 Critical auth error, forcing logout');
         logout();
       }
@@ -62,7 +66,7 @@ export const useSessionPersistence = () => {
     hookActive.current = true;
     console.log('📱 Session persistence monitoring active (minimal)');
     
-    // Much less frequent validation - only every 15 minutes
+    // Less frequent validation - every 15 minutes
     const validationInterval = setInterval(() => {
       const permanentData = PermanentSession.getSession();
       if (permanentData.isLoggedIn && !loading) {
@@ -83,13 +87,17 @@ export const useSessionPersistence = () => {
       } else if (tabHiddenTime && !loading) {
         const hiddenDuration = Date.now() - tabHiddenTime;
         if (hiddenDuration > 600000) { // Only if hidden for 10+ minutes
-          const permanentData = PermanentSession.getSession();
-          console.log('👁️ Tab visible after long absence - checking session');
-          
-          if (permanentData.isLoggedIn) {
-            setTimeout(() => {
-              performSessionValidation();
-            }, 3000);
+          try {
+            const permanentData = PermanentSession.getSession();
+            console.log('👁️ Tab visible after long absence - checking session');
+            
+            if (permanentData.isLoggedIn) {
+              setTimeout(() => {
+                performSessionValidation();
+              }, 3000);
+            }
+          } catch (error) {
+            console.error('❌ Error during visibility change validation:', error);
           }
         }
         tabHiddenTime = null;

@@ -33,10 +33,10 @@ export class PermanentSession {
     return (now - timestamp) > expiryTime;
   }
 
-  static saveSession(data: Omit<PermanentSessionData, 'timestamp' | 'version'>): void;
   static saveSession(session: Session, userRole: string, userId: string): void;
+  static saveSession(data: Omit<PermanentSessionData, 'timestamp' | 'version'>): void;
   static saveSession(
-    dataOrSession: Omit<PermanentSessionData, 'timestamp' | 'version'> | Session,
+    sessionOrData: Session | Omit<PermanentSessionData, 'timestamp' | 'version'>,
     userRole?: string,
     userId?: string
   ): void {
@@ -48,10 +48,10 @@ export class PermanentSession {
     try {
       let sessionData: PermanentSessionData;
 
-      // Handle both call signatures
-      if (userRole && userId && 'user' in dataOrSession) {
+      // Handle overloaded call signatures more clearly
+      if ('user' in sessionOrData && userRole && userId) {
         // Called with (session, userRole, userId)
-        const session = dataOrSession as Session;
+        const session = sessionOrData as Session;
         sessionData = {
           userId,
           email: session.user?.email || '',
@@ -63,7 +63,7 @@ export class PermanentSession {
         };
       } else {
         // Called with data object
-        const data = dataOrSession as Omit<PermanentSessionData, 'timestamp' | 'version'>;
+        const data = sessionOrData as Omit<PermanentSessionData, 'timestamp' | 'version'>;
         sessionData = {
           ...data,
           timestamp: Date.now(),
@@ -112,8 +112,11 @@ export class PermanentSession {
         return defaultSession;
       }
 
-      // Validate required fields
-      if (!sessionData.userId || !sessionData.email || !sessionData.userRole) {
+      // Validate required fields more thoroughly
+      if (!sessionData.userId || 
+          !sessionData.email || 
+          !sessionData.userRole ||
+          typeof sessionData.isLoggedIn !== 'boolean') {
         console.log('⚠️ Invalid session data, clearing');
         this.clearSession();
         return defaultSession;
@@ -128,8 +131,13 @@ export class PermanentSession {
   }
 
   static isLoggedIn(): boolean {
-    const session = this.getSession();
-    return session.isLoggedIn && !!session.userId;
+    try {
+      const session = this.getSession();
+      return session.isLoggedIn && !!session.userId;
+    } catch (error) {
+      console.error('❌ Error checking login status:', error);
+      return false;
+    }
   }
 
   static clearSession(): void {
@@ -146,19 +154,27 @@ export class PermanentSession {
   }
 
   static updateUserRole(newRole: string): void {
-    const currentSession = this.getSession();
-    if (currentSession.isLoggedIn) {
-      this.saveSession({
-        ...currentSession,
-        userRole: newRole
-      });
+    try {
+      const currentSession = this.getSession();
+      if (currentSession.isLoggedIn) {
+        this.saveSession({
+          ...currentSession,
+          userRole: newRole
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error updating user role:', error);
     }
   }
 
   static refreshTimestamp(): void {
-    const currentSession = this.getSession();
-    if (currentSession.isLoggedIn) {
-      this.saveSession(currentSession);
+    try {
+      const currentSession = this.getSession();
+      if (currentSession.isLoggedIn) {
+        this.saveSession(currentSession);
+      }
+    } catch (error) {
+      console.error('❌ Error refreshing timestamp:', error);
     }
   }
 
@@ -168,9 +184,30 @@ export class PermanentSession {
     userId: string | null;
     userRole: string | null;
   } {
-    const session = this.getSession();
-    
-    if (!session.isLoggedIn || !session.timestamp) {
+    try {
+      const session = this.getSession();
+      
+      if (!session.isLoggedIn || !session.timestamp) {
+        return {
+          isValid: false,
+          timeToExpiry: 0,
+          userId: null,
+          userRole: null
+        };
+      }
+
+      const now = Date.now();
+      const expiryTime = SESSION_EXPIRY_HOURS * 60 * 60 * 1000;
+      const timeToExpiry = Math.max(0, expiryTime - (now - session.timestamp));
+
+      return {
+        isValid: !this.isSessionExpired(session.timestamp),
+        timeToExpiry,
+        userId: session.userId,
+        userRole: session.userRole
+      };
+    } catch (error) {
+      console.error('❌ Error getting session info:', error);
       return {
         isValid: false,
         timeToExpiry: 0,
@@ -178,16 +215,5 @@ export class PermanentSession {
         userRole: null
       };
     }
-
-    const now = Date.now();
-    const expiryTime = SESSION_EXPIRY_HOURS * 60 * 60 * 1000;
-    const timeToExpiry = Math.max(0, expiryTime - (now - session.timestamp));
-
-    return {
-      isValid: !this.isSessionExpired(session.timestamp),
-      timeToExpiry,
-      userId: session.userId,
-      userRole: session.userRole
-    };
   }
 }

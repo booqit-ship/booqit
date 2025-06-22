@@ -16,17 +16,28 @@ interface AuthState {
 export const useOptimizedAuth = () => {
   const [authState, setAuthState] = useState<AuthState>(() => {
     // Initialize with permanent session if available
-    const permanentData = PermanentSession.getSession();
-    return {
-      user: permanentData.session?.user || null,
-      session: permanentData.session || null,
-      userRole: permanentData.userRole as UserRole || null,
-      isAuthenticated: permanentData.isLoggedIn,
-      loading: !permanentData.isLoggedIn
-    };
+    try {
+      const permanentData = PermanentSession.getSession();
+      return {
+        user: permanentData.session?.user || null,
+        session: permanentData.session || null,
+        userRole: permanentData.userRole as UserRole || null,
+        isAuthenticated: permanentData.isLoggedIn,
+        loading: !permanentData.isLoggedIn
+      };
+    } catch (error) {
+      console.error('Error initializing auth state:', error);
+      return {
+        user: null,
+        session: null,
+        userRole: null,
+        isAuthenticated: false,
+        loading: true
+      };
+    }
   });
 
-  const updateAuthState = useCallback((session: Session | null) => {
+  const updateAuthState = useCallback((session: Session | null, userRole?: UserRole) => {
     const user = session?.user || null;
     const isAuthenticated = !!session;
     
@@ -35,16 +46,17 @@ export const useOptimizedAuth = () => {
       user,
       session,
       isAuthenticated,
-      loading: false
+      loading: false,
+      userRole: userRole || prevState.userRole
     }));
 
     // Update permanent session
-    if (session) {
-      PermanentSession.saveSession(session, authState.userRole || 'customer', user!.id);
-    } else {
+    if (session && userRole) {
+      PermanentSession.saveSession(session, userRole, user!.id);
+    } else if (!session) {
       PermanentSession.clearSession();
     }
-  }, [authState.userRole]);
+  }, []);
 
   const fetchUserRole = useCallback(async (userId: string) => {
     try {
@@ -80,15 +92,18 @@ export const useOptimizedAuth = () => {
         if (!mounted) return;
 
         console.log('Auth state changed:', event);
-        updateAuthState(session);
-
-        // Fetch user role for new sessions
+        
+        // Handle session changes synchronously first
         if (session?.user && !authState.userRole) {
-          setTimeout(() => {
+          // Defer role fetching to avoid blocking
+          setTimeout(async () => {
             if (mounted) {
-              fetchUserRole(session.user.id);
+              const role = await fetchUserRole(session.user.id);
+              updateAuthState(session, role);
             }
           }, 0);
+        } else {
+          updateAuthState(session, authState.userRole || undefined);
         }
       }
     );
@@ -98,10 +113,11 @@ export const useOptimizedAuth = () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (mounted) {
-          updateAuthState(session);
-          
           if (session?.user && !authState.userRole) {
-            await fetchUserRole(session.user.id);
+            const role = await fetchUserRole(session.user.id);
+            updateAuthState(session, role);
+          } else {
+            updateAuthState(session, authState.userRole || undefined);
           }
         }
       } catch (error) {
@@ -118,7 +134,7 @@ export const useOptimizedAuth = () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [updateAuthState, fetchUserRole, authState.userRole]);
+  }, [updateAuthState, fetchUserRole]);
 
   const signOut = useCallback(async () => {
     try {

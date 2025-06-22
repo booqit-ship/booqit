@@ -65,7 +65,7 @@ const AuthPage: React.FC = () => {
 
     const permanentData = PermanentSession.getSession();
     
-    if (permanentData.isLoggedIn) {
+    if (permanentData.isLoggedIn && permanentData.userRole) {
       console.log('🔄 User has permanent session, redirecting...', { userRole: permanentData.userRole });
       hasRedirected.current = true;
       if (permanentData.userRole === 'merchant') {
@@ -101,17 +101,19 @@ const AuthPage: React.FC = () => {
     navigate('/', { replace: true });
   };
 
-  // Email validation function
+  // Enhanced email validation
   const validateEmail = (email: string): boolean => {
+    const trimmedEmail = email.trim();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+    return emailRegex.test(trimmedEmail) && trimmedEmail.length > 0;
   };
 
-  // Phone validation function
+  // Enhanced phone validation
   const validatePhone = (phone: string): boolean => {
-    if (!phone) return true; // Phone is optional
+    if (!phone || phone.trim() === '') return true; // Phone is optional
+    const cleanPhone = phone.replace(/\s/g, '');
     const phoneRegex = /^[\+]?[0-9\s\-\(\)]{10,15}$/;
-    return phoneRegex.test(phone.replace(/\s/g, ''));
+    return phoneRegex.test(cleanPhone) && cleanPhone.length >= 10;
   };
 
   // Clear errors when user starts typing
@@ -121,14 +123,17 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  // Validate form fields
+  // Enhanced form validation
   const validateForm = (isLogin: boolean = false): boolean => {
     const newErrors: typeof errors = {};
+    const trimmedEmail = email.trim();
+    const trimmedName = name.trim();
+    const trimmedPhone = phone.trim();
 
     // Email validation
-    if (!email.trim()) {
+    if (!trimmedEmail) {
       newErrors.email = 'Email is required';
-    } else if (!validateEmail(email.trim())) {
+    } else if (!validateEmail(trimmedEmail)) {
       newErrors.email = 'Please enter a valid email address';
     }
 
@@ -141,12 +146,14 @@ const AuthPage: React.FC = () => {
 
     // Registration-specific validations
     if (!isLogin) {
-      if (!name.trim()) {
+      if (!trimmedName) {
         newErrors.name = 'Full name is required';
+      } else if (trimmedName.length < 2) {
+        newErrors.name = 'Name must be at least 2 characters long';
       }
 
-      if (phone && !validatePhone(phone)) {
-        newErrors.phone = 'Please enter a valid phone number';
+      if (trimmedPhone && !validatePhone(trimmedPhone)) {
+        newErrors.phone = 'Please enter a valid phone number (10-15 digits)';
       }
     }
 
@@ -161,7 +168,7 @@ const AuthPage: React.FC = () => {
     setErrors({});
 
     try {
-      console.log('📝 Starting registration process...', { email, selectedRole });
+      console.log('📝 Starting registration process...', { email: email.trim(), selectedRole });
       
       // Validate form
       if (!validateForm(false)) {
@@ -225,7 +232,7 @@ const AuthPage: React.FC = () => {
           id: authData.user.id,
           name: name.trim(),
           email: email.trim().toLowerCase(),
-          phone: phone.trim(),
+          phone: phone.trim() || null,
           role: selectedRole,
         }, {
           onConflict: 'id'
@@ -233,25 +240,23 @@ const AuthPage: React.FC = () => {
 
       if (profileError) {
         console.error('❌ Profile creation error:', profileError);
-        // Don't throw here, profile might be created by trigger
         console.log('⚠️ Profile creation failed, but continuing (might be created by trigger)');
       } else {
         console.log('✅ Profile created successfully');
       }
 
-      // Step 3: If merchant role, create basic merchant record (will be completed in onboarding)
+      // Step 3: If merchant role, create basic merchant record
       if (selectedRole === 'merchant') {
         console.log('🏪 Creating basic merchant record for onboarding...');
         
-        // Create minimal merchant record - will be completed during onboarding
         const { error: merchantError } = await supabase
           .from('merchants')
           .insert({
             user_id: authData.user.id,
-            shop_name: `${name.trim()}'s Shop`, // Temporary name
-            address: '', // Will be filled during onboarding
-            category: 'salon', // Default category
-            lat: 0, // Will be updated during onboarding
+            shop_name: `${name.trim()}'s Shop`,
+            address: '',
+            category: 'salon',
+            lat: 0,
             lng: 0,
             open_time: '09:00',
             close_time: '18:00',
@@ -260,7 +265,6 @@ const AuthPage: React.FC = () => {
 
         if (merchantError) {
           console.error('❌ Basic merchant record creation error:', merchantError);
-          // Don't throw here, onboarding can handle creating the record if needed
           console.log('⚠️ Basic merchant record creation failed, onboarding will handle it');
         } else {
           console.log('✅ Basic merchant record created for onboarding');
@@ -271,15 +275,11 @@ const AuthPage: React.FC = () => {
       if (authData.session && authData.user) {
         console.log('✅ Registration successful with session');
         
-        // Save permanent session with correct method signature
         PermanentSession.saveSession(authData.session, selectedRole, authData.user.id);
-        
-        // Update auth context
         setAuth(true, selectedRole, authData.user.id);
         
         console.log('🎯 Navigating after registration...');
         if (selectedRole === 'merchant') {
-          // Always go to onboarding for new merchants
           navigate('/merchant/onboarding', { replace: true });
         } else {
           navigate('/home', { replace: true });
@@ -290,7 +290,6 @@ const AuthPage: React.FC = () => {
           description: "Your account has been created successfully.",
         });
       } else if (authData.user && !authData.session) {
-        // Email confirmation required
         console.log('📧 Email confirmation required');
         toast({
           title: "Check your email",
@@ -316,7 +315,6 @@ const AuthPage: React.FC = () => {
     try {
       console.log('🔐 Attempting login...');
       
-      // Validate form
       if (!validateForm(true)) {
         setIsLoading(false);
         return;
@@ -346,7 +344,6 @@ const AuthPage: React.FC = () => {
       if (data.session && data.user) {
         console.log('✅ Login successful, session created');
         
-        // Immediate validation of the new session
         console.log('🔍 Validating new session immediately');
         const isValid = await validateCurrentSession();
         
@@ -373,15 +370,11 @@ const AuthPage: React.FC = () => {
         const userRole = profileData?.role as UserRole;
         console.log('👤 User role fetched:', userRole);
         
-        // Save permanent session with validated data using correct method signature
         PermanentSession.saveSession(data.session, userRole, data.user.id);
-        
-        // Update auth context
         setAuth(true, userRole, data.user.id);
         
         console.log('🎯 Navigating after login...');
         if (userRole === 'merchant') {
-          // Check if merchant needs onboarding
           const { data: merchantData } = await supabase
             .from('merchants')
             .select('address, lat, lng')
@@ -417,7 +410,6 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  // Handle keyboard events for mobile form submission
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -425,7 +417,6 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  // Handle forgot password navigation with explicit prevention
   const handleForgotPasswordClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();

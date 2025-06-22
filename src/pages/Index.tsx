@@ -1,5 +1,5 @@
 
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import RoleSelection from "@/components/RoleSelection";
@@ -9,6 +9,7 @@ import { PermanentSession } from "@/utils/permanentSession";
 const Index = () => {
   const navigate = useNavigate();
   const { isAuthenticated, userRole, loading } = useAuth();
+  const hasRedirected = useRef(false);
 
   useEffect(() => {
     console.log(`📍 Index - Auth state:`, { 
@@ -17,34 +18,45 @@ const Index = () => {
       loading 
     });
 
-    // Check permanent session first for instant redirect
-    const permanentData = PermanentSession.getSession();
-    
-    if (permanentData.isLoggedIn && permanentData.userRole) {
-      console.log('⚡ Using permanent session for instant redirect:', permanentData.userRole);
-      
-      if (permanentData.userRole === "merchant") {
-        console.log('🏪 Navigating to merchant dashboard (permanent)');
-        navigate("/merchant", { replace: true });
-        return;
-      } else if (permanentData.userRole === "customer") {
-        console.log('👤 Navigating to customer home (permanent)');
-        navigate("/home", { replace: true });
-        return;
-      }
-    }
+    // Prevent multiple redirects
+    if (hasRedirected.current) return;
 
-    // Fallback to context auth state (only if loading is false)
-    if (isAuthenticated && userRole && !loading) {
-      console.log('✅ User authenticated via context, redirecting based on role:', userRole);
+    // Check permanent session first for instant redirect
+    try {
+      const permanentData = PermanentSession.getSession();
       
-      if (userRole === "merchant") {
-        console.log('🏪 Navigating to merchant dashboard');
-        navigate("/merchant", { replace: true });
-      } else if (userRole === "customer") {
-        console.log('👤 Navigating to customer home');
-        navigate("/home", { replace: true });
+      if (permanentData.isLoggedIn && permanentData.userRole) {
+        console.log('⚡ Using permanent session for instant redirect:', permanentData.userRole);
+        hasRedirected.current = true;
+        
+        if (permanentData.userRole === "merchant") {
+          console.log('🏪 Navigating to merchant dashboard (permanent)');
+          navigate("/merchant", { replace: true });
+          return;
+        } else if (permanentData.userRole === "customer") {
+          console.log('👤 Navigating to customer home (permanent)');
+          navigate("/home", { replace: true });
+          return;
+        }
       }
+
+      // Fallback to context auth state (only if loading is false)
+      if (isAuthenticated && userRole && !loading) {
+        console.log('✅ User authenticated via context, redirecting based on role:', userRole);
+        hasRedirected.current = true;
+        
+        if (userRole === "merchant") {
+          console.log('🏪 Navigating to merchant dashboard');
+          navigate("/merchant", { replace: true });
+        } else if (userRole === "customer") {
+          console.log('👤 Navigating to customer home');
+          navigate("/home", { replace: true });
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error in Index navigation logic:', error);
+      // Clear corrupted session data
+      PermanentSession.clearSession();
     }
   }, [isAuthenticated, userRole, loading, navigate]);
 
@@ -78,7 +90,7 @@ const Index = () => {
     return null;
   }
 
-  // Fallback - should not reach here
+  // Fallback - should not reach here under normal circumstances
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-booqit-primary/20 to-white">
       <div className="text-center">
