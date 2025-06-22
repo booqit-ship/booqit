@@ -1,4 +1,5 @@
-import React from 'react';
+
+import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -26,15 +27,18 @@ const GuestPaymentPage: React.FC = () => {
     guestInfo 
   } = location.state || {};
 
+  const [isProcessing, setIsProcessing] = useState(false);
+
   const handleConfirmBooking = async () => {
     if (!merchantId || !selectedServices || !guestInfo) {
       toast.error('Missing booking information');
       return;
     }
 
+    setIsProcessing(true);
+
     try {
-      // Extract service IDs
-      const serviceIds = selectedServices.map(service => service.id);
+      const serviceIds = selectedServices.map((service: any) => service.id);
 
       console.log('GUEST BOOKING: Creating booking with data:', {
         guestInfo,
@@ -46,14 +50,13 @@ const GuestPaymentPage: React.FC = () => {
         totalDuration
       });
 
-      // Use the new safe guest booking function
       const { data, error } = await supabase.rpc('create_guest_booking_safe', {
         p_guest_name: guestInfo.name,
         p_guest_phone: guestInfo.phone,
         p_guest_email: guestInfo.email || null,
         p_merchant_id: merchantId,
         p_service_ids: serviceIds,
-        p_staff_id: selectedStaff,
+        p_staff_id: selectedStaff || null,
         p_date: bookingDate,
         p_time_slot: bookingTime,
         p_total_duration: totalDuration
@@ -65,10 +68,9 @@ const GuestPaymentPage: React.FC = () => {
         return;
       }
 
-      // Type the response correctly
       const response = data as { success?: boolean; booking_id?: string; error?: string };
 
-      if (response?.success) {
+      if (response?.success && response?.booking_id) {
         toast.success('Booking confirmed successfully!');
         
         // Navigate to success page with booking details
@@ -82,7 +84,8 @@ const GuestPaymentPage: React.FC = () => {
             bookingTime,
             guestInfo,
             selectedStaffDetails
-          }
+          },
+          replace: true // Replace current entry in history
         });
       } else {
         toast.error(response?.error || 'Failed to create booking');
@@ -90,6 +93,8 @@ const GuestPaymentPage: React.FC = () => {
     } catch (error) {
       console.error('Error creating guest booking:', error);
       toast.error('Failed to create booking. Please try again.');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -169,7 +174,7 @@ const GuestPaymentPage: React.FC = () => {
             {/* Services */}
             <div className="space-y-3 mb-6">
               <h4 className="font-medium font-righteous">Selected Services</h4>
-              {selectedServices.map((service, index) => (
+              {selectedServices.map((service: any, index: number) => (
                 <div key={service.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                   <div>
                     <span className="font-medium font-poppins">{service.name}</span>
@@ -238,8 +243,9 @@ const GuestPaymentPage: React.FC = () => {
           className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6 font-poppins"
           size="lg"
           onClick={handleConfirmBooking}
+          disabled={isProcessing}
         >
-          Confirm Booking - Pay at Salon
+          {isProcessing ? 'Confirming...' : 'Confirm Booking - Pay at Salon'}
         </Button>
       </div>
     </div>
