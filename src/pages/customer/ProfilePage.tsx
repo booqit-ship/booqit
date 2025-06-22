@@ -30,58 +30,51 @@ interface RecentBooking {
   };
 }
 
-const fetchProfile = async (userId: string | null, email: string | null, user_metadata: any) => {
+const fetchProfile = async (userId: string | null, email: string | null) => {
   if (!userId) throw new Error('No user ID provided');
   
   console.log('🔍 Fetching profile for user:', userId);
   
-  try {
-    // Try to fetch the existing profile first
-    const { data: profileData, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle();
-    
-    if (profileError) {
-      console.error('❌ Error fetching profile:', profileError);
-      throw new Error(`Failed to fetch profile: ${profileError.message}`);
-    }
-    
-    if (profileData) {
-      console.log('✅ Profile found:', profileData.name);
-      return profileData;
-    }
-    
-    // Profile doesn't exist, create a new one
-    console.log('📝 Profile not found, creating new profile');
-    
-    const newProfile = {
-      id: userId,
-      name: user_metadata?.name || email?.split('@')[0] || 'Customer',
-      email: email || '',
-      phone: user_metadata?.phone || null,
-      role: 'customer'
-    };
-    
-    const { data: createdProfile, error: createError } = await supabase
-      .from('profiles')
-      .insert(newProfile)
-      .select('*')
-      .single();
-    
-    if (createError) {
-      console.error('❌ Error creating profile:', createError);
-      throw new Error(`Failed to create profile: ${createError.message}`);
-    }
-    
-    console.log('✅ New profile created');
-    return createdProfile;
-    
-  } catch (error) {
-    console.error('❌ Exception in fetchProfile:', error);
-    throw error;
+  const { data: profileData, error: profileError } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .maybeSingle();
+  
+  if (profileError) {
+    console.error('❌ Error fetching profile:', profileError);
+    throw new Error(`Failed to fetch profile: ${profileError.message}`);
   }
+  
+  if (profileData) {
+    console.log('✅ Profile found:', profileData.name);
+    return profileData;
+  }
+  
+  // Profile doesn't exist, create a new one
+  console.log('📝 Profile not found, creating new profile');
+  
+  const newProfile = {
+    id: userId,
+    name: email?.split('@')[0] || 'Customer',
+    email: email || '',
+    phone: null,
+    role: 'customer'
+  };
+  
+  const { data: createdProfile, error: createError } = await supabase
+    .from('profiles')
+    .insert(newProfile)
+    .select('*')
+    .single();
+  
+  if (createError) {
+    console.error('❌ Error creating profile:', createError);
+    throw new Error(`Failed to create profile: ${createError.message}`);
+  }
+  
+  console.log('✅ New profile created');
+  return createdProfile;
 };
 
 const fetchRecentBookings = async (userId: string | null) => {
@@ -135,40 +128,17 @@ const ProfileSkeleton = () => (
 );
 
 const ProfilePage: React.FC = () => {
-  const { user, logout, isAuthenticated, loading } = useAuth();
+  const { user, logout, loading } = useAuth();
 
-  // Show loading if auth is still loading
-  if (loading) {
-    return <ProfileSkeleton />;
-  }
-
-  // If not authenticated, show error but don't redirect automatically
-  if (!isAuthenticated || !user) {
-    return (
-      <div className="h-screen bg-gray-50 flex flex-col items-center justify-center overflow-hidden">
-        <div className="bg-white p-6 rounded shadow-md max-w-md w-full text-center">
-          <p className="text-lg font-semibold text-red-600 mb-4">
-            Please log in to view your profile
-          </p>
-          <Link to="/auth">
-            <button className="bg-booqit-primary rounded px-4 py-2 text-white font-medium">
-              Go to Login
-            </button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  // Fetch profile and bookings
+  // Fetch profile and bookings - only if user exists
   const {
     data: profile,
     isLoading: loadingProfile,
     error: errorProfile
   } = useQuery({
     queryKey: ['profile', user?.id],
-    queryFn: () => fetchProfile(user?.id ?? null, user?.email ?? null, user?.user_metadata ?? {}),
-    enabled: !!user?.id && isAuthenticated,
+    queryFn: () => fetchProfile(user?.id ?? null, user?.email ?? null),
+    enabled: !!user?.id,
     staleTime: 1 * 60 * 1000,
     retry: 2
   });
@@ -179,7 +149,7 @@ const ProfilePage: React.FC = () => {
   } = useQuery({
     queryKey: ['recentBookings', user?.id],
     queryFn: () => fetchRecentBookings(user?.id ?? null),
-    enabled: !!user?.id && isAuthenticated,
+    enabled: !!user?.id,
     staleTime: 2 * 60 * 1000,
     retry: 1
   });
@@ -210,9 +180,27 @@ const ProfilePage: React.FC = () => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  // Loading state
-  if (loadingProfile || loadingBookings) {
+  // Show loading while auth is still loading or profile is loading
+  if (loading || loadingProfile || loadingBookings) {
     return <ProfileSkeleton />;
+  }
+
+  // If no user, show login prompt without redirect
+  if (!user) {
+    return (
+      <div className="h-screen bg-gray-50 flex flex-col items-center justify-center overflow-hidden">
+        <div className="bg-white p-6 rounded shadow-md max-w-md w-full text-center">
+          <p className="text-lg font-semibold text-red-600 mb-4">
+            Please log in to view your profile
+          </p>
+          <Link to="/auth">
+            <button className="bg-booqit-primary rounded px-4 py-2 text-white font-medium">
+              Go to Login
+            </button>
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   // Error state
