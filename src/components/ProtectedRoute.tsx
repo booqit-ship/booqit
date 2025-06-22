@@ -4,6 +4,7 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types';
 import { PermanentSession } from '@/utils/permanentSession';
+import { useMerchantData } from '@/hooks/useMerchantData';
 
 interface ProtectedRouteProps {
   children?: React.ReactNode;
@@ -47,16 +48,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     console.log('🚫 User role mismatch, redirecting based on role:', effectiveRole);
     // Redirect to the appropriate dashboard based on role
     return <Navigate to={effectiveRole === 'merchant' ? '/merchant' : '/'} replace />;
-  }
-
-  // Special handling for merchant routes - check if they need onboarding
-  if (effectiveRole === 'merchant' && effectiveUserId) {
-    // Allow access to onboarding page without merchant data check
-    const currentPath = window.location.pathname;
-    if (currentPath === '/merchant/onboarding') {
-      console.log('✅ Allowing access to onboarding page');
-      return children ? <>{children}</> : <Outlet />;
-    }
   }
 
   // If children are provided, render them (for wrapper usage)

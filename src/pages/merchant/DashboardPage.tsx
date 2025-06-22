@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { User, Scissors, BarChart3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useMerchantData } from '@/hooks/useMerchantData';
 
 const DashboardPage: React.FC = () => {
   const { userId } = useAuth();
@@ -20,9 +21,9 @@ const DashboardPage: React.FC = () => {
   const [bookingsToday, setBookingsToday] = useState(0);
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [recentBookings, setRecentBookings] = useState<Booking[]>([]);
-  const [merchantId, setMerchantId] = useState<string | null>(null);
-  const [shopImage, setShopImage] = useState<string | null>(null);
-  const [shopName, setShopName] = useState<string>('');
+
+  // Use the merchant data hook to check if merchant exists
+  const { data: merchantData, isLoading: merchantLoading, error: merchantError } = useMerchantData(userId);
 
   // Animation variants for staggered animations
   const containerVariants = {
@@ -38,34 +39,23 @@ const DashboardPage: React.FC = () => {
     visible: { y: 0, opacity: 1 }
   };
 
+  // Check if merchant needs onboarding
+  useEffect(() => {
+    if (!merchantLoading && !merchantData && !merchantError) {
+      console.log('🚀 New merchant detected, redirecting to onboarding...');
+      navigate('/merchant/onboarding', { replace: true });
+      return;
+    }
+  }, [merchantData, merchantLoading, merchantError, navigate]);
+
   useEffect(() => {
     const fetchDashboardData = async () => {
-      if (!userId) return;
+      if (!userId || !merchantData) return;
       
       try {
         setIsLoading(true);
 
-        // Get merchant ID first
-        const { data: merchantData, error: merchantError } = await supabase
-          .from('merchants')
-          .select('id, image_url, shop_name')
-          .eq('user_id', userId)
-          .single();
-
-        if (merchantError) {
-          console.error('Error fetching merchant ID:', merchantError);
-          return;
-        }
-
-        if (!merchantData) {
-          console.error('No merchant found for user');
-          return;
-        }
-
-        const mId = merchantData.id;
-        setMerchantId(mId);
-        setShopImage(merchantData.image_url);
-        setShopName(merchantData.shop_name || 'Merchant');
+        const merchantId = merchantData.id;
 
         // Get today's date in ISO format (YYYY-MM-DD)
         const today = new Date().toISOString().split('T')[0];
@@ -74,7 +64,7 @@ const DashboardPage: React.FC = () => {
         const { data: todayBookings, error: bookingsCountError } = await supabase
           .from('bookings')
           .select('id')
-          .eq('merchant_id', mId)
+          .eq('merchant_id', merchantId)
           .eq('date', today)
           .in('status', ['pending', 'confirmed', 'completed']);
 
@@ -92,7 +82,7 @@ const DashboardPage: React.FC = () => {
             id,
             services!inner(price)
           `)
-          .eq('merchant_id', mId)
+          .eq('merchant_id', merchantId)
           .eq('status', 'completed')
           .eq('payment_status', 'completed');
 
@@ -109,7 +99,7 @@ const DashboardPage: React.FC = () => {
           setTotalEarnings(0);
         }
 
-        // Fetch ALL bookings for today with customer and stylist details - REMOVED .limit(5)
+        // Fetch ALL bookings for today with customer and stylist details
         const { data: recentBookingsData, error: recentBookingsError } = await supabase
           .from('bookings')
           .select(`
@@ -128,7 +118,7 @@ const DashboardPage: React.FC = () => {
             created_at,
             services!inner(name)
           `)
-          .eq('merchant_id', mId)
+          .eq('merchant_id', merchantId)
           .eq('date', today)
           .in('status', ['pending', 'confirmed', 'completed'])
           .order('time_slot', { ascending: true });
@@ -191,57 +181,38 @@ const DashboardPage: React.FC = () => {
       }
     };
 
-    fetchDashboardData();
+    if (merchantData) {
+      fetchDashboardData();
 
-    // Set up realtime subscription
-    let subscription: any = null;
-    
-    if (merchantId) {
-      subscription = supabase
+      // Set up realtime subscription
+      const subscription = supabase
         .channel('dashboard-bookings-changes')
         .on('postgres_changes', {
           event: '*',
           schema: 'public',
           table: 'bookings',
-          filter: `merchant_id=eq.${merchantId}`
+          filter: `merchant_id=eq.${merchantData.id}`
         }, () => {
           // Refresh data when bookings change
           fetchDashboardData();
         })
         .subscribe();
-    }
 
-    // Cleanup subscription
-    return () => {
-      if (subscription) {
+      // Cleanup subscription
+      return () => {
         supabase.removeChannel(subscription);
-      }
-    };
-  }, [userId, merchantId]);
-
-  // Dashboard stats - only bookings today and total earnings
-  const dashboardStats = [
-    {
-      id: 1,
-      title: 'Bookings Today',
-      value: isLoading ? '...' : bookingsToday,
-      color: 'bg-booqit-primary/10 text-booqit-primary'
-    },
-    {
-      id: 2,
-      title: 'Total Earnings',
-      value: isLoading ? '...' : `₹${totalEarnings.toFixed(0)}`,
-      color: 'bg-green-100 text-green-700'
+      };
     }
-  ];
+  }, [userId, merchantData]);
 
-  if (isLoading) {
+  // Show loading while checking merchant status
+  if (merchantLoading || (!merchantData && !merchantError)) {
     return (
       <div className="p-4 md:p-6 pb-20">
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-2xl font-bold">Dashboard</h1>
-            <p className="text-gray-500">Loading data...</p>
+            <p className="text-gray-500">Loading...</p>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-4 mb-6">
@@ -272,6 +243,29 @@ const DashboardPage: React.FC = () => {
     );
   }
 
+  // If there's an error or no merchant data, redirect to onboarding
+  if (merchantError || !merchantData) {
+    console.log('🚀 Merchant data not found, redirecting to onboarding...');
+    navigate('/merchant/onboarding', { replace: true });
+    return null;
+  }
+
+  // Dashboard stats - only bookings today and total earnings
+  const dashboardStats = [
+    {
+      id: 1,
+      title: 'Bookings Today',
+      value: isLoading ? '...' : bookingsToday,
+      color: 'bg-booqit-primary/10 text-booqit-primary'
+    },
+    {
+      id: 2,
+      title: 'Total Earnings',
+      value: isLoading ? '...' : `₹${totalEarnings.toFixed(0)}`,
+      color: 'bg-green-100 text-green-700'
+    }
+  ];
+
   return (
     <div className="p-4 md:p-6 pb-20">
       <motion.div
@@ -281,12 +275,12 @@ const DashboardPage: React.FC = () => {
       >
         <div>
           <h1 className="text-2xl font-light">Dashboard</h1>
-          <p className="text-gray-500">Welcome back, {shopName}!</p>
+          <p className="text-gray-500">Welcome back, {merchantData.shop_name}!</p>
         </div>
         <Avatar className="h-12 w-12">
-          <AvatarImage src={shopImage || undefined} alt={shopName} />
+          <AvatarImage src={merchantData.image_url || undefined} alt={merchantData.shop_name} />
           <AvatarFallback className="bg-booqit-primary/10 text-booqit-primary">
-            {shopName.charAt(0).toUpperCase()}
+            {merchantData.shop_name.charAt(0).toUpperCase()}
           </AvatarFallback>
         </Avatar>
       </motion.div>

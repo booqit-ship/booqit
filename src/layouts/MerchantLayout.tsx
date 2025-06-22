@@ -1,19 +1,34 @@
 
 import React from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
 import SideNavigation from '@/components/merchant/SideNavigation';
+import OptimizedNavigation from '@/components/merchant/OptimizedNavigation';
 
-interface MerchantLayoutProps {
-  children: React.ReactNode;
-}
-
-const MerchantLayout: React.FC<MerchantLayoutProps> = ({ children }) => {
+const MerchantLayout: React.FC = () => {
+  const location = useLocation();
+  
+  // Don't show navigation on onboarding page
+  if (location.pathname === '/merchant/onboarding') {
+    return <Outlet />;
+  }
+  
   return (
-    <div className="min-h-screen bg-gray-50">
-      <SideNavigation />
-      <div className="md:ml-20 min-h-screen">
-        <main className="pb-20 md:pb-4">
-          {children}
+    <div className="flex h-screen bg-gray-50">
+      {/* Desktop Sidebar */}
+      <div className="hidden md:flex">
+        <SideNavigation />
+      </div>
+      
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <main className="flex-1 overflow-auto">
+          <Outlet />
         </main>
+      </div>
+      
+      {/* Mobile Bottom Navigation */}
+      <div className="md:hidden">
+        <OptimizedNavigation />
       </div>
     </div>
   );
