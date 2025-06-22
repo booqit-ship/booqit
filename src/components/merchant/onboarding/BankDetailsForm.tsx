@@ -3,7 +3,7 @@ import React from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Info } from 'lucide-react';
 
 interface BankDetailsState {
   account_holder_name: string;
@@ -33,20 +33,20 @@ const BankDetailsForm: React.FC<BankDetailsFormProps> = ({
 
   return (
     <div className="space-y-4">
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
         <div className="flex items-start gap-3">
-          <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
+          <Info className="h-5 w-5 text-blue-600 mt-0.5" />
           <div>
-            <h4 className="font-medium text-yellow-800">Bank Details Required</h4>
-            <p className="text-sm text-yellow-700 mt-1">
-              Enter your bank details to receive payments from bookings. You can skip this step and add details later from settings.
+            <h4 className="font-medium text-blue-800">Bank Details (Optional)</h4>
+            <p className="text-sm text-blue-700 mt-1">
+              We're currently working on enabling online payments. You can add your bank details now or skip this step and add them later from settings when online payments are available.
             </p>
           </div>
         </div>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="account_holder_name">Account Holder Name *</Label>
+        <Label htmlFor="account_holder_name">Account Holder Name</Label>
         <Input
           id="account_holder_name"
           name="account_holder_name"
@@ -58,7 +58,7 @@ const BankDetailsForm: React.FC<BankDetailsFormProps> = ({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="account_number">Account Number *</Label>
+        <Label htmlFor="account_number">Account Number</Label>
         <Input
           id="account_number"
           name="account_number"
@@ -70,7 +70,7 @@ const BankDetailsForm: React.FC<BankDetailsFormProps> = ({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="confirm_account_number">Confirm Account Number *</Label>
+        <Label htmlFor="confirm_account_number">Confirm Account Number</Label>
         <Input
           id="confirm_account_number"
           name="confirm_account_number"
@@ -81,6 +81,7 @@ const BankDetailsForm: React.FC<BankDetailsFormProps> = ({
         />
         {showMismatchError && (
           <Alert className="border-red-200 bg-red-50">
+            <AlertTriangle className="h-4 w-4 text-red-600" />
             <AlertDescription className="text-red-700">
               Account numbers do not match. Please check and try again.
             </AlertDescription>
@@ -89,7 +90,7 @@ const BankDetailsForm: React.FC<BankDetailsFormProps> = ({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="ifsc_code">IFSC Code *</Label>
+        <Label htmlFor="ifsc_code">IFSC Code</Label>
         <Input
           id="ifsc_code"
           name="ifsc_code"
@@ -101,7 +102,7 @@ const BankDetailsForm: React.FC<BankDetailsFormProps> = ({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="bank_name">Bank Name *</Label>
+        <Label htmlFor="bank_name">Bank Name</Label>
         <Input
           id="bank_name"
           name="bank_name"

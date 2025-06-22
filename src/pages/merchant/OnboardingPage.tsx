@@ -212,17 +212,8 @@ const OnboardingPage: React.FC = () => {
       return;
     }
 
-    // Bank details validation only if on bank step
-    if (currentStep === 2) {
-      if (!bankDetails.account_holder_name || !bankDetails.account_number || !bankDetails.confirm_account_number || !bankDetails.ifsc_code || !bankDetails.bank_name) {
-        toast({
-          title: "Missing Bank Details",
-          description: "Please fill in all required bank information or skip this step.",
-          variant: "destructive",
-        });
-        return;
-      }
-
+    // Bank details validation only if fields are filled
+    if (currentStep === 2 && bankDetails.account_number && bankDetails.confirm_account_number) {
       if (bankDetails.account_number !== bankDetails.confirm_account_number) {
         toast({
           title: "Account Numbers Don't Match",
@@ -236,7 +227,9 @@ const OnboardingPage: React.FC = () => {
     setIsSubmitting(true);
     
     try {
-      await saveOnboardingData(true); // true = include bank details
+      // Include bank details only if they are provided
+      const hasBankDetails = bankDetails.account_holder_name && bankDetails.account_number && bankDetails.ifsc_code && bankDetails.bank_name;
+      await saveOnboardingData(hasBankDetails);
       
       toast({
         title: "Onboarding Complete!",
@@ -399,6 +392,29 @@ const OnboardingPage: React.FC = () => {
     }
   };
 
+  // Check if all required fields are filled for enabling Complete Setup button
+  const isFormValid = () => {
+    const basicInfoValid = shopInfo.name && shopInfo.category && shopInfo.open_time && shopInfo.close_time;
+    const locationValid = locationDetails.address && (locationDetails.lat !== 0 || locationDetails.lng !== 0);
+    
+    if (currentStep === 2) {
+      // If bank details are provided, they must be complete and valid
+      if (bankDetails.account_number || bankDetails.confirm_account_number) {
+        const bankDetailsValid = bankDetails.account_holder_name && 
+                                bankDetails.account_number && 
+                                bankDetails.confirm_account_number &&
+                                bankDetails.ifsc_code && 
+                                bankDetails.bank_name &&
+                                bankDetails.account_number === bankDetails.confirm_account_number;
+        return basicInfoValid && locationValid && bankDetailsValid;
+      }
+      // If no bank details provided, that's okay too
+      return basicInfoValid && locationValid;
+    }
+    
+    return basicInfoValid && locationValid;
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-booqit-primary/10 to-white p-6 flex items-center justify-center">
@@ -454,7 +470,7 @@ const OnboardingPage: React.FC = () => {
             <CardDescription>
               {currentStep === 0 && "Tell us about your business"}
               {currentStep === 1 && "Let customers know where to find you"}
-              {currentStep === 2 && "Enter your bank details for receiving payments"}
+              {currentStep === 2 && "Enter your bank details for receiving payments (optional)"}
             </CardDescription>
           </CardHeader>
           
@@ -462,44 +478,53 @@ const OnboardingPage: React.FC = () => {
             {renderStep()}
           </CardContent>
           
-          <CardFooter className="flex justify-between">
-            <Button
-              variant="outline"
-              onClick={handlePrevious}
-              disabled={currentStep === 0}
-            >
-              Back
-            </Button>
-            
-            <div className="flex gap-2">
-              {currentStep === 2 && (
-                <Button
-                  variant="outline"
-                  onClick={handleSkipBankDetails}
-                  disabled={isSubmitting}
-                  className="text-gray-600"
-                >
-                  Skip for now
-                </Button>
-              )}
+          <CardFooter className="flex flex-col space-y-3 px-6 pb-6">
+            {/* Navigation Buttons */}
+            <div className="flex justify-between w-full">
+              <Button
+                variant="outline"
+                onClick={handlePrevious}
+                disabled={currentStep === 0}
+                className="px-6"
+              >
+                Back
+              </Button>
               
               {currentStep < steps.length - 1 ? (
                 <Button 
                   onClick={handleNext}
-                  className="bg-booqit-primary hover:bg-booqit-primary/90"
+                  className="bg-booqit-primary hover:bg-booqit-primary/90 px-6"
                 >
                   Continue
                 </Button>
-              ) : (
+              ) : null}
+            </div>
+            
+            {/* Final Step Buttons */}
+            {currentStep === steps.length - 1 && (
+              <div className="flex flex-col w-full space-y-2">
                 <Button 
                   onClick={handleComplete}
-                  className="bg-booqit-primary hover:bg-booqit-primary/90"
-                  disabled={isSubmitting || (currentStep === 2 && bankDetails.account_number !== bankDetails.confirm_account_number)}
+                  className={`w-full ${
+                    isFormValid() 
+                      ? 'bg-booqit-primary hover:bg-booqit-primary/90' 
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
+                  }`}
+                  disabled={isSubmitting || !isFormValid()}
                 >
                   {isSubmitting ? "Completing..." : "Complete Setup"}
                 </Button>
-              )}
-            </div>
+                
+                <Button
+                  variant="ghost"
+                  onClick={handleSkipBankDetails}
+                  disabled={isSubmitting}
+                  className="w-full text-gray-600 hover:text-gray-800"
+                >
+                  Skip Bank Details
+                </Button>
+              </div>
+            )}
           </CardFooter>
         </Card>
       </motion.div>
