@@ -204,7 +204,7 @@ export const performAuthHealthCheck = async (): Promise<{
   }
   
   return {
-    is </Healthy: issues.length === 0,
+    isHealthy: issues.length === 0,
     issues,
     recommendations
   };
