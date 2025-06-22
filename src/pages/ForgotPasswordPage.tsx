@@ -14,17 +14,16 @@ const ForgotPasswordPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
-  const {
-    toast
-  } = useToast();
+  const { toast } = useToast();
 
-  // Get the current domain dynamically - this will now properly use booqit.in when accessed via that domain
-  const getCurrentDomain = () => {
-    if (typeof window !== 'undefined') {
-      return window.location.origin;
-    }
-    // Fallback for SSR - should rarely be used since this runs client-side
-    return 'https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com';
+  // Force use of booqit.in domain for password reset emails
+  const getResetRedirectUrl = () => {
+    // Always use booqit.in for password reset emails
+    const baseUrl = 'https://booqit.in';
+    const redirectUrl = `${baseUrl}/verify`;
+    
+    console.log('Using redirect URL for password reset:', redirectUrl);
+    return redirectUrl;
   };
 
   // Cooldown timer effect
@@ -58,23 +57,20 @@ const ForgotPasswordPage: React.FC = () => {
       if (!emailRegex.test(email)) {
         throw new Error("Please enter a valid email address");
       }
+      
       console.log('Sending password reset email to:', email);
 
-      // Use the current domain for redirect URL - will now properly use booqit.in
-      const redirectUrl = `${getCurrentDomain()}/verify`;
+      // Use the forced booqit.in domain for redirect URL
+      const redirectUrl = getResetRedirectUrl();
       console.log('Using redirect URL:', redirectUrl);
 
       // Call Supabase to send password reset email
-      const {
-        data,
-        error
-      } = await supabase.auth.resetPasswordForEmail(email, {
+      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: redirectUrl
       });
-      console.log('Reset password response:', {
-        data,
-        error
-      });
+      
+      console.log('Reset password response:', { data, error });
+      
       if (error) {
         console.error('Reset password error:', error);
 
@@ -95,6 +91,7 @@ const ForgotPasswordPage: React.FC = () => {
           return;
         }
       }
+      
       console.log('Password reset email sent successfully');
       setEmailSent(true);
       toast({
