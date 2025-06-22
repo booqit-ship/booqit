@@ -8,8 +8,9 @@ import { format, isToday, isSameDay, addDays, startOfDay } from 'date-fns';
 interface WeekCalendarProps {
   selectedDate: Date;
   onDateSelect: (date: Date) => void;
-  onNavigateDay: (direction: 'prev' | 'next') => void;
+  onNavigateWeek: (direction: 'prev' | 'next') => void;
   onGoToToday: () => void;
+  weekDays: Date[];
   appointmentCounts?: {
     [date: string]: number;
   };
@@ -22,16 +23,12 @@ interface WeekCalendarProps {
 const WeekCalendar: React.FC<WeekCalendarProps> = ({
   selectedDate,
   onDateSelect,
-  onNavigateDay,
+  onNavigateWeek,
   onGoToToday,
+  weekDays,
   appointmentCounts = {},
   holidays = []
 }) => {
-  // Generate 5 days starting from the selected date for proper navigation
-  const weekDays = React.useMemo(() => {
-    return Array.from({ length: 5 }, (_, i) => addDays(selectedDate, i));
-  }, [selectedDate]);
-
   // Check if a date is a holiday
   const isHoliday = (date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
@@ -44,13 +41,13 @@ const WeekCalendar: React.FC<WeekCalendarProps> = ({
         <div className="flex justify-between items-center">
           <CardTitle className="text-booqit-dark text-xl font-light">Calendar</CardTitle>
           <div className="flex items-center space-x-2">
-            <Button variant="outline" size="sm" onClick={() => onNavigateDay('prev')} className="h-8 px-3">
+            <Button variant="outline" size="sm" onClick={() => onNavigateWeek('prev')} className="h-8 px-3">
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <Button variant="outline" size="sm" className="h-8 text-xs font-medium px-3" onClick={onGoToToday}>
               Today
             </Button>
-            <Button variant="outline" size="sm" onClick={() => onNavigateDay('next')} className="h-8 px-3">
+            <Button variant="outline" size="sm" onClick={() => onNavigateWeek('next')} className="h-8 px-3">
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>

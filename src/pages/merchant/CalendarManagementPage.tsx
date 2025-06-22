@@ -34,7 +34,13 @@ interface BookingWithCustomerDetails {
 const CalendarManagementPage: React.FC = () => {
   const { userId } = useAuth();
   const [selectedDate, setSelectedDate] = useState<Date>(getCurrentDateIST());
+  const [weekStart, setWeekStart] = useState<Date>(getCurrentDateIST());
   const queryClient = useQueryClient();
+
+  // Generate 5 days starting from weekStart
+  const weekDays = React.useMemo(() => {
+    return Array.from({ length: 5 }, (_, i) => addDays(weekStart, i));
+  }, [weekStart]);
 
   // Get merchant data with caching
   const { data: merchant, isFetching: isMerchantFetching } = useQuery({
@@ -146,20 +152,15 @@ const CalendarManagementPage: React.FC = () => {
     staleTime: 15 * 60 * 1000,
   });
 
-  // Generate visible days for appointment counts
-  const visibleDays = React.useMemo(() => {
-    return Array.from({ length: 5 }, (_, i) => addDays(selectedDate, i));
-  }, [selectedDate]);
-
   // Get appointment counts with caching
   const { data: appointmentCounts = {}, isFetching: isCountsFetching } = useQuery({
-    queryKey: ['appointment-counts', merchantId, visibleDays.map(d => formatDateInIST(d, 'yyyy-MM-dd'))],
+    queryKey: ['appointment-counts', merchantId, weekDays.map(d => formatDateInIST(d, 'yyyy-MM-dd'))],
     queryFn: async () => {
       if (!merchantId) return {};
       
       const counts: { [date: string]: number } = {};
       
-      for (const day of visibleDays) {
+      for (const day of weekDays) {
         const dateStr = formatDateInIST(day, 'yyyy-MM-dd');
         try {
           const { count, error } = await supabase
@@ -251,17 +252,19 @@ const CalendarManagementPage: React.FC = () => {
     }
   };
 
-  // Navigate by single day
-  const navigateDay = (direction: 'prev' | 'next') => {
+  // Navigate by 5-day week
+  const navigateWeek = (direction: 'prev' | 'next') => {
     if (direction === 'next') {
-      setSelectedDate(addDays(selectedDate, 1));
+      setWeekStart(addDays(weekStart, 5));
     } else {
-      setSelectedDate(subDays(selectedDate, 1));
+      setWeekStart(subDays(weekStart, 5));
     }
   };
 
   const goToToday = () => {
-    setSelectedDate(getCurrentDateIST());
+    const today = getCurrentDateIST();
+    setWeekStart(today);
+    setSelectedDate(today);
   };
 
   const handleDeleteHoliday = async (holidayId: string) => {
@@ -312,8 +315,9 @@ const CalendarManagementPage: React.FC = () => {
       <WeekCalendar 
         selectedDate={selectedDate} 
         onDateSelect={setSelectedDate} 
-        onNavigateDay={navigateDay} 
+        onNavigateWeek={navigateWeek} 
         onGoToToday={goToToday} 
+        weekDays={weekDays}
         appointmentCounts={appointmentCounts}
         holidays={holidays}
       />
