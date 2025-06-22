@@ -50,6 +50,42 @@ export type Database = {
           },
         ]
       }
+      booking_services: {
+        Row: {
+          booking_id: string
+          created_at: string
+          id: string
+          service_id: string
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          id?: string
+          service_id: string
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          id?: string
+          service_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_services_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bookings: {
         Row: {
           created_at: string
@@ -57,6 +93,7 @@ export type Database = {
           customer_name: string | null
           customer_phone: string | null
           date: string
+          guest_user_id: string | null
           id: string
           merchant_id: string
           payment_status: string
@@ -75,6 +112,7 @@ export type Database = {
           customer_name?: string | null
           customer_phone?: string | null
           date: string
+          guest_user_id?: string | null
           id?: string
           merchant_id: string
           payment_status: string
@@ -93,6 +131,7 @@ export type Database = {
           customer_name?: string | null
           customer_phone?: string | null
           date?: string
+          guest_user_id?: string | null
           id?: string
           merchant_id?: string
           payment_status?: string
@@ -106,6 +145,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "bookings_guest_user_id_fkey"
+            columns: ["guest_user_id"]
+            isOneToOne: false
+            referencedRelation: "guest_users"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bookings_merchant_id_fkey"
             columns: ["merchant_id"]
@@ -135,6 +181,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      guest_users: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          phone: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          phone: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          phone?: string
+        }
+        Relationships: []
       }
       merchants: {
         Row: {
@@ -855,6 +925,20 @@ export type Database = {
         }
         Returns: Json
       }
+      create_guest_booking: {
+        Args: {
+          p_guest_name: string
+          p_guest_phone: string
+          p_merchant_id: string
+          p_service_ids: string[]
+          p_staff_id: string
+          p_date: string
+          p_time_slot: string
+          p_guest_email?: string
+          p_total_duration?: number
+        }
+        Returns: Json
+      }
       create_slot_lock: {
         Args: {
           p_staff_id: string
@@ -996,6 +1080,10 @@ export type Database = {
           slot_status: string
           status_reason: string
         }[]
+      }
+      get_merchant_booking_info: {
+        Args: { p_merchant_id: string }
+        Returns: Json
       }
       get_stylist_blocked_ranges: {
         Args: { p_staff_id: string; p_date: string }
