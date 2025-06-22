@@ -18,8 +18,8 @@ export const useOptimizedAuth = () => {
     // Initialize with permanent session if available
     const permanentData = PermanentSession.getSession();
     return {
-      user: null,
-      session: null,
+      user: permanentData.session?.user || null,
+      session: permanentData.session || null,
       userRole: permanentData.userRole as UserRole || null,
       isAuthenticated: permanentData.isLoggedIn,
       loading: !permanentData.isLoggedIn
@@ -30,8 +30,8 @@ export const useOptimizedAuth = () => {
     const user = session?.user || null;
     const isAuthenticated = !!session;
     
-    setAuthState(prev => ({
-      ...prev,
+    setAuthState(prevState => ({
+      ...prevState,
       user,
       session,
       isAuthenticated,
@@ -40,16 +40,11 @@ export const useOptimizedAuth = () => {
 
     // Update permanent session
     if (session) {
-      PermanentSession.saveSession({
-        userId: user!.id,
-        email: user!.email!,
-        userRole: prev.userRole || 'customer',
-        isLoggedIn: true
-      });
+      PermanentSession.saveSession(session, authState.userRole || 'customer', user!.id);
     } else {
       PermanentSession.clearSession();
     }
-  }, []);
+  }, [authState.userRole]);
 
   const fetchUserRole = useCallback(async (userId: string) => {
     try {
@@ -65,11 +60,8 @@ export const useOptimizedAuth = () => {
       
       // Update permanent session with role
       const permanentData = PermanentSession.getSession();
-      if (permanentData.isLoggedIn) {
-        PermanentSession.saveSession({
-          ...permanentData,
-          userRole: role
-        });
+      if (permanentData.isLoggedIn && permanentData.session) {
+        PermanentSession.saveSession(permanentData.session, role, userId);
       }
       
       return role;

@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { UserRole } from '../types';
 import { supabase } from '@/integrations/supabase/client';
@@ -107,7 +106,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const role = await fetchUserRole(session.user.id);
         setUserRole(role);
         
-        // Save permanently
+        // Save permanently with updated method signature
         PermanentSession.saveSession(session, role || 'customer', session.user.id);
         
         console.log('✅ Auth state updated from Supabase with role:', role);
@@ -125,7 +124,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsAuthenticated(true);
         setUserId(permanentData.userId);
         setUserRole(permanentData.userRole as UserRole);
-        setSession(permanentData.session);
+        setSession(permanentData.session || null);
         setUser(permanentData.session?.user || null);
         console.log('✅ Using permanent session instead of Supabase');
       } else {
@@ -146,7 +145,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsAuthenticated(true);
         setUserId(permanentData.userId);
         setUserRole(permanentData.userRole as UserRole);
-        setSession(permanentData.session);
+        setSession(permanentData.session || null);
         setUser(permanentData.session?.user || null);
         
         // Validate tokens with Supabase in background (non-blocking)
@@ -155,8 +154,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             try {
               console.log('🔍 Background token validation');
               const { error } = await supabase.auth.setSession({
-                access_token: permanentData.session.access_token,
-                refresh_token: permanentData.session.refresh_token
+                access_token: permanentData.session!.access_token,
+                refresh_token: permanentData.session!.refresh_token
               });
               
               if (error) {

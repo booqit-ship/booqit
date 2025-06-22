@@ -1,9 +1,12 @@
 
+import { Session } from '@supabase/supabase-js';
+
 interface PermanentSessionData {
   userId: string;
   email: string;
   userRole: string;
   isLoggedIn: boolean;
+  session?: Session | null;
   timestamp?: number;
   version?: string;
 }
@@ -30,18 +33,43 @@ export class PermanentSession {
     return (now - timestamp) > expiryTime;
   }
 
-  static saveSession(data: Omit<PermanentSessionData, 'timestamp' | 'version'>): void {
+  static saveSession(data: Omit<PermanentSessionData, 'timestamp' | 'version'>): void;
+  static saveSession(session: Session, userRole: string, userId: string): void;
+  static saveSession(
+    dataOrSession: Omit<PermanentSessionData, 'timestamp' | 'version'> | Session,
+    userRole?: string,
+    userId?: string
+  ): void {
     if (!this.isStorageAvailable()) {
       console.warn('localStorage not available, session will not persist');
       return;
     }
 
     try {
-      const sessionData: PermanentSessionData = {
-        ...data,
-        timestamp: Date.now(),
-        version: SESSION_VERSION
-      };
+      let sessionData: PermanentSessionData;
+
+      // Handle both call signatures
+      if (userRole && userId && 'user' in dataOrSession) {
+        // Called with (session, userRole, userId)
+        const session = dataOrSession as Session;
+        sessionData = {
+          userId,
+          email: session.user?.email || '',
+          userRole,
+          isLoggedIn: true,
+          session,
+          timestamp: Date.now(),
+          version: SESSION_VERSION
+        };
+      } else {
+        // Called with data object
+        const data = dataOrSession as Omit<PermanentSessionData, 'timestamp' | 'version'>;
+        sessionData = {
+          ...data,
+          timestamp: Date.now(),
+          version: SESSION_VERSION
+        };
+      }
 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(sessionData));
       console.log('✅ Permanent session saved');

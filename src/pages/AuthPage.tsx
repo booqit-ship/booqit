@@ -271,7 +271,7 @@ const AuthPage: React.FC = () => {
       if (authData.session && authData.user) {
         console.log('✅ Registration successful with session');
         
-        // Save permanent session
+        // Save permanent session with correct method signature
         PermanentSession.saveSession(authData.session, selectedRole, authData.user.id);
         
         // Update auth context
@@ -373,7 +373,7 @@ const AuthPage: React.FC = () => {
         const userRole = profileData?.role as UserRole;
         console.log('👤 User role fetched:', userRole);
         
-        // Save permanent session with validated data
+        // Save permanent session with validated data using correct method signature
         PermanentSession.saveSession(data.session, userRole, data.user.id);
         
         // Update auth context
