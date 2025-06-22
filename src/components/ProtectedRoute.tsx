@@ -43,10 +43,16 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/" replace />;
   }
 
-  // Allow merchant onboarding page access for authenticated merchants
+  // Special handling for merchant onboarding - allow all authenticated users
   const isOnboardingPage = location.pathname === '/merchant/onboarding';
   
-  if (requiredRole && effectiveRole !== requiredRole && !isOnboardingPage) {
+  if (isOnboardingPage) {
+    // For onboarding, just check if user is authenticated, not their role
+    console.log('✅ Allowing access to onboarding for authenticated user');
+    return children ? <>{children}</> : <Outlet />;
+  }
+  
+  if (requiredRole && effectiveRole !== requiredRole) {
     console.log('🚫 User role mismatch, redirecting based on role:', effectiveRole);
     // Redirect to the appropriate dashboard based on role
     return <Navigate to={effectiveRole === 'merchant' ? '/merchant' : '/'} replace />;

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -29,7 +30,7 @@ import { validateCurrentSession } from '@/utils/sessionRecovery';
 
 const AuthPage: React.FC = () => {
   const location = useLocation();
-  const hasRedirected = useRef(false);
+  const redirectExecuted = useRef(false);
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [isRoleSelected, setIsRoleSelected] = useState(false);
   const [email, setEmail] = useState('');
@@ -59,15 +60,15 @@ const AuthPage: React.FC = () => {
     }
   }, [location.state]);
 
-  // Redirect authenticated users immediately using permanent session
+  // Single consolidated redirect effect with guard
   useEffect(() => {
-    if (hasRedirected.current) return; // Prevent double navigation
+    if (redirectExecuted.current || loading) return;
 
+    // Check permanent session first for instant redirect
     const permanentData = PermanentSession.getSession();
-    
     if (permanentData.isLoggedIn && permanentData.userRole) {
-      console.log('🔄 User has permanent session, redirecting...', { userRole: permanentData.userRole });
-      hasRedirected.current = true;
+      console.log('🔄 Redirecting from permanent session...', { userRole: permanentData.userRole });
+      redirectExecuted.current = true;
       if (permanentData.userRole === 'merchant') {
         navigate('/merchant', { replace: true });
       } else {
@@ -76,9 +77,10 @@ const AuthPage: React.FC = () => {
       return;
     }
 
-    if (!loading && isAuthenticated && userRole) {
-      console.log('🔄 User authenticated via context, redirecting...', { userRole });
-      hasRedirected.current = true;
+    // Then check auth context state
+    if (isAuthenticated && userRole) {
+      console.log('🔄 Redirecting from auth context...', { userRole });
+      redirectExecuted.current = true;
       if (userRole === 'merchant') {
         navigate('/merchant', { replace: true });
       } else {
@@ -271,7 +273,7 @@ const AuthPage: React.FC = () => {
         }
       }
 
-      // Step 4: Handle session and navigation
+      // Step 4: Handle session and navigation directly without relying on useEffect
       if (authData.session && authData.user) {
         console.log('✅ Registration successful with session');
         
@@ -279,6 +281,7 @@ const AuthPage: React.FC = () => {
         setAuth(true, selectedRole, authData.user.id);
         
         console.log('🎯 Navigating after registration...');
+        redirectExecuted.current = true;
         if (selectedRole === 'merchant') {
           navigate('/merchant/onboarding', { replace: true });
         } else {
@@ -306,7 +309,7 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  // Enhanced login with better error handling
+  // Enhanced login with better error handling and direct navigation
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -374,6 +377,7 @@ const AuthPage: React.FC = () => {
         setAuth(true, userRole, data.user.id);
         
         console.log('🎯 Navigating after login...');
+        redirectExecuted.current = true;
         if (userRole === 'merchant') {
           const { data: merchantData } = await supabase
             .from('merchants')

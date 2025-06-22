@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import {
   BrowserRouter as Router,
@@ -92,7 +91,7 @@ const AppContent: React.FC = () => {
 
           {/* Merchant Routes */}
           <Route path="/merchant/auth" element={<LazyRoute><Auth /></LazyRoute>} />
-          <Route path="/merchant/onboarding" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><OnboardingPage /></ProtectedRoute></LazyRoute>} />
+          <Route path="/merchant/onboarding" element={<LazyRoute><ProtectedRoute><OnboardingPage /></ProtectedRoute></LazyRoute>} />
           <Route path="/merchant" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantDashboard /></MerchantLayout></ProtectedRoute></LazyRoute>} />
           <Route path="/merchant/dashboard" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantDashboard /></MerchantLayout></ProtectedRoute></LazyRoute>} />
           <Route path="/merchant/services" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantServices /></MerchantLayout></ProtectedRoute></LazyRoute>} />
