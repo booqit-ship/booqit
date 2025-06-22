@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import {
   BrowserRouter as Router,
@@ -53,6 +52,8 @@ import MerchantPrivacyPolicyPage from '@/pages/merchant/settings/PrivacyPolicyPa
 import MerchantTermsConditionsPage from '@/pages/merchant/settings/TermsConditionsPage';
 import MerchantDeleteAccountPage from '@/pages/merchant/settings/DeleteAccountPage';
 import NotificationsPage from '@/pages/settings/NotificationsPage';
+import GuestInfoPage from '@/pages/guest/GuestInfoPage';
+import GuestBookingPage from '@/pages/guest/GuestBookingPage';
 
 const AppContent: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -87,6 +88,12 @@ const AppContent: React.FC = () => {
           <Route path="/forgot-password" element={<LazyRoute><ForgotPasswordPage /></LazyRoute>} />
           <Route path="/reset-password" element={<LazyRoute><ResetPasswordPage /></LazyRoute>} />
           <Route path="/verify" element={<LazyRoute><VerifyPage /></LazyRoute>} />
+
+          {/* Guest Booking Routes */}
+          <Route path="/book/:merchantId/:shopName" element={<LazyRoute><GuestInfoPage /></LazyRoute>} />
+          <Route path="/book/:merchantId" element={<LazyRoute><GuestInfoPage /></LazyRoute>} />
+          <Route path="/guest-booking/:merchantId/:shopName" element={<LazyRoute><GuestBookingPage /></LazyRoute>} />
+          <Route path="/guest-booking/:merchantId/staff" element={<LazyRoute><StaffSelectionPage /></LazyRoute>} />
 
           {/* Merchant Routes */}
           <Route path="/merchant/auth" element={<LazyRoute><Auth /></LazyRoute>} />
