@@ -44,6 +44,7 @@ const GuestServiceSelectionPage: React.FC = () => {
   const guestInfo = location.state?.guestInfo || JSON.parse(sessionStorage.getItem('guestBookingInfo') || '{}');
 
   useEffect(() => {
+    console.log('GUEST SERVICE SELECTION: Page loaded with:', { guestInfo, merchantId });
     if (!guestInfo.name || !guestInfo.phone) {
       navigate(`/book/${merchantId}`);
       return;
@@ -83,12 +84,17 @@ const GuestServiceSelectionPage: React.FC = () => {
   };
 
   const handleServiceToggle = (service: Service) => {
+    console.log('GUEST SERVICE TOGGLE:', service.name);
     setSelectedServices(prev => {
       const isSelected = prev.some(s => s.id === service.id);
       if (isSelected) {
-        return prev.filter(s => s.id !== service.id);
+        const updated = prev.filter(s => s.id !== service.id);
+        console.log('Service removed, updated selection:', updated.map(s => s.name));
+        return updated;
       } else {
-        return [...prev, service];
+        const updated = [...prev, service];
+        console.log('Service added, updated selection:', updated.map(s => s.name));
+        return updated;
       }
     });
   };
@@ -101,6 +107,12 @@ const GuestServiceSelectionPage: React.FC = () => {
 
     const totalPrice = selectedServices.reduce((sum, service) => sum + service.price, 0);
     const totalDuration = selectedServices.reduce((sum, service) => sum + service.duration, 0);
+
+    console.log('GUEST SERVICES: Proceeding with selection:', {
+      services: selectedServices.map(s => s.name),
+      totalPrice,
+      totalDuration
+    });
 
     // Navigate to staff selection page
     navigate(`/guest-staff/${merchantId}`, { 

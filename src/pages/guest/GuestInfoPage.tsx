@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -29,32 +28,28 @@ const GuestInfoPage: React.FC = () => {
     }));
   };
 
-  const handleContinue = () => {
-    // Validate required fields
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
     if (!guestInfo.name.trim()) {
-      toast({
-        title: "Name required",
-        description: "Please enter your name to continue",
-        variant: "destructive",
-      });
+      toast.error('Please enter your name');
       return;
     }
-
+    
     if (!guestInfo.phone.trim()) {
-      toast({
-        title: "Phone number required", 
-        description: "Please enter your phone number to continue",
-        variant: "destructive",
-      });
+      toast.error('Please enter your phone number');
       return;
     }
 
-    // Store guest info in sessionStorage for the booking flow
+    // Store guest info in session storage as backup
     sessionStorage.setItem('guestBookingInfo', JSON.stringify(guestInfo));
     
-    // Navigate to merchant detail page with guest booking flag
-    navigate(`/guest-booking/${merchantId}/${shopName}`, { 
-      state: { guestInfo, isGuestBooking: true }
+    // Navigate to service selection page
+    navigate(`/guest-services/${merchantId}`, { 
+      state: { 
+        guestInfo,
+        merchant: merchant 
+      }
     });
   };
 
@@ -126,7 +121,7 @@ const GuestInfoPage: React.FC = () => {
             </div>
 
             <Button 
-              onClick={handleContinue}
+              onClick={handleSubmit}
               disabled={isLoading}
               className="w-full h-12 bg-booqit-primary hover:bg-booqit-primary/90 text-lg"
             >

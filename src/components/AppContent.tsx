@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import {
   BrowserRouter as Router,
@@ -53,8 +54,10 @@ import MerchantTermsConditionsPage from '@/pages/merchant/settings/TermsConditio
 import MerchantDeleteAccountPage from '@/pages/merchant/settings/DeleteAccountPage';
 import NotificationsPage from '@/pages/settings/NotificationsPage';
 import GuestInfoPage from '@/pages/guest/GuestInfoPage';
-import GuestBookingPage from '@/pages/guest/GuestBookingPage';
+import GuestServiceSelectionPage from '@/pages/guest/GuestServiceSelectionPage';
+import GuestStaffSelectionPage from '@/pages/guest/GuestStaffSelectionPage';
 import GuestDateTimeSelectionPage from '@/pages/guest/GuestDateTimeSelectionPage';
+import GuestPaymentPage from '@/pages/guest/GuestPaymentPage';
 
 const AppContent: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -90,12 +93,13 @@ const AppContent: React.FC = () => {
           <Route path="/reset-password" element={<LazyRoute><ResetPasswordPage /></LazyRoute>} />
           <Route path="/verify" element={<LazyRoute><VerifyPage /></LazyRoute>} />
 
-          {/* Guest Booking Routes */}
+          {/* Guest Booking Routes - Complete Flow */}
           <Route path="/book/:merchantId/:shopName" element={<LazyRoute><GuestInfoPage /></LazyRoute>} />
           <Route path="/book/:merchantId" element={<LazyRoute><GuestInfoPage /></LazyRoute>} />
-          <Route path="/guest-booking/:merchantId/:shopName" element={<LazyRoute><GuestBookingPage /></LazyRoute>} />
-          <Route path="/guest-booking/:merchantId/staff" element={<LazyRoute><StaffSelectionPage /></LazyRoute>} />
+          <Route path="/guest-services/:merchantId" element={<LazyRoute><GuestServiceSelectionPage /></LazyRoute>} />
+          <Route path="/guest-staff/:merchantId" element={<LazyRoute><GuestStaffSelectionPage /></LazyRoute>} />
           <Route path="/guest-datetime/:merchantId" element={<LazyRoute><GuestDateTimeSelectionPage /></LazyRoute>} />
+          <Route path="/guest-payment/:merchantId" element={<LazyRoute><GuestPaymentPage /></LazyRoute>} />
 
           {/* Merchant Routes */}
           <Route path="/merchant/auth" element={<LazyRoute><Auth /></LazyRoute>} />
