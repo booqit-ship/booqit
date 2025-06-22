@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -72,71 +71,81 @@ const GuestShopDetailsPage: React.FC = () => {
     
     setIsLoading(true);
     try {
-      // Fetch merchant data - use any type to avoid deep inference
-      const merchantResponse = await supabase
+      // Fetch merchant data - use explicit typing
+      const { data: merchantData, error: merchantError } = await supabase
         .from('merchants')
         .select('*')
         .eq('id', merchantId)
         .single();
 
-      if (merchantResponse.error) throw merchantResponse.error;
+      if (merchantError) throw merchantError;
       
-      // Manually construct merchant data
-      const merchantData: SimpleMerchant = {
-        id: merchantResponse.data.id,
-        shop_name: merchantResponse.data.shop_name,
-        category: merchantResponse.data.category,
-        address: merchantResponse.data.address,
-        description: merchantResponse.data.description,
-        open_time: merchantResponse.data.open_time,
-        close_time: merchantResponse.data.close_time,
-        rating: merchantResponse.data.rating,
-        image_url: merchantResponse.data.image_url
+      // Create merchant object manually
+      const merchant: SimpleMerchant = {
+        id: String(merchantData.id),
+        shop_name: String(merchantData.shop_name || ''),
+        category: String(merchantData.category || ''),
+        address: String(merchantData.address || ''),
+        description: merchantData.description ? String(merchantData.description) : undefined,
+        open_time: String(merchantData.open_time || '09:00'),
+        close_time: String(merchantData.close_time || '18:00'),
+        rating: merchantData.rating ? Number(merchantData.rating) : undefined,
+        image_url: merchantData.image_url ? String(merchantData.image_url) : undefined
       };
-      setMerchant(merchantData);
+      setMerchant(merchant);
 
-      // Fetch services - use any type to avoid deep inference
-      const servicesResponse = await supabase
+      // Fetch services - use explicit typing
+      const { data: servicesData, error: servicesError } = await supabase
         .from('services')
         .select('*')
         .eq('merchant_id', merchantId)
         .order('name', { ascending: true });
 
-      if (servicesResponse.error) throw servicesResponse.error;
+      if (servicesError) throw servicesError;
       
-      // Manually construct services data
-      const servicesData: SimpleService[] = (servicesResponse.data || []).map((service: any) => ({
-        id: service.id,
-        name: service.name,
-        price: service.price,
-        duration: service.duration,
-        description: service.description,
-        image_url: service.image_url
-      }));
-      setServices(servicesData);
+      // Create services array manually
+      const servicesArray: SimpleService[] = [];
+      if (servicesData && Array.isArray(servicesData)) {
+        servicesData.forEach((item) => {
+          servicesArray.push({
+            id: String(item.id),
+            name: String(item.name || ''),
+            price: Number(item.price || 0),
+            duration: Number(item.duration || 30),
+            description: item.description ? String(item.description) : undefined,
+            image_url: item.image_url ? String(item.image_url) : undefined
+          });
+        });
+      }
+      setServices(servicesArray);
 
-      // Fetch reviews - use any type to avoid deep inference
-      const reviewsResponse = await supabase
+      // Fetch reviews - use explicit typing
+      const { data: reviewsData, error: reviewsError } = await supabase
         .from('reviews')
         .select('*')
         .eq('merchant_id', merchantId)
         .order('created_at', { ascending: false })
         .limit(5);
 
-      if (reviewsResponse.error) {
-        console.error('Error fetching reviews:', reviewsResponse.error);
+      if (reviewsError) {
+        console.error('Error fetching reviews:', reviewsError);
         setReviews([]);
       } else {
-        // Manually construct reviews data
-        const reviewsData: SimpleReview[] = (reviewsResponse.data || []).map((review: any) => ({
-          id: review.id,
-          rating: review.rating,
-          review: review.review || '',
-          customer_name: review.customer_name || 'Anonymous',
-          customer_avatar: review.customer_avatar,
-          created_at: review.created_at
-        }));
-        setReviews(reviewsData);
+        // Create reviews array manually
+        const reviewsArray: SimpleReview[] = [];
+        if (reviewsData && Array.isArray(reviewsData)) {
+          reviewsData.forEach((item) => {
+            reviewsArray.push({
+              id: String(item.id),
+              rating: Number(item.rating || 0),
+              review: String(item.review || ''),
+              customer_name: String(item.customer_name || 'Anonymous'),
+              customer_avatar: item.customer_avatar ? String(item.customer_avatar) : undefined,
+              created_at: String(item.created_at || '')
+            });
+          });
+        }
+        setReviews(reviewsArray);
       }
 
     } catch (error) {
