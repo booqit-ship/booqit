@@ -54,10 +54,12 @@ import MerchantTermsConditionsPage from '@/pages/merchant/settings/TermsConditio
 import MerchantDeleteAccountPage from '@/pages/merchant/settings/DeleteAccountPage';
 import NotificationsPage from '@/pages/settings/NotificationsPage';
 import GuestInfoPage from '@/pages/guest/GuestInfoPage';
+import GuestShopDetailsPage from '@/pages/guest/GuestShopDetailsPage';
 import GuestServiceSelectionPage from '@/pages/guest/GuestServiceSelectionPage';
 import GuestStaffSelectionPage from '@/pages/guest/GuestStaffSelectionPage';
 import GuestDateTimeSelectionPage from '@/pages/guest/GuestDateTimeSelectionPage';
 import GuestPaymentPage from '@/pages/guest/GuestPaymentPage';
+import GuestBookingSuccessPage from '@/pages/guest/GuestBookingSuccessPage';
 
 const AppContent: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -96,10 +98,12 @@ const AppContent: React.FC = () => {
           {/* Guest Booking Routes - Complete Flow */}
           <Route path="/book/:merchantId/:shopName" element={<LazyRoute><GuestInfoPage /></LazyRoute>} />
           <Route path="/book/:merchantId" element={<LazyRoute><GuestInfoPage /></LazyRoute>} />
+          <Route path="/guest-shop/:merchantId" element={<LazyRoute><GuestShopDetailsPage /></LazyRoute>} />
           <Route path="/guest-services/:merchantId" element={<LazyRoute><GuestServiceSelectionPage /></LazyRoute>} />
           <Route path="/guest-staff/:merchantId" element={<LazyRoute><GuestStaffSelectionPage /></LazyRoute>} />
           <Route path="/guest-datetime/:merchantId" element={<LazyRoute><GuestDateTimeSelectionPage /></LazyRoute>} />
           <Route path="/guest-payment/:merchantId" element={<LazyRoute><GuestPaymentPage /></LazyRoute>} />
+          <Route path="/guest-booking-success/:merchantId" element={<LazyRoute><GuestBookingSuccessPage /></LazyRoute>} />
 
           {/* Merchant Routes */}
           <Route path="/merchant/auth" element={<LazyRoute><Auth /></LazyRoute>} />

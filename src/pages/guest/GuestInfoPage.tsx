@@ -44,8 +44,8 @@ const GuestInfoPage: React.FC = () => {
     // Store guest info in session storage as backup
     sessionStorage.setItem('guestBookingInfo', JSON.stringify(guestInfo));
     
-    // Navigate to service selection page
-    navigate(`/guest-services/${merchantId}`, { 
+    // Navigate to shop details page first
+    navigate(`/guest-shop/${merchantId}`, { 
       state: { 
         guestInfo
       }
@@ -61,21 +61,21 @@ const GuestInfoPage: React.FC = () => {
         transition={{ duration: 0.5 }}
       >
         <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-booqit-dark mb-2">Quick Booking</h1>
-          <p className="text-booqit-dark/70">Enter your details to book an appointment</p>
+          <h1 className="text-3xl font-bold text-booqit-dark mb-2 font-righteous">Quick Booking</h1>
+          <p className="text-booqit-dark/70 font-poppins">Enter your details to book an appointment</p>
         </div>
 
         <Card className="shadow-lg border-none">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Your Information</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-2xl font-righteous">Your Information</CardTitle>
+            <CardDescription className="font-poppins">
               We'll need these details to confirm your booking
             </CardDescription>
           </CardHeader>
           
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name" className="text-sm font-medium flex items-center gap-2">
+              <Label htmlFor="name" className="text-sm font-medium flex items-center gap-2 font-poppins">
                 <User className="h-4 w-4" />
                 Full Name *
               </Label>
@@ -90,7 +90,7 @@ const GuestInfoPage: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="phone" className="text-sm font-medium flex items-center gap-2">
+              <Label htmlFor="phone" className="text-sm font-medium flex items-center gap-2 font-poppins">
                 <Phone className="h-4 w-4" />
                 Phone Number *
               </Label>
@@ -105,7 +105,7 @@ const GuestInfoPage: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium flex items-center gap-2">
+              <Label htmlFor="email" className="text-sm font-medium flex items-center gap-2 font-poppins">
                 <Mail className="h-4 w-4" />
                 Email (Optional)
               </Label>
@@ -122,12 +122,12 @@ const GuestInfoPage: React.FC = () => {
             <Button 
               onClick={handleSubmit}
               disabled={isLoading}
-              className="w-full h-12 bg-booqit-primary hover:bg-booqit-primary/90 text-lg"
+              className="w-full h-12 bg-booqit-primary hover:bg-booqit-primary/90 text-lg font-poppins"
             >
               {isLoading ? "Please wait..." : "Continue Booking"}
             </Button>
 
-            <p className="text-xs text-gray-500 text-center">
+            <p className="text-xs text-gray-500 text-center font-poppins">
               Your information is secure and will only be used for booking purposes
             </p>
           </CardContent>

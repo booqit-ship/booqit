@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -47,8 +46,8 @@ const GuestPaymentPage: React.FC = () => {
         totalDuration
       });
 
-      // Create guest booking using the database function
-      const { data, error } = await supabase.rpc('create_guest_booking', {
+      // Use the new safe guest booking function
+      const { data, error } = await supabase.rpc('create_guest_booking_safe', {
         p_guest_name: guestInfo.name,
         p_guest_phone: guestInfo.phone,
         p_guest_email: guestInfo.email || null,
@@ -72,15 +71,19 @@ const GuestPaymentPage: React.FC = () => {
       if (response?.success) {
         toast.success('Booking confirmed successfully!');
         
-        // Navigate to a success page or back to shop
-        setTimeout(() => {
-          navigate(`/book/${merchantId}`, {
-            state: { 
-              bookingSuccess: true,
-              bookingId: response.booking_id
-            }
-          });
-        }, 2000);
+        // Navigate to success page with booking details
+        navigate(`/guest-booking-success/${merchantId}`, {
+          state: { 
+            bookingId: response.booking_id,
+            merchant,
+            selectedServices,
+            totalPrice,
+            bookingDate,
+            bookingTime,
+            guestInfo,
+            selectedStaffDetails
+          }
+        });
       } else {
         toast.error(response?.error || 'Failed to create booking');
       }
