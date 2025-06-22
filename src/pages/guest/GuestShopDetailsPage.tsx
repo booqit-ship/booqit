@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -8,7 +9,8 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, MapPin, Clock, Star, Phone, Mail, User, Calendar } from 'lucide-react';
 
-interface Service {
+// Simple type definitions to avoid complex inference
+interface SimpleService {
   id: string;
   name: string;
   price: number;
@@ -17,7 +19,7 @@ interface Service {
   image_url?: string;
 }
 
-interface Review {
+interface SimpleReview {
   id: string;
   rating: number;
   review: string;
@@ -26,7 +28,7 @@ interface Review {
   created_at: string;
 }
 
-interface Merchant {
+interface SimpleMerchant {
   id: string;
   shop_name: string;
   category: string;
@@ -49,9 +51,9 @@ const GuestShopDetailsPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   
-  const [merchant, setMerchant] = useState<Merchant | null>(null);
-  const [services, setServices] = useState<Service[]>([]);
-  const [reviews, setReviews] = useState<Review[]>([]);
+  const [merchant, setMerchant] = useState<SimpleMerchant | null>(null);
+  const [services, setServices] = useState<SimpleService[]>([]);
+  const [reviews, setReviews] = useState<SimpleReview[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
   const guestInfo: GuestInfo = location.state?.guestInfo || JSON.parse(sessionStorage.getItem('guestBookingInfo') || '{}');
@@ -70,7 +72,7 @@ const GuestShopDetailsPage: React.FC = () => {
     
     setIsLoading(true);
     try {
-      // Fetch merchant data
+      // Fetch merchant data - use any type to avoid deep inference
       const merchantResponse = await supabase
         .from('merchants')
         .select('*')
@@ -79,7 +81,8 @@ const GuestShopDetailsPage: React.FC = () => {
 
       if (merchantResponse.error) throw merchantResponse.error;
       
-      const merchantData: Merchant = {
+      // Manually construct merchant data
+      const merchantData: SimpleMerchant = {
         id: merchantResponse.data.id,
         shop_name: merchantResponse.data.shop_name,
         category: merchantResponse.data.category,
@@ -92,7 +95,7 @@ const GuestShopDetailsPage: React.FC = () => {
       };
       setMerchant(merchantData);
 
-      // Fetch services
+      // Fetch services - use any type to avoid deep inference
       const servicesResponse = await supabase
         .from('services')
         .select('*')
@@ -101,7 +104,8 @@ const GuestShopDetailsPage: React.FC = () => {
 
       if (servicesResponse.error) throw servicesResponse.error;
       
-      const servicesData: Service[] = (servicesResponse.data || []).map(service => ({
+      // Manually construct services data
+      const servicesData: SimpleService[] = (servicesResponse.data || []).map((service: any) => ({
         id: service.id,
         name: service.name,
         price: service.price,
@@ -111,7 +115,7 @@ const GuestShopDetailsPage: React.FC = () => {
       }));
       setServices(servicesData);
 
-      // Fetch reviews - simplified approach
+      // Fetch reviews - use any type to avoid deep inference
       const reviewsResponse = await supabase
         .from('reviews')
         .select('*')
@@ -123,7 +127,8 @@ const GuestShopDetailsPage: React.FC = () => {
         console.error('Error fetching reviews:', reviewsResponse.error);
         setReviews([]);
       } else {
-        const reviewsData: Review[] = (reviewsResponse.data || []).map(review => ({
+        // Manually construct reviews data
+        const reviewsData: SimpleReview[] = (reviewsResponse.data || []).map((review: any) => ({
           id: review.id,
           rating: review.rating,
           review: review.review || '',
