@@ -5,130 +5,148 @@ import { motion } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Lock, Loader2 } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 const VerifyPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const processVerification = async () => {
-      console.log('Processing verification callback...');
+      console.log('Processing password reset verification...');
       console.log('Current URL:', window.location.href);
-      console.log('Search params:', Object.fromEntries(searchParams.entries()));
       
       // Get parameters from URL
       const accessToken = searchParams.get('access_token');
       const refreshToken = searchParams.get('refresh_token');
       const type = searchParams.get('type');
-      const error = searchParams.get('error');
+      const urlError = searchParams.get('error');
       const errorDescription = searchParams.get('error_description');
       
       console.log('Verification params:', { 
         hasAccessToken: !!accessToken, 
         hasRefreshToken: !!refreshToken, 
         type, 
-        error,
+        error: urlError,
         errorDescription 
       });
 
-      // Handle error cases
-      if (error) {
-        console.error('Verification error:', error, errorDescription);
+      // Handle URL errors first
+      if (urlError) {
+        console.error('URL verification error:', urlError, errorDescription);
         let errorMessage = 'The reset link is invalid or has expired.';
         
-        if (error === 'access_denied') {
+        if (urlError === 'access_denied') {
           errorMessage = 'Access denied. Please request a new reset link.';
         } else if (errorDescription) {
           errorMessage = errorDescription;
         }
 
-        toast({
-          title: "Reset Link Error",
-          description: errorMessage,
-          variant: "destructive",
-        });
-        
-        setTimeout(() => {
-          navigate('/forgot-password');
-        }, 2000);
+        setError(errorMessage);
+        setIsProcessing(false);
         return;
       }
       
-      // Handle password recovery
-      if (type === 'recovery' && accessToken && refreshToken) {
-        console.log('Valid recovery link detected, setting session...');
+      // Validate required parameters
+      if (type !== 'recovery' || !accessToken || !refreshToken) {
+        console.log('Invalid or missing verification parameters');
+        setError('Invalid reset link. Please request a new password reset link.');
+        setIsProcessing(false);
+        return;
+      }
+
+      try {
+        console.log('Setting session with tokens...');
         
-        try {
-          // Set the session with the tokens from the URL
-          const { data, error } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          });
-          
-          if (error) {
-            console.error('Error setting session:', error);
-            throw error;
-          }
-          
-          console.log('Session set successfully:', data);
-          
-          // Verify the session is actually set
-          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-          
-          if (sessionError || !session) {
-            console.error('Session verification failed:', sessionError);
-            throw new Error('Failed to establish session');
-          }
-          
-          console.log('Session verified, redirecting to reset password...');
-          
-          toast({
-            title: "Reset Link Verified",
-            description: "You can now set your new password.",
-          });
-          
-          // Add the tokens to the URL for the reset password page as a fallback
-          const resetUrl = `/reset-password?access_token=${accessToken}&refresh_token=${refreshToken}&type=${type}`;
-          
-          // Small delay to ensure session is properly set and toast is shown
-          setTimeout(() => {
-            navigate(resetUrl, { replace: true });
-          }, 1000);
-          
-        } catch (error) {
-          console.error('Failed to set session:', error);
-          
-          // Try to redirect with URL parameters as fallback
-          const resetUrl = `/reset-password?access_token=${accessToken}&refresh_token=${refreshToken}&type=${type}&fallback=true`;
-          
-          toast({
-            title: "Session Warning",
-            description: "Attempting to proceed with password reset...",
-          });
-          
-          setTimeout(() => {
-            navigate(resetUrl, { replace: true });
-          }, 1000);
-        }
-      } else {
-        console.log('Invalid verification parameters');
-        toast({
-          title: "Invalid Reset Link",
-          description: "The reset link is invalid or has expired. Please request a new one.",
-          variant: "destructive",
+        // Set the session directly
+        const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
         });
         
+        if (sessionError) {
+          console.error('Session error:', sessionError);
+          throw new Error(sessionError.message || 'Failed to validate reset link');
+        }
+        
+        if (!sessionData.session) {
+          throw new Error('Invalid session data received');
+        }
+        
+        console.log('Session established successfully');
+        
+        toast({
+          title: "Reset Link Valid",
+          description: "Redirecting to password reset page...",
+        });
+        
+        // Redirect to reset password page
         setTimeout(() => {
-          navigate('/forgot-password');
-        }, 2000);
+          navigate('/reset-password', { replace: true });
+        }, 1000);
+        
+      } catch (error: any) {
+        console.error('Verification failed:', error);
+        
+        let errorMessage = 'The reset link has expired or is invalid.';
+        
+        if (error.message?.includes('expired')) {
+          errorMessage = 'This reset link has expired. Please request a new one.';
+        } else if (error.message?.includes('invalid')) {
+          errorMessage = 'This reset link is invalid. Please request a new one.';
+        }
+        
+        setError(errorMessage);
+      } finally {
+        setIsProcessing(false);
       }
     };
 
     processVerification();
   }, [navigate, toast, searchParams]);
+
+  const handleRequestNewLink = () => {
+    navigate('/forgot-password');
+  };
+
+  if (error) {
+    return (
+      <motion.div 
+        className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-booqit-primary/10 to-white p-6"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+      >
+        <div className="w-full max-w-md">
+          <Card className="border-none shadow-lg">
+            <CardHeader className="text-center">
+              <div className="mx-auto mb-4 w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                <AlertCircle className="w-6 h-6 text-red-600" />
+              </div>
+              <CardTitle className="text-2xl font-righteous text-booqit-dark">
+                Reset Link Invalid
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-center space-y-4">
+              <p className="text-booqit-dark/70 font-poppins">
+                {error}
+              </p>
+              <Button 
+                onClick={handleRequestNewLink}
+                className="w-full bg-booqit-primary hover:bg-booqit-primary/90 font-poppins"
+              >
+                Request New Reset Link
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div 

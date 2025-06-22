@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,14 +8,12 @@ import { Label } from '@/components/ui/label';
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Eye, EyeOff, Lock } from 'lucide-react';
+import { Eye, EyeOff, Lock, AlertCircle } from 'lucide-react';
 
 const ResetPasswordPage: React.FC = () => {
   const [password, setPassword] = useState('');
@@ -24,77 +22,41 @@ const ResetPasswordPage: React.FC = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isValidating, setIsValidating] = useState(true);
-  const [isValidSession, setIsValidSession] = useState(false);
-  const [searchParams] = useSearchParams();
+  const [hasValidSession, setHasValidSession] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
-    const validateResetSession = async () => {
-      console.log('Validating reset session...');
-      setIsValidating(true);
+    const validateSession = async () => {
+      console.log('Validating user session for password reset...');
       
       try {
-        // First, try to get the current session
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        console.log('Current session check:', { sessionData, sessionError });
+        const { data: { session }, error } = await supabase.auth.getSession();
         
-        if (sessionData?.session && !sessionError) {
-          console.log('Found valid session for password reset');
-          setIsValidSession(true);
-          setIsValidating(false);
-          return;
-        }
-        
-        // If no session, try to use URL parameters as fallback
-        const accessToken = searchParams.get('access_token');
-        const refreshToken = searchParams.get('refresh_token');
-        const type = searchParams.get('type');
-        const fallback = searchParams.get('fallback');
-        
-        console.log('URL parameters:', { 
-          hasAccessToken: !!accessToken, 
-          hasRefreshToken: !!refreshToken, 
-          type, 
-          fallback 
+        console.log('Session check result:', { 
+          hasSession: !!session, 
+          error: error?.message,
+          userId: session?.user?.id
         });
         
-        if (type === 'recovery' && accessToken && refreshToken) {
-          console.log('Attempting to set session from URL parameters...');
-          
-          try {
-            const { data, error } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-            
-            if (error) {
-              console.error('Failed to set session from URL params:', error);
-              throw error;
-            }
-            
-            console.log('Session set successfully from URL params');
-            
-            // Verify the session was set
-            await new Promise(resolve => setTimeout(resolve, 500));
-            const { data: { session }, error: verifyError } = await supabase.auth.getSession();
-            
-            if (session && !verifyError) {
-              console.log('Session verified successfully');
-              setIsValidSession(true);
-            } else {
-              throw new Error('Session verification failed');
-            }
-            
-          } catch (error) {
-            console.error('Failed to establish session:', error);
-            throw error;
-          }
-        } else {
-          throw new Error('No valid session or URL parameters found');
+        if (error) {
+          console.error('Session validation error:', error);
+          throw new Error('Session validation failed');
         }
         
-      } catch (error) {
+        if (!session || !session.user) {
+          throw new Error('No valid session found');
+        }
+        
+        // Additional check: ensure this is a recovery session
+        if (session.user.aud !== 'authenticated') {
+          throw new Error('Invalid session type');
+        }
+        
+        console.log('Valid session found for password reset');
+        setHasValidSession(true);
+        
+      } catch (error: any) {
         console.error('Session validation failed:', error);
         
         toast({
@@ -111,13 +73,13 @@ const ResetPasswordPage: React.FC = () => {
       }
     };
 
-    validateResetSession();
-  }, [navigate, toast, searchParams]);
+    validateSession();
+  }, [navigate, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!isValidSession) {
+    if (!hasValidSession) {
       toast({
         title: "Session Invalid",
         description: "Please request a new password reset link.",
@@ -130,6 +92,7 @@ const ResetPasswordPage: React.FC = () => {
     setIsLoading(true);
 
     try {
+      // Validate inputs
       if (!password || !confirmPassword) {
         throw new Error("Please fill in all fields");
       }
@@ -151,25 +114,25 @@ const ResetPasswordPage: React.FC = () => {
       if (error) {
         console.error('Password update error:', error);
         
-        // Handle specific error cases
-        if (error.message.includes('session_not_found') || error.message.includes('invalid_token')) {
+        if (error.message.includes('session_not_found') || 
+            error.message.includes('invalid_token') ||
+            error.message.includes('expired')) {
           throw new Error("Your session has expired. Please request a new reset link.");
         }
         
-        throw error;
+        throw new Error(error.message || "Failed to update password");
       }
 
-      console.log('Password updated successfully:', data);
+      console.log('Password updated successfully');
 
       toast({
         title: "Password Updated!",
-        description: "Your password has been successfully updated. You can now sign in with your new password.",
+        description: "Your password has been successfully updated. Redirecting to login...",
       });
 
-      // Sign out the user after successful password reset for security
+      // Sign out for security and redirect to login
       await supabase.auth.signOut();
-
-      // Redirect to login page after a short delay
+      
       setTimeout(() => {
         navigate('/auth');
       }, 2000);
@@ -177,7 +140,9 @@ const ResetPasswordPage: React.FC = () => {
     } catch (error: any) {
       console.error('Password reset error:', error);
       
-      if (error.message.includes('session') || error.message.includes('token')) {
+      if (error.message.includes('session') || 
+          error.message.includes('token') || 
+          error.message.includes('expired')) {
         toast({
           title: "Session Expired",
           description: "Please request a new password reset link.",
@@ -186,7 +151,7 @@ const ResetPasswordPage: React.FC = () => {
         navigate('/forgot-password');
       } else {
         toast({
-          title: "Error!",
+          title: "Error",
           description: error.message || "Failed to update password.",
           variant: "destructive",
         });
@@ -205,19 +170,19 @@ const ResetPasswordPage: React.FC = () => {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
       >
-        <div className="w-full max-w-md text-center">
+        <div className="w-full max-w-md">
           <Card className="border-none shadow-lg">
             <CardHeader className="text-center">
               <div className="mx-auto mb-4 w-12 h-12 bg-booqit-primary/10 rounded-full flex items-center justify-center">
                 <Lock className="w-6 h-6 text-booqit-primary animate-pulse" />
               </div>
               <CardTitle className="text-2xl font-righteous text-booqit-dark">
-                Validating Reset Link
+                Validating Session
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="text-center">
               <p className="text-booqit-dark/70 font-poppins">
-                Please wait while we validate your password reset session...
+                Please wait while we validate your session...
               </p>
             </CardContent>
           </Card>
@@ -226,8 +191,8 @@ const ResetPasswordPage: React.FC = () => {
     );
   }
 
-  // Show error state if session is invalid
-  if (!isValidSession) {
+  // Show error state if no valid session
+  if (!hasValidSession) {
     return (
       <motion.div 
         className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-booqit-primary/10 to-white p-6"
@@ -235,23 +200,23 @@ const ResetPasswordPage: React.FC = () => {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
       >
-        <div className="w-full max-w-md text-center">
+        <div className="w-full max-w-md">
           <Card className="border-none shadow-lg">
             <CardHeader className="text-center">
               <div className="mx-auto mb-4 w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                <Lock className="w-6 h-6 text-red-600" />
+                <AlertCircle className="w-6 h-6 text-red-600" />
               </div>
               <CardTitle className="text-2xl font-righteous text-booqit-dark">
                 Invalid Session
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="text-center">
               <p className="text-booqit-dark/70 font-poppins mb-4">
                 Your password reset session has expired or is invalid.
               </p>
               <Button 
                 onClick={() => navigate('/forgot-password')} 
-                className="bg-booqit-primary hover:bg-booqit-primary/90"
+                className="bg-booqit-primary hover:bg-booqit-primary/90 font-poppins"
               >
                 Request New Reset Link
               </Button>
@@ -300,6 +265,7 @@ const ResetPasswordPage: React.FC = () => {
                     onChange={(e) => setPassword(e.target.value)}
                     className="font-poppins pr-10"
                     required
+                    minLength={6}
                   />
                   <Button
                     type="button"
@@ -328,6 +294,7 @@ const ResetPasswordPage: React.FC = () => {
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className="font-poppins pr-10"
                     required
+                    minLength={6}
                   />
                   <Button
                     type="button"
@@ -345,21 +312,27 @@ const ResetPasswordPage: React.FC = () => {
                 </div>
               </div>
 
-              {password && (
-                <div className="text-xs text-gray-500 font-poppins">
+              {password && password.length < 6 && (
+                <div className="text-sm text-red-600 font-poppins">
                   Password must be at least 6 characters long
                 </div>
               )}
+              
+              {password && confirmPassword && password !== confirmPassword && (
+                <div className="text-sm text-red-600 font-poppins">
+                  Passwords do not match
+                </div>
+              )}
             </CardContent>
-            <CardFooter>
+            <CardContent>
               <Button 
                 type="submit" 
                 className="w-full bg-booqit-primary hover:bg-booqit-primary/90 font-poppins"
-                disabled={isLoading}
+                disabled={isLoading || !password || !confirmPassword || password !== confirmPassword}
               >
                 {isLoading ? "Updating..." : "Update Password"}
               </Button>
-            </CardFooter>
+            </CardContent>
           </form>
         </Card>
       </div>

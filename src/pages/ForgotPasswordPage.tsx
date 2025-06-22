@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -7,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Mail, Clock } from 'lucide-react';
+import { ArrowLeft, Mail, Clock, AlertCircle } from 'lucide-react';
 
 const ForgotPasswordPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -16,12 +17,9 @@ const ForgotPasswordPage: React.FC = () => {
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const { toast } = useToast();
 
-  // Force use of booqit.in domain for password reset emails
+  // Always use booqit.in for password reset emails
   const getResetRedirectUrl = () => {
-    // Always use booqit.in for password reset emails
-    const baseUrl = 'https://booqit.in';
-    const redirectUrl = `${baseUrl}/verify`;
-    
+    const redirectUrl = 'https://booqit.in/verify';
     console.log('Using redirect URL for password reset:', redirectUrl);
     return redirectUrl;
   };
@@ -38,6 +36,7 @@ const ForgotPasswordPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (cooldownSeconds > 0) {
       toast({
         title: "Please wait",
@@ -46,62 +45,60 @@ const ForgotPasswordPage: React.FC = () => {
       });
       return;
     }
+    
     setIsLoading(true);
+    
     try {
-      if (!email) {
+      if (!email.trim()) {
         throw new Error("Please enter your email address");
       }
 
       // Validate email format
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
+      if (!emailRegex.test(email.trim())) {
         throw new Error("Please enter a valid email address");
       }
       
-      console.log('Sending password reset email to:', email);
+      console.log('Sending password reset email to:', email.trim());
 
-      // Use the forced booqit.in domain for redirect URL
       const redirectUrl = getResetRedirectUrl();
       console.log('Using redirect URL:', redirectUrl);
 
       // Call Supabase to send password reset email
-      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: redirectUrl
       });
-      
-      console.log('Reset password response:', { data, error });
       
       if (error) {
         console.error('Reset password error:', error);
 
         // Handle specific error cases
-        if (error.message.includes('rate limit') || error.message.includes('30 seconds')) {
-          setCooldownSeconds(30);
-          throw new Error("Too many reset attempts. Please wait 30 seconds before trying again.");
+        if (error.message.includes('rate limit') || error.message.includes('Email rate limit exceeded')) {
+          setCooldownSeconds(60);
+          throw new Error("Too many reset attempts. Please wait 1 minute before trying again.");
         } else if (error.message.includes('invalid_email')) {
           throw new Error("Please enter a valid email address.");
-        } else {
-          // For any other error, still show success message for security
-          console.log('Showing success message despite error for security');
-          setEmailSent(true);
-          toast({
-            title: "Reset link sent!",
-            description: "If an account with this email exists, you'll receive a password reset link. Please check your spam folder if you don't see it."
-          });
-          return;
+        } else if (error.message.includes('email not confirmed')) {
+          // Still show success for security, but log the actual error
+          console.log('Email not confirmed, but showing success message for security');
         }
+        
+        // For other errors, still proceed to show success for security
+        console.log('Showing success message despite error for security purposes');
       }
       
-      console.log('Password reset email sent successfully');
+      console.log('Password reset email request processed');
       setEmailSent(true);
+      
       toast({
         title: "Reset link sent!",
-        description: "Check your email for a password reset link. Please also check your spam folder."
+        description: "If an account with this email exists, you'll receive a password reset link. Please check your spam folder if you don't see it."
       });
+      
     } catch (error: any) {
       console.error('Password reset error:', error);
       toast({
-        title: "Error!",
+        title: "Error",
         description: error.message || "Failed to send reset email. Please try again.",
         variant: "destructive"
       });
@@ -111,13 +108,13 @@ const ForgotPasswordPage: React.FC = () => {
   };
 
   if (emailSent) {
-    return <motion.div className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-booqit-primary/10 to-white p-6" initial={{
-      opacity: 0
-    }} animate={{
-      opacity: 1
-    }} transition={{
-      duration: 0.5
-    }}>
+    return (
+      <motion.div 
+        className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-booqit-primary/10 to-white p-6"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+      >
         <div className="w-full max-w-md">
           <Card className="border-none shadow-lg">
             <CardHeader className="text-center">
@@ -128,21 +125,34 @@ const ForgotPasswordPage: React.FC = () => {
                 Check Your Email
               </CardTitle>
               <CardDescription className="font-poppins">
-                We've sent a password reset link to your email address.
+                Password reset instructions have been sent to your email.
               </CardDescription>
             </CardHeader>
-            <CardContent className="text-center">
-              <p className="text-sm text-gray-600 font-poppins mb-4">
-                Click the link in the email to reset your password. The link will expire in 1 hour.
+            <CardContent className="text-center space-y-4">
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <p className="text-sm text-blue-800 font-poppins">
+                  <strong>Important:</strong> The reset link will expire in 1 hour for security.
+                </p>
+              </div>
+              
+              <p className="text-sm text-gray-600 font-poppins">
+                If you don't see the email in your inbox, please check your spam folder.
               </p>
               
-              <p className="text-sm text-gray-500 font-poppins">
-                Didn't receive the email? Try again or contact support.
-              </p>
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <p className="text-xs text-gray-500 font-poppins">
+                  Didn't receive the email? Wait a moment before requesting a new one.
+                </p>
+              </div>
             </CardContent>
             <CardFooter className="flex flex-col gap-3">
-              <Button onClick={() => setEmailSent(false)} variant="outline" className="w-full font-poppins">
-                Try Different Email
+              <Button 
+                onClick={() => setEmailSent(false)} 
+                variant="outline" 
+                className="w-full font-poppins"
+                disabled={cooldownSeconds > 0}
+              >
+                {cooldownSeconds > 0 ? `Try Again (${cooldownSeconds}s)` : 'Try Different Email'}
               </Button>
               <Link to="/auth" className="w-full">
                 <Button variant="ghost" className="w-full font-poppins">
@@ -153,26 +163,28 @@ const ForgotPasswordPage: React.FC = () => {
             </CardFooter>
           </Card>
         </div>
-      </motion.div>;
+      </motion.div>
+    );
   }
-  return <motion.div className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-booqit-primary/10 to-white p-6" initial={{
-    opacity: 0
-  }} animate={{
-    opacity: 1
-  }} transition={{
-    duration: 0.5
-  }}>
+
+  return (
+    <motion.div 
+      className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-booqit-primary/10 to-white p-6"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+    >
       <div className="w-full max-w-md">
-        <motion.div className="mb-8 text-center" initial={{
-        y: -20
-      }} animate={{
-        y: 0
-      }}>
+        <motion.div 
+          className="mb-8 text-center"
+          initial={{ y: -20 }}
+          animate={{ y: 0 }}
+        >
           <h1 className="text-3xl font-righteous text-booqit-dark">
             Forgot Password?
           </h1>
           <p className="text-booqit-dark/70 font-poppins">
-            Enter your email address and we'll send you a reset link
+            Enter your email address and we'll send you a secure reset link
           </p>
         </motion.div>
 
@@ -189,22 +201,50 @@ const ForgotPasswordPage: React.FC = () => {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email" className="font-poppins">Email Address</Label>
-                <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} className="font-poppins" required autoComplete="email" disabled={isLoading || cooldownSeconds > 0} />
+                <Input 
+                  id="email" 
+                  type="email" 
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="font-poppins"
+                  required
+                  autoComplete="email"
+                  disabled={isLoading || cooldownSeconds > 0}
+                />
               </div>
-              {cooldownSeconds > 0 && <div className="flex items-center gap-2 text-sm text-orange-600 bg-orange-50 p-3 rounded-md">
+              
+              {cooldownSeconds > 0 && (
+                <div className="flex items-center gap-2 text-sm text-orange-600 bg-orange-50 p-3 rounded-md">
                   <Clock className="w-4 h-4" />
                   <span>Please wait {cooldownSeconds} seconds before trying again</span>
-                </div>}
+                </div>
+              )}
               
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-gray-600 font-poppins">
+                    For security, we'll send reset instructions to your email if an account exists. 
+                    The link expires in 1 hour.
+                  </p>
+                </div>
+              </div>
             </CardContent>
             <CardFooter>
-              <Button type="submit" className="w-full bg-booqit-primary hover:bg-booqit-primary/90 font-poppins" disabled={isLoading || !email || cooldownSeconds > 0}>
+              <Button 
+                type="submit" 
+                className="w-full bg-booqit-primary hover:bg-booqit-primary/90 font-poppins"
+                disabled={isLoading || !email.trim() || cooldownSeconds > 0}
+              >
                 {isLoading ? "Sending..." : cooldownSeconds > 0 ? `Wait ${cooldownSeconds}s` : "Send Reset Link"}
               </Button>
             </CardFooter>
           </form>
         </Card>
       </div>
-    </motion.div>;
+    </motion.div>
+  );
 };
+
 export default ForgotPasswordPage;
