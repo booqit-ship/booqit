@@ -71,79 +71,88 @@ const GuestShopDetailsPage: React.FC = () => {
     
     setIsLoading(true);
     try {
-      // Fetch merchant - use direct query without complex typing
-      const { data: merchantData, error: merchantError } = await supabase
+      // Fetch merchant with explicit column selection
+      const merchantQuery = supabase
         .from('merchants')
         .select('id, shop_name, category, address, description, open_time, close_time, rating, image_url')
         .eq('id', merchantId)
         .single();
 
-      if (merchantError) throw merchantError;
+      const { data: merchantData, error: merchantError } = await merchantQuery;
+      
+      if (merchantError) {
+        console.error('Merchant fetch error:', merchantError);
+        throw merchantError;
+      }
       
       if (merchantData) {
-        setMerchant({
-          id: String(merchantData.id || ''),
-          shop_name: String(merchantData.shop_name || ''),
-          category: String(merchantData.category || ''),
-          address: String(merchantData.address || ''),
-          description: merchantData.description ? String(merchantData.description) : undefined,
-          open_time: String(merchantData.open_time || '09:00'),
-          close_time: String(merchantData.close_time || '18:00'),
-          rating: merchantData.rating ? Number(merchantData.rating) : undefined,
-          image_url: merchantData.image_url ? String(merchantData.image_url) : undefined
-        });
+        // Explicitly construct the merchant object
+        const merchantInfo: MerchantData = {
+          id: merchantData.id || '',
+          shop_name: merchantData.shop_name || '',
+          category: merchantData.category || '',
+          address: merchantData.address || '',
+          description: merchantData.description || undefined,
+          open_time: merchantData.open_time || '09:00',
+          close_time: merchantData.close_time || '18:00',
+          rating: merchantData.rating || undefined,
+          image_url: merchantData.image_url || undefined
+        };
+        setMerchant(merchantInfo);
       }
 
-      // Fetch services - use direct query
-      const { data: servicesData, error: servicesError } = await supabase
+      // Fetch services with explicit column selection
+      const servicesQuery = supabase
         .from('services')
         .select('id, name, price, duration, description, image_url')
         .eq('merchant_id', merchantId)
         .order('name', { ascending: true });
 
-      if (servicesError) throw servicesError;
+      const { data: servicesData, error: servicesError } = await servicesQuery;
+      
+      if (servicesError) {
+        console.error('Services fetch error:', servicesError);
+        throw servicesError;
+      }
       
       if (servicesData) {
-        const processedServices: ServiceData[] = [];
-        for (let i = 0; i < servicesData.length; i++) {
-          const item = servicesData[i];
-          processedServices.push({
-            id: String(item.id || ''),
-            name: String(item.name || ''),
-            price: Number(item.price || 0),
-            duration: Number(item.duration || 30),
-            description: item.description ? String(item.description) : undefined,
-            image_url: item.image_url ? String(item.image_url) : undefined
-          });
-        }
-        setServices(processedServices);
+        // Explicitly construct service objects
+        const servicesList: ServiceData[] = servicesData.map(item => ({
+          id: item.id || '',
+          name: item.name || '',
+          price: Number(item.price) || 0,
+          duration: Number(item.duration) || 30,
+          description: item.description || undefined,
+          image_url: item.image_url || undefined
+        }));
+        setServices(servicesList);
       }
 
-      // Fetch reviews - use direct query
-      const { data: reviewsData, error: reviewsError } = await supabase
+      // Fetch reviews with explicit column selection
+      const reviewsQuery = supabase
         .from('reviews')
         .select('id, rating, review, customer_name, customer_avatar, created_at')
         .eq('merchant_id', merchantId)
         .order('created_at', { ascending: false })
         .limit(5);
 
+      const { data: reviewsData, error: reviewsError } = await reviewsQuery;
+      
       if (reviewsError) {
-        console.error('Error fetching reviews:', reviewsError);
+        console.error('Reviews fetch error:', reviewsError);
+        // Don't throw for reviews, just set empty array
         setReviews([]);
       } else if (reviewsData) {
-        const processedReviews: ReviewData[] = [];
-        for (let i = 0; i < reviewsData.length; i++) {
-          const item = reviewsData[i];
-          processedReviews.push({
-            id: String(item.id || ''),
-            rating: Number(item.rating || 0),
-            review: String(item.review || ''),
-            customer_name: String(item.customer_name || 'Anonymous'),
-            customer_avatar: item.customer_avatar ? String(item.customer_avatar) : undefined,
-            created_at: String(item.created_at || '')
-          });
-        }
-        setReviews(processedReviews);
+        // Explicitly construct review objects
+        const reviewsList: ReviewData[] = reviewsData.map(item => ({
+          id: item.id || '',
+          rating: Number(item.rating) || 0,
+          review: item.review || '',
+          customer_name: item.customer_name || 'Anonymous',
+          customer_avatar: item.customer_avatar || undefined,
+          created_at: item.created_at || ''
+        }));
+        setReviews(reviewsList);
       }
 
     } catch (error) {
