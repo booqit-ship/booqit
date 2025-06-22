@@ -1,55 +1,45 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Heart, Smartphone, MapPin, Users, Star, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-
 const MerchantAboutPage: React.FC = () => {
-  const features = [
-    {
-      icon: Calendar,
-      title: 'Smart Booking System',
-      description: 'Real-time slot management and customer tracking'
-    },
-    {
-      icon: Users,
-      title: 'Customer Management',
-      description: 'Track customer preferences and booking history'
-    },
-    {
-      icon: Star,
-      title: 'Reviews & Ratings',
-      description: 'Build trust with customer feedback system'
-    },
-    {
-      icon: MapPin,
-      title: 'Location Discovery',
-      description: 'Help customers find your salon easily'
-    }
-  ];
-
-  const appInfo = [
-    { label: 'Version', value: '1.0.0' },
-    { label: 'Platform', value: 'Android' },
-    { label: 'App ID', value: 'com.booqit.app' },
-    { label: 'Developer', value: '16xstudios' },
-    { label: 'Last Updated', value: new Date().toLocaleDateString('en-IN') }
-  ];
-
-  const technologies = [
-    'React', 'Tailwind CSS', 'Capacitor', 'Firebase', 'Google Maps', 'Supabase'
-  ];
-
-  const permissions = [
-    'Location (to help customers find your salon)',
-    'Push Notifications (for booking alerts and reminders)',
-    'Camera (for uploading salon photos)',
-    'Storage (for app data and images)'
-  ];
-
-  return (
-    <div className="min-h-screen bg-gray-50">
+  const features = [{
+    icon: Calendar,
+    title: 'Smart Booking System',
+    description: 'Real-time slot management and customer tracking'
+  }, {
+    icon: Users,
+    title: 'Customer Management',
+    description: 'Track customer preferences and booking history'
+  }, {
+    icon: Star,
+    title: 'Reviews & Ratings',
+    description: 'Build trust with customer feedback system'
+  }, {
+    icon: MapPin,
+    title: 'Location Discovery',
+    description: 'Help customers find your salon easily'
+  }];
+  const appInfo = [{
+    label: 'Version',
+    value: '1.0.0'
+  }, {
+    label: 'Platform',
+    value: 'Android'
+  }, {
+    label: 'App ID',
+    value: 'com.booqit.app'
+  }, {
+    label: 'Developer',
+    value: '16xstudios'
+  }, {
+    label: 'Last Updated',
+    value: new Date().toLocaleDateString('en-IN')
+  }];
+  const technologies = ['React', 'Tailwind CSS', 'Capacitor', 'Firebase', 'Google Maps', 'Supabase'];
+  const permissions = ['Location (to help customers find your salon)', 'Push Notifications (for booking alerts and reminders)', 'Camera (for uploading salon photos)', 'Storage (for app data and images)'];
+  return <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b sticky top-0 z-10">
         <div className="flex items-center gap-3 p-4">
@@ -73,7 +63,7 @@ const MerchantAboutPage: React.FC = () => {
               <Smartphone className="h-8 w-8 text-white" />
             </div>
             <CardTitle className="text-2xl">BooqIt</CardTitle>
-            <p className="text-booqit-primary/20">
+            <p className="text-white">
               Modern Beauty & Salon Booking Platform
             </p>
           </CardHeader>
@@ -106,8 +96,7 @@ const MerchantAboutPage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="grid gap-4">
-              {features.map((feature, index) => (
-                <div key={index} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+              {features.map((feature, index) => <div key={index} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
                   <div className="w-10 h-10 bg-booqit-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
                     <feature.icon className="h-5 w-5 text-booqit-primary" />
                   </div>
@@ -115,8 +104,7 @@ const MerchantAboutPage: React.FC = () => {
                     <h4 className="font-medium text-gray-900">{feature.title}</h4>
                     <p className="text-sm text-gray-600">{feature.description}</p>
                   </div>
-                </div>
-              ))}
+                </div>)}
             </div>
           </CardContent>
         </Card>
@@ -128,12 +116,10 @@ const MerchantAboutPage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {appInfo.map((info, index) => (
-                <div key={index} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-b-0">
+              {appInfo.map((info, index) => <div key={index} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-b-0">
                   <span className="text-gray-600">{info.label}</span>
                   <span className="font-medium text-gray-900">{info.value}</span>
-                </div>
-              ))}
+                </div>)}
             </div>
           </CardContent>
         </Card>
@@ -145,14 +131,9 @@ const MerchantAboutPage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
-              {technologies.map((tech, index) => (
-                <span 
-                  key={index}
-                  className="px-3 py-1 bg-booqit-primary/10 text-booqit-primary rounded-full text-sm font-medium"
-                >
+              {technologies.map((tech, index) => <span key={index} className="px-3 py-1 bg-booqit-primary/10 text-booqit-primary rounded-full text-sm font-medium">
                   {tech}
-                </span>
-              ))}
+                </span>)}
             </div>
           </CardContent>
         </Card>
@@ -164,12 +145,10 @@ const MerchantAboutPage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {permissions.map((permission, index) => (
-                <div key={index} className="flex items-start gap-3">
+              {permissions.map((permission, index) => <div key={index} className="flex items-start gap-3">
                   <div className="w-2 h-2 bg-booqit-primary rounded-full mt-2 flex-shrink-0"></div>
                   <p className="text-gray-700 text-sm">{permission}</p>
-                </div>
-              ))}
+                </div>)}
             </div>
           </CardContent>
         </Card>
@@ -212,8 +191,6 @@ const MerchantAboutPage: React.FC = () => {
           </CardContent>
         </Card>
       </div>
-    </div>
-  );
+    </div>;
 };
-
 export default MerchantAboutPage;
