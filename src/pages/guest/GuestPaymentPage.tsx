@@ -66,7 +66,10 @@ const GuestPaymentPage: React.FC = () => {
         return;
       }
 
-      if (data?.success) {
+      // Type the response correctly
+      const response = data as { success?: boolean; booking_id?: string; error?: string };
+
+      if (response?.success) {
         toast.success('Booking confirmed successfully!');
         
         // Navigate to a success page or back to shop
@@ -74,12 +77,12 @@ const GuestPaymentPage: React.FC = () => {
           navigate(`/book/${merchantId}`, {
             state: { 
               bookingSuccess: true,
-              bookingId: data.booking_id
+              bookingId: response.booking_id
             }
           });
         }, 2000);
       } else {
-        toast.error(data?.error || 'Failed to create booking');
+        toast.error(response?.error || 'Failed to create booking');
       }
     } catch (error) {
       console.error('Error creating guest booking:', error);

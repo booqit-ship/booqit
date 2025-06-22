@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -5,13 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { User, Phone, Mail } from 'lucide-react';
 
 const GuestInfoPage: React.FC = () => {
   const { merchantId, shopName } = useParams();
   const navigate = useNavigate();
-  const { toast } = useToast();
   
   const [guestInfo, setGuestInfo] = useState({
     name: '',
@@ -47,8 +47,7 @@ const GuestInfoPage: React.FC = () => {
     // Navigate to service selection page
     navigate(`/guest-services/${merchantId}`, { 
       state: { 
-        guestInfo,
-        merchant: merchant 
+        guestInfo
       }
     });
   };
