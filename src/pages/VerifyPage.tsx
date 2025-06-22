@@ -51,7 +51,6 @@ const VerifyPage: React.FC = () => {
           variant: "destructive",
         });
         
-        // Wait a moment before redirecting to let user see the error
         setTimeout(() => {
           navigate('/forgot-password');
         }, 2000);
@@ -63,6 +62,7 @@ const VerifyPage: React.FC = () => {
         console.log('Valid recovery link detected, setting session...');
         
         try {
+          // Set the session with the tokens from the URL
           const { data, error } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
@@ -73,29 +73,45 @@ const VerifyPage: React.FC = () => {
             throw error;
           }
           
-          console.log('Session set successfully, redirecting to reset password...');
+          console.log('Session set successfully:', data);
+          
+          // Verify the session is actually set
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          
+          if (sessionError || !session) {
+            console.error('Session verification failed:', sessionError);
+            throw new Error('Failed to establish session');
+          }
+          
+          console.log('Session verified, redirecting to reset password...');
           
           toast({
             title: "Reset Link Verified",
             description: "You can now set your new password.",
           });
           
-          // Small delay to ensure session is properly set
+          // Add the tokens to the URL for the reset password page as a fallback
+          const resetUrl = `/reset-password?access_token=${accessToken}&refresh_token=${refreshToken}&type=${type}`;
+          
+          // Small delay to ensure session is properly set and toast is shown
           setTimeout(() => {
-            navigate('/reset-password', { replace: true });
-          }, 500);
+            navigate(resetUrl, { replace: true });
+          }, 1000);
           
         } catch (error) {
           console.error('Failed to set session:', error);
+          
+          // Try to redirect with URL parameters as fallback
+          const resetUrl = `/reset-password?access_token=${accessToken}&refresh_token=${refreshToken}&type=${type}&fallback=true`;
+          
           toast({
-            title: "Invalid Reset Link",
-            description: "The reset link is invalid or has expired. Please request a new one.",
-            variant: "destructive",
+            title: "Session Warning",
+            description: "Attempting to proceed with password reset...",
           });
           
           setTimeout(() => {
-            navigate('/forgot-password');
-          }, 2000);
+            navigate(resetUrl, { replace: true });
+          }, 1000);
         }
       } else {
         console.log('Invalid verification parameters');
