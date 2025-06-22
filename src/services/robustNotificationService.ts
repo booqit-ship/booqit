@@ -169,3 +169,44 @@ export class RobustNotificationService {
     }
   }
 }
+
+/**
+ * Send booking confirmation notification to customer
+ */
+export const sendBookingConfirmation = async (
+  customerId: string,
+  shopName: string,
+  serviceName: string,
+  date: string,
+  time: string,
+  bookingId: string
+): Promise<boolean> => {
+  return RobustNotificationService.sendNotification(customerId, {
+    title: '🎉 Booking Confirmed!',
+    body: `Your appointment at ${shopName} for ${serviceName} on ${date} at ${time} is confirmed!`,
+    data: {
+      type: 'booking_confirmed',
+      bookingId
+    }
+  });
+};
+
+/**
+ * Send new booking alert to merchant
+ */
+export const sendNewBookingAlert = async (
+  merchantUserId: string,
+  customerName: string,
+  serviceName: string,
+  timeSlot: string,
+  bookingId: string
+): Promise<boolean> => {
+  return RobustNotificationService.sendNotification(merchantUserId, {
+    title: '📅 New Booking!',
+    body: `${customerName} booked ${serviceName} for ${timeSlot}`,
+    data: {
+      type: 'new_booking',
+      bookingId
+    }
+  });
+};
