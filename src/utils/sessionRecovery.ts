@@ -17,35 +17,57 @@ export const clearOwnSessionStorage = (): void => {
   }
 };
 
-// Simple session validation without aggressive refresh
+// Enhanced session validation with retry logic
 export const validateCurrentSession = async (): Promise<boolean> => {
-  console.log('🔍 Validating current session (simple check)');
+  console.log('🔍 Validating current session');
   
-  try {
-    // Just check if we have a valid session, don't force operations
-    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-    
-    if (sessionData?.session && !sessionError) {
-      console.log('✅ Current session is valid');
-      return true;
+  let attempts = 0;
+  const maxAttempts = 3;
+  
+  while (attempts < maxAttempts) {
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionData?.session && !sessionError) {
+        console.log('✅ Current session is valid');
+        return true;
+      }
+      
+      // If session is invalid, try to refresh
+      if (attempts < maxAttempts - 1) {
+        console.log(`🔄 Session validation attempt ${attempts + 1} failed, retrying...`);
+        const { error: refreshError } = await supabase.auth.refreshSession();
+        
+        if (refreshError) {
+          console.log('❌ Session refresh failed:', refreshError.message);
+        } else {
+          console.log('✅ Session refreshed successfully');
+        }
+      }
+      
+    } catch (error) {
+      console.error(`❌ Session validation attempt ${attempts + 1} failed:`, error);
     }
     
-    console.log('❌ Session validation failed:', { sessionError });
-    return false;
+    attempts++;
     
-  } catch (error) {
-    console.error('❌ Exception during session validation:', error);
-    return false;
+    if (attempts < maxAttempts) {
+      // Wait before retry (exponential backoff)
+      await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempts) * 1000));
+    }
   }
+  
+  console.log('❌ All session validation attempts failed');
+  return false;
 };
 
-// Very conservative session recovery
+// Enhanced session recovery with better error handling
 export const attemptSessionRecovery = async (): Promise<{
   success: boolean;
   session: any | null;
   message: string;
 }> => {
-  console.log('🔄 Attempting conservative session recovery');
+  console.log('🔄 Attempting enhanced session recovery');
   
   const permanentData = PermanentSession.getSession();
   
@@ -58,7 +80,7 @@ export const attemptSessionRecovery = async (): Promise<{
   }
   
   try {
-    // Only try to get current session, no aggressive refreshing
+    // First, try to get current session
     const { data: { session }, error } = await supabase.auth.getSession();
     
     if (session && !error) {
@@ -69,14 +91,34 @@ export const attemptSessionRecovery = async (): Promise<{
       };
     }
     
+    // If no current session, try to refresh
+    console.log('🔄 Attempting session refresh...');
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+    
+    if (refreshData.session && !refreshError) {
+      return {
+        success: true,
+        session: refreshData.session,
+        message: 'Recovery succeeded with refreshed session'
+      };
+    }
+    
+    // If refresh fails, clear permanent session
+    console.log('❌ Session refresh failed, clearing permanent session');
+    PermanentSession.clearSession();
+    
     return {
       success: false,
       session: null,
       message: 'Session recovery failed - please log in again'
     };
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Session recovery error:', error);
+    
+    // Clear permanent session on critical errors
+    PermanentSession.clearSession();
+    
     return {
       success: false,
       session: null,
@@ -85,9 +127,14 @@ export const attemptSessionRecovery = async (): Promise<{
   }
 };
 
-// Simplified session expiry handler
-export const handleSessionExpiry = async (): Promise<void> => {
-  console.log('⚠️ Handling session expiry - clearing and redirecting');
+// Graceful session expiry handler with user notification
+export const handleSessionExpiry = async (showNotification?: (message: string) => void): Promise<void> => {
+  console.log('⚠️ Handling session expiry gracefully');
+  
+  // Show user notification if callback provided
+  if (showNotification) {
+    showNotification('Your session has expired. Please log in again.');
+  }
   
   // Clear permanent session
   PermanentSession.clearSession();
@@ -99,18 +146,66 @@ export const handleSessionExpiry = async (): Promise<void> => {
     console.error('❌ Error during signOut:', error);
   }
   
-  // Redirect to login
+  // Clear any cached data
+  try {
+    sessionStorage.removeItem('performance-metrics');
+    localStorage.removeItem('booking-draft');
+  } catch (error) {
+    console.error('❌ Error clearing cached data:', error);
+  }
+  
+  // Redirect to login with delay for user to see message
   setTimeout(() => {
     window.location.href = '/auth';
-  }, 100);
+  }, 2000);
 };
 
-// Show user-friendly message when session is lost
-export const showSessionLostMessage = () => {
-  const message = "Your session has been lost. Please log in again.";
+// Health check for authentication system
+export const performAuthHealthCheck = async (): Promise<{
+  isHealthy: boolean;
+  issues: string[];
+  recommendations: string[];
+}> => {
+  const issues: string[] = [];
+  const recommendations: string[] = [];
   
-  if (typeof window !== 'undefined') {
-    console.log('📢 Session lost message:', message);
-    return message;
+  try {
+    // Check Supabase connection
+    const { error: connectionError } = await supabase.auth.getSession();
+    if (connectionError) {
+      issues.push('Supabase connection error');
+      recommendations.push('Check internet connection and Supabase configuration');
+    }
+    
+    // Check permanent session consistency
+    const permanentData = PermanentSession.getSession();
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (permanentData.isLoggedIn && !session) {
+      issues.push('Permanent session inconsistency');
+      recommendations.push('Clear permanent session and re-authenticate');
+    }
+    
+    // Check for expired tokens
+    if (session?.expires_at) {
+      const expiresAt = new Date(session.expires_at * 1000);
+      const now = new Date();
+      const timeToExpiry = expiresAt.getTime() - now.getTime();
+      
+      if (timeToExpiry < 5 * 60 * 1000) { // Less than 5 minutes
+        issues.push('Session expiring soon');
+        recommendations.push('Session will expire soon, consider refreshing');
+      }
+    }
+    
+  } catch (error: any) {
+    issues.push(`Health check failed: ${error.message}`);
+    recommendations.push('Contact support if issues persist');
   }
+  
+  return {
+    is </Healthy: issues.length === 0,
+    issues,
+    recommendations
+  };
 };
