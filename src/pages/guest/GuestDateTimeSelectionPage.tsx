@@ -1,8 +1,10 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, Clock, CalendarIcon, RefreshCw } from 'lucide-react';
+import { ChevronLeft, Clock, CalendarIcon, RefreshCw, Users, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { addDays } from 'date-fns';
@@ -23,15 +25,31 @@ interface AvailableSlot {
   conflict_reason: string | null;
 }
 
+interface Staff {
+  id: string;
+  name: string;
+}
+
+interface Service {
+  id: string;
+  name: string;
+  price: number;
+  duration: number;
+  description?: string;
+}
+
 const GuestDateTimeSelectionPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { merchant, selectedServices, totalPrice, totalDuration, selectedStaff, selectedStaffDetails, guestInfo } = location.state || {};
+  const { merchant, selectedServices, totalPrice, totalDuration, guestInfo } = location.state || {};
 
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string>('');
+  const [selectedStaff, setSelectedStaff] = useState<string>('');
+  const [selectedStaffDetails, setSelectedStaffDetails] = useState<Staff | null>(null);
   const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
+  const [staff, setStaff] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
   const [holidays, setHolidays] = useState<string[]>([]);
@@ -66,6 +84,28 @@ const GuestDateTimeSelectionPage: React.FC = () => {
       setSelectedDate(availableDates[0]);
     }
   }, [availableDates]);
+
+  // Fetch staff members
+  useEffect(() => {
+    const fetchStaff = async () => {
+      if (!merchantId) return;
+
+      try {
+        const { data: staffData, error: staffError } = await supabase
+          .from('staff')
+          .select('*')
+          .eq('merchant_id', merchantId);
+
+        if (staffError) throw staffError;
+        setStaff(staffData || []);
+      } catch (error) {
+        console.error('Error fetching staff:', error);
+        toast.error('Failed to load staff information');
+      }
+    };
+
+    fetchStaff();
+  }, [merchantId]);
 
   // Fetch holidays
   useEffect(() => {
@@ -114,6 +154,7 @@ const GuestDateTimeSelectionPage: React.FC = () => {
       console.log('=== GUEST BOOKING SLOTS FETCH ===');
       console.log('Date:', selectedDateStr, '| Is today:', isToday);
       console.log('Total duration for all services:', totalDuration, 'minutes');
+      console.log('Selected staff:', selectedStaff || 'Any available');
       console.log('Services:', selectedServices?.map(s => `${s.name} (${s.duration}min)`));
       if (isToday) {
         console.log('Current IST:', getCurrentTimeIST());
@@ -217,6 +258,22 @@ const GuestDateTimeSelectionPage: React.FC = () => {
     }
   }, [fetchAvailableSlots]);
 
+  // Handle staff selection
+  const handleStaffSelect = (staffMember: Staff) => {
+    if (selectedStaff === staffMember.id) {
+      // Deselect staff
+      setSelectedStaff('');
+      setSelectedStaffDetails(null);
+    } else {
+      // Select staff
+      setSelectedStaff(staffMember.id);
+      setSelectedStaffDetails(staffMember);
+    }
+    
+    // Clear selected time when changing staff
+    setSelectedTime('');
+  };
+
   // Handle slot selection
   const handleTimeSlotClick = async (timeSlot: string) => {
     if (!selectedDate || !merchantId) return;
@@ -247,11 +304,23 @@ const GuestDateTimeSelectionPage: React.FC = () => {
       console.log('GUEST BOOKING SLOT SELECTION:', {
         timeSlot,
         totalDuration,
+        selectedStaff: selectedStaff || 'any',
+        selectedStaffName: availableSlot.staff_name,
         services: selectedServices?.length || 0,
         serviceDetails: selectedServices?.map(s => ({ name: s.name, duration: s.duration }))
       });
       
       setSelectedTime(timeSlot);
+      
+      // If no specific staff was selected, auto-select the staff from the slot
+      if (!selectedStaff) {
+        setSelectedStaff(availableSlot.staff_id);
+        setSelectedStaffDetails({ 
+          id: availableSlot.staff_id, 
+          name: availableSlot.staff_name 
+        });
+      }
+      
       toast.success(`Time slot selected for ${totalDuration} minutes total duration!`);
     } catch (error) {
       console.error('Error selecting slot:', error);
@@ -279,13 +348,18 @@ const GuestDateTimeSelectionPage: React.FC = () => {
     try {
       const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
       const finalStaffId = selectedStaff || selectedSlot.staff_id;
-      const finalStaffDetails = selectedStaffDetails || { name: selectedSlot.staff_name };
+      const finalStaffDetails = selectedStaffDetails || { 
+        id: selectedSlot.staff_id, 
+        name: selectedSlot.staff_name 
+      };
 
       console.log('GUEST BOOKING CONTINUE: Proceeding to guest payment with:', {
         totalDuration,
         totalPrice,
         servicesCount: selectedServices?.length,
         selectedTime: selectedTime,
+        finalStaffId,
+        finalStaffDetails,
         guestInfo
       });
 
@@ -327,9 +401,21 @@ const GuestDateTimeSelectionPage: React.FC = () => {
   const availableTimeSlots = availableSlots.filter(slot => slot.is_available);
   const unavailableSlots = availableSlots.filter(slot => !slot.is_available);
   
-  const uniqueAvailableSlots = Array.from(new Map(
-    availableTimeSlots.map(slot => [slot.time_slot, slot])
-  ).values()).sort((a, b) => a.time_slot.localeCompare(b.time_slot));
+  // Group slots by staff for better display
+  const groupedAvailableSlots = availableTimeSlots.reduce((acc, slot) => {
+    if (!acc[slot.time_slot]) {
+      acc[slot.time_slot] = [];
+    }
+    acc[slot.time_slot].push(slot);
+    return acc;
+  }, {} as Record<string, AvailableSlot[]>);
+
+  const uniqueAvailableSlots = Object.keys(groupedAvailableSlots)
+    .sort((a, b) => a.localeCompare(b))
+    .map(timeSlot => ({
+      time_slot: timeSlot,
+      staff_options: groupedAvailableSlots[timeSlot]
+    }));
   
   const uniqueUnavailableSlots = Array.from(new Map(
     unavailableSlots.map(slot => [slot.time_slot, slot])
@@ -417,12 +503,56 @@ const GuestDateTimeSelectionPage: React.FC = () => {
           </div>
         </div>
 
+        {/* Staff Selection */}
+        {staff.length > 0 && (
+          <div className="mb-6">
+            <h3 className="font-medium mb-3 flex items-center font-righteous">
+              <Users className="h-4 w-4 mr-2" />
+              Choose Stylist (Optional)
+            </h3>
+            <div className="grid grid-cols-1 gap-2">
+              <Button
+                variant={!selectedStaff ? "default" : "outline"}
+                className={`p-3 text-left font-poppins ${
+                  !selectedStaff ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
+                }`}
+                onClick={() => handleStaffSelect({ id: '', name: '' })}
+              >
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  <span>Any Available Stylist</span>
+                </div>
+              </Button>
+              {staff.map((staffMember) => (
+                <Button
+                  key={staffMember.id}
+                  variant={selectedStaff === staffMember.id ? "default" : "outline"}
+                  className={`p-3 text-left font-poppins ${
+                    selectedStaff === staffMember.id ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
+                  }`}
+                  onClick={() => handleStaffSelect(staffMember)}
+                >
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    <span>{staffMember.name}</span>
+                  </div>
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {selectedDate && (
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-medium flex items-center font-righteous">
                 <Clock className="h-4 w-4 mr-2" />
                 Available Time Slots
+                {selectedStaffDetails && (
+                  <Badge variant="secondary" className="ml-2 font-poppins">
+                    {selectedStaffDetails.name}
+                  </Badge>
+                )}
               </h3>
               {isToday && (
                 <div className="flex items-center text-sm text-gray-500">
@@ -455,17 +585,22 @@ const GuestDateTimeSelectionPage: React.FC = () => {
             ) : uniqueAvailableSlots.length > 0 ? (
               <div className="space-y-4">
                 <div className="grid grid-cols-3 gap-2">
-                  {uniqueAvailableSlots.map((slot) => (
+                  {uniqueAvailableSlots.map((slotGroup) => (
                     <Button
-                      key={slot.time_slot}
-                      variant={selectedTime === slot.time_slot ? "default" : "outline"}
+                      key={slotGroup.time_slot}
+                      variant={selectedTime === slotGroup.time_slot ? "default" : "outline"}
                       className={`p-3 font-poppins ${
-                        selectedTime === slot.time_slot ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
+                        selectedTime === slotGroup.time_slot ? 'bg-booqit-primary hover:bg-booqit-primary/90' : ''
                       }`}
-                      onClick={() => handleTimeSlotClick(slot.time_slot)}
+                      onClick={() => handleTimeSlotClick(slotGroup.time_slot)}
                       disabled={isCheckingSlot}
                     >
-                      <span className="font-medium">{formatTimeToAmPm(slot.time_slot)}</span>
+                      <div className="text-center">
+                        <span className="font-medium block">{formatTimeToAmPm(slotGroup.time_slot)}</span>
+                        {slotGroup.staff_options.length > 1 && (
+                          <span className="text-xs opacity-70">{slotGroup.staff_options.length} stylists</span>
+                        )}
+                      </div>
                     </Button>
                   ))}
                 </div>
