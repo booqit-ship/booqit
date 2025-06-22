@@ -70,38 +70,68 @@ const GuestShopDetailsPage: React.FC = () => {
     
     setIsLoading(true);
     try {
-      // Fetch merchant data with explicit typing
-      const merchantQuery = await supabase
+      // Fetch merchant data
+      const merchantResponse = await supabase
         .from('merchants')
         .select('*')
         .eq('id', merchantId)
         .single();
 
-      if (merchantQuery.error) throw merchantQuery.error;
-      setMerchant(merchantQuery.data as Merchant);
+      if (merchantResponse.error) throw merchantResponse.error;
+      
+      const merchantData: Merchant = {
+        id: merchantResponse.data.id,
+        shop_name: merchantResponse.data.shop_name,
+        category: merchantResponse.data.category,
+        address: merchantResponse.data.address,
+        description: merchantResponse.data.description,
+        open_time: merchantResponse.data.open_time,
+        close_time: merchantResponse.data.close_time,
+        rating: merchantResponse.data.rating,
+        image_url: merchantResponse.data.image_url
+      };
+      setMerchant(merchantData);
 
-      // Fetch services with explicit typing
-      const servicesQuery = await supabase
+      // Fetch services
+      const servicesResponse = await supabase
         .from('services')
         .select('*')
         .eq('merchant_id', merchantId)
         .order('name', { ascending: true });
 
-      if (servicesQuery.error) throw servicesQuery.error;
-      setServices((servicesQuery.data || []) as Service[]);
+      if (servicesResponse.error) throw servicesResponse.error;
+      
+      const servicesData: Service[] = (servicesResponse.data || []).map(service => ({
+        id: service.id,
+        name: service.name,
+        price: service.price,
+        duration: service.duration,
+        description: service.description,
+        image_url: service.image_url
+      }));
+      setServices(servicesData);
 
-      // Fetch reviews with explicit typing
-      const reviewsQuery = await supabase
+      // Fetch reviews - simplified approach
+      const reviewsResponse = await supabase
         .from('reviews')
         .select('*')
         .eq('merchant_id', merchantId)
         .order('created_at', { ascending: false })
         .limit(5);
 
-      if (reviewsQuery.error) {
-        console.error('Error fetching reviews:', reviewsQuery.error);
+      if (reviewsResponse.error) {
+        console.error('Error fetching reviews:', reviewsResponse.error);
+        setReviews([]);
       } else {
-        setReviews((reviewsQuery.data || []) as Review[]);
+        const reviewsData: Review[] = (reviewsResponse.data || []).map(review => ({
+          id: review.id,
+          rating: review.rating,
+          review: review.review || '',
+          customer_name: review.customer_name || 'Anonymous',
+          customer_avatar: review.customer_avatar,
+          created_at: review.created_at
+        }));
+        setReviews(reviewsData);
       }
 
     } catch (error) {
