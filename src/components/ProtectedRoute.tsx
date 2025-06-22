@@ -4,7 +4,6 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types';
 import { PermanentSession } from '@/utils/permanentSession';
-import { useMerchantData } from '@/hooks/useMerchantData';
 
 interface ProtectedRouteProps {
   children?: React.ReactNode;
@@ -15,7 +14,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children, 
   requiredRole 
 }) => {
-  const { isAuthenticated, userRole, loading, userId } = useAuth();
+  const { isAuthenticated, userRole, loading } = useAuth();
 
   // Check permanent session for instant auth check
   const permanentData = PermanentSession.getSession();
@@ -37,7 +36,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // Use permanent session for instant redirect if available
   const effectiveAuth = isAuthenticated || hasPermanentSession;
   const effectiveRole = userRole || permanentRole;
-  const effectiveUserId = userId || permanentData.userId;
 
   if (!effectiveAuth) {
     console.log('🚫 User not authenticated, redirecting to /');

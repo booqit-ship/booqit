@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import {
   BrowserRouter as Router,
@@ -37,7 +36,6 @@ import MerchantServices from '@/pages/merchant/ServicesPage';
 import MerchantCalendar from '@/pages/merchant/CalendarManagementPage';
 import MerchantProfile from '@/pages/merchant/ProfilePage';
 import MerchantLayout from '@/layouts/MerchantLayout';
-import MerchantOnboarding from '@/pages/merchant/OnboardingPage';
 import AnalyticsPage from '@/pages/merchant/AnalyticsPage';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import MerchantSettingsPage from '@/pages/merchant/SettingsPage';
@@ -92,7 +90,6 @@ const AppContent: React.FC = () => {
 
           {/* Merchant Routes */}
           <Route path="/merchant/auth" element={<LazyRoute><Auth /></LazyRoute>} />
-          <Route path="/merchant/onboarding" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantOnboarding /></MerchantLayout></ProtectedRoute></LazyRoute>} />
           <Route path="/merchant" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantDashboard /></MerchantLayout></ProtectedRoute></LazyRoute>} />
           <Route path="/merchant/dashboard" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantDashboard /></MerchantLayout></ProtectedRoute></LazyRoute>} />
           <Route path="/merchant/services" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantServices /></MerchantLayout></ProtectedRoute></LazyRoute>} />

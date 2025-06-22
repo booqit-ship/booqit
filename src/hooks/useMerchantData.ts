@@ -9,8 +9,6 @@ export const useMerchantData = (userId: string | null) => {
     queryFn: async (): Promise<Merchant | null> => {
       if (!userId) return null;
       
-      console.log('🔍 Fetching merchant data for user:', userId);
-      
       const { data, error } = await supabase
         .from('merchants')
         .select('*')
@@ -19,15 +17,12 @@ export const useMerchantData = (userId: string | null) => {
       
       if (error) {
         if (error.code === 'PGRST116') {
-          // No merchant found - this is expected for new users who haven't completed onboarding
-          console.log('📝 No merchant record found - user needs onboarding');
+          // No merchant found - this is expected for new users
           return null;
         }
-        console.error('❌ Error fetching merchant data:', error);
         throw error;
       }
       
-      console.log('✅ Merchant data found:', data?.shop_name);
       return data;
     },
     enabled: !!userId,
