@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Mail, Clock } from 'lucide-react';
+
 const ForgotPasswordPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -17,11 +18,12 @@ const ForgotPasswordPage: React.FC = () => {
     toast
   } = useToast();
 
-  // Get the current domain dynamically
+  // Get the current domain dynamically - this will now properly use booqit.in when accessed via that domain
   const getCurrentDomain = () => {
     if (typeof window !== 'undefined') {
       return window.location.origin;
     }
+    // Fallback for SSR - should rarely be used since this runs client-side
     return 'https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com';
   };
 
@@ -34,6 +36,7 @@ const ForgotPasswordPage: React.FC = () => {
       return () => clearTimeout(timer);
     }
   }, [cooldownSeconds]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (cooldownSeconds > 0) {
@@ -57,7 +60,7 @@ const ForgotPasswordPage: React.FC = () => {
       }
       console.log('Sending password reset email to:', email);
 
-      // Use the current domain for redirect URL
+      // Use the current domain for redirect URL - will now properly use booqit.in
       const redirectUrl = `${getCurrentDomain()}/verify`;
       console.log('Using redirect URL:', redirectUrl);
 
@@ -109,6 +112,7 @@ const ForgotPasswordPage: React.FC = () => {
       setIsLoading(false);
     }
   };
+
   if (emailSent) {
     return <motion.div className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-booqit-primary/10 to-white p-6" initial={{
       opacity: 0
