@@ -13,7 +13,16 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import UpcomingBookings from '@/components/customer/UpcomingBookings';
 
-// Updated featured categories with illustration images
+// Preload critical images
+const preloadImage = (src: string) => {
+  const link = document.createElement('link');
+  link.rel = 'preload';
+  link.as = 'image';
+  link.href = src;
+  document.head.appendChild(link);
+};
+
+// Updated featured categories with illustration images - preload critical images
 const featuredCategories = [{
   id: 1,
   name: 'Salon',
@@ -25,6 +34,11 @@ const featuredCategories = [{
   image: '/lovable-uploads/e8017a81-26c0-495a-af95-e68ca23ba46c.png',
   color: '#FF6B6B'
 }];
+
+// Preload images on module load
+featuredCategories.forEach(category => {
+  preloadImage(category.image);
+});
 
 const HomePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -329,6 +343,8 @@ const HomePage: React.FC = () => {
                       src={category.image} 
                       alt={category.name}
                       className="w-full h-full object-contain"
+                      loading="eager"
+                      decoding="sync"
                       onError={(e) => {
                         console.error(`Failed to load image for ${category.name}`);
                         // Fallback to a simple colored div if image fails to load
