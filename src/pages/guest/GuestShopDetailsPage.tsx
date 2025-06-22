@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -8,26 +9,8 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, MapPin, Clock, Star, Phone, Mail, User, Calendar } from 'lucide-react';
 
-// Simple type definitions to avoid complex inference
-interface SimpleService {
-  id: string;
-  name: string;
-  price: number;
-  duration: number;
-  description?: string;
-  image_url?: string;
-}
-
-interface SimpleReview {
-  id: string;
-  rating: number;
-  review: string;
-  customer_name: string;
-  customer_avatar?: string;
-  created_at: string;
-}
-
-interface SimpleMerchant {
+// Simple interfaces to avoid complex type inference
+interface MerchantData {
   id: string;
   shop_name: string;
   category: string;
@@ -37,6 +20,24 @@ interface SimpleMerchant {
   close_time: string;
   rating?: number;
   image_url?: string;
+}
+
+interface ServiceData {
+  id: string;
+  name: string;
+  price: number;
+  duration: number;
+  description?: string;
+  image_url?: string;
+}
+
+interface ReviewData {
+  id: string;
+  rating: number;
+  review: string;
+  customer_name: string;
+  customer_avatar?: string;
+  created_at: string;
 }
 
 interface GuestInfo {
@@ -50,9 +51,9 @@ const GuestShopDetailsPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   
-  const [merchant, setMerchant] = useState<SimpleMerchant | null>(null);
-  const [services, setServices] = useState<SimpleService[]>([]);
-  const [reviews, setReviews] = useState<SimpleReview[]>([]);
+  const [merchant, setMerchant] = useState<MerchantData | null>(null);
+  const [services, setServices] = useState<ServiceData[]>([]);
+  const [reviews, setReviews] = useState<ReviewData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
   const guestInfo: GuestInfo = location.state?.guestInfo || JSON.parse(sessionStorage.getItem('guestBookingInfo') || '{}');
@@ -71,81 +72,71 @@ const GuestShopDetailsPage: React.FC = () => {
     
     setIsLoading(true);
     try {
-      // Fetch merchant data - use explicit typing
-      const { data: merchantData, error: merchantError } = await supabase
+      // Fetch merchant data with explicit typing
+      const merchantResponse = await supabase
         .from('merchants')
         .select('*')
         .eq('id', merchantId)
         .single();
 
-      if (merchantError) throw merchantError;
+      if (merchantResponse.error) throw merchantResponse.error;
       
-      // Create merchant object manually
-      const merchant: SimpleMerchant = {
-        id: String(merchantData.id),
-        shop_name: String(merchantData.shop_name || ''),
-        category: String(merchantData.category || ''),
-        address: String(merchantData.address || ''),
-        description: merchantData.description ? String(merchantData.description) : undefined,
-        open_time: String(merchantData.open_time || '09:00'),
-        close_time: String(merchantData.close_time || '18:00'),
-        rating: merchantData.rating ? Number(merchantData.rating) : undefined,
-        image_url: merchantData.image_url ? String(merchantData.image_url) : undefined
+      // Manually construct merchant object
+      const merchantData: MerchantData = {
+        id: merchantResponse.data.id,
+        shop_name: merchantResponse.data.shop_name || '',
+        category: merchantResponse.data.category || '',
+        address: merchantResponse.data.address || '',
+        description: merchantResponse.data.description || undefined,
+        open_time: merchantResponse.data.open_time || '09:00',
+        close_time: merchantResponse.data.close_time || '18:00',
+        rating: merchantResponse.data.rating || undefined,
+        image_url: merchantResponse.data.image_url || undefined
       };
-      setMerchant(merchant);
+      setMerchant(merchantData);
 
-      // Fetch services - use explicit typing
-      const { data: servicesData, error: servicesError } = await supabase
+      // Fetch services with explicit typing
+      const servicesResponse = await supabase
         .from('services')
         .select('*')
         .eq('merchant_id', merchantId)
         .order('name', { ascending: true });
 
-      if (servicesError) throw servicesError;
+      if (servicesResponse.error) throw servicesResponse.error;
       
-      // Create services array manually
-      const servicesArray: SimpleService[] = [];
-      if (servicesData && Array.isArray(servicesData)) {
-        servicesData.forEach((item) => {
-          servicesArray.push({
-            id: String(item.id),
-            name: String(item.name || ''),
-            price: Number(item.price || 0),
-            duration: Number(item.duration || 30),
-            description: item.description ? String(item.description) : undefined,
-            image_url: item.image_url ? String(item.image_url) : undefined
-          });
-        });
-      }
-      setServices(servicesArray);
+      // Manually construct services array
+      const servicesData: ServiceData[] = (servicesResponse.data || []).map((item: any) => ({
+        id: item.id,
+        name: item.name || '',
+        price: Number(item.price) || 0,
+        duration: Number(item.duration) || 30,
+        description: item.description || undefined,
+        image_url: item.image_url || undefined
+      }));
+      setServices(servicesData);
 
-      // Fetch reviews - use explicit typing
-      const { data: reviewsData, error: reviewsError } = await supabase
+      // Fetch reviews with explicit typing
+      const reviewsResponse = await supabase
         .from('reviews')
         .select('*')
         .eq('merchant_id', merchantId)
         .order('created_at', { ascending: false })
         .limit(5);
 
-      if (reviewsError) {
-        console.error('Error fetching reviews:', reviewsError);
+      if (reviewsResponse.error) {
+        console.error('Error fetching reviews:', reviewsResponse.error);
         setReviews([]);
       } else {
-        // Create reviews array manually
-        const reviewsArray: SimpleReview[] = [];
-        if (reviewsData && Array.isArray(reviewsData)) {
-          reviewsData.forEach((item) => {
-            reviewsArray.push({
-              id: String(item.id),
-              rating: Number(item.rating || 0),
-              review: String(item.review || ''),
-              customer_name: String(item.customer_name || 'Anonymous'),
-              customer_avatar: item.customer_avatar ? String(item.customer_avatar) : undefined,
-              created_at: String(item.created_at || '')
-            });
-          });
-        }
-        setReviews(reviewsArray);
+        // Manually construct reviews array
+        const reviewsData: ReviewData[] = (reviewsResponse.data || []).map((item: any) => ({
+          id: item.id,
+          rating: Number(item.rating) || 0,
+          review: item.review || '',
+          customer_name: item.customer_name || 'Anonymous',
+          customer_avatar: item.customer_avatar || undefined,
+          created_at: item.created_at || ''
+        }));
+        setReviews(reviewsData);
       }
 
     } catch (error) {
