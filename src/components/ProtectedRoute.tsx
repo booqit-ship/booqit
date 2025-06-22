@@ -18,7 +18,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const location = useLocation();
 
   // Check permanent session for instant auth check
-  const permanentData = Perman<PermanentSession.getSession();
+  const permanentData = PermanentSession.getSession();
   const hasPermanentSession = permanentData.isLoggedIn;
   const permanentRole = permanentData.userRole as UserRole;
 
