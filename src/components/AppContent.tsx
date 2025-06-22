@@ -54,6 +54,7 @@ import MerchantDeleteAccountPage from '@/pages/merchant/settings/DeleteAccountPa
 import NotificationsPage from '@/pages/settings/NotificationsPage';
 import GuestInfoPage from '@/pages/guest/GuestInfoPage';
 import GuestBookingPage from '@/pages/guest/GuestBookingPage';
+import GuestDateTimeSelectionPage from '@/pages/guest/GuestDateTimeSelectionPage';
 
 const AppContent: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -94,6 +95,7 @@ const AppContent: React.FC = () => {
           <Route path="/book/:merchantId" element={<LazyRoute><GuestInfoPage /></LazyRoute>} />
           <Route path="/guest-booking/:merchantId/:shopName" element={<LazyRoute><GuestBookingPage /></LazyRoute>} />
           <Route path="/guest-booking/:merchantId/staff" element={<LazyRoute><StaffSelectionPage /></LazyRoute>} />
+          <Route path="/guest-datetime/:merchantId" element={<LazyRoute><GuestDateTimeSelectionPage /></LazyRoute>} />
 
           {/* Merchant Routes */}
           <Route path="/merchant/auth" element={<LazyRoute><Auth /></LazyRoute>} />

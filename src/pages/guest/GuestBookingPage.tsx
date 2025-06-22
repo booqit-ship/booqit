@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -104,13 +103,17 @@ const GuestBookingPage: React.FC = () => {
   };
 
   const handleServiceSelect = (service: Service) => {
-    // Store selected service and navigate to staff selection
+    // Store selected service and navigate to guest datetime selection
     sessionStorage.setItem('selectedService', JSON.stringify(service));
-    navigate(`/guest-booking/${merchantId}/staff`, { 
+    navigate(`/guest-datetime/${merchantId}`, { 
       state: { 
         guestInfo, 
         merchant, 
-        service,
+        selectedServices: [service],
+        totalPrice: service.price,
+        totalDuration: service.duration,
+        selectedStaff: null,
+        selectedStaffDetails: null,
         isGuestBooking: true 
       }
     });
