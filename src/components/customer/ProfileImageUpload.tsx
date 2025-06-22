@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Camera, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -55,10 +54,13 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
       const fileName = `${userId}-${Date.now()}.${fileExt}`;
       const filePath = `avatars/${fileName}`;
 
-      // Upload to Supabase storage
+      // Upload to Supabase storage - Fixed bucket name
       const { error: uploadError } = await supabase.storage
-        .from('merchant_images')
-        .upload(filePath, file);
+        .from('user_avatars')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
       if (uploadError) {
         console.error('Upload error:', uploadError);
@@ -68,7 +70,7 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
 
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
-        .from('merchant_images')
+        .from('user_avatars')
         .getPublicUrl(filePath);
 
       // Update profile with new avatar URL
@@ -182,7 +184,12 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
               id="avatar-upload"
               type="file"
               accept="image/*"
-              onChange={handleFileSelect}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) {
+                  uploadImage(file);
+                }
+              }}
               className="hidden"
               disabled={uploading}
             />
