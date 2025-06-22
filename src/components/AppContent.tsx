@@ -1,10 +1,10 @@
+
 import React, { useEffect, useState } from 'react';
 import {
   BrowserRouter as Router,
   Route,
   Routes,
 } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import LazyRoute from '@/components/LazyRoute';
@@ -55,7 +55,6 @@ import MerchantDeleteAccountPage from '@/pages/merchant/settings/DeleteAccountPa
 import NotificationsPage from '@/pages/settings/NotificationsPage';
 
 const AppContent: React.FC = () => {
-  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
