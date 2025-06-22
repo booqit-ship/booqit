@@ -6,9 +6,9 @@ import { useCapacitor } from "@/hooks/useCapacitor";
 
 /**
  * Component that initializes persisted sessions, notifications,
- * and native capacitor features. Must be rendered INSIDE <Router>.
+ * and native capacitor features. Must be rendered INSIDE <RouterProvider>.
  */
-const AppInit: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
+const AppInit: React.FC = () => {
   console.log('🚀 APP INIT: Initializing app components...');
   
   useSessionPersistence();
@@ -22,7 +22,7 @@ const AppInit: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
     error: notificationState.initializationError
   });
   
-  return children ? <>{children}</> : null;
+  return null;
 };
 
 export default AppInit;

@@ -415,8 +415,6 @@ const OnboardingPage: React.FC = () => {
     return basicInfoValid && locationValid;
   };
 
-  console.log('OnboardingPage: Checking for boolean type issues');
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-booqit-primary/10 to-white p-6 flex items-center justify-center">
