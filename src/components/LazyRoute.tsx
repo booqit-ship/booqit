@@ -119,22 +119,38 @@ const componentMap = {
 };
 
 interface LazyRouteProps {
-  component: keyof typeof componentMap;
+  component?: keyof typeof componentMap;
+  children?: React.ReactNode;
 }
 
-const LazyRoute: React.FC<LazyRouteProps> = ({ component }) => {
-  const Component = componentMap[component];
-  
-  if (!Component) {
-    console.error(`Component ${component} not found in componentMap`);
-    return <div>Component not found</div>;
+const LazyRoute: React.FC<LazyRouteProps> = ({ component, children }) => {
+  // If children are provided, use them directly with Suspense
+  if (children) {
+    return (
+      <Suspense fallback={<SplashScreen />}>
+        {children}
+      </Suspense>
+    );
   }
 
-  return (
-    <Suspense fallback={<SplashScreen />}>
-      <Component />
-    </Suspense>
-  );
+  // If component prop is provided, use the component map
+  if (component) {
+    const Component = componentMap[component];
+    
+    if (!Component) {
+      console.error(`Component ${component} not found in componentMap`);
+      return <div>Component not found</div>;
+    }
+
+    return (
+      <Suspense fallback={<SplashScreen />}>
+        <Component />
+      </Suspense>
+    );
+  }
+
+  // If neither children nor component is provided, show error
+  return <div>LazyRoute: Either children or component prop is required</div>;
 };
 
 export default LazyRoute;
