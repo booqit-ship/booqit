@@ -39,8 +39,14 @@ interface Merchant {
   image_url?: string;
 }
 
+interface GuestInfo {
+  name: string;
+  phone: string;
+  email?: string;
+}
+
 const GuestShopDetailsPage: React.FC = () => {
-  const { merchantId } = useParams();
+  const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -49,7 +55,7 @@ const GuestShopDetailsPage: React.FC = () => {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  const guestInfo = location.state?.guestInfo || JSON.parse(sessionStorage.getItem('guestBookingInfo') || '{}');
+  const guestInfo: GuestInfo = location.state?.guestInfo || JSON.parse(sessionStorage.getItem('guestBookingInfo') || '{}');
 
   useEffect(() => {
     if (!guestInfo.name || !guestInfo.phone) {
