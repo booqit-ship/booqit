@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
@@ -41,13 +40,21 @@ const UpcomingBookings: React.FC = () => {
   const fetchNextUpcomingBooking = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        console.log('No authenticated user found');
+        setNextBooking(null);
+        return;
+      }
 
       const now = new Date();
       const currentDate = now.toISOString().split('T')[0];
       const currentTime = now.toTimeString().split(' ')[0].substring(0, 5);
 
-      const { data, error } = await supabase
+      console.log('Fetching bookings for user:', user.id);
+      console.log('Current date/time:', currentDate, currentTime);
+
+      // First get future date bookings
+      const { data: futureDateBookings, error: futureDateError } = await supabase
         .from('bookings')
         .select(`
           *,
@@ -56,29 +63,65 @@ const UpcomingBookings: React.FC = () => {
         `)
         .eq('user_id', user.id)
         .in('status', ['pending', 'confirmed'])
-        .or(`date.gt.${currentDate},and(date.eq.${currentDate},time_slot.gt.${currentTime})`)
+        .gt('date', currentDate)
         .order('date', { ascending: true })
         .order('time_slot', { ascending: true })
-        .limit(1)
-        .single();
+        .limit(5);
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching next booking:', error);
-        return;
+      if (futureDateError) {
+        console.error('Error fetching future date bookings:', futureDateError);
       }
 
-      // Type cast the status to ensure it matches our interface
-      if (data) {
+      // Then get today's bookings with time filter
+      const { data: todayBookings, error: todayError } = await supabase
+        .from('bookings')
+        .select(`
+          *,
+          merchant:merchants!inner(shop_name, address, image_url),
+          service:services!inner(name, duration)
+        `)
+        .eq('user_id', user.id)
+        .in('status', ['pending', 'confirmed'])
+        .eq('date', currentDate)
+        .gt('time_slot', currentTime)
+        .order('time_slot', { ascending: true })
+        .limit(5);
+
+      if (todayError) {
+        console.error('Error fetching today bookings:', todayError);
+      }
+
+      // Combine and sort all bookings
+      const allBookings = [
+        ...(todayBookings || []),
+        ...(futureDateBookings || [])
+      ];
+
+      console.log('Found bookings:', allBookings.length);
+
+      if (allBookings.length > 0) {
+        // Sort by date and time
+        allBookings.sort((a, b) => {
+          const dateCompare = new Date(a.date).getTime() - new Date(b.date).getTime();
+          if (dateCompare !== 0) return dateCompare;
+          return a.time_slot.localeCompare(b.time_slot);
+        });
+
+        const nextBookingData = allBookings[0];
         const typedBooking = {
-          ...data,
-          status: data.status as 'pending' | 'confirmed' | 'completed' | 'cancelled'
+          ...nextBookingData,
+          status: nextBookingData.status as 'pending' | 'confirmed' | 'completed' | 'cancelled'
         } as BookingWithDetails;
+        
+        console.log('Next booking found:', typedBooking.id);
         setNextBooking(typedBooking);
       } else {
+        console.log('No upcoming bookings found');
         setNextBooking(null);
       }
     } catch (error) {
       console.error('Error fetching next upcoming booking:', error);
+      setNextBooking(null);
     } finally {
       setLoading(false);
     }
@@ -87,8 +130,8 @@ const UpcomingBookings: React.FC = () => {
   useEffect(() => {
     fetchNextUpcomingBooking();
     
-    // Refresh every minute to check if the current booking has passed
-    const interval = setInterval(fetchNextUpcomingBooking, 60000);
+    // Refresh every 5 minutes instead of every minute to reduce API calls
+    const interval = setInterval(fetchNextUpcomingBooking, 5 * 60 * 1000);
     
     return () => clearInterval(interval);
   }, []);
