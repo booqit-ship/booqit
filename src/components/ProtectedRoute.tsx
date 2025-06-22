@@ -7,12 +7,12 @@ import { PermanentSession } from '@/utils/permanentSession';
 
 interface ProtectedRouteProps {
   children?: React.ReactNode;
-  requiredRole?: UserRole;
+  allowedRole?: UserRole;
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
   children, 
-  requiredRole 
+  allowedRole 
 }) => {
   const { isAuthenticated, userRole, loading } = useAuth();
   const location = useLocation();
@@ -39,12 +39,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const effectiveRole = userRole || permanentRole;
 
   if (!effectiveAuth) {
-    console.log('🚫 User not authenticated, redirecting to /');
-    return <Navigate to="/" replace />;
+    console.log('🚫 User not authenticated, redirecting to /auth');
+    return <Navigate to="/auth" replace />;
   }
 
   // Special handling for merchant onboarding - allow all authenticated users
-  const isOnboardingPage = location.pathname === '/merchant/onboarding';
+  const isOnboardingPage = location.pathname === '/merchant-onboarding';
   
   if (isOnboardingPage) {
     // For onboarding, just check if user is authenticated, not their role
@@ -52,10 +52,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return children ? <>{children}</> : <Outlet />;
   }
   
-  if (requiredRole && effectiveRole !== requiredRole) {
+  if (allowedRole && effectiveRole !== allowedRole) {
     console.log('🚫 User role mismatch, redirecting based on role:', effectiveRole);
     // Redirect to the appropriate dashboard based on role
-    return <Navigate to={effectiveRole === 'merchant' ? '/merchant' : '/'} replace />;
+    return <Navigate to={effectiveRole === 'merchant' ? '/merchant-dashboard' : '/'} replace />;
   }
 
   // If children are provided, render them (for wrapper usage)
