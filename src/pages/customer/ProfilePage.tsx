@@ -1,3 +1,4 @@
+
 import React, { Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -134,7 +135,30 @@ const ProfileSkeleton = () => (
 );
 
 const ProfilePage: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, isAuthenticated, loading } = useAuth();
+
+  // Show loading if auth is still loading
+  if (loading) {
+    return <ProfileSkeleton />;
+  }
+
+  // If not authenticated, show error but don't redirect automatically
+  if (!isAuthenticated || !user) {
+    return (
+      <div className="h-screen bg-gray-50 flex flex-col items-center justify-center overflow-hidden">
+        <div className="bg-white p-6 rounded shadow-md max-w-md w-full text-center">
+          <p className="text-lg font-semibold text-red-600 mb-4">
+            Please log in to view your profile
+          </p>
+          <Link to="/auth">
+            <button className="bg-booqit-primary rounded px-4 py-2 text-white font-medium">
+              Go to Login
+            </button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   // Fetch profile and bookings
   const {
@@ -144,7 +168,7 @@ const ProfilePage: React.FC = () => {
   } = useQuery({
     queryKey: ['profile', user?.id],
     queryFn: () => fetchProfile(user?.id ?? null, user?.email ?? null, user?.user_metadata ?? {}),
-    enabled: !!user?.id,
+    enabled: !!user?.id && isAuthenticated,
     staleTime: 1 * 60 * 1000,
     retry: 2
   });
@@ -155,7 +179,7 @@ const ProfilePage: React.FC = () => {
   } = useQuery({
     queryKey: ['recentBookings', user?.id],
     queryFn: () => fetchRecentBookings(user?.id ?? null),
-    enabled: !!user?.id,
+    enabled: !!user?.id && isAuthenticated,
     staleTime: 2 * 60 * 1000,
     retry: 1
   });
@@ -206,22 +230,15 @@ const ProfilePage: React.FC = () => {
             >
               Refresh Page
             </button>
-            <button 
-              className="bg-gray-500 rounded px-4 py-2 text-white font-medium" 
-              onClick={() => window.location.href = '/auth'}
-            >
-              Go to Login
-            </button>
+            <Link to="/auth">
+              <button className="bg-gray-500 rounded px-4 py-2 text-white font-medium">
+                Go to Login
+              </button>
+            </Link>
           </div>
         </div>
       </div>
     );
-  }
-
-  // If no user, redirect to auth
-  if (!user) {
-    window.location.href = '/auth';
-    return null;
   }
 
   return (
