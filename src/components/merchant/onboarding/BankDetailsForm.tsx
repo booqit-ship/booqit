@@ -2,10 +2,13 @@
 import React from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertTriangle } from 'lucide-react';
 
 interface BankDetailsState {
   account_holder_name: string;
   account_number: string;
+  confirm_account_number: string;
   ifsc_code: string;
   bank_name: string;
   upi_id: string;
@@ -25,49 +28,87 @@ const BankDetailsForm: React.FC<BankDetailsFormProps> = ({
     setBankDetails(prev => ({ ...prev, [name]: value }));
   };
 
+  const accountNumbersMatch = bankDetails.account_number === bankDetails.confirm_account_number;
+  const showMismatchError = bankDetails.account_number && bankDetails.confirm_account_number && !accountNumbersMatch;
+
   return (
     <div className="space-y-4">
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
+          <div>
+            <h4 className="font-medium text-yellow-800">Bank Details Required</h4>
+            <p className="text-sm text-yellow-700 mt-1">
+              Enter your bank details to receive payments from bookings. You can skip this step and add details later from settings.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="space-y-2">
-        <Label htmlFor="account_holder_name">Account Holder Name</Label>
+        <Label htmlFor="account_holder_name">Account Holder Name *</Label>
         <Input
           id="account_holder_name"
           name="account_holder_name"
           placeholder="Enter account holder name"
           value={bankDetails.account_holder_name}
           onChange={handleChange}
+          className="h-12"
         />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="account_number">Account Number</Label>
+        <Label htmlFor="account_number">Account Number *</Label>
         <Input
           id="account_number"
           name="account_number"
           placeholder="Enter account number"
           value={bankDetails.account_number}
           onChange={handleChange}
+          className="h-12"
         />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="ifsc_code">IFSC Code</Label>
+        <Label htmlFor="confirm_account_number">Confirm Account Number *</Label>
+        <Input
+          id="confirm_account_number"
+          name="confirm_account_number"
+          placeholder="Re-enter account number"
+          value={bankDetails.confirm_account_number}
+          onChange={handleChange}
+          className={`h-12 ${showMismatchError ? 'border-red-500 focus:border-red-500' : ''}`}
+        />
+        {showMismatchError && (
+          <Alert className="border-red-200 bg-red-50">
+            <AlertDescription className="text-red-700">
+              Account numbers do not match. Please check and try again.
+            </AlertDescription>
+          </Alert>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="ifsc_code">IFSC Code *</Label>
         <Input
           id="ifsc_code"
           name="ifsc_code"
           placeholder="Enter IFSC code"
           value={bankDetails.ifsc_code}
           onChange={handleChange}
+          className="h-12"
         />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="bank_name">Bank Name</Label>
+        <Label htmlFor="bank_name">Bank Name *</Label>
         <Input
           id="bank_name"
           name="bank_name"
           placeholder="Enter bank name"
           value={bankDetails.bank_name}
           onChange={handleChange}
+          className="h-12"
         />
       </div>
 
@@ -79,6 +120,7 @@ const BankDetailsForm: React.FC<BankDetailsFormProps> = ({
           placeholder="Enter UPI ID (e.g. name@upi)"
           value={bankDetails.upi_id || ''}
           onChange={handleChange}
+          className="h-12"
         />
       </div>
     </div>

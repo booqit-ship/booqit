@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -22,6 +21,7 @@ const steps = [
 interface BankDetailsState {
   account_holder_name: string;
   account_number: string;
+  confirm_account_number: string;
   ifsc_code: string;
   bank_name: string;
   upi_id: string;
@@ -32,6 +32,7 @@ const OnboardingPage: React.FC = () => {
   const [bankDetails, setBankDetails] = useState<BankDetailsState>({
     account_holder_name: '',
     account_number: '',
+    confirm_account_number: '',
     ifsc_code: '',
     bank_name: '',
     upi_id: '',
@@ -130,6 +131,58 @@ const OnboardingPage: React.FC = () => {
     }
   };
 
+  const handleSkipBankDetails = async () => {
+    if (!userId) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to complete onboarding.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate required fields from previous steps
+    if (!shopInfo.name || !shopInfo.category || !shopInfo.open_time || !shopInfo.close_time) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required shop information.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!locationDetails.address || (locationDetails.lat === 0 && locationDetails.lng === 0)) {
+      toast({
+        title: "Missing Location",
+        description: "Please set your shop location.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    
+    try {
+      await saveOnboardingData(false); // false = skip bank details
+      
+      toast({
+        title: "Onboarding Complete!",
+        description: "Your merchant account is set up. You can add bank details later from settings.",
+      });
+      
+      navigate('/merchant');
+    } catch (error: any) {
+      console.error('Onboarding error:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to complete onboarding. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleComplete = async () => {
     if (!userId) {
       toast({
@@ -159,144 +212,37 @@ const OnboardingPage: React.FC = () => {
       return;
     }
 
-    if (!bankDetails.account_holder_name || !bankDetails.account_number || !bankDetails.ifsc_code || !bankDetails.bank_name) {
-      toast({
-        title: "Missing Bank Details",
-        description: "Please fill in all required bank information.",
-        variant: "destructive",
-      });
-      return;
+    // Bank details validation only if on bank step
+    if (currentStep === 2) {
+      if (!bankDetails.account_holder_name || !bankDetails.account_number || !bankDetails.confirm_account_number || !bankDetails.ifsc_code || !bankDetails.bank_name) {
+        toast({
+          title: "Missing Bank Details",
+          description: "Please fill in all required bank information or skip this step.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (bankDetails.account_number !== bankDetails.confirm_account_number) {
+        toast({
+          title: "Account Numbers Don't Match",
+          description: "Please ensure both account number fields match.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
     
     setIsSubmitting(true);
     
     try {
-      // Check if merchant record already exists
-      const { data: existingMerchant } = await supabase
-        .from('merchants')
-        .select('id')
-        .eq('user_id', userId)
-        .single();
-
-      let merchantData;
-
-      if (existingMerchant) {
-        // Update existing merchant record
-        const { data: updatedMerchant, error: merchantError } = await supabase
-          .from('merchants')
-          .update({
-            shop_name: shopInfo.name,
-            category: shopInfo.category,
-            gender_focus: shopInfo.gender_focus,
-            description: shopInfo.description,
-            open_time: shopInfo.open_time,
-            close_time: shopInfo.close_time,
-            lat: locationDetails.lat,
-            lng: locationDetails.lng,
-            address: locationDetails.address,
-          })
-          .eq('user_id', userId)
-          .select()
-          .single();
-        
-        if (merchantError) throw merchantError;
-        merchantData = updatedMerchant;
-      } else {
-        // Insert new merchant record
-        const { data: newMerchant, error: merchantError } = await supabase
-          .from('merchants')
-          .insert({
-            user_id: userId,
-            shop_name: shopInfo.name,
-            category: shopInfo.category,
-            gender_focus: shopInfo.gender_focus,
-            description: shopInfo.description,
-            open_time: shopInfo.open_time,
-            close_time: shopInfo.close_time,
-            lat: locationDetails.lat,
-            lng: locationDetails.lng,
-            address: locationDetails.address,
-          })
-          .select()
-          .single();
-        
-        if (merchantError) throw merchantError;
-        merchantData = newMerchant;
-      }
+      await saveOnboardingData(true); // true = include bank details
       
-      // Handle bank details
-      if (merchantData) {
-        // Check if bank info already exists
-        const { data: existingBankInfo } = await supabase
-          .from('bank_info')
-          .select('id')
-          .eq('merchant_id', merchantData.id)
-          .single();
-
-        if (existingBankInfo) {
-          // Update existing bank info
-          const { error: bankError } = await supabase
-            .from('bank_info')
-            .update({
-              account_holder_name: bankDetails.account_holder_name,
-              account_number: bankDetails.account_number,
-              ifsc_code: bankDetails.ifsc_code,
-              bank_name: bankDetails.bank_name,
-              upi_id: bankDetails.upi_id || null,
-            })
-            .eq('merchant_id', merchantData.id);
-          
-          if (bankError) throw bankError;
-        } else {
-          // Insert new bank info
-          const { error: bankError } = await supabase
-            .from('bank_info')
-            .insert({
-              merchant_id: merchantData.id,
-              account_holder_name: bankDetails.account_holder_name,
-              account_number: bankDetails.account_number,
-              ifsc_code: bankDetails.ifsc_code,
-              bank_name: bankDetails.bank_name,
-              upi_id: bankDetails.upi_id || null,
-            });
-          
-          if (bankError) throw bankError;
-        }
-      }
-      
-      // Upload shop image if provided
-      if (shopInfo.image && merchantData) {
-        const fileExt = shopInfo.image.name.split('.').pop();
-        const fileName = `${userId}-${Date.now()}.${fileExt}`;
-        const filePath = `merchants/${fileName}`;
-        
-        const { error: uploadError } = await supabase
-          .storage
-          .from('merchant_images')
-          .upload(filePath, shopInfo.image);
-          
-        if (!uploadError) {
-          // Update merchant record with image URL
-          const { error: updateError } = await supabase
-            .from('merchants')
-            .update({ 
-              image_url: `${filePath}` 
-            })
-            .eq('id', merchantData.id);
-            
-          if (updateError) console.error('Error updating merchant image URL:', updateError);
-        } else {
-          console.error('Error uploading image:', uploadError);
-        }
-      }
-      
-      // Show success message
       toast({
         title: "Onboarding Complete!",
         description: "Your merchant account is now set up.",
       });
       
-      // Navigate to merchant dashboard
       navigate('/merchant');
     } catch (error: any) {
       console.error('Onboarding error:', error);
@@ -307,6 +253,120 @@ const OnboardingPage: React.FC = () => {
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const saveOnboardingData = async (includeBankDetails: boolean) => {
+    const { data: existingMerchant } = await supabase
+      .from('merchants')
+      .select('id')
+      .eq('user_id', userId)
+      .single();
+
+    let merchantData;
+
+    if (existingMerchant) {
+      const { data: updatedMerchant, error: merchantError } = await supabase
+        .from('merchants')
+        .update({
+          shop_name: shopInfo.name,
+          category: shopInfo.category,
+          gender_focus: shopInfo.gender_focus,
+          description: shopInfo.description,
+          open_time: shopInfo.open_time,
+          close_time: shopInfo.close_time,
+          lat: locationDetails.lat,
+          lng: locationDetails.lng,
+          address: locationDetails.address,
+        })
+        .eq('user_id', userId)
+        .select()
+        .single();
+      
+      if (merchantError) throw merchantError;
+      merchantData = updatedMerchant;
+    } else {
+      const { data: newMerchant, error: merchantError } = await supabase
+        .from('merchants')
+        .insert({
+          user_id: userId,
+          shop_name: shopInfo.name,
+          category: shopInfo.category,
+          gender_focus: shopInfo.gender_focus,
+          description: shopInfo.description,
+          open_time: shopInfo.open_time,
+          close_time: shopInfo.close_time,
+          lat: locationDetails.lat,
+          lng: locationDetails.lng,
+          address: locationDetails.address,
+        })
+        .select()
+        .single();
+      
+      if (merchantError) throw merchantError;
+      merchantData = newMerchant;
+    }
+    
+    // Handle bank details only if includeBankDetails is true
+    if (includeBankDetails && merchantData) {
+      const { data: existingBankInfo } = await supabase
+        .from('bank_info')
+        .select('id')
+        .eq('merchant_id', merchantData.id)
+        .single();
+
+      if (existingBankInfo) {
+        const { error: bankError } = await supabase
+          .from('bank_info')
+          .update({
+            account_holder_name: bankDetails.account_holder_name,
+            account_number: bankDetails.account_number,
+            ifsc_code: bankDetails.ifsc_code,
+            bank_name: bankDetails.bank_name,
+            upi_id: bankDetails.upi_id || null,
+          })
+          .eq('merchant_id', merchantData.id);
+        
+        if (bankError) throw bankError;
+      } else {
+        const { error: bankError } = await supabase
+          .from('bank_info')
+          .insert({
+            merchant_id: merchantData.id,
+            account_holder_name: bankDetails.account_holder_name,
+            account_number: bankDetails.account_number,
+            ifsc_code: bankDetails.ifsc_code,
+            bank_name: bankDetails.bank_name,
+            upi_id: bankDetails.upi_id || null,
+          });
+        
+        if (bankError) throw bankError;
+      }
+    }
+    
+    // Upload shop image if provided
+    if (shopInfo.image && merchantData) {
+      const fileExt = shopInfo.image.name.split('.').pop();
+      const fileName = `${userId}-${Date.now()}.${fileExt}`;
+      const filePath = `merchants/${fileName}`;
+      
+      const { error: uploadError } = await supabase
+        .storage
+        .from('merchant_images')
+        .upload(filePath, shopInfo.image);
+        
+      if (!uploadError) {
+        const { error: updateError } = await supabase
+          .from('merchants')
+          .update({ 
+            image_url: `${filePath}` 
+          })
+          .eq('id', merchantData.id);
+          
+        if (updateError) console.error('Error updating merchant image URL:', updateError);
+      } else {
+        console.error('Error uploading image:', uploadError);
+      }
     }
   };
 
@@ -361,11 +421,11 @@ const OnboardingPage: React.FC = () => {
         </div>
 
         {/* Progress indicators */}
-        <div className="flex justify-between mb-6">
+        <div className="flex justify-between mb-6 relative">
           {steps.map((step, index) => (
-            <div key={step.id} className="flex flex-col items-center">
+            <div key={step.id} className="flex flex-col items-center relative z-10">
               <div 
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${
+                className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium ${
                   index < currentStep 
                     ? 'bg-green-500 text-white' 
                     : index === currentStep 
@@ -375,27 +435,22 @@ const OnboardingPage: React.FC = () => {
               >
                 {index < currentStep ? '✓' : index + 1}
               </div>
-              <span className="text-xs mt-1 text-gray-600">{step.title}</span>
-              
-              {/* Connecting line */}
-              {index < steps.length - 1 && (
-                <div className="absolute w-[calc(100%/3)] h-0.5 bg-gray-200 left-1/3 transform translate-x-[calc(${index}*100%)]">
-                  <div 
-                    className="h-full bg-green-500" 
-                    style={{ 
-                      width: index < currentStep ? '100%' : '0%',
-                      transition: 'width 0.3s ease-in-out'
-                    }}
-                  />
-                </div>
-              )}
+              <span className="text-xs mt-2 text-center text-gray-600 max-w-16">{step.title}</span>
             </div>
           ))}
+          
+          {/* Progress line */}
+          <div className="absolute top-5 left-5 right-5 h-0.5 bg-gray-200 -z-0">
+            <div 
+              className="h-full bg-green-500 transition-all duration-300 ease-in-out" 
+              style={{ width: `${(currentStep / (steps.length - 1)) * 100}%` }}
+            />
+          </div>
         </div>
 
         <Card className="shadow-lg border-none">
-          <CardHeader>
-            <CardTitle>{steps[currentStep].title}</CardTitle>
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl">{steps[currentStep].title}</CardTitle>
             <CardDescription>
               {currentStep === 0 && "Tell us about your business"}
               {currentStep === 1 && "Let customers know where to find you"}
@@ -416,22 +471,35 @@ const OnboardingPage: React.FC = () => {
               Back
             </Button>
             
-            {currentStep < steps.length - 1 ? (
-              <Button 
-                onClick={handleNext}
-                className="bg-booqit-primary hover:bg-booqit-primary/90"
-              >
-                Continue
-              </Button>
-            ) : (
-              <Button 
-                onClick={handleComplete}
-                className="bg-booqit-primary hover:bg-booqit-primary/90"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? "Completing..." : "Complete Setup"}
-              </Button>
-            )}
+            <div className="flex gap-2">
+              {currentStep === 2 && (
+                <Button
+                  variant="outline"
+                  onClick={handleSkipBankDetails}
+                  disabled={isSubmitting}
+                  className="text-gray-600"
+                >
+                  Skip for now
+                </Button>
+              )}
+              
+              {currentStep < steps.length - 1 ? (
+                <Button 
+                  onClick={handleNext}
+                  className="bg-booqit-primary hover:bg-booqit-primary/90"
+                >
+                  Continue
+                </Button>
+              ) : (
+                <Button 
+                  onClick={handleComplete}
+                  className="bg-booqit-primary hover:bg-booqit-primary/90"
+                  disabled={isSubmitting || (currentStep === 2 && bankDetails.account_number !== bankDetails.confirm_account_number)}
+                >
+                  {isSubmitting ? "Completing..." : "Complete Setup"}
+                </Button>
+              )}
+            </div>
           </CardFooter>
         </Card>
       </motion.div>
