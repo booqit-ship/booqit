@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { requestNotificationPermission, setupForegroundMessaging } from '@/lib/capacitor-firebase';
-import { RobustNotificationService } from '@/services/robustNotificationService';
+import { NotificationSettingsService } from '@/services/notificationSettingsService';
 import { toast } from 'sonner';
 
 export const useNotifications = () => {
@@ -90,7 +90,7 @@ export const useNotifications = () => {
         setHasPermission(true);
         console.log('✅ NOTIFICATION HOOK: Permission granted, initializing notifications...');
 
-        // Step 2: Initialize using robust notification service with retry logic
+        // Step 2: Get FCM token with retry logic
         const { setupNotifications } = await import('@/lib/capacitor-firebase');
         
         let fcmToken = null;
@@ -115,7 +115,8 @@ export const useNotifications = () => {
           return;
         }
 
-        const success = await RobustNotificationService.initializeUserSettings(userId, fcmToken);
+        // Step 3: Initialize notification settings with proper authentication
+        const success = await NotificationSettingsService.initializeForUser(userId, fcmToken);
         
         if (success) {
           console.log('✅ NOTIFICATION HOOK: FCM token registration successful');
@@ -123,7 +124,7 @@ export const useNotifications = () => {
           setInitializationError(null);
           setRetryCount(0);
           
-          // Step 3: Setup foreground messaging handler
+          // Step 4: Setup foreground messaging handler
           setupForegroundMessaging((payload) => {
             console.log('📱 NOTIFICATION HOOK: Foreground notification received:', payload);
             toast(payload.notification?.title || 'Notification', {
@@ -164,7 +165,7 @@ export const useNotifications = () => {
         const fcmToken = await setupNotifications();
         
         if (fcmToken) {
-          const success = await RobustNotificationService.initializeUserSettings(userId, fcmToken);
+          const success = await NotificationSettingsService.initializeForUser(userId, fcmToken);
           
           if (success) {
             setIsInitialized(true);
