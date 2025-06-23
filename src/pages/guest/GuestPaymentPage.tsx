@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -8,6 +7,14 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { formatDateInIST } from '@/utils/dateUtils';
+
+// Type for the RPC response
+interface BookingResponse {
+  success: boolean;
+  booking_id?: string;
+  error?: string;
+  message?: string;
+}
 
 const GuestPaymentPage: React.FC = () => {
   const { merchantId } = useParams();
@@ -70,16 +77,18 @@ const GuestPaymentPage: React.FC = () => {
 
       console.log('GUEST PAYMENT: RPC response:', data);
 
-      // Handle the response properly
-      if (data && typeof data === 'object') {
-        if (data.success && data.booking_id) {
-          console.log('GUEST PAYMENT: Booking created successfully:', data.booking_id);
+      // Handle the response properly with type checking
+      if (data && typeof data === 'object' && !Array.isArray(data)) {
+        const response = data as BookingResponse;
+        
+        if (response.success && response.booking_id) {
+          console.log('GUEST PAYMENT: Booking created successfully:', response.booking_id);
           toast.success('Booking confirmed successfully!');
           
           // Navigate to success page
           navigate(`/guest-booking-success/${merchantId}`, {
             state: { 
-              bookingId: data.booking_id,
+              bookingId: response.booking_id,
               merchant,
               selectedServices,
               totalPrice,
@@ -91,8 +100,8 @@ const GuestPaymentPage: React.FC = () => {
             replace: true
           });
         } else {
-          console.error('GUEST PAYMENT: Booking failed:', data.error || 'Unknown error');
-          toast.error(data.error || 'Failed to create booking');
+          console.error('GUEST PAYMENT: Booking failed:', response.error || 'Unknown error');
+          toast.error(response.error || 'Failed to create booking');
         }
       } else {
         console.error('GUEST PAYMENT: Unexpected response format:', data);
