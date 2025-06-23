@@ -47,22 +47,29 @@ const GuestShopDetailsPage: React.FC = () => {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
+  // Get guest info from location state or sessionStorage
   const guestInfo = location.state?.guestInfo || JSON.parse(sessionStorage.getItem('guestBookingInfo') || '{}');
 
   useEffect(() => {
+    console.log('GUEST SHOP DETAILS: Loading page with guest info:', guestInfo);
+    
+    // Redirect if no guest info
     if (!guestInfo.name || !guestInfo.phone) {
+      console.log('GUEST SHOP DETAILS: Missing guest info, redirecting to booking form');
       navigate(`/book/${merchantId}`);
       return;
     }
     
     fetchShopData();
-  }, [merchantId, guestInfo]);
+  }, [merchantId, navigate]);
 
   const fetchShopData = async () => {
     if (!merchantId) return;
     
     setIsLoading(true);
     try {
+      console.log('GUEST SHOP DETAILS: Fetching merchant data for:', merchantId);
+      
       // Fetch merchant data
       const { data: merchantData, error: merchantError } = await supabase
         .from('merchants')
@@ -70,7 +77,12 @@ const GuestShopDetailsPage: React.FC = () => {
         .eq('id', merchantId)
         .single();
 
-      if (merchantError) throw merchantError;
+      if (merchantError) {
+        console.error('Error fetching merchant:', merchantError);
+        throw merchantError;
+      }
+      
+      console.log('GUEST SHOP DETAILS: Merchant data loaded:', merchantData.shop_name);
       setMerchant(merchantData);
 
       // Fetch services
@@ -80,7 +92,12 @@ const GuestShopDetailsPage: React.FC = () => {
         .eq('merchant_id', merchantId)
         .order('name', { ascending: true });
 
-      if (servicesError) throw servicesError;
+      if (servicesError) {
+        console.error('Error fetching services:', servicesError);
+        throw servicesError;
+      }
+      
+      console.log('GUEST SHOP DETAILS: Services loaded:', servicesData?.length || 0);
       setServices(servicesData || []);
 
       // Fetch reviews
@@ -93,16 +110,17 @@ const GuestShopDetailsPage: React.FC = () => {
           customer_name,
           created_at
         `)
-        .eq('booking_id', merchantId) // This might need to be adjusted based on your schema
+        .eq('booking_id', merchantId)
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(5);
 
       if (!reviewsError && reviewsData) {
+        console.log('GUEST SHOP DETAILS: Reviews loaded:', reviewsData.length);
         setReviews(reviewsData);
       }
 
     } catch (error) {
-      console.error('Error fetching shop data:', error);
+      console.error('GUEST SHOP DETAILS: Error fetching shop data:', error);
       toast.error('Failed to load shop information');
     } finally {
       setIsLoading(false);
@@ -111,6 +129,8 @@ const GuestShopDetailsPage: React.FC = () => {
 
   const handleStartBooking = () => {
     if (!merchant) return;
+    
+    console.log('GUEST SHOP DETAILS: Starting booking process');
     
     // Navigate to service selection page
     navigate(`/guest-services/${merchantId}`, { 
@@ -144,7 +164,10 @@ const GuestShopDetailsPage: React.FC = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-booqit-primary"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-booqit-primary mx-auto mb-4"></div>
+          <p className="text-gray-600 font-poppins">Loading shop details...</p>
+        </div>
       </div>
     );
   }
@@ -153,8 +176,14 @@ const GuestShopDetailsPage: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">Shop Not Found</h1>
-          <p className="text-gray-600">The booking link may be invalid or expired.</p>
+          <h1 className="text-2xl font-bold text-gray-800 mb-2 font-righteous">Shop Not Found</h1>
+          <p className="text-gray-600 font-poppins">The booking link may be invalid or expired.</p>
+          <Button 
+            onClick={() => navigate(-1)}
+            className="mt-4"
+          >
+            Go Back
+          </Button>
         </div>
       </div>
     );
@@ -179,21 +208,21 @@ const GuestShopDetailsPage: React.FC = () => {
 
       <div className="p-4 space-y-6">
         {/* Guest Info Card */}
-        <Card className="border-booqit-primary/20">
+        <Card className="border-booqit-primary/20 bg-blue-50">
           <CardContent className="p-4">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-10 h-10 bg-booqit-primary/10 rounded-full flex items-center justify-center">
                 <Users className="h-5 w-5 text-booqit-primary" />
               </div>
               <div>
-                <h3 className="font-semibold font-righteous">Booking For</h3>
+                <h3 className="font-semibold font-righteous text-booqit-primary">Booking For</h3>
                 <p className="text-sm text-gray-600 font-poppins">Guest booking details</p>
               </div>
             </div>
             <div className="space-y-2 text-sm">
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-gray-500" />
-                <span className="font-poppins">{guestInfo.name}</span>
+                <span className="font-poppins font-medium">{guestInfo.name}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Phone className="h-4 w-4 text-gray-500" />
@@ -210,7 +239,7 @@ const GuestShopDetailsPage: React.FC = () => {
         </Card>
 
         {/* Shop Info */}
-        <Card>
+        <Card className="shadow-sm">
           <CardContent className="p-6">
             <div className="space-y-4">
               <div>
@@ -251,7 +280,7 @@ const GuestShopDetailsPage: React.FC = () => {
         </Card>
 
         {/* Services */}
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="font-righteous">Available Services</CardTitle>
           </CardHeader>
@@ -264,24 +293,26 @@ const GuestShopDetailsPage: React.FC = () => {
               <div className="space-y-0">
                 {services.map((service, index) => (
                   <div key={service.id}>
-                    <div className="p-4 flex justify-between items-center">
-                      <div className="flex-1">
-                        <h4 className="font-semibold font-righteous">{service.name}</h4>
-                        {service.description && (
-                          <p className="text-sm text-gray-600 mt-1 font-poppins">
-                            {service.description}
-                          </p>
-                        )}
-                        <div className="flex items-center gap-2 mt-2">
-                          <Badge variant="outline" className="font-poppins">
-                            <Clock className="h-3 w-3 mr-1" />
-                            {service.duration} min
-                          </Badge>
+                    <div className="p-4 hover:bg-gray-50 transition-colors">
+                      <div className="flex justify-between items-center">
+                        <div className="flex-1">
+                          <h4 className="font-semibold font-righteous">{service.name}</h4>
+                          {service.description && (
+                            <p className="text-sm text-gray-600 mt-1 font-poppins">
+                              {service.description}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-2 mt-2">
+                            <Badge variant="outline" className="font-poppins">
+                              <Clock className="h-3 w-3 mr-1" />
+                              {service.duration} min
+                            </Badge>
+                          </div>
                         </div>
-                      </div>
-                      <div className="text-right ml-4">
-                        <div className="text-lg font-bold text-booqit-primary">
-                          ₹{service.price}
+                        <div className="text-right ml-4">
+                          <div className="text-lg font-bold text-booqit-primary">
+                            ₹{service.price}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -295,7 +326,7 @@ const GuestShopDetailsPage: React.FC = () => {
 
         {/* Reviews */}
         {reviews.length > 0 && (
-          <Card>
+          <Card className="shadow-sm">
             <CardHeader>
               <CardTitle className="font-righteous">Customer Reviews</CardTitle>
             </CardHeader>
