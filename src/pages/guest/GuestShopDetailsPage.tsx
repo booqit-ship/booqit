@@ -70,81 +70,75 @@ const GuestShopDetailsPage: React.FC = () => {
     
     setIsLoading(true);
     try {
-      // Fetch merchant data with explicit typing
-      const { data: merchantData, error: merchantError } = await supabase
+      // Fetch merchant data with simple query
+      const merchantQuery = await supabase
         .from('merchants')
         .select('id, shop_name, category, address, description, open_time, close_time, rating, image_url')
         .eq('id', merchantId)
         .single();
       
-      if (merchantError) {
-        console.error('Merchant fetch error:', merchantError);
-        throw merchantError;
+      if (merchantQuery.error) {
+        console.error('Merchant fetch error:', merchantQuery.error);
+        throw merchantQuery.error;
       }
       
-      if (merchantData) {
-        // Manually construct the merchant object to avoid type issues
-        const merchantObj: MerchantData = {
-          id: merchantData.id,
-          shop_name: merchantData.shop_name,
-          category: merchantData.category,
-          address: merchantData.address,
-          description: merchantData.description,
-          open_time: merchantData.open_time,
-          close_time: merchantData.close_time,
-          rating: merchantData.rating,
-          image_url: merchantData.image_url
-        };
-        setMerchant(merchantObj);
+      if (merchantQuery.data) {
+        setMerchant({
+          id: merchantQuery.data.id,
+          shop_name: merchantQuery.data.shop_name,
+          category: merchantQuery.data.category,
+          address: merchantQuery.data.address,
+          description: merchantQuery.data.description,
+          open_time: merchantQuery.data.open_time,
+          close_time: merchantQuery.data.close_time,
+          rating: merchantQuery.data.rating,
+          image_url: merchantQuery.data.image_url
+        });
       }
 
-      // Fetch services with explicit typing
-      const { data: servicesData, error: servicesError } = await supabase
+      // Fetch services with simple query
+      const servicesQuery = await supabase
         .from('services')
         .select('id, name, price, duration, description, image_url')
         .eq('merchant_id', merchantId)
         .order('name', { ascending: true });
       
-      if (servicesError) {
-        console.error('Services fetch error:', servicesError);
-        throw servicesError;
+      if (servicesQuery.error) {
+        console.error('Services fetch error:', servicesQuery.error);
+        throw servicesQuery.error;
       }
       
-      if (servicesData) {
-        // Manually construct the services array
-        const servicesArray: ServiceData[] = servicesData.map(item => ({
+      if (servicesQuery.data) {
+        setServices(servicesQuery.data.map(item => ({
           id: item.id,
           name: item.name,
           price: Number(item.price),
           duration: Number(item.duration),
           description: item.description,
           image_url: item.image_url
-        }));
-        setServices(servicesArray);
+        })));
       }
 
-      // Fetch reviews with explicit typing
-      const { data: reviewsData, error: reviewsError } = await supabase
+      // Fetch reviews with simple query
+      const reviewsQuery = await supabase
         .from('reviews')
         .select('id, rating, review, customer_name, customer_avatar, created_at')
         .eq('merchant_id', merchantId)
         .order('created_at', { ascending: false })
         .limit(5);
       
-      if (reviewsError) {
-        console.error('Reviews fetch error:', reviewsError);
+      if (reviewsQuery.error) {
+        console.error('Reviews fetch error:', reviewsQuery.error);
         setReviews([]);
-      } else if (reviewsData) {
-        // Manually construct the reviews array
-        const reviewsArray: ReviewData[] = reviewsData.map(item => ({
+      } else if (reviewsQuery.data) {
+        setReviews(reviewsQuery.data.map(item => ({
           id: item.id,
           rating: Number(item.rating),
           review: item.review,
           customer_name: item.customer_name,
           customer_avatar: item.customer_avatar,
           created_at: item.created_at
-        }));
-        setReviews(reviewsArray);
+        })));
       }
 
     } catch (error) {
