@@ -70,51 +70,47 @@ const GuestShopDetailsPage: React.FC = () => {
     setIsLoading(true);
     try {
       // Fetch merchant data
-      const merchantQuery = await supabase
+      const { data: merchantData, error: merchantError } = await supabase
         .from('merchants')
         .select('id, shop_name, category, address, description, open_time, close_time, rating, image_url')
         .eq('id', merchantId)
         .single();
       
-      if (merchantQuery.error) {
-        console.error('Merchant fetch error:', merchantQuery.error);
-        throw merchantQuery.error;
+      if (merchantError) {
+        console.error('Merchant fetch error:', merchantError);
+        throw merchantError;
       }
       
-      if (merchantQuery.data) {
-        const rawMerchant = merchantQuery.data;
-        const merchantData: MerchantData = {
-          id: rawMerchant.id,
-          shop_name: rawMerchant.shop_name,
-          category: rawMerchant.category,
-          address: rawMerchant.address,
-          description: rawMerchant.description,
-          open_time: rawMerchant.open_time,
-          close_time: rawMerchant.close_time,
-          rating: rawMerchant.rating,
-          image_url: rawMerchant.image_url
-        };
-        setMerchant(merchantData);
+      if (merchantData) {
+        setMerchant({
+          id: merchantData.id,
+          shop_name: merchantData.shop_name,
+          category: merchantData.category,
+          address: merchantData.address,
+          description: merchantData.description,
+          open_time: merchantData.open_time,
+          close_time: merchantData.close_time,
+          rating: merchantData.rating,
+          image_url: merchantData.image_url
+        });
       }
 
       // Fetch services
-      const servicesQuery = await supabase
+      const { data: servicesData, error: servicesError } = await supabase
         .from('services')
         .select('id, name, price, duration, description, image_url')
         .eq('merchant_id', merchantId)
         .order('name', { ascending: true });
       
-      if (servicesQuery.error) {
-        console.error('Services fetch error:', servicesQuery.error);
-        throw servicesQuery.error;
+      if (servicesError) {
+        console.error('Services fetch error:', servicesError);
+        throw servicesError;
       }
       
-      if (servicesQuery.data) {
-        const rawServices = servicesQuery.data;
-        const servicesData: ServiceData[] = [];
-        
-        for (const item of rawServices) {
-          servicesData.push({
+      if (servicesData) {
+        const processedServices: ServiceData[] = [];
+        servicesData.forEach(item => {
+          processedServices.push({
             id: item.id,
             name: item.name,
             price: Number(item.price),
@@ -122,28 +118,25 @@ const GuestShopDetailsPage: React.FC = () => {
             description: item.description,
             image_url: item.image_url
           });
-        }
-        
-        setServices(servicesData);
+        });
+        setServices(processedServices);
       }
 
       // Fetch reviews
-      const reviewsQuery = await supabase
+      const { data: reviewsData, error: reviewsError } = await supabase
         .from('reviews')
         .select('id, rating, review, customer_name, customer_avatar, created_at')
         .eq('merchant_id', merchantId)
         .order('created_at', { ascending: false })
         .limit(5);
       
-      if (reviewsQuery.error) {
-        console.error('Reviews fetch error:', reviewsQuery.error);
+      if (reviewsError) {
+        console.error('Reviews fetch error:', reviewsError);
         setReviews([]);
-      } else if (reviewsQuery.data) {
-        const rawReviews = reviewsQuery.data;
-        const reviewsData: ReviewData[] = [];
-        
-        for (const item of rawReviews) {
-          reviewsData.push({
+      } else if (reviewsData) {
+        const processedReviews: ReviewData[] = [];
+        reviewsData.forEach(item => {
+          processedReviews.push({
             id: item.id,
             rating: Number(item.rating),
             review: item.review,
@@ -151,9 +144,8 @@ const GuestShopDetailsPage: React.FC = () => {
             customer_avatar: item.customer_avatar,
             created_at: item.created_at
           });
-        }
-        
-        setReviews(reviewsData);
+        });
+        setReviews(processedReviews);
       }
 
     } catch (error) {
