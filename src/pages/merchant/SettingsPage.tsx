@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -76,7 +75,7 @@ const SettingsPage: React.FC = () => {
   const generateBookingLink = () => {
     if (!merchant) return '';
     const shopName = merchant.shop_name.toLowerCase().replace(/\s+/g, '-');
-    return `https://app.booqit.in/book/${merchant.id}/${shopName}`;
+    return `https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com/book/${merchant.id}/${shopName}`;
   };
 
   const copyBookingLink = async () => {
