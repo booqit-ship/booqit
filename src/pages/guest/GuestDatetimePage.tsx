@@ -151,11 +151,11 @@ const GuestDatetimePage: React.FC = () => {
     });
   };
 
-  // Generate next 7 days for date selection
-  const getNext7Days = () => {
+  // Generate only next 3 days for date selection (today, tomorrow, day after)
+  const getNext3Days = () => {
     const days = [];
     const today = new Date();
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 3; i++) {
       const date = new Date(today);
       date.setDate(today.getDate() + i);
       days.push(date);
@@ -163,7 +163,7 @@ const GuestDatetimePage: React.FC = () => {
     return days;
   };
 
-  const availableDays = getNext7Days();
+  const availableDays = getNext3Days();
 
   if (!guestInfo || !selectedServices || selectedServices.length === 0) {
     return (
@@ -200,42 +200,39 @@ const GuestDatetimePage: React.FC = () => {
       </div>
 
       <div className="p-4 space-y-6">
-        {/* Booking Summary */}
-        <Card className="border-booqit-primary/20">
-          <CardContent className="p-4">
+        {/* Booking Summary Card */}
+        <Card className="border-l-4 border-l-booqit-primary bg-white shadow-sm">
+          <CardContent className="p-5">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                <Calendar className="h-6 w-6 text-blue-600" />
+              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                <Calendar className="h-5 w-5 text-booqit-primary" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold font-righteous">Booking Summary</h3>
-                <p className="text-gray-600 font-poppins">Select your preferred date and time</p>
+                <h3 className="text-lg font-semibold font-righteous text-gray-800">Quick Summary</h3>
+                <p className="text-gray-600 text-sm font-poppins">Select your preferred slot</p>
               </div>
             </div>
 
-            <div className="space-y-3 mb-4">
-              <div className="flex items-center gap-2">
-                <User className="h-4 w-4 text-gray-500" />
-                <span className="font-medium font-poppins">Guest: {guestInfo.name}</span>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-gray-500" />
+                  <span className="font-medium text-gray-700">{guestInfo.name}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-gray-500" />
+                  <span className="text-gray-600 text-xs">{selectedStaffDetails?.name || 'Any Available Stylist'}</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-gray-500" />
-                <span className="font-medium font-poppins">Stylist: {selectedStaffDetails?.name || 'Any Available Stylist'}</span>
-              </div>
-            </div>
-
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="font-poppins">Services:</span>
-                <span>{selectedServices?.length || 0} selected</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-poppins">Total Duration:</span>
-                <span>{totalDuration} minutes</span>
-              </div>
-              <div className="flex justify-between font-semibold text-base border-t pt-2">
-                <span className="font-poppins">Total Price:</span>
-                <span>₹{totalPrice}</span>
+              
+              <div className="space-y-2">
+                <div className="text-right">
+                  <span className="text-gray-600">{selectedServices?.length || 0} Services</span>
+                </div>
+                <div className="text-right">
+                  <span className="font-semibold text-booqit-primary">₹{totalPrice}</span>
+                  <span className="text-gray-500 text-xs ml-1">({totalDuration}min)</span>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -243,74 +240,84 @@ const GuestDatetimePage: React.FC = () => {
 
         {/* Date Selection */}
         <div>
-          <h3 className="text-lg font-semibold mb-3 font-righteous">Select Date</h3>
-          <div className="grid grid-cols-2 gap-2">
-            {availableDays.map((date) => (
-              <Card
-                key={date.toISOString()}
-                className={`cursor-pointer transition-all duration-200 ${
-                  selectedDate?.toDateString() === date.toDateString()
-                    ? 'border-booqit-primary bg-booqit-primary/5 shadow-md'
-                    : 'hover:shadow-md border-l-4 border-l-gray-200 hover:border-l-booqit-primary'
-                }`}
-                onClick={() => handleDateSelect(date)}
-              >
-                <CardContent className="p-3">
-                  <div className="text-center">
-                    <div className="font-semibold font-righteous">
-                      {formatDateInIST(date, 'EEE')}
+          <h3 className="text-lg font-semibold mb-4 font-righteous text-gray-800">Choose Date</h3>
+          <div className="grid grid-cols-3 gap-3">
+            {availableDays.map((date, index) => {
+              const isToday = index === 0;
+              const isTomorrow = index === 1;
+              const dayAfter = index === 2;
+              
+              let dayLabel = '';
+              if (isToday) dayLabel = 'Today';
+              else if (isTomorrow) dayLabel = 'Tomorrow';
+              else dayLabel = formatDateInIST(date, 'EEE');
+
+              return (
+                <Card
+                  key={date.toISOString()}
+                  className={`cursor-pointer transition-all duration-200 hover:shadow-md ${
+                    selectedDate?.toDateString() === date.toDateString()
+                      ? 'border-booqit-primary bg-booqit-primary/5 shadow-md ring-2 ring-booqit-primary/20'
+                      : 'border-gray-200 hover:border-booqit-primary/50'
+                  }`}
+                  onClick={() => handleDateSelect(date)}
+                >
+                  <CardContent className="p-4 text-center">
+                    <div className="font-semibold font-righteous text-gray-800 text-sm">
+                      {dayLabel}
                     </div>
-                    <div className="text-sm text-gray-600 font-poppins">
+                    <div className="text-xs text-gray-600 font-poppins mt-1">
                       {formatDateInIST(date, 'MMM d')}
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </div>
 
         {/* Time Slots */}
         {selectedDate && (
           <div>
-            <h3 className="text-lg font-semibold mb-3 font-righteous">Available Time Slots</h3>
+            <h3 className="text-lg font-semibold mb-4 font-righteous text-gray-800">Available Times</h3>
             {isLoadingSlots ? (
-              <div className="flex justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-booqit-primary"></div>
+              <div className="flex justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-2 border-booqit-primary border-t-transparent"></div>
               </div>
             ) : availableSlots.length > 0 ? (
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-3">
                 {availableSlots.map((slot) => (
                   <Card
                     key={`${slot.staff_id}-${slot.time_slot}`}
                     className={`cursor-pointer transition-all duration-200 ${
                       !slot.is_available
-                        ? 'opacity-50 cursor-not-allowed bg-gray-100'
+                        ? 'opacity-40 cursor-not-allowed bg-gray-50 border-gray-200'
                         : selectedTime === slot.time_slot
-                        ? 'border-booqit-primary bg-booqit-primary/5 shadow-md'
-                        : 'hover:shadow-md border-l-4 border-l-gray-200 hover:border-l-booqit-primary'
+                        ? 'border-booqit-primary bg-booqit-primary/5 shadow-md ring-2 ring-booqit-primary/20'
+                        : 'border-gray-200 hover:border-booqit-primary/50 hover:shadow-sm'
                     }`}
                     onClick={() => slot.is_available && handleTimeSelect(slot.time_slot, slot.staff_id)}
                   >
-                    <CardContent className="p-3">
-                      <div className="text-center">
-                        <div className="font-semibold font-righteous">
-                          {formatTimeToAmPm(slot.time_slot)}
-                        </div>
-                        {!slot.is_available && (
-                          <div className="text-xs text-red-500 font-poppins mt-1">
-                            {slot.conflict_reason || 'Not Available'}
-                          </div>
-                        )}
+                    <CardContent className="p-3 text-center">
+                      <div className={`font-semibold font-righteous text-sm ${
+                        slot.is_available ? 'text-gray-800' : 'text-gray-400'
+                      }`}>
+                        {formatTimeToAmPm(slot.time_slot)}
                       </div>
+                      {!slot.is_available && (
+                        <div className="text-xs text-red-500 font-poppins mt-1">
+                          Booked
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8">
-                <Clock className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                <p className="text-gray-600 font-poppins">No available slots for this date</p>
+              <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+                <Clock className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500 font-poppins">No slots available for this date</p>
+                <p className="text-gray-400 text-sm font-poppins mt-1">Try selecting a different date</p>
               </div>
             )}
           </div>
@@ -320,12 +327,12 @@ const GuestDatetimePage: React.FC = () => {
       {/* Fixed Bottom Bar */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t shadow-lg">
         <Button 
-          className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6 font-poppins"
+          className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-white text-base py-6 font-poppins font-medium disabled:opacity-50"
           size="lg"
           onClick={handleContinue}
           disabled={!selectedDate || !selectedTime || isLocking}
         >
-          {isLocking ? 'Reserving...' : 'Continue to Payment'}
+          {isLocking ? 'Reserving Slot...' : 'Continue to Payment'}
         </Button>
       </div>
     </div>
