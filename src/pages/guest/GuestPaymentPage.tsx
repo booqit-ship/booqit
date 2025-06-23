@@ -79,7 +79,7 @@ const GuestPaymentPage: React.FC = () => {
 
       // Handle the response properly with type checking
       if (data && typeof data === 'object' && !Array.isArray(data)) {
-        const response = data as BookingResponse;
+        const response = data as unknown as BookingResponse;
         
         if (response.success && response.booking_id) {
           console.log('GUEST PAYMENT: Booking created successfully:', response.booking_id);
