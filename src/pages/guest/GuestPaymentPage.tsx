@@ -39,7 +39,7 @@ const GuestPaymentPage: React.FC = () => {
     try {
       const serviceIds = selectedServices.map((service: any) => service.id);
 
-      console.log('GUEST BOOKING: Creating booking with data:', {
+      console.log('GUEST PAYMENT: Creating booking with data:', {
         guestInfo,
         merchantId,
         serviceIds,
@@ -62,7 +62,7 @@ const GuestPaymentPage: React.FC = () => {
       });
 
       if (error) {
-        console.error('Guest booking error:', error);
+        console.error('GUEST PAYMENT: Booking error:', error);
         toast.error(error.message || 'Failed to create booking');
         return;
       }
@@ -70,9 +70,10 @@ const GuestPaymentPage: React.FC = () => {
       const response = data as { success?: boolean; booking_id?: string; error?: string };
 
       if (response?.success && response?.booking_id) {
+        console.log('GUEST PAYMENT: Booking created successfully:', response.booking_id);
         toast.success('Booking confirmed successfully!');
         
-        // Navigate to success page - FIXED NAVIGATION
+        // Navigate to success page with proper data
         navigate(`/guest-booking-success/${merchantId}`, {
           state: { 
             bookingId: response.booking_id,
@@ -82,15 +83,16 @@ const GuestPaymentPage: React.FC = () => {
             bookingDate,
             bookingTime,
             guestInfo,
-            selectedStaffDetails
+            selectedStaffDetails: selectedStaffDetails || { name: 'Any Available Stylist' }
           },
           replace: true
         });
       } else {
+        console.error('GUEST PAYMENT: Booking failed:', response?.error);
         toast.error(response?.error || 'Failed to create booking');
       }
     } catch (error) {
-      console.error('Error creating guest booking:', error);
+      console.error('GUEST PAYMENT: Critical error:', error);
       toast.error('Failed to create booking. Please try again.');
     } finally {
       setIsProcessing(false);
@@ -197,9 +199,7 @@ const GuestPaymentPage: React.FC = () => {
                 <p><strong>Date:</strong> {formatDateInIST(new Date(bookingDate), 'EEE, MMM d, yyyy')}</p>
                 <p><strong>Time:</strong> {formatTimeToAmPm(bookingTime)}</p>
                 <p><strong>Duration:</strong> {totalDuration} minutes</p>
-                {selectedStaffDetails && (
-                  <p><strong>Stylist:</strong> {selectedStaffDetails.name}</p>
-                )}
+                <p><strong>Stylist:</strong> {selectedStaffDetails?.name || 'Any Available Stylist'}</p>
               </div>
             </div>
 

@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Users, User, Check } from 'lucide-react';
@@ -46,7 +45,16 @@ const GuestStaffSelectionPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    console.log('GUEST STAFF SELECTION: Page loaded with state:', {
+      guestInfo: !!guestInfo,
+      merchant: !!merchant,
+      selectedServices: selectedServices?.length || 0,
+      totalPrice,
+      totalDuration
+    });
+
     if (!guestInfo || !selectedServices || selectedServices.length === 0) {
+      console.log('GUEST STAFF SELECTION: Missing required data, redirecting...');
       navigate(`/book/${merchantId}`);
       return;
     }
@@ -59,6 +67,8 @@ const GuestStaffSelectionPage: React.FC = () => {
 
     setIsLoading(true);
     try {
+      console.log('GUEST STAFF SELECTION: Fetching staff for merchant:', merchantId);
+      
       const { data: staffData, error: staffError } = await supabase
         .from('staff')
         .select('*')
@@ -66,9 +76,11 @@ const GuestStaffSelectionPage: React.FC = () => {
         .order('name', { ascending: true });
 
       if (staffError) throw staffError;
+      
+      console.log('GUEST STAFF SELECTION: Staff loaded:', staffData?.length || 0);
       setStaff(staffData || []);
     } catch (error) {
-      console.error('Error fetching staff:', error);
+      console.error('GUEST STAFF SELECTION: Error fetching staff:', error);
       toast.error('Failed to load staff information');
     } finally {
       setIsLoading(false);
@@ -76,6 +88,8 @@ const GuestStaffSelectionPage: React.FC = () => {
   };
 
   const handleStaffSelect = (staffMember: Staff) => {
+    console.log('GUEST STAFF SELECTION: Staff selected:', staffMember.name);
+    
     if (selectedStaff === staffMember.id) {
       // Deselect staff
       setSelectedStaff('');
@@ -88,6 +102,11 @@ const GuestStaffSelectionPage: React.FC = () => {
   };
 
   const handleContinue = () => {
+    console.log('GUEST STAFF SELECTION: Continuing to datetime with:', {
+      selectedStaff: selectedStaff || 'Any available stylist',
+      staffDetails: selectedStaffDetails?.name || 'Any available stylist'
+    });
+
     // Navigate to datetime selection with or without selected staff
     navigate(`/guest-datetime/${merchantId}`, { 
       state: { 
@@ -96,8 +115,8 @@ const GuestStaffSelectionPage: React.FC = () => {
         selectedServices,
         totalPrice,
         totalDuration,
-        selectedStaff,
-        selectedStaffDetails,
+        selectedStaff: selectedStaff || null,
+        selectedStaffDetails: selectedStaffDetails || null,
         isGuestBooking: true 
       }
     });
