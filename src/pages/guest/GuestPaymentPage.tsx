@@ -43,12 +43,13 @@ const GuestPaymentPage: React.FC = () => {
         guestInfo,
         merchantId,
         serviceIds,
-        selectedStaff,
+        selectedStaff: selectedStaff || null,
         bookingDate,
         bookingTime,
         totalDuration
       });
 
+      // Use a simpler approach - call the RPC function with proper error handling
       const { data, error } = await supabase.rpc('create_guest_booking_safe', {
         p_guest_name: guestInfo.name,
         p_guest_phone: guestInfo.phone,
@@ -58,38 +59,44 @@ const GuestPaymentPage: React.FC = () => {
         p_staff_id: selectedStaff || null,
         p_date: bookingDate,
         p_time_slot: bookingTime,
-        p_total_duration: totalDuration
+        p_total_duration: totalDuration || 30
       });
 
       if (error) {
-        console.error('GUEST PAYMENT: Booking error:', error);
-        toast.error(error.message || 'Failed to create booking');
+        console.error('GUEST PAYMENT: RPC error:', error);
+        toast.error(`Booking failed: ${error.message}`);
         return;
       }
 
-      const response = data as { success?: boolean; booking_id?: string; error?: string };
+      console.log('GUEST PAYMENT: RPC response:', data);
 
-      if (response?.success && response?.booking_id) {
-        console.log('GUEST PAYMENT: Booking created successfully:', response.booking_id);
-        toast.success('Booking confirmed successfully!');
-        
-        // Navigate to success page with proper data
-        navigate(`/guest-booking-success/${merchantId}`, {
-          state: { 
-            bookingId: response.booking_id,
-            merchant,
-            selectedServices,
-            totalPrice,
-            bookingDate,
-            bookingTime,
-            guestInfo,
-            selectedStaffDetails: selectedStaffDetails || { name: 'Any Available Stylist' }
-          },
-          replace: true
-        });
+      // Handle the response properly
+      if (data && typeof data === 'object') {
+        if (data.success && data.booking_id) {
+          console.log('GUEST PAYMENT: Booking created successfully:', data.booking_id);
+          toast.success('Booking confirmed successfully!');
+          
+          // Navigate to success page
+          navigate(`/guest-booking-success/${merchantId}`, {
+            state: { 
+              bookingId: data.booking_id,
+              merchant,
+              selectedServices,
+              totalPrice,
+              bookingDate,
+              bookingTime,
+              guestInfo,
+              selectedStaffDetails: selectedStaffDetails || { name: 'Any Available Stylist' }
+            },
+            replace: true
+          });
+        } else {
+          console.error('GUEST PAYMENT: Booking failed:', data.error || 'Unknown error');
+          toast.error(data.error || 'Failed to create booking');
+        }
       } else {
-        console.error('GUEST PAYMENT: Booking failed:', response?.error);
-        toast.error(response?.error || 'Failed to create booking');
+        console.error('GUEST PAYMENT: Unexpected response format:', data);
+        toast.error('Unexpected response from server');
       }
     } catch (error) {
       console.error('GUEST PAYMENT: Critical error:', error);

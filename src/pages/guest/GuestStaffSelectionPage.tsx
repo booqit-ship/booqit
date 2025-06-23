@@ -12,20 +12,6 @@ interface Staff {
   name: string;
 }
 
-interface Service {
-  id: string;
-  name: string;
-  price: number;
-  duration: number;
-}
-
-interface Merchant {
-  id: string;
-  shop_name: string;
-  category: string;
-  address: string;
-}
-
 const GuestStaffSelectionPage: React.FC = () => {
   const { merchantId } = useParams();
   const navigate = useNavigate();
@@ -36,7 +22,9 @@ const GuestStaffSelectionPage: React.FC = () => {
     merchant, 
     selectedServices, 
     totalPrice, 
-    totalDuration 
+    totalDuration,
+    bookingDate,
+    bookingTime 
   } = location.state || {};
 
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -50,17 +38,19 @@ const GuestStaffSelectionPage: React.FC = () => {
       merchant: !!merchant,
       selectedServices: selectedServices?.length || 0,
       totalPrice,
-      totalDuration
+      totalDuration,
+      bookingDate,
+      bookingTime
     });
 
-    if (!guestInfo || !selectedServices || selectedServices.length === 0) {
+    if (!guestInfo || !selectedServices || selectedServices.length === 0 || !bookingDate || !bookingTime) {
       console.log('GUEST STAFF SELECTION: Missing required data, redirecting...');
       navigate(`/book/${merchantId}`);
       return;
     }
     
     fetchStaff();
-  }, [merchantId, guestInfo, selectedServices]);
+  }, [merchantId, guestInfo, selectedServices, bookingDate, bookingTime]);
 
   const fetchStaff = async () => {
     if (!merchantId) return;
@@ -87,28 +77,32 @@ const GuestStaffSelectionPage: React.FC = () => {
     }
   };
 
-  const handleStaffSelect = (staffMember: Staff) => {
-    console.log('GUEST STAFF SELECTION: Staff selected:', staffMember.name);
+  const handleStaffSelect = (staffMember: Staff | null) => {
+    console.log('GUEST STAFF SELECTION: Staff selected:', staffMember?.name || 'Any Available');
     
-    if (selectedStaff === staffMember.id) {
-      // Deselect staff
+    if (staffMember === null) {
+      // "Any Available Stylist" selected
+      setSelectedStaff('');
+      setSelectedStaffDetails(null);
+    } else if (selectedStaff === staffMember.id) {
+      // Deselect current staff
       setSelectedStaff('');
       setSelectedStaffDetails(null);
     } else {
-      // Select staff
+      // Select new staff
       setSelectedStaff(staffMember.id);
       setSelectedStaffDetails(staffMember);
     }
   };
 
   const handleContinue = () => {
-    console.log('GUEST STAFF SELECTION: Continuing to datetime with:', {
+    console.log('GUEST STAFF SELECTION: Continuing to payment with:', {
       selectedStaff: selectedStaff || 'Any available stylist',
       staffDetails: selectedStaffDetails?.name || 'Any available stylist'
     });
 
-    // Navigate to datetime selection with or without selected staff
-    navigate(`/guest-datetime/${merchantId}`, { 
+    // Navigate directly to payment page, skipping duplicate datetime selection
+    navigate(`/guest-payment/${merchantId}`, { 
       state: { 
         guestInfo, 
         merchant, 
@@ -117,7 +111,8 @@ const GuestStaffSelectionPage: React.FC = () => {
         totalDuration,
         selectedStaff: selectedStaff || null,
         selectedStaffDetails: selectedStaffDetails || null,
-        isGuestBooking: true 
+        bookingDate,
+        bookingTime
       }
     });
   };
@@ -161,6 +156,10 @@ const GuestStaffSelectionPage: React.FC = () => {
                 <span className="font-poppins">Total Duration:</span>
                 <span>{totalDuration} minutes</span>
               </div>
+              <div className="flex justify-between">
+                <span className="font-poppins">Date & Time:</span>
+                <span>{bookingDate} at {bookingTime}</span>
+              </div>
               <div className="flex justify-between font-semibold text-base border-t pt-2">
                 <span className="font-poppins">Total Price:</span>
                 <span>₹{totalPrice}</span>
@@ -186,7 +185,7 @@ const GuestStaffSelectionPage: React.FC = () => {
                   ? 'border-booqit-primary bg-booqit-primary/5 shadow-md' 
                   : 'hover:shadow-md border-l-4 border-l-gray-200 hover:border-l-booqit-primary'
               }`}
-              onClick={() => handleStaffSelect({ id: '', name: '' })}
+              onClick={() => handleStaffSelect(null)}
             >
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -246,7 +245,7 @@ const GuestStaffSelectionPage: React.FC = () => {
           size="lg"
           onClick={handleContinue}
         >
-          Continue to Time Selection
+          Continue to Payment
         </Button>
       </div>
     </div>
