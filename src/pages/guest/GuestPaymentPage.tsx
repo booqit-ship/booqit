@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -36,7 +37,7 @@ const GuestPaymentPage: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleConfirmBooking = async () => {
-    if (!merchantId || !selectedServices || !guestInfo) {
+    if (!merchantId || !selectedServices || !guestInfo || !bookingDate || !bookingTime) {
       toast.error('Missing booking information');
       return;
     }
@@ -56,7 +57,7 @@ const GuestPaymentPage: React.FC = () => {
         totalDuration
       });
 
-      // Use a simpler approach - call the RPC function with proper error handling
+      // Call the fixed RPC function
       const { data, error } = await supabase.rpc('create_guest_booking_safe', {
         p_guest_name: guestInfo.name,
         p_guest_phone: guestInfo.phone,
@@ -115,7 +116,7 @@ const GuestPaymentPage: React.FC = () => {
     }
   };
 
-  if (!merchant || !selectedServices || !guestInfo) {
+  if (!merchant || !selectedServices || !guestInfo || !bookingDate || !bookingTime) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">

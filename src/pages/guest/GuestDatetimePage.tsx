@@ -3,19 +3,20 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { ArrowLeft, Calendar, Clock, User, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Calendar, Clock } from 'lucide-react';
-import { formatDateInIST, isTodayIST } from '@/utils/dateUtils';
+import { useSlotLocking } from '@/hooks/useSlotLocking';
+import { useRealtimeSlots } from '@/hooks/useRealtimeSlots';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
-import SlotSelector from '@/components/customer/SlotSelector';
+import { formatDateInIST } from '@/utils/dateUtils';
 
-interface AvailableSlot {
+interface TimeSlot {
   staff_id: string;
   staff_name: string;
   time_slot: string;
   is_available: boolean;
-  conflict_reason: string | null;
+  conflict_reason?: string;
 }
 
 const GuestDatetimePage: React.FC = () => {
@@ -33,79 +34,108 @@ const GuestDatetimePage: React.FC = () => {
     selectedStaffDetails
   } = location.state || {};
 
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string>('');
-  const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string>('');
-  const [lastRefreshTime, setLastRefreshTime] = useState(new Date());
-  const [nextValidSlotTime, setNextValidSlotTime] = useState<string>('');
-  const [isCheckingSlot, setIsCheckingSlot] = useState(false);
+  const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const { lockSlot, isLocking } = useSlotLocking();
+
+  console.log('GUEST DATETIME: Page loaded with state:', {
+    guestInfo: !!guestInfo,
+    merchant: !!merchant,
+    selectedServices: selectedServices?.length || 0,
+    totalPrice,
+    totalDuration,
+    selectedStaff: selectedStaff || 'Any available',
+    selectedStaffDetails: selectedStaffDetails?.name || 'Any available stylist'
+  });
 
   useEffect(() => {
     if (!guestInfo || !selectedServices || selectedServices.length === 0) {
+      console.log('GUEST DATETIME: Missing required data, redirecting...');
       navigate(`/book/${merchantId}`);
       return;
     }
-    
-    fetchAvailableSlots();
-  }, [selectedDate, merchantId, guestInfo, selectedServices]);
+  }, [merchantId, guestInfo, selectedServices]);
 
-  const fetchAvailableSlots = async () => {
-    if (!merchantId) return;
+  // Realtime slots hook
+  useRealtimeSlots({
+    selectedDate,
+    selectedStaff,
+    merchantId: merchantId!,
+    onSlotChange: () => {
+      if (selectedDate) {
+        fetchAvailableSlots(selectedDate);
+      }
+    },
+    selectedTime,
+    onSelectedTimeInvalidated: () => {
+      setSelectedTime('');
+      toast.info('Your selected time slot is no longer available');
+    }
+  });
 
-    setIsLoading(true);
-    setError('');
-    
+  const fetchAvailableSlots = async (date: Date) => {
+    if (!merchantId || !date) return;
+
+    setIsLoadingSlots(true);
     try {
-      const formattedDate = selectedDate.toISOString().split('T')[0];
-      
-      const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_ist_buffer', {
+      const dateStr = formatDateInIST(date, 'yyyy-MM-dd');
+      console.log('GUEST DATETIME: Fetching slots for:', { dateStr, selectedStaff, totalDuration });
+
+      const { data: slotsData, error } = await supabase.rpc('get_available_slots_with_ist_buffer', {
         p_merchant_id: merchantId,
-        p_date: formattedDate,
+        p_date: dateStr,
         p_staff_id: selectedStaff || null,
         p_service_duration: totalDuration || 30
       });
 
-      if (slotsError) {
-        console.error('Error fetching slots:', slotsError);
-        setError('Failed to load available slots');
-        return;
-      }
+      if (error) throw error;
 
-      const slots = Array.isArray(slotsData) ? slotsData : [];
-      setAvailableSlots(slots);
-      
-      const availableSlots = slots.filter(slot => slot.is_available);
-      if (availableSlots.length > 0 && isTodayIST(selectedDate)) {
-        setNextValidSlotTime(availableSlots[0].time_slot);
-      }
-      
-      setLastRefreshTime(new Date());
+      console.log('GUEST DATETIME: Slots fetched:', slotsData?.length || 0);
+      setAvailableSlots(slotsData || []);
     } catch (error) {
-      console.error('Error fetching available slots:', error);
-      setError('Failed to load available slots');
+      console.error('GUEST DATETIME: Error fetching slots:', error);
+      toast.error('Failed to load available time slots');
     } finally {
-      setIsLoading(false);
+      setIsLoadingSlots(false);
     }
   };
 
-  const handleSlotClick = async (timeSlot: string) => {
-    setIsCheckingSlot(true);
-    try {
-      setSelectedTime(timeSlot);
-      toast.success('Time slot selected');
-    } finally {
-      setIsCheckingSlot(false);
+  const handleDateSelect = (date: Date) => {
+    console.log('GUEST DATETIME: Date selected:', formatDateInIST(date, 'yyyy-MM-dd'));
+    setSelectedDate(date);
+    setSelectedTime('');
+    fetchAvailableSlots(date);
+  };
+
+  const handleTimeSelect = async (timeSlot: string, staffId: string) => {
+    if (!selectedDate) return;
+
+    console.log('GUEST DATETIME: Time slot selected:', { timeSlot, staffId });
+    setSelectedTime(timeSlot);
+
+    // Optional: Lock the slot (if you want to reserve it temporarily)
+    if (selectedStaff) {
+      await lockSlot(selectedStaff, formatDateInIST(selectedDate, 'yyyy-MM-dd'), timeSlot, totalDuration || 30);
     }
   };
 
   const handleContinue = () => {
-    if (!selectedTime) {
-      toast.error('Please select a time slot');
+    if (!selectedDate || !selectedTime) {
+      toast.error('Please select both date and time');
       return;
     }
 
+    console.log('GUEST DATETIME: Continuing to payment with:', {
+      guestInfo,
+      selectedStaff: selectedStaff || 'Any available stylist',
+      selectedStaffDetails: selectedStaffDetails?.name || 'Any available stylist',
+      bookingDate: formatDateInIST(selectedDate, 'yyyy-MM-dd'),
+      bookingTime: selectedTime
+    });
+
+    // Navigate to payment page
     navigate(`/guest-payment/${merchantId}`, {
       state: {
         guestInfo,
@@ -113,34 +143,40 @@ const GuestDatetimePage: React.FC = () => {
         selectedServices,
         totalPrice,
         totalDuration,
-        selectedStaff,
-        selectedStaffDetails,
-        bookingDate: selectedDate.toISOString().split('T')[0],
-        bookingTime: selectedTime,
-        isGuestBooking: true
+        selectedStaff: selectedStaff || null,
+        selectedStaffDetails: selectedStaffDetails || { name: 'Any Available Stylist' },
+        bookingDate: formatDateInIST(selectedDate, 'yyyy-MM-dd'),
+        bookingTime: selectedTime
       }
     });
   };
 
-  const getDayButtons = () => {
+  // Generate next 7 days for date selection
+  const getNext7Days = () => {
     const days = [];
     const today = new Date();
-    
     for (let i = 0; i < 7; i++) {
       const date = new Date(today);
       date.setDate(today.getDate() + i);
       days.push(date);
     }
-    
     return days;
   };
 
-  if (!guestInfo || !selectedServices) {
+  const availableDays = getNext7Days();
+
+  if (!guestInfo || !selectedServices || selectedServices.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-800 mb-2">Booking Information Missing</h1>
           <p className="text-gray-600">Please start the booking process again.</p>
+          <Button 
+            onClick={() => navigate(`/book/${merchantId}`)}
+            className="mt-4"
+          >
+            Start Over
+          </Button>
         </div>
       </div>
     );
@@ -163,26 +199,40 @@ const GuestDatetimePage: React.FC = () => {
         </div>
       </div>
 
-      <div className="p-4">
+      <div className="p-4 space-y-6">
         {/* Booking Summary */}
-        <Card className="mb-6 border-booqit-primary/20">
+        <Card className="border-booqit-primary/20">
           <CardContent className="p-4">
-            <h3 className="font-semibold mb-2 font-righteous">Booking Summary</h3>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                <Calendar className="h-6 w-6 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold font-righteous">Booking Summary</h3>
+                <p className="text-gray-600 font-poppins">Select your preferred date and time</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 mb-4">
+              <div className="flex items-center gap-2">
+                <User className="h-4 w-4 text-gray-500" />
+                <span className="font-medium font-poppins">Guest: {guestInfo.name}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-gray-500" />
+                <span className="font-medium font-poppins">Stylist: {selectedStaffDetails?.name || 'Any Available Stylist'}</span>
+              </div>
+            </div>
+
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="font-poppins">Services:</span>
-                <span>{selectedServices.length} selected</span>
+                <span>{selectedServices?.length || 0} selected</span>
               </div>
               <div className="flex justify-between">
                 <span className="font-poppins">Total Duration:</span>
                 <span>{totalDuration} minutes</span>
               </div>
-              {selectedStaffDetails && (
-                <div className="flex justify-between">
-                  <span className="font-poppins">Stylist:</span>
-                  <span>{selectedStaffDetails.name}</span>
-                </div>
-              )}
               <div className="flex justify-between font-semibold text-base border-t pt-2">
                 <span className="font-poppins">Total Price:</span>
                 <span>₹{totalPrice}</span>
@@ -192,46 +242,79 @@ const GuestDatetimePage: React.FC = () => {
         </Card>
 
         {/* Date Selection */}
-        <div className="mb-6">
-          <h3 className="font-medium mb-3 flex items-center font-righteous">
-            <Calendar className="h-4 w-4 mr-2" />
-            Select Date
-          </h3>
-          <div className="grid grid-cols-3 gap-2">
-            {getDayButtons().map((date, index) => (
-              <Button
-                key={index}
-                variant={selectedDate.toDateString() === date.toDateString() ? "default" : "outline"}
-                className={`p-3 h-auto flex flex-col font-poppins ${
-                  selectedDate.toDateString() === date.toDateString() 
-                    ? 'bg-booqit-primary hover:bg-booqit-primary/90' 
-                    : ''
+        <div>
+          <h3 className="text-lg font-semibold mb-3 font-righteous">Select Date</h3>
+          <div className="grid grid-cols-2 gap-2">
+            {availableDays.map((date) => (
+              <Card
+                key={date.toISOString()}
+                className={`cursor-pointer transition-all duration-200 ${
+                  selectedDate?.toDateString() === date.toDateString()
+                    ? 'border-booqit-primary bg-booqit-primary/5 shadow-md'
+                    : 'hover:shadow-md border-l-4 border-l-gray-200 hover:border-l-booqit-primary'
                 }`}
-                onClick={() => setSelectedDate(date)}
+                onClick={() => handleDateSelect(date)}
               >
-                <span className="text-xs">
-                  {index === 0 ? 'Today' : index === 1 ? 'Tomorrow' : formatDateInIST(date, 'EEE')}
-                </span>
-                <span className="text-lg font-bold">{date.getDate()}</span>
-                <span className="text-xs">{formatDateInIST(date, 'MMM')}</span>
-              </Button>
+                <CardContent className="p-3">
+                  <div className="text-center">
+                    <div className="font-semibold font-righteous">
+                      {formatDateInIST(date, 'EEE')}
+                    </div>
+                    <div className="text-sm text-gray-600 font-poppins">
+                      {formatDateInIST(date, 'MMM d')}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             ))}
           </div>
         </div>
 
-        {/* Time Slot Selection */}
-        <SlotSelector
-          selectedDate={selectedDate}
-          availableSlots={availableSlots}
-          selectedTime={selectedTime}
-          loading={isLoading}
-          error={error}
-          lastRefreshTime={lastRefreshTime}
-          nextValidSlotTime={nextValidSlotTime}
-          isCheckingSlot={isCheckingSlot}
-          onSlotClick={handleSlotClick}
-          onRefresh={fetchAvailableSlots}
-        />
+        {/* Time Slots */}
+        {selectedDate && (
+          <div>
+            <h3 className="text-lg font-semibold mb-3 font-righteous">Available Time Slots</h3>
+            {isLoadingSlots ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-booqit-primary"></div>
+              </div>
+            ) : availableSlots.length > 0 ? (
+              <div className="grid grid-cols-2 gap-2">
+                {availableSlots.map((slot) => (
+                  <Card
+                    key={`${slot.staff_id}-${slot.time_slot}`}
+                    className={`cursor-pointer transition-all duration-200 ${
+                      !slot.is_available
+                        ? 'opacity-50 cursor-not-allowed bg-gray-100'
+                        : selectedTime === slot.time_slot
+                        ? 'border-booqit-primary bg-booqit-primary/5 shadow-md'
+                        : 'hover:shadow-md border-l-4 border-l-gray-200 hover:border-l-booqit-primary'
+                    }`}
+                    onClick={() => slot.is_available && handleTimeSelect(slot.time_slot, slot.staff_id)}
+                  >
+                    <CardContent className="p-3">
+                      <div className="text-center">
+                        <div className="font-semibold font-righteous">
+                          {formatTimeToAmPm(slot.time_slot)}
+                        </div>
+                        {!slot.is_available && (
+                          <div className="text-xs text-red-500 font-poppins mt-1">
+                            {slot.conflict_reason || 'Not Available'}
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Clock className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                <p className="text-gray-600 font-poppins">No available slots for this date</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Fixed Bottom Bar */}
@@ -240,9 +323,9 @@ const GuestDatetimePage: React.FC = () => {
           className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6 font-poppins"
           size="lg"
           onClick={handleContinue}
-          disabled={!selectedTime}
+          disabled={!selectedDate || !selectedTime || isLocking}
         >
-          Continue to Payment
+          {isLocking ? 'Reserving...' : 'Continue to Payment'}
         </Button>
       </div>
     </div>
