@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -70,7 +69,7 @@ const GuestShopDetailsPage: React.FC = () => {
     
     setIsLoading(true);
     try {
-      // Fetch merchant data with simple query
+      // Fetch merchant data
       const merchantQuery = await supabase
         .from('merchants')
         .select('id, shop_name, category, address, description, open_time, close_time, rating, image_url')
@@ -83,20 +82,22 @@ const GuestShopDetailsPage: React.FC = () => {
       }
       
       if (merchantQuery.data) {
-        setMerchant({
-          id: merchantQuery.data.id,
-          shop_name: merchantQuery.data.shop_name,
-          category: merchantQuery.data.category,
-          address: merchantQuery.data.address,
-          description: merchantQuery.data.description,
-          open_time: merchantQuery.data.open_time,
-          close_time: merchantQuery.data.close_time,
-          rating: merchantQuery.data.rating,
-          image_url: merchantQuery.data.image_url
-        });
+        const rawMerchant = merchantQuery.data;
+        const merchantData: MerchantData = {
+          id: rawMerchant.id,
+          shop_name: rawMerchant.shop_name,
+          category: rawMerchant.category,
+          address: rawMerchant.address,
+          description: rawMerchant.description,
+          open_time: rawMerchant.open_time,
+          close_time: rawMerchant.close_time,
+          rating: rawMerchant.rating,
+          image_url: rawMerchant.image_url
+        };
+        setMerchant(merchantData);
       }
 
-      // Fetch services with simple query
+      // Fetch services
       const servicesQuery = await supabase
         .from('services')
         .select('id, name, price, duration, description, image_url')
@@ -109,17 +110,24 @@ const GuestShopDetailsPage: React.FC = () => {
       }
       
       if (servicesQuery.data) {
-        setServices(servicesQuery.data.map(item => ({
-          id: item.id,
-          name: item.name,
-          price: Number(item.price),
-          duration: Number(item.duration),
-          description: item.description,
-          image_url: item.image_url
-        })));
+        const rawServices = servicesQuery.data;
+        const servicesData: ServiceData[] = [];
+        
+        for (const item of rawServices) {
+          servicesData.push({
+            id: item.id,
+            name: item.name,
+            price: Number(item.price),
+            duration: Number(item.duration),
+            description: item.description,
+            image_url: item.image_url
+          });
+        }
+        
+        setServices(servicesData);
       }
 
-      // Fetch reviews with simple query
+      // Fetch reviews
       const reviewsQuery = await supabase
         .from('reviews')
         .select('id, rating, review, customer_name, customer_avatar, created_at')
@@ -131,14 +139,21 @@ const GuestShopDetailsPage: React.FC = () => {
         console.error('Reviews fetch error:', reviewsQuery.error);
         setReviews([]);
       } else if (reviewsQuery.data) {
-        setReviews(reviewsQuery.data.map(item => ({
-          id: item.id,
-          rating: Number(item.rating),
-          review: item.review,
-          customer_name: item.customer_name,
-          customer_avatar: item.customer_avatar,
-          created_at: item.created_at
-        })));
+        const rawReviews = reviewsQuery.data;
+        const reviewsData: ReviewData[] = [];
+        
+        for (const item of rawReviews) {
+          reviewsData.push({
+            id: item.id,
+            rating: Number(item.rating),
+            review: item.review,
+            customer_name: item.customer_name,
+            customer_avatar: item.customer_avatar,
+            created_at: item.created_at
+          });
+        }
+        
+        setReviews(reviewsData);
       }
 
     } catch (error) {
