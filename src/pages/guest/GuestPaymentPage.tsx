@@ -1,15 +1,16 @@
 
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { ChevronLeft, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { ArrowLeft, Check, Clock, User, MapPin, Calendar } from 'lucide-react';
-import { toast } from 'sonner';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { formatDateInIST } from '@/utils/dateUtils';
+import BookingSuccessAnimation from '@/components/customer/BookingSuccessAnimation';
+import BookingFailureAnimation from '@/components/customer/BookingFailureAnimation';
 
-// Type for the RPC response
 interface BookingResponse {
   success: boolean;
   booking_id?: string;
@@ -18,253 +19,354 @@ interface BookingResponse {
 }
 
 const GuestPaymentPage: React.FC = () => {
-  const { merchantId } = useParams();
+  const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   
-  const { 
-    merchant, 
-    selectedServices, 
-    totalPrice, 
-    totalDuration, 
+  const {
+    guestInfo,
+    merchant,
+    selectedServices,
+    totalPrice,
+    totalDuration,
     selectedStaff,
     selectedStaffDetails,
-    bookingDate, 
-    bookingTime, 
-    guestInfo 
+    bookingDate,
+    bookingTime
   } = location.state || {};
-
+  
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+  const [showFailureAnimation, setShowFailureAnimation] = useState(false);
+  const [createdBookingId, setCreatedBookingId] = useState<string | null>(null);
 
-  const handleConfirmBooking = async () => {
-    if (!merchantId || !selectedServices || !guestInfo || !bookingDate || !bookingTime) {
-      toast.error('Missing booking information');
+  console.log('GUEST PAYMENT: Page loaded with data:', {
+    guestInfo,
+    merchant: !!merchant,
+    selectedServices: selectedServices?.length || 0,
+    totalPrice,
+    totalDuration,
+    selectedStaff,
+    bookingDate,
+    bookingTime
+  });
+
+  const handlePayment = async () => {
+    if (!guestInfo || !merchantId) {
+      console.error('GUEST PAYMENT: Missing guest info or merchant ID');
+      setShowFailureAnimation(true);
       return;
     }
-
+    
+    if (!selectedServices || !selectedStaff || !bookingDate || !bookingTime) {
+      console.error('GUEST PAYMENT: Missing booking details');
+      setShowFailureAnimation(true);
+      return;
+    }
+    
     setIsProcessing(true);
-
+    
     try {
-      const serviceIds = selectedServices.map((service: any) => service.id);
+      console.log('GUEST PAYMENT: Starting guest booking creation...');
 
-      console.log('GUEST PAYMENT: Creating booking with data:', {
-        guestInfo,
+      // Simulate payment processing
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      const serviceIds = selectedServices.map(s => s.id);
+      
+      console.log('GUEST PAYMENT: Creating guest booking with params:', {
+        guestName: guestInfo.name,
+        guestPhone: guestInfo.phone,
+        guestEmail: guestInfo.email || null,
         merchantId,
         serviceIds,
-        selectedStaff: selectedStaff || null,
-        bookingDate,
-        bookingTime,
+        staffId: selectedStaff,
+        date: bookingDate,
+        timeSlot: bookingTime,
         totalDuration
       });
 
-      // Call the fixed RPC function
-      const { data, error } = await supabase.rpc('create_guest_booking_safe', {
+      // Create guest booking using the safe function
+      const { data: bookingResult, error: bookingError } = await supabase.rpc('create_guest_booking_safe', {
         p_guest_name: guestInfo.name,
         p_guest_phone: guestInfo.phone,
         p_guest_email: guestInfo.email || null,
         p_merchant_id: merchantId,
         p_service_ids: serviceIds,
-        p_staff_id: selectedStaff || null,
+        p_staff_id: selectedStaff,
         p_date: bookingDate,
         p_time_slot: bookingTime,
-        p_total_duration: totalDuration || 30
+        p_total_duration: totalDuration
       });
 
-      if (error) {
-        console.error('GUEST PAYMENT: RPC error:', error);
-        toast.error(`Booking failed: ${error.message}`);
+      if (bookingError) {
+        console.error('GUEST PAYMENT: Error creating guest booking:', bookingError);
+        setShowFailureAnimation(true);
         return;
       }
 
-      console.log('GUEST PAYMENT: RPC response:', data);
-
-      // Handle the response properly with type checking
-      if (data && typeof data === 'object' && !Array.isArray(data)) {
-        const response = data as unknown as BookingResponse;
-        
-        if (response.success && response.booking_id) {
-          console.log('GUEST PAYMENT: Booking created successfully:', response.booking_id);
-          toast.success('Booking confirmed successfully!');
-          
-          // Navigate to success page
-          navigate(`/guest-booking-success/${merchantId}`, {
-            state: { 
-              bookingId: response.booking_id,
-              merchant,
-              selectedServices,
-              totalPrice,
-              bookingDate,
-              bookingTime,
-              guestInfo,
-              selectedStaffDetails: selectedStaffDetails || { name: 'Any Available Stylist' }
-            },
-            replace: true
-          });
-        } else {
-          console.error('GUEST PAYMENT: Booking failed:', response.error || 'Unknown error');
-          toast.error(response.error || 'Failed to create booking');
-        }
-      } else {
-        console.error('GUEST PAYMENT: Unexpected response format:', data);
-        toast.error('Unexpected response from server');
+      const bookingResponse = bookingResult as unknown as BookingResponse;
+      console.log('GUEST PAYMENT: Guest booking response:', bookingResponse);
+      
+      if (!bookingResponse.success) {
+        console.error('GUEST PAYMENT: Guest booking failed:', bookingResponse.error);
+        toast.error(bookingResponse.error || 'Failed to create booking');
+        setShowFailureAnimation(true);
+        return;
       }
+
+      const bookingId = bookingResponse.booking_id;
+      console.log('GUEST PAYMENT: Guest booking created with ID:', bookingId);
+      
+      setCreatedBookingId(bookingId);
+
+      // Create payment record for guest booking
+      try {
+        const paymentData = {
+          booking_id: bookingId,
+          method: 'pay_on_shop',
+          amount: Number(totalPrice),
+          status: 'completed'
+        };
+
+        console.log('GUEST PAYMENT: Creating payment record:', paymentData);
+
+        const { error: paymentError } = await supabase
+          .from('payments')
+          .insert(paymentData);
+        
+        if (paymentError) {
+          console.error('GUEST PAYMENT: Payment record error:', paymentError);
+        } else {
+          console.log('GUEST PAYMENT: Payment record created successfully');
+        }
+      } catch (paymentCreationError) {
+        console.error('GUEST PAYMENT: Payment record creation failed:', paymentCreationError);
+      }
+
+      // Send notification to merchant about new guest booking
+      try {
+        console.log('GUEST PAYMENT: Sending notification to merchant...');
+        
+        if (merchant?.user_id) {
+          const serviceNames = selectedServices.map(s => s.name).join(', ');
+          const timeSlotFormatted = formatTimeToAmPm(bookingTime);
+          const dateFormatted = formatDateInIST(new Date(bookingDate), 'MMM d, yyyy');
+
+          // Use the edge function directly for merchant notification
+          const { error: notificationError } = await supabase.functions.invoke('send-notification', {
+            body: {
+              userId: merchant.user_id,
+              title: '📅 New Booking!',
+              body: `${guestInfo.name} booked ${serviceNames} for ${dateFormatted} at ${timeSlotFormatted}`,
+              data: {
+                type: 'new_booking',
+                bookingId: bookingId
+              }
+            }
+          });
+
+          if (notificationError) {
+            console.error('GUEST PAYMENT: Merchant notification error:', notificationError);
+          } else {
+            console.log('GUEST PAYMENT: Merchant notification sent successfully');
+          }
+        } else {
+          console.warn('GUEST PAYMENT: No merchant user_id found');
+        }
+      } catch (merchantNotificationError) {
+        console.error('GUEST PAYMENT: Error sending merchant notification:', merchantNotificationError);
+        // Don't fail the booking for notification issues
+      }
+
+      console.log('GUEST PAYMENT: Guest booking process completed successfully');
+      setShowSuccessAnimation(true);
+
     } catch (error) {
       console.error('GUEST PAYMENT: Critical error:', error);
-      toast.error('Failed to create booking. Please try again.');
+      setShowFailureAnimation(true);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  if (!merchant || !selectedServices || !guestInfo || !bookingDate || !bookingTime) {
+  const handleSuccessComplete = () => {
+    setShowSuccessAnimation(false);
+    if (createdBookingId) {
+      navigate(`/guest-booking-success/${merchantId}`, {
+        state: {
+          bookingId: createdBookingId,
+          guestInfo,
+          merchant,
+          selectedServices,
+          totalPrice,
+          totalDuration,
+          selectedStaff,
+          selectedStaffDetails,
+          bookingDate,
+          bookingTime,
+          paymentMethod: 'pay_on_shop'
+        }
+      });
+    } else {
+      // Fallback to merchant page
+      navigate(`/book/${merchantId}`);
+    }
+  };
+
+  const handleFailureComplete = () => {
+    setShowFailureAnimation(false);
+    toast.error('Booking failed. Please try again.');
+  };
+
+  const handleGoBack = () => {
+    navigate(-1);
+  };
+  
+  if (!guestInfo || !merchant || !selectedServices || !bookingDate || !bookingTime) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">Booking Information Missing</h1>
-          <p className="text-gray-600">Please start the booking process again.</p>
-          <Button 
-            onClick={() => navigate(`/book/${merchantId}`)}
-            className="mt-4"
-          >
-            Start Over
-          </Button>
-        </div>
+      <div className="h-screen flex flex-col items-center justify-center p-4">
+        <p className="text-gray-500 mb-4">Booking information missing</p>
+        <Button onClick={() => navigate(-1)}>Go Back</Button>
       </div>
     );
   }
-
+  
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
-      {/* Header */}
-      <div className="bg-booqit-primary text-white p-4 sticky top-0 z-10">
-        <div className="relative flex items-center justify-center">
+    <>
+      {/* Success Animation */}
+      <BookingSuccessAnimation 
+        isVisible={showSuccessAnimation}
+        onComplete={handleSuccessComplete}
+      />
+
+      {/* Failure Animation */}
+      <BookingFailureAnimation 
+        isVisible={showFailureAnimation}
+        onComplete={handleFailureComplete}
+      />
+
+      <div className="pb-24 bg-white min-h-screen">
+        <div className="bg-booqit-primary text-white p-4 sticky top-0 z-10">
+          <div className="relative flex items-center justify-center">
+            <Button variant="ghost" size="icon" className="absolute left-0 text-white hover:bg-white/20" onClick={handleGoBack}>
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <h1 className="text-xl font-medium font-righteous">Payment</h1>
+          </div>
+        </div>
+
+        <div className="p-4 space-y-6">
+          {/* Guest Info */}
+          <Card className="border-l-4 border-l-booqit-primary">
+            <CardHeader>
+              <CardTitle className="font-righteous text-lg font-light">Guest Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="flex justify-between">
+                <span className="font-poppins text-gray-600">Name</span>
+                <span className="font-poppins font-medium">{guestInfo.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-poppins text-gray-600">Phone</span>
+                <span className="font-poppins font-medium">{guestInfo.phone}</span>
+              </div>
+              {guestInfo.email && (
+                <div className="flex justify-between">
+                  <span className="font-poppins text-gray-600">Email</span>
+                  <span className="font-poppins font-medium">{guestInfo.email}</span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Booking Summary */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-righteous text-lg font-light">Booking Summary</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex justify-between">
+                <span className="font-poppins text-gray-600">Shop</span>
+                <span className="font-poppins font-medium">{merchant.shop_name}</span>
+              </div>
+              
+              <div className="flex justify-between">
+                <span className="font-poppins text-gray-600">Services</span>
+                <div className="text-right">
+                  {selectedServices?.map((service: any, index: number) => (
+                    <div key={index} className="font-poppins font-medium">
+                      {service.name} ({service.duration}min)
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="flex justify-between">
+                <span className="font-poppins text-gray-600">Stylist</span>
+                <span className="font-poppins font-medium">{selectedStaffDetails?.name}</span>
+              </div>
+              
+              <div className="flex justify-between">
+                <span className="font-poppins text-gray-600">Date & Time</span>
+                <div className="text-right font-poppins font-medium">
+                  <div>{formatDateInIST(new Date(bookingDate), 'MMM d, yyyy')}</div>
+                  <div>{formatTimeToAmPm(bookingTime)}</div>
+                </div>
+              </div>
+              
+              <div className="flex justify-between">
+                <span className="font-poppins text-gray-600">Total Duration</span>
+                <span className="font-poppins font-medium">{totalDuration} minutes</span>
+              </div>
+              
+              <hr />
+              
+              <div className="flex justify-between text-lg font-semibold">
+                <span className="font-righteous">Total</span>
+                <span className="font-righteous">₹{totalPrice}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Payment Method */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-righteous text-lg font-light">Payment Method</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-center p-6 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="text-center">
+                  <Smartphone className="h-8 w-8 mx-auto text-blue-600 mb-2" />
+                  <span className="text-blue-800 font-medium font-poppins">Pay at Shop</span>
+                  <p className="text-sm text-blue-600 mt-1">Complete payment at the shop</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Status Message */}
+          <Card className="bg-blue-50 border-blue-200">
+            <CardContent className="p-4">
+              <p className="text-blue-800 text-sm font-poppins">
+                ℹ️ Complete payment to confirm your booking. Payment is done at the shop.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
           <Button 
-            variant="ghost" 
-            size="icon"
-            className="absolute left-0 text-white hover:bg-white/20"
-            onClick={() => navigate(-1)}
+            size="lg" 
+            onClick={handlePayment} 
+            disabled={isProcessing} 
+            className="w-full bg-booqit-primary hover:bg-booqit-primary/90 py-6 font-poppins font-semibold text-base"
           >
-            <ArrowLeft className="h-5 w-5" />
+            {isProcessing ? 'Processing...' : `Confirm Booking - Pay ₹${totalPrice} at Shop`}
           </Button>
-          <h1 className="text-xl font-medium font-righteous">Confirm Booking</h1>
         </div>
       </div>
-
-      <div className="p-4 space-y-6">
-        {/* Booking Summary */}
-        <Card className="border-booqit-primary/20">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                <Check className="h-6 w-6 text-green-600" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold font-righteous">Ready to Confirm</h3>
-                <p className="text-gray-600 font-poppins">Review your booking details</p>
-              </div>
-            </div>
-
-            {/* Guest Info */}
-            <div className="space-y-3 mb-6 p-4 bg-gray-50 rounded-lg">
-              <div className="flex items-center gap-2">
-                <User className="h-4 w-4 text-gray-500" />
-                <span className="font-medium font-poppins">Guest Information</span>
-              </div>
-              <div className="text-sm text-gray-600 font-poppins">
-                <p><strong>Name:</strong> {guestInfo.name}</p>
-                <p><strong>Phone:</strong> {guestInfo.phone}</p>
-                {guestInfo.email && <p><strong>Email:</strong> {guestInfo.email}</p>}
-              </div>
-            </div>
-
-            {/* Shop Info */}
-            <div className="space-y-3 mb-6 p-4 bg-gray-50 rounded-lg">
-              <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-gray-500" />
-                <span className="font-medium font-poppins">Shop Details</span>
-              </div>
-              <div className="text-sm text-gray-600 font-poppins">
-                <p><strong>{merchant.shop_name}</strong></p>
-                <p>{merchant.address}</p>
-              </div>
-            </div>
-
-            {/* Services */}
-            <div className="space-y-3 mb-6">
-              <h4 className="font-medium font-righteous">Selected Services</h4>
-              {selectedServices.map((service: any) => (
-                <div key={service.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <span className="font-medium font-poppins">{service.name}</span>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Clock className="h-3 w-3" />
-                      <span>{service.duration} min</span>
-                    </div>
-                  </div>
-                  <span className="font-semibold text-booqit-primary">₹{service.price}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Appointment Details */}
-            <div className="space-y-3 mb-6 p-4 bg-blue-50 rounded-lg">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-blue-600" />
-                <span className="font-medium font-poppins">Appointment Details</span>
-              </div>
-              <div className="text-sm text-gray-700 font-poppins">
-                <p><strong>Date:</strong> {formatDateInIST(new Date(bookingDate), 'EEE, MMM d, yyyy')}</p>
-                <p><strong>Time:</strong> {formatTimeToAmPm(bookingTime)}</p>
-                <p><strong>Duration:</strong> {totalDuration} minutes</p>
-                <p><strong>Stylist:</strong> {selectedStaffDetails?.name || 'Any Available Stylist'}</p>
-              </div>
-            </div>
-
-            {/* Total */}
-            <div className="border-t pt-4">
-              <div className="flex justify-between items-center text-lg font-semibold">
-                <span className="font-poppins">Total Amount:</span>
-                <span className="text-booqit-primary">₹{totalPrice}</span>
-              </div>
-              <div className="flex justify-between items-center text-sm text-gray-600 mt-1">
-                <span className="font-poppins">Total Duration:</span>
-                <span>{totalDuration} minutes</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Payment Info */}
-        <Card className="border-yellow-200 bg-yellow-50">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center mt-1">
-                <span className="text-yellow-600 text-sm font-bold">!</span>
-              </div>
-              <div>
-                <h4 className="font-medium text-yellow-800 font-righteous">Payment Information</h4>
-                <p className="text-sm text-yellow-700 font-poppins mt-1">
-                  Payment will be collected at the salon after your service. 
-                  Your booking will be confirmed immediately.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Fixed Bottom Bar */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t shadow-lg">
-        <Button 
-          className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6 font-poppins"
-          size="lg"
-          onClick={handleConfirmBooking}
-          disabled={isProcessing}
-        >
-          {isProcessing ? 'Confirming...' : 'Confirm Booking - Pay at Salon'}
-        </Button>
-      </div>
-    </div>
+    </>
   );
 };
 

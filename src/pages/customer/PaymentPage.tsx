@@ -8,9 +8,6 @@ import { toast } from 'sonner';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { formatDateInIST } from '@/utils/dateUtils';
 import { useAuth } from '@/contexts/AuthContext';
-import { sendNewBookingNotification } from '@/services/simpleNotificationService';
-import { sendNotificationToUser } from '@/services/notificationService';
-import { sendBookingConfirmation, sendNewBookingAlert } from '@/services/robustNotificationService';
 import BookingSuccessAnimation from '@/components/customer/BookingSuccessAnimation';
 import BookingFailureAnimation from '@/components/customer/BookingFailureAnimation';
 
@@ -44,11 +41,13 @@ const PaymentPage: React.FC = () => {
 
   const handlePayment = async () => {
     if (!userId || !merchantId) {
+      console.error('PAYMENT_FLOW: Missing user ID or merchant ID');
       setShowFailureAnimation(true);
       return;
     }
     
     if (!selectedServices || !selectedStaff || !bookingDate || !bookingTime) {
+      console.error('PAYMENT_FLOW: Missing booking details');
       setShowFailureAnimation(true);
       return;
     }
@@ -56,14 +55,14 @@ const PaymentPage: React.FC = () => {
     setIsProcessing(true);
     
     try {
-      console.log('PAYMENT_FLOW: Starting payment processing...');
+      console.log('PAYMENT_FLOW: Starting authenticated user payment processing...');
 
       // Simulate payment processing (2 seconds)
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       const serviceId = selectedServices[0]?.id;
       
-      console.log('PAYMENT_FLOW: Creating booking...');
+      console.log('PAYMENT_FLOW: Creating authenticated user booking...');
 
       // Step 1: Reserve the slot with total duration
       const { data: reserveResult, error: reserveError } = await supabase.rpc('reserve_slot_immediately', {
@@ -86,6 +85,8 @@ const PaymentPage: React.FC = () => {
       console.log('PAYMENT_FLOW: Slot reservation response:', reserveResponse);
       
       if (!reserveResponse.success) {
+        console.error('PAYMENT_FLOW: Slot reservation failed:', reserveResponse.error);
+        toast.error(reserveResponse.error || 'Failed to reserve slot');
         setShowFailureAnimation(true);
         return;
       }
@@ -139,63 +140,10 @@ const PaymentPage: React.FC = () => {
         console.error('PAYMENT_FLOW: Payment record creation failed:', paymentCreationError);
       }
 
-      // Step 4: Get customer name for notifications
-      const { data: customerProfile } = await supabase
-        .from('profiles')
-        .select('name')
-        .eq('id', userId)
-        .single();
+      // Step 4: Send notifications (the database triggers will handle this automatically)
+      // No need to manually send notifications here as the triggers will handle both
+      // customer and merchant notifications properly for authenticated users
 
-      const customerName = customerProfile?.name || 'Customer';
-      const serviceNames = selectedServices.map(s => s.name).join(', ');
-      const timeSlotFormatted = formatTimeToAmPm(bookingTime);
-      const dateFormatted = formatDateInIST(new Date(bookingDate), 'MMM d, yyyy');
-
-      // Step 5: Send notification to customer (booking confirmation) - Using robust service
-      try {
-        console.log('PAYMENT_FLOW: Sending confirmation notification to customer...');
-        
-        await sendBookingConfirmation(
-          userId,
-          merchant?.shop_name || 'the shop',
-          serviceNames,
-          dateFormatted,
-          timeSlotFormatted,
-          bookingId
-        );
-
-        console.log('PAYMENT_FLOW: Customer notification sent successfully');
-      } catch (customerNotificationError) {
-        console.error('PAYMENT_FLOW: Error sending customer notification:', customerNotificationError);
-        // Don't fail the booking for notification issues
-      }
-
-      // Step 6: Send notification to merchant (new booking alert) - Using robust service
-      try {
-        console.log('PAYMENT_FLOW: Sending notification to merchant...');
-        console.log('PAYMENT_FLOW: Merchant user_id from state:', merchant?.user_id);
-        
-        if (merchant?.user_id) {
-          console.log('PAYMENT_FLOW: Sending notification to merchant user_id:', merchant.user_id);
-
-          await sendNewBookingAlert(
-            merchant.user_id,
-            customerName,
-            serviceNames,
-            `${dateFormatted} at ${timeSlotFormatted}`,
-            bookingId
-          );
-
-          console.log('PAYMENT_FLOW: Merchant notification sent successfully');
-        } else {
-          console.error('PAYMENT_FLOW: No merchant user_id found in state');
-        }
-      } catch (merchantNotificationError) {
-        console.error('PAYMENT_FLOW: Error sending merchant notification:', merchantNotificationError);
-        // Don't fail the booking for notification issues
-      }
-
-      // Step 7: Show success animation
       console.log('PAYMENT_FLOW: Process completed successfully');
       setShowSuccessAnimation(true);
 
