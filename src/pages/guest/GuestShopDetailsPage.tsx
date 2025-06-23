@@ -1,23 +1,23 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, MapPin, Clock, Star, Phone, Mail, User, Calendar } from 'lucide-react';
+import { ArrowLeft, MapPin, Clock, Star, Phone, Mail, User } from 'lucide-react';
 
 interface MerchantData {
   id: string;
   shop_name: string;
   category: string;
   address: string;
-  description?: string;
+  description: string | null;
   open_time: string;
   close_time: string;
-  rating?: number;
-  image_url?: string;
+  rating: number | null;
+  image_url: string | null;
 }
 
 interface ServiceData {
@@ -25,8 +25,8 @@ interface ServiceData {
   name: string;
   price: number;
   duration: number;
-  description?: string;
-  image_url?: string;
+  description: string | null;
+  image_url: string | null;
 }
 
 interface ReviewData {
@@ -34,7 +34,7 @@ interface ReviewData {
   rating: number;
   review: string;
   customer_name: string;
-  customer_avatar?: string;
+  customer_avatar: string | null;
   created_at: string;
 }
 
@@ -65,12 +65,12 @@ const GuestShopDetailsPage: React.FC = () => {
     fetchMerchantData();
   }, [merchantId, guestInfo]);
 
-  const fetchMerchantData = async (): Promise<void> => {
+  const fetchMerchantData = async () => {
     if (!merchantId) return;
     
     setIsLoading(true);
     try {
-      // Fetch merchant data
+      // Fetch merchant data with explicit typing
       const { data: merchantData, error: merchantError } = await supabase
         .from('merchants')
         .select('id, shop_name, category, address, description, open_time, close_time, rating, image_url')
@@ -83,7 +83,8 @@ const GuestShopDetailsPage: React.FC = () => {
       }
       
       if (merchantData) {
-        setMerchant({
+        // Manually construct the merchant object to avoid type issues
+        const merchantObj: MerchantData = {
           id: merchantData.id,
           shop_name: merchantData.shop_name,
           category: merchantData.category,
@@ -93,10 +94,11 @@ const GuestShopDetailsPage: React.FC = () => {
           close_time: merchantData.close_time,
           rating: merchantData.rating,
           image_url: merchantData.image_url
-        });
+        };
+        setMerchant(merchantObj);
       }
 
-      // Fetch services
+      // Fetch services with explicit typing
       const { data: servicesData, error: servicesError } = await supabase
         .from('services')
         .select('id, name, price, duration, description, image_url')
@@ -109,17 +111,19 @@ const GuestShopDetailsPage: React.FC = () => {
       }
       
       if (servicesData) {
-        setServices(servicesData.map(item => ({
+        // Manually construct the services array
+        const servicesArray: ServiceData[] = servicesData.map(item => ({
           id: item.id,
           name: item.name,
           price: Number(item.price),
           duration: Number(item.duration),
           description: item.description,
           image_url: item.image_url
-        })));
+        }));
+        setServices(servicesArray);
       }
 
-      // Fetch reviews
+      // Fetch reviews with explicit typing
       const { data: reviewsData, error: reviewsError } = await supabase
         .from('reviews')
         .select('id, rating, review, customer_name, customer_avatar, created_at')
@@ -131,14 +135,16 @@ const GuestShopDetailsPage: React.FC = () => {
         console.error('Reviews fetch error:', reviewsError);
         setReviews([]);
       } else if (reviewsData) {
-        setReviews(reviewsData.map(item => ({
+        // Manually construct the reviews array
+        const reviewsArray: ReviewData[] = reviewsData.map(item => ({
           id: item.id,
           rating: Number(item.rating),
           review: item.review,
           customer_name: item.customer_name,
           customer_avatar: item.customer_avatar,
           created_at: item.created_at
-        })));
+        }));
+        setReviews(reviewsArray);
       }
 
     } catch (error) {
@@ -149,7 +155,7 @@ const GuestShopDetailsPage: React.FC = () => {
     }
   };
 
-  const handleContinueBooking = (): void => {
+  const handleContinueBooking = () => {
     navigate(`/guest-services/${merchantId}`, { 
       state: { 
         guestInfo,

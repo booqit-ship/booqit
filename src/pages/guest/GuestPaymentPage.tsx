@@ -3,7 +3,6 @@ import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Check, Clock, User, MapPin, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -73,7 +72,7 @@ const GuestPaymentPage: React.FC = () => {
       if (response?.success && response?.booking_id) {
         toast.success('Booking confirmed successfully!');
         
-        // Navigate to success page with booking details
+        // Navigate to success page - FIXED NAVIGATION
         navigate(`/guest-booking-success/${merchantId}`, {
           state: { 
             bookingId: response.booking_id,
@@ -85,7 +84,7 @@ const GuestPaymentPage: React.FC = () => {
             guestInfo,
             selectedStaffDetails
           },
-          replace: true // Replace current entry in history
+          replace: true
         });
       } else {
         toast.error(response?.error || 'Failed to create booking');
@@ -174,7 +173,7 @@ const GuestPaymentPage: React.FC = () => {
             {/* Services */}
             <div className="space-y-3 mb-6">
               <h4 className="font-medium font-righteous">Selected Services</h4>
-              {selectedServices.map((service: any, index: number) => (
+              {selectedServices.map((service: any) => (
                 <div key={service.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                   <div>
                     <span className="font-medium font-poppins">{service.name}</span>
