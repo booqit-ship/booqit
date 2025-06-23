@@ -22,9 +22,7 @@ const GuestStaffSelectionPage: React.FC = () => {
     merchant, 
     selectedServices, 
     totalPrice, 
-    totalDuration,
-    bookingDate,
-    bookingTime 
+    totalDuration
   } = location.state || {};
 
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -38,19 +36,17 @@ const GuestStaffSelectionPage: React.FC = () => {
       merchant: !!merchant,
       selectedServices: selectedServices?.length || 0,
       totalPrice,
-      totalDuration,
-      bookingDate,
-      bookingTime
+      totalDuration
     });
 
-    if (!guestInfo || !selectedServices || selectedServices.length === 0 || !bookingDate || !bookingTime) {
+    if (!guestInfo || !selectedServices || selectedServices.length === 0) {
       console.log('GUEST STAFF SELECTION: Missing required data, redirecting...');
       navigate(`/book/${merchantId}`);
       return;
     }
     
     fetchStaff();
-  }, [merchantId, guestInfo, selectedServices, bookingDate, bookingTime]);
+  }, [merchantId, guestInfo, selectedServices]);
 
   const fetchStaff = async () => {
     if (!merchantId) return;
@@ -96,13 +92,13 @@ const GuestStaffSelectionPage: React.FC = () => {
   };
 
   const handleContinue = () => {
-    console.log('GUEST STAFF SELECTION: Continuing to payment with:', {
+    console.log('GUEST STAFF SELECTION: Continuing to datetime selection with:', {
       selectedStaff: selectedStaff || 'Any available stylist',
       staffDetails: selectedStaffDetails?.name || 'Any available stylist'
     });
 
-    // Navigate directly to payment page, skipping duplicate datetime selection
-    navigate(`/guest-payment/${merchantId}`, { 
+    // Navigate to datetime selection page
+    navigate(`/guest-datetime/${merchantId}`, { 
       state: { 
         guestInfo, 
         merchant, 
@@ -110,9 +106,7 @@ const GuestStaffSelectionPage: React.FC = () => {
         totalPrice,
         totalDuration,
         selectedStaff: selectedStaff || null,
-        selectedStaffDetails: selectedStaffDetails || null,
-        bookingDate,
-        bookingTime
+        selectedStaffDetails: selectedStaffDetails || null
       }
     });
   };
@@ -155,10 +149,6 @@ const GuestStaffSelectionPage: React.FC = () => {
               <div className="flex justify-between">
                 <span className="font-poppins">Total Duration:</span>
                 <span>{totalDuration} minutes</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-poppins">Date & Time:</span>
-                <span>{bookingDate} at {bookingTime}</span>
               </div>
               <div className="flex justify-between font-semibold text-base border-t pt-2">
                 <span className="font-poppins">Total Price:</span>
@@ -245,7 +235,7 @@ const GuestStaffSelectionPage: React.FC = () => {
           size="lg"
           onClick={handleContinue}
         >
-          Continue to Payment
+          Continue to Date & Time
         </Button>
       </div>
     </div>
