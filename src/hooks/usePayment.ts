@@ -68,7 +68,7 @@ export const usePayment = () => {
           throw new Error('Invalid booking response format');
         }
       } else if (bookingResponse && typeof bookingResponse === 'object') {
-        response = bookingResponse as BookingResponse;
+        response = bookingResponse as unknown as BookingResponse;
       } else {
         throw new Error('Invalid booking response');
       }
