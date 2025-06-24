@@ -57,6 +57,13 @@ if (!Capacitor.isNativePlatform() && isInitialized) {
 
 export { messaging };
 
+// Detect if we're on a mobile browser
+const isMobileBrowser = () => {
+  if (typeof window === 'undefined') return false;
+  const userAgent = navigator.userAgent.toLowerCase();
+  return /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
+};
+
 // Unified notification permission request for both web and native
 export const requestNotificationPermission = async (): Promise<boolean> => {
   try {
@@ -190,34 +197,74 @@ export const setupNotifications = async (): Promise<string | null> => {
   }
 };
 
-// Setup foreground message handling for web
+// Setup foreground message handling for web with mobile browser support
 export const setupForegroundMessaging = (callback?: (payload: any) => void) => {
   if (!Capacitor.isNativePlatform() && messaging) {
     console.log('🔔 Setting up web foreground messaging...');
 
-    onMessage(messaging, (payload) => {
+    onMessage(messaging, async (payload) => {
       console.log('📲 Web foreground message received:', payload);
       
-      if (payload.notification && Notification.permission === 'granted') {
-        const notification = new Notification(
-          payload.notification.title || 'BooqIt Notification',
-          {
+      try {
+        if (payload.notification && Notification.permission === 'granted') {
+          const title = payload.notification.title || 'BooqIt Notification';
+          const options = {
             body: payload.notification.body || 'You have a new notification',
-            icon: '/icons/icon-192.png', // Use existing icon
+            icon: '/icons/icon-192.png',
             badge: '/icons/icon-192.png',
             tag: 'foreground-notification',
+            requireInteraction: true,
             data: payload.data
-          }
-        );
+          };
 
-        notification.onclick = () => {
-          window.focus();
-          notification.close();
-        };
-      }
-      
-      if (callback) {
-        callback(payload);
+          // For mobile browsers, use service worker registration
+          if (isMobileBrowser() && 'serviceWorker' in navigator) {
+            try {
+              const registration = await navigator.serviceWorker.ready;
+              if (registration && registration.showNotification) {
+                console.log('📱 Using service worker notification for mobile browser');
+                await registration.showNotification(title, options);
+              } else {
+                console.warn('⚠️ Service worker registration not available for notifications');
+              }
+            } catch (swError) {
+              console.error('❌ Service worker notification failed:', swError);
+              // Fallback to basic notification if service worker fails
+              try {
+                if (window.Notification && typeof window.Notification === 'function') {
+                  new window.Notification(title, options);
+                }
+              } catch (fallbackError) {
+                console.error('❌ Fallback notification also failed:', fallbackError);
+              }
+            }
+          } else {
+            // For desktop browsers, use regular Notification constructor
+            console.log('🖥️ Using regular notification for desktop browser');
+            const notification = new Notification(title, options);
+            
+            notification.onclick = () => {
+              window.focus();
+              notification.close();
+            };
+
+            // Auto-close after 10 seconds
+            setTimeout(() => {
+              notification.close();
+            }, 10000);
+          }
+        }
+        
+        // Also call the callback if provided
+        if (callback) {
+          callback(payload);
+        }
+      } catch (error) {
+        console.error('❌ Error handling foreground message:', error);
+        // Still call callback even if notification display fails
+        if (callback) {
+          callback(payload);
+        }
       }
     });
   }
