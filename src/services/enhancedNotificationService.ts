@@ -17,10 +17,12 @@ export class EnhancedNotificationService {
     try {
       console.log('📤 ENHANCED: Sending notification to all devices for user:', userId);
 
-      // Get all active device tokens for the user
-      const { data: deviceTokens, error } = await supabase.rpc('get_user_device_tokens', {
-        p_user_id: userId
-      });
+      // Get all active device tokens for the user directly from device_tokens table
+      const { data: deviceTokens, error } = await supabase
+        .from('device_tokens')
+        .select('fcm_token, device_type, device_name')
+        .eq('user_id', userId)
+        .eq('is_active', true);
 
       if (error) {
         console.error('❌ ENHANCED: Error fetching device tokens:', error);

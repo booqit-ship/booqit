@@ -28,26 +28,28 @@ export class MultiDeviceNotificationService {
 
       const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : null;
 
-      const { data, error } = await supabase.rpc('register_device_token', {
-        p_user_id: user.id,
-        p_fcm_token: fcmToken,
-        p_device_type: deviceType,
-        p_device_name: deviceName,
-        p_user_agent: userAgent
-      });
+      // Since RPC function types aren't available, we'll use raw SQL approach
+      const { data, error } = await supabase
+        .from('device_tokens')
+        .upsert({
+          user_id: user.id,
+          fcm_token: fcmToken,
+          device_type: deviceType,
+          device_name: deviceName,
+          user_agent: userAgent,
+          last_used_at: new Date().toISOString(),
+          is_active: true
+        }, {
+          onConflict: 'user_id,fcm_token'
+        });
 
       if (error) {
         console.error('❌ MULTI-DEVICE: Error registering token:', error);
         return false;
       }
 
-      if (data?.success) {
-        console.log('✅ MULTI-DEVICE: Device token registered successfully');
-        return true;
-      }
-
-      console.error('❌ MULTI-DEVICE: Failed to register token:', data);
-      return false;
+      console.log('✅ MULTI-DEVICE: Device token registered successfully');
+      return true;
     } catch (error) {
       console.error('❌ MULTI-DEVICE: Error in registerDeviceToken:', error);
       return false;
@@ -65,16 +67,24 @@ export class MultiDeviceNotificationService {
         return [];
       }
 
-      const { data, error } = await supabase.rpc('get_user_device_tokens', {
-        p_user_id: user.id
-      });
+      const { data, error } = await supabase
+        .from('device_tokens')
+        .select('fcm_token, device_type, device_name, last_used_at')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .order('last_used_at', { ascending: false });
 
       if (error) {
         console.error('❌ MULTI-DEVICE: Error fetching device tokens:', error);
         return [];
       }
 
-      return data || [];
+      return (data || []).map(token => ({
+        fcm_token: token.fcm_token,
+        device_type: token.device_type as 'web' | 'android' | 'ios',
+        device_name: token.device_name || undefined,
+        last_used_at: token.last_used_at
+      }));
     } catch (error) {
       console.error('❌ MULTI-DEVICE: Error in getUserDeviceTokens:', error);
       return [];

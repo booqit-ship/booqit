@@ -182,6 +182,53 @@ export type Database = {
           },
         ]
       }
+      device_tokens: {
+        Row: {
+          created_at: string | null
+          device_name: string | null
+          device_type: string
+          fcm_token: string
+          id: string
+          is_active: boolean | null
+          last_used_at: string | null
+          updated_at: string | null
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          device_name?: string | null
+          device_type: string
+          fcm_token: string
+          id?: string
+          is_active?: boolean | null
+          last_used_at?: string | null
+          updated_at?: string | null
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          device_name?: string | null
+          device_type?: string
+          fcm_token?: string
+          id?: string
+          is_active?: boolean | null
+          last_used_at?: string | null
+          updated_at?: string | null
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       guest_users: {
         Row: {
           created_at: string
@@ -889,6 +936,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      cleanup_inactive_tokens: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       clear_stylist_availability: {
         Args: { p_staff_id: string; p_date: string }
         Returns: Json
@@ -974,6 +1025,10 @@ export type Database = {
           p_time_slot: string
           p_lock_duration_minutes?: number
         }
+        Returns: Json
+      }
+      deactivate_user_device_tokens: {
+        Args: { p_user_id: string }
         Returns: Json
       }
       ensure_user_profile: {
@@ -1122,6 +1177,15 @@ export type Database = {
           description: string
         }[]
       }
+      get_user_device_tokens: {
+        Args: { p_user_id: string }
+        Returns: {
+          fcm_token: string
+          device_type: string
+          device_name: string
+          last_used_at: string
+        }[]
+      }
       manage_stylist_availability: {
         Args: {
           p_staff_id: string
@@ -1141,6 +1205,16 @@ export type Database = {
           p_is_full_day: boolean
           p_blocked_ranges?: Json
           p_description?: string
+        }
+        Returns: Json
+      }
+      register_device_token: {
+        Args: {
+          p_user_id: string
+          p_fcm_token: string
+          p_device_type: string
+          p_device_name?: string
+          p_user_agent?: string
         }
         Returns: Json
       }
