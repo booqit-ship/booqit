@@ -87,10 +87,14 @@ export const useUnifiedSlots = ({
         (payload) => {
           console.log('UNIFIED_SLOTS: Booking change detected:', payload);
           
+          // Type guard to check if booking data exists
           const booking = payload.new || payload.old;
-          if (!booking || !selectedDate) return;
+          if (!booking || typeof booking !== 'object' || !selectedDate) return;
           
-          const bookingDate = new Date(booking.date);
+          // Check if booking has required properties
+          if (!('date' in booking) || !('staff_id' in booking)) return;
+          
+          const bookingDate = new Date(booking.date as string);
           const currentViewDate = selectedDate;
           
           if (bookingDate.toDateString() === currentViewDate.toDateString()) {
