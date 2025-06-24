@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import {
   BrowserRouter as Router,
@@ -59,6 +60,7 @@ import GuestStaffSelectionPage from '@/pages/guest/GuestStaffSelectionPage';
 import GuestDatetimePage from '@/pages/guest/GuestDatetimePage';
 import GuestPaymentPage from '@/pages/guest/GuestPaymentPage';
 import GuestBookingSuccessPage from '@/pages/guest/GuestBookingSuccessPage';
+import NotFound from '@/pages/NotFound';
 
 const AppContent: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -239,6 +241,9 @@ const AppContent: React.FC = () => {
           <Route path="/settings/contact" element={<LazyRoute><ProtectedRoute><CustomerLayout><ContactPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
           <Route path="/settings/about" element={<LazyRoute><ProtectedRoute><CustomerLayout><AboutPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
           <Route path="/settings/delete-account" element={<LazyRoute><ProtectedRoute><CustomerLayout><DeleteAccountPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+          
+          {/* Catch-all route for 404 */}
+          <Route path="*" element={<LazyRoute><NotFound /></LazyRoute>} />
         </Routes>
       </Router>
     </ErrorBoundary>

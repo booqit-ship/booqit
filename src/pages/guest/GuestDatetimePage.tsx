@@ -5,19 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ArrowLeft, Calendar, Clock, User, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
 import { useSlotLocking } from '@/hooks/useSlotLocking';
-import { useRealtimeSlots } from '@/hooks/useRealtimeSlots';
+import { useUnifiedSlots } from '@/hooks/useUnifiedSlots';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { formatDateInIST } from '@/utils/dateUtils';
-
-interface TimeSlot {
-  staff_id: string;
-  staff_name: string;
-  time_slot: string;
-  is_available: boolean;
-  conflict_reason?: string;
-}
+import SlotSelector from '@/components/customer/SlotSelector';
 
 const GuestDatetimePage: React.FC = () => {
   const { merchantId } = useParams();
@@ -36,9 +28,35 @@ const GuestDatetimePage: React.FC = () => {
 
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string>('');
-  const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
-  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const [isCheckingSlot, setIsCheckingSlot] = useState(false);
   const { lockSlot, isLocking } = useSlotLocking();
+
+  // Use unified slots hook for consistency with regular users
+  const {
+    availableSlots,
+    isLoading: isLoadingSlots,
+    error,
+    lastRefreshTime,
+    nextValidSlotTime,
+    refreshSlots
+  } = useUnifiedSlots({
+    merchantId: merchantId!,
+    selectedDate,
+    selectedStaff,
+    totalDuration: totalDuration || 30,
+    onSlotChange: () => {
+      console.log('GUEST_DATETIME: Slots changed, checking if selected time is still valid');
+      if (selectedTime && availableSlots.length > 0) {
+        const isStillAvailable = availableSlots.some(slot => 
+          slot.time_slot === selectedTime && slot.is_available
+        );
+        if (!isStillAvailable) {
+          setSelectedTime('');
+          toast.info('Your selected time slot is no longer available');
+        }
+      }
+    }
+  });
 
   console.log('GUEST DATETIME: Page loaded with state:', {
     guestInfo: !!guestInfo,
@@ -58,66 +76,30 @@ const GuestDatetimePage: React.FC = () => {
     }
   }, [merchantId, guestInfo, selectedServices]);
 
-  // Realtime slots hook
-  useRealtimeSlots({
-    selectedDate,
-    selectedStaff,
-    merchantId: merchantId!,
-    onSlotChange: () => {
-      if (selectedDate) {
-        fetchAvailableSlots(selectedDate);
-      }
-    },
-    selectedTime,
-    onSelectedTimeInvalidated: () => {
-      setSelectedTime('');
-      toast.info('Your selected time slot is no longer available');
-    }
-  });
-
-  const fetchAvailableSlots = async (date: Date) => {
-    if (!merchantId || !date) return;
-
-    setIsLoadingSlots(true);
-    try {
-      const dateStr = formatDateInIST(date, 'yyyy-MM-dd');
-      console.log('GUEST DATETIME: Fetching slots for:', { dateStr, selectedStaff, totalDuration });
-
-      const { data: slotsData, error } = await supabase.rpc('get_available_slots_with_ist_buffer', {
-        p_merchant_id: merchantId,
-        p_date: dateStr,
-        p_staff_id: selectedStaff || null,
-        p_service_duration: totalDuration || 30
-      });
-
-      if (error) throw error;
-
-      console.log('GUEST DATETIME: Slots fetched:', slotsData?.length || 0);
-      setAvailableSlots(slotsData || []);
-    } catch (error) {
-      console.error('GUEST DATETIME: Error fetching slots:', error);
-      toast.error('Failed to load available time slots');
-    } finally {
-      setIsLoadingSlots(false);
-    }
-  };
-
   const handleDateSelect = (date: Date) => {
     console.log('GUEST DATETIME: Date selected:', formatDateInIST(date, 'yyyy-MM-dd'));
     setSelectedDate(date);
     setSelectedTime('');
-    fetchAvailableSlots(date);
   };
 
-  const handleTimeSelect = async (timeSlot: string, staffId: string) => {
-    if (!selectedDate) return;
-
-    console.log('GUEST DATETIME: Time slot selected:', { timeSlot, staffId });
-    setSelectedTime(timeSlot);
-
-    // Optional: Lock the slot (if you want to reserve it temporarily)
-    if (selectedStaff) {
-      await lockSlot(selectedStaff, formatDateInIST(selectedDate, 'yyyy-MM-dd'), timeSlot, totalDuration || 30);
+  const handleTimeSelect = async (timeSlot: string) => {
+    console.log('GUEST DATETIME: Time slot selected:', timeSlot);
+    setIsCheckingSlot(true);
+    
+    try {
+      setSelectedTime(timeSlot);
+      
+      // Optional: Lock the slot if specific staff is selected
+      if (selectedStaff && selectedDate) {
+        await lockSlot(
+          selectedStaff, 
+          formatDateInIST(selectedDate, 'yyyy-MM-dd'), 
+          timeSlot, 
+          totalDuration || 30
+        );
+      }
+    } finally {
+      setIsCheckingSlot(false);
     }
   };
 
@@ -135,7 +117,6 @@ const GuestDatetimePage: React.FC = () => {
       bookingTime: selectedTime
     });
 
-    // Navigate to payment page
     navigate(`/guest-payment/${merchantId}`, {
       state: {
         guestInfo,
@@ -151,7 +132,7 @@ const GuestDatetimePage: React.FC = () => {
     });
   };
 
-  // Generate only next 3 days for date selection (today, tomorrow, day after)
+  // Generate next 3 days for date selection
   const getNext3Days = () => {
     const days = [];
     const today = new Date();
@@ -245,7 +226,6 @@ const GuestDatetimePage: React.FC = () => {
             {availableDays.map((date, index) => {
               const isToday = index === 0;
               const isTomorrow = index === 1;
-              const dayAfter = index === 2;
               
               let dayLabel = '';
               if (isToday) dayLabel = 'Today';
@@ -276,51 +256,20 @@ const GuestDatetimePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Time Slots */}
+        {/* Time Slots using SlotSelector component for consistency */}
         {selectedDate && (
-          <div>
-            <h3 className="text-lg font-semibold mb-4 font-righteous text-gray-800">Available Times</h3>
-            {isLoadingSlots ? (
-              <div className="flex justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-2 border-booqit-primary border-t-transparent"></div>
-              </div>
-            ) : availableSlots.length > 0 ? (
-              <div className="grid grid-cols-3 gap-3">
-                {availableSlots.map((slot) => (
-                  <Card
-                    key={`${slot.staff_id}-${slot.time_slot}`}
-                    className={`cursor-pointer transition-all duration-200 ${
-                      !slot.is_available
-                        ? 'opacity-40 cursor-not-allowed bg-gray-50 border-gray-200'
-                        : selectedTime === slot.time_slot
-                        ? 'border-booqit-primary bg-booqit-primary/5 shadow-md ring-2 ring-booqit-primary/20'
-                        : 'border-gray-200 hover:border-booqit-primary/50 hover:shadow-sm'
-                    }`}
-                    onClick={() => slot.is_available && handleTimeSelect(slot.time_slot, slot.staff_id)}
-                  >
-                    <CardContent className="p-3 text-center">
-                      <div className={`font-semibold font-righteous text-sm ${
-                        slot.is_available ? 'text-gray-800' : 'text-gray-400'
-                      }`}>
-                        {formatTimeToAmPm(slot.time_slot)}
-                      </div>
-                      {!slot.is_available && (
-                        <div className="text-xs text-red-500 font-poppins mt-1">
-                          Booked
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-                <Clock className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500 font-poppins">No slots available for this date</p>
-                <p className="text-gray-400 text-sm font-poppins mt-1">Try selecting a different date</p>
-              </div>
-            )}
-          </div>
+          <SlotSelector
+            selectedDate={selectedDate}
+            availableSlots={availableSlots}
+            selectedTime={selectedTime}
+            loading={isLoadingSlots}
+            error={error}
+            lastRefreshTime={lastRefreshTime}
+            nextValidSlotTime={nextValidSlotTime}
+            isCheckingSlot={isCheckingSlot}
+            onSlotClick={handleTimeSelect}
+            onRefresh={refreshSlots}
+          />
         )}
       </div>
 
@@ -330,9 +279,9 @@ const GuestDatetimePage: React.FC = () => {
           className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-white text-base py-6 font-poppins font-medium disabled:opacity-50"
           size="lg"
           onClick={handleContinue}
-          disabled={!selectedDate || !selectedTime || isLocking}
+          disabled={!selectedDate || !selectedTime || isLocking || isCheckingSlot}
         >
-          {isLocking ? 'Reserving Slot...' : 'Continue to Payment'}
+          {isLocking || isCheckingSlot ? 'Reserving Slot...' : 'Continue to Payment'}
         </Button>
       </div>
     </div>

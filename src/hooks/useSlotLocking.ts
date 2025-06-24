@@ -21,24 +21,24 @@ export const useSlotLocking = () => {
     staffId: string,
     date: string,
     timeSlot: string,
-    totalDuration: number = 30 // Use total duration for multiple services
+    totalDuration: number = 30
   ): Promise<boolean> => {
     setIsLocking(true);
     
     try {
-      console.log('SLOT_LOCKING_MULTIPLE_SERVICES: Attempting to lock slot with total duration:', { 
+      console.log('SLOT_LOCKING: Attempting to lock slot with total duration:', { 
         staffId, 
         date, 
         timeSlot, 
         totalDuration 
       });
       
-      // Check if the slot is available using the total duration for multiple services
+      // Check if the slot is still available using the unified function
       const { data: slotsData } = await supabase.rpc('get_available_slots_with_ist_buffer', {
-        p_merchant_id: staffId.split('-')[0], // Quick way to get merchant ID from staff ID
+        p_merchant_id: staffId.split('-')[0], // Extract merchant ID if embedded
         p_date: date,
         p_staff_id: staffId,
-        p_service_duration: totalDuration // Use total duration instead of default 30
+        p_service_duration: totalDuration
       });
       
       const availableSlots = Array.isArray(slotsData) ? slotsData : [];
@@ -49,7 +49,7 @@ export const useSlotLocking = () => {
       );
       
       if (!isSlotAvailable) {
-        console.log('SLOT_LOCKING_MULTIPLE_SERVICES: Slot not available for total duration:', { 
+        console.log('SLOT_LOCKING: Slot not available for total duration:', { 
           staffId, 
           date, 
           timeSlot, 
@@ -59,13 +59,13 @@ export const useSlotLocking = () => {
         return false;
       }
 
-      // Just keep track of the slot locally without creating a pending booking
+      // Track the slot locally for UI feedback
       setLockedSlot({ staffId, date, timeSlot });
-      toast.success(`Slot selected for ${totalDuration} minutes total duration`);
+      console.log('SLOT_LOCKING: Slot selected successfully');
       return true;
       
     } catch (error) {
-      console.error('Error in lockSlot:', error);
+      console.error('SLOT_LOCKING: Error in lockSlot:', error);
       toast.error('Failed to select slot. Please try again.');
       return false;
     } finally {
@@ -74,8 +74,8 @@ export const useSlotLocking = () => {
   }, []);
 
   const releaseLock = useCallback(() => {
-    // Clear the local state
     setLockedSlot(null);
+    console.log('SLOT_LOCKING: Lock released');
   }, []);
 
   return {
