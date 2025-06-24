@@ -428,6 +428,9 @@ async function sendNotificationToToken(token: string, title: string, body: strin
 
     const fcmUrl = `https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`;
     
+    // Use absolute URLs for icons in the preview environment
+    const baseUrl = 'https://preview--booqit.lovable.app';
+    
     const message = {
       message: {
         token: token,
@@ -437,18 +440,45 @@ async function sendNotificationToToken(token: string, title: string, body: strin
         },
         data: {
           ...data,
-          click_action: 'https://booqit09-f4cfc.web.app'
+          click_action: baseUrl,
+          app_name: 'BooqIt'
         },
         webpush: {
           notification: {
             title,
             body,
-            icon: '/icons/icon-192.png',
-            click_action: 'https://booqit09-f4cfc.web.app',
-            tag: 'booqit-notification'
+            icon: `${baseUrl}/icons/icon-192.png`,
+            badge: `${baseUrl}/icons/icon-192.png`,
+            click_action: baseUrl,
+            tag: 'booqit-notification',
+            requireInteraction: true,
+            data: {
+              ...data,
+              app_name: 'BooqIt'
+            }
           },
           fcm_options: {
-            link: 'https://booqit09-f4cfc.web.app'
+            link: baseUrl
+          }
+        },
+        android: {
+          notification: {
+            icon: 'icon_192',
+            color: '#7E57C2',
+            click_action: baseUrl,
+            tag: 'booqit-notification'
+          }
+        },
+        apns: {
+          payload: {
+            aps: {
+              badge: 1,
+              sound: 'default',
+              'content-available': 1
+            }
+          },
+          fcm_options: {
+            image: `${baseUrl}/icons/icon-192.png`
           }
         }
       }

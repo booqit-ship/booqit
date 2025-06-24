@@ -208,13 +208,19 @@ export const setupForegroundMessaging = (callback?: (payload: any) => void) => {
       try {
         if (payload.notification && Notification.permission === 'granted') {
           const title = payload.notification.title || 'BooqIt Notification';
+          const baseUrl = window.location.origin;
+          
           const options = {
             body: payload.notification.body || 'You have a new notification',
-            icon: '/icons/icon-192.png',
-            badge: '/icons/icon-192.png',
-            tag: 'foreground-notification',
+            icon: `${baseUrl}/icons/icon-192.png`,
+            badge: `${baseUrl}/icons/icon-192.png`,
+            tag: 'booqit-notification',
             requireInteraction: true,
-            data: payload.data
+            data: {
+              ...payload.data,
+              app_name: 'BooqIt',
+              click_action: baseUrl
+            }
           };
 
           // For mobile browsers, use service worker registration

@@ -19,7 +19,8 @@ const getCurrentDomain = () => {
   if (typeof location !== 'undefined') {
     return location.origin;
   }
-  return 'https://app.booqit.in'; // fallback to production domain
+  // Use the actual preview domain for Lovable
+  return 'https://preview--booqit.lovable.app';
 };
 
 // Handle background messages (when app is not in focus)
@@ -31,8 +32,8 @@ messaging.onBackgroundMessage((payload) => {
   const notificationTitle = payload.notification?.title || 'BooqIt Notification';
   const notificationOptions = {
     body: payload.notification?.body || 'You have a new notification',
-    icon: '/icons/icon-192.png',
-    badge: '/icons/icon-192.png',
+    icon: `${currentDomain}/icons/icon-192.png`,
+    badge: `${currentDomain}/icons/icon-192.png`,
     tag: 'booqit-notification',
     requireInteraction: true,
     silent: false,
@@ -40,11 +41,15 @@ messaging.onBackgroundMessage((payload) => {
     actions: [
       {
         action: 'open',
-        title: 'Open App',
-        icon: '/icons/icon-192.png'
+        title: 'Open BooqIt',
+        icon: `${currentDomain}/icons/icon-192.png`
       }
     ],
-    data: { ...payload.data, click_action: currentDomain }
+    data: { 
+      ...payload.data, 
+      click_action: currentDomain,
+      app_name: 'BooqIt'
+    }
   };
 
   console.log('🔔 Showing notification with domain:', currentDomain, notificationOptions);
