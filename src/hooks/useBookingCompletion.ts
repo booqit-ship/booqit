@@ -1,10 +1,12 @@
 
 import { useCallback } from "react";
-import { SimpleNotificationService } from "@/services/SimpleNotificationService";
+import { EnhancedNotificationService } from "@/services/EnhancedNotificationService";
+import { formatTimeToAmPm } from "@/utils/timeUtils";
+import { formatDateInIST } from "@/utils/dateUtils";
 
-// This hook handles all booking-related notifications with the simple notification service
+// Enhanced booking completion hook with all notification scenarios
 export function useBookingCompletion() {
-  // Called when marking booking as completed - sends review request to customer
+  // ✅ Scenario 5: Called when marking booking as completed - sends review request to customer
   const onBookingCompleted = useCallback(async (customerId: string, merchantName: string, bookingId: string) => {
     if (!customerId || customerId === 'undefined' || customerId.trim().length === 0) {
       console.warn('⚠️ Invalid customer ID for booking completion notification');
@@ -12,18 +14,18 @@ export function useBookingCompletion() {
     }
     
     try {
-      console.log('📲 Sending booking completion notification to customer:', customerId);
-      const result = await SimpleNotificationService.notifyCustomerBookingCompleted(customerId, merchantName, bookingId);
+      console.log('📲 Sending enhanced booking completion notification to customer:', customerId);
+      const result = await EnhancedNotificationService.notifyCustomerServiceCompleted(customerId, merchantName, bookingId);
       
-      console.log('📊 Booking completion notification result:', result);
+      console.log('📊 Enhanced booking completion notification result:', result);
       return result;
     } catch (error) {
-      console.error('❌ Error sending booking completion notification:', error);
+      console.error('❌ Error sending enhanced booking completion notification:', error);
       return false;
     }
   }, []);
 
-  // Called when booking is confirmed - notifies customer
+  // ✅ Scenario 1: Called when booking is confirmed - notifies customer
   const onBookingConfirmed = useCallback(async (customerId: string, merchantName: string, serviceName: string, date: string, time: string, bookingId: string) => {
     if (!customerId) {
       console.warn('⚠️ Invalid customer ID for booking confirmation notification');
@@ -31,41 +33,68 @@ export function useBookingCompletion() {
     }
     
     try {
-      console.log('📲 Sending booking confirmation to customer:', customerId);
-      const result = await SimpleNotificationService.notifyCustomerBookingConfirmed(customerId, merchantName, serviceName, `${date} at ${time}`, bookingId);
+      console.log('📲 Sending enhanced booking confirmation to customer:', customerId);
+      const timeFormatted = formatTimeToAmPm(time);
+      const dateFormatted = formatDateInIST(new Date(date), 'MMM d, yyyy');
+      const dateTimeFormatted = `${dateFormatted} at ${timeFormatted}`;
       
-      console.log('📊 Booking confirmation notification result:', result);
+      const result = await EnhancedNotificationService.notifyCustomerBookingConfirmed(customerId, merchantName, serviceName, dateTimeFormatted, bookingId);
+      
+      console.log('📊 Enhanced booking confirmation notification result:', result);
       return result;
     } catch (error) {
-      console.error('❌ Error sending booking confirmation notification:', error);
+      console.error('❌ Error sending enhanced booking confirmation notification:', error);
       return false;
     }
   }, []);
 
-  // Called when merchant cancels booking - notifies customer
-  const onBookingCancelled = useCallback(async (customerId: string, merchantName: string, bookingId: string, cancelledByMerchant: boolean = false) => {
-    if (!customerId) {
-      console.warn('⚠️ Invalid customer ID for booking cancellation notification');
+  // ✅ Scenario 3: Called when customer cancels booking - notifies merchant
+  const onCustomerCancelsBooking = useCallback(async (merchantUserId: string, customerName: string, serviceName: string, date: string, time: string, bookingId: string) => {
+    if (!merchantUserId) {
+      console.warn('⚠️ Invalid merchant user ID for customer cancellation notification');
       return false;
     }
     
     try {
-      const message = cancelledByMerchant 
-        ? `Your booking at ${merchantName} has been cancelled by the merchant. We apologize for any inconvenience.`
-        : `Your booking at ${merchantName} has been cancelled.`;
+      console.log('📲 Sending enhanced customer cancellation notification to merchant:', merchantUserId);
+      const timeFormatted = formatTimeToAmPm(time);
+      const dateFormatted = formatDateInIST(new Date(date), 'MMM d, yyyy');
+      const dateTimeFormatted = `${dateFormatted} at ${timeFormatted}`;
       
-      console.log('📲 Sending booking cancellation to customer:', customerId);
-      const result = await SimpleNotificationService.notifyBookingCancelled(customerId, message, bookingId);
+      const result = await EnhancedNotificationService.notifyMerchantBookingCanceled(merchantUserId, customerName, serviceName, dateTimeFormatted, bookingId);
       
-      console.log('📊 Booking cancellation notification result:', result);
+      console.log('📊 Enhanced customer cancellation notification result:', result);
       return result;
     } catch (error) {
-      console.error('❌ Error sending booking cancellation notification:', error);
+      console.error('❌ Error sending enhanced customer cancellation notification:', error);
       return false;
     }
   }, []);
 
-  // Called when new booking is created - notifies merchant
+  // ✅ Scenario 4: Called when merchant cancels booking - notifies customer
+  const onMerchantCancelsBooking = useCallback(async (customerId: string, merchantName: string, serviceName: string, date: string, time: string, bookingId: string, reason?: string) => {
+    if (!customerId) {
+      console.warn('⚠️ Invalid customer ID for merchant cancellation notification');
+      return false;
+    }
+    
+    try {
+      console.log('📲 Sending enhanced merchant cancellation notification to customer:', customerId);
+      const timeFormatted = formatTimeToAmPm(time);
+      const dateFormatted = formatDateInIST(new Date(date), 'MMM d, yyyy');
+      const dateTimeFormatted = `${dateFormatted} at ${timeFormatted}`;
+      
+      const result = await EnhancedNotificationService.notifyCustomerBookingCanceled(customerId, merchantName, serviceName, dateTimeFormatted, bookingId, reason);
+      
+      console.log('📊 Enhanced merchant cancellation notification result:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Error sending enhanced merchant cancellation notification:', error);
+      return false;
+    }
+  }, []);
+
+  // ✅ Scenario 2: Called when new booking is created - notifies merchant
   const onNewBooking = useCallback(async (merchantUserId: string, customerName: string, serviceName: string, date: string, time: string, bookingId: string) => {
     if (!merchantUserId) {
       console.warn('⚠️ Invalid merchant user ID for new booking notification');
@@ -73,14 +102,17 @@ export function useBookingCompletion() {
     }
     
     try {
-      const dateTime = `${date} at ${time}`;
-      console.log('📲 Sending new booking notification to merchant:', merchantUserId);
-      const result = await SimpleNotificationService.notifyMerchantOfNewBooking(merchantUserId, customerName, serviceName, dateTime, bookingId);
+      console.log('📲 Sending enhanced new booking notification to merchant:', merchantUserId);
+      const timeFormatted = formatTimeToAmPm(time);
+      const dateFormatted = formatDateInIST(new Date(date), 'MMM d, yyyy');
+      const dateTimeFormatted = `${dateFormatted} at ${timeFormatted}`;
       
-      console.log('📊 New booking notification result:', result);
+      const result = await EnhancedNotificationService.notifyMerchantNewBooking(merchantUserId, customerName, serviceName, dateTimeFormatted, bookingId);
+      
+      console.log('📊 Enhanced new booking notification result:', result);
       return result;
     } catch (error) {
-      console.error('❌ Error sending new booking notification:', error);
+      console.error('❌ Error sending enhanced new booking notification:', error);
       return false;
     }
   }, []);
@@ -88,7 +120,8 @@ export function useBookingCompletion() {
   return { 
     onBookingCompleted, 
     onBookingConfirmed, 
-    onBookingCancelled, 
+    onCustomerCancelsBooking,
+    onMerchantCancelsBooking,
     onNewBooking 
   };
 }

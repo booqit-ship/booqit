@@ -1,4 +1,3 @@
-
 import { FirebaseApp, initializeApp } from 'firebase/app';
 import { Messaging, getMessaging, getToken, onMessage, MessagePayload } from 'firebase/messaging';
 import { getAuth } from 'firebase/auth';
@@ -200,9 +199,9 @@ export const setupForegroundMessaging = (onMessageReceived?: (payload: MessagePa
         if (payload.notification && Notification.permission === 'granted') {
           const { title, body } = payload.notification;
           
+          // ✅ FIXED: Always use ServiceWorkerRegistration for mobile browsers
           if (androidChrome || mobile) {
-            console.log('📱 Mobile/Android Chrome: Using service worker for foreground notification');
-            // For mobile browsers, use service worker registration
+            console.log('📱 Mobile: Using service worker for foreground notification');
             if ('serviceWorker' in navigator) {
               const registration = await navigator.serviceWorker.ready;
               if (registration.showNotification) {
@@ -215,10 +214,11 @@ export const setupForegroundMessaging = (onMessageReceived?: (payload: MessagePa
                   silent: false,
                   data: payload.data
                 });
+                console.log('✅ Mobile notification shown via service worker');
               }
             }
           } else {
-            // Handle desktop notifications using regular Notification API
+            // Desktop notifications using regular Notification API
             console.log('🖥️ Showing desktop notification');
             const notification = new Notification(title || 'BooqIt Notification', {
               body: body || 'You have a new notification',
@@ -235,20 +235,17 @@ export const setupForegroundMessaging = (onMessageReceived?: (payload: MessagePa
               notification.close();
             };
 
-            // Auto-close after 10 seconds
             setTimeout(() => {
               notification.close();
             }, 10000);
           }
         }
         
-        // Also call the callback if provided
         if (onMessageReceived) {
           onMessageReceived(payload);
         }
       } catch (error) {
         console.error('❌ Error handling foreground message:', error);
-        // Still call callback even if notification display fails
         if (onMessageReceived) {
           onMessageReceived(payload);
         }

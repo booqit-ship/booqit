@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import BookingSuccessAnimation from '@/components/customer/BookingSuccessAnimation';
 import BookingFailureAnimation from '@/components/customer/BookingFailureAnimation';
 import { useBookingCompletion } from '@/hooks/useBookingCompletion';
+import { EnhancedNotificationService } from '@/services/EnhancedNotificationService';
 
 interface BookingResponse {
   success: boolean;
@@ -97,7 +98,6 @@ const PaymentPage: React.FC = () => {
       const bookingId = reserveResponse.booking_id;
       console.log('PAYMENT_FLOW: Booking created with ID:', bookingId);
       
-      // Store the booking ID for navigation
       setCreatedBookingId(bookingId);
 
       // Step 2: Update booking with services and confirm status
@@ -143,34 +143,34 @@ const PaymentPage: React.FC = () => {
         console.error('PAYMENT_FLOW: Payment record creation failed:', paymentCreationError);
       }
 
-      // Step 4: Manual notification fallback (ensure notifications are sent)
+      // ✅ Step 4: Enhanced notification system with all scenarios
       try {
-        console.log('PAYMENT_FLOW: Sending manual notifications...');
+        console.log('PAYMENT_FLOW: Sending enhanced notifications...');
         
-        // Send booking confirmation to customer
         const serviceNames = selectedServices.map(s => s.name).join(', ');
         const timeSlotFormatted = formatTimeToAmPm(bookingTime);
         const dateFormatted = formatDateInIST(new Date(bookingDate), 'MMM d, yyyy');
+        const dateTimeFormatted = `${dateFormatted} at ${timeSlotFormatted}`;
 
-        const customerNotification = await onBookingConfirmed(
+        // ✅ Scenario 1: Customer gets "Booking Confirmed"
+        const customerNotification = await EnhancedNotificationService.notifyCustomerBookingConfirmed(
           userId,
           merchant.shop_name,
           serviceNames,
-          dateFormatted,
-          timeSlotFormatted,
+          dateTimeFormatted,
           bookingId
         );
 
         console.log('PAYMENT_FLOW: Customer notification result:', customerNotification);
 
-        // Send new booking alert to merchant
+        // ✅ Scenario 2: Merchant gets "New Booking"
         if (merchant?.user_id) {
-          const merchantNotification = await onNewBooking(
+          const customerName = selectedStaffDetails?.name || 'Customer';
+          const merchantNotification = await EnhancedNotificationService.notifyMerchantNewBooking(
             merchant.user_id,
-            selectedStaffDetails?.name || 'Customer',
+            customerName,
             serviceNames,
-            dateFormatted,
-            timeSlotFormatted,
+            dateTimeFormatted,
             bookingId
           );
 
@@ -179,7 +179,7 @@ const PaymentPage: React.FC = () => {
           console.warn('PAYMENT_FLOW: No merchant user_id found for notifications');
         }
       } catch (notificationError) {
-        console.error('PAYMENT_FLOW: Manual notification error:', notificationError);
+        console.error('PAYMENT_FLOW: Enhanced notification error:', notificationError);
         // Don't fail the booking for notification issues
       }
 

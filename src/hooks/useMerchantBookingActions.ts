@@ -1,13 +1,13 @@
 
 import { useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useBookingCompletion } from "./useBookingCompletion";
+import { EnhancedNotificationService } from "@/services/EnhancedNotificationService";
 import { toast } from "sonner";
+import { formatTimeToAmPm } from "@/utils/timeUtils";
+import { formatDateInIST } from "@/utils/dateUtils";
 
 export function useMerchantBookingActions() {
-  const { onBookingCompleted, onBookingCancelled } = useBookingCompletion();
-
-  // Handle merchant cancelling a booking
+  // ✅ Scenario 4: Merchant cancels → Customer gets "Booking Canceled"
   const cancelBooking = useCallback(async (bookingId: string) => {
     try {
       console.log('🚫 Merchant cancelling booking:', bookingId);
@@ -43,17 +43,26 @@ export function useMerchantBookingActions() {
         return false;
       }
 
-      // Send notification to customer if they have a user_id (authenticated booking)
+      // ✅ Enhanced notification for customer
       if (booking.user_id) {
-        console.log('📲 Sending cancellation notification to customer:', booking.user_id);
-        const notificationResult = await onBookingCancelled(
+        console.log('📲 Sending enhanced cancellation notification to customer:', booking.user_id);
+        
+        // Get service name from booking
+        const serviceName = booking.services?.[0]?.name || 'Service';
+        const timeFormatted = formatTimeToAmPm(booking.time_slot);
+        const dateFormatted = formatDateInIST(new Date(booking.date), 'MMM d, yyyy');
+        const dateTimeFormatted = `${dateFormatted} at ${timeFormatted}`;
+        
+        const notificationResult = await EnhancedNotificationService.notifyCustomerBookingCanceled(
           booking.user_id,
           booking.merchants.shop_name,
+          serviceName,
+          dateTimeFormatted,
           bookingId,
-          true // cancelled by merchant
+          'Merchant canceled the appointment'
         );
         
-        console.log('📊 Cancellation notification result:', notificationResult);
+        console.log('📊 Enhanced cancellation notification result:', notificationResult);
       } else {
         console.log('ℹ️ Guest booking - no notification sent for cancellation');
       }
@@ -65,9 +74,9 @@ export function useMerchantBookingActions() {
       toast.error('Failed to cancel booking');
       return false;
     }
-  }, [onBookingCancelled]);
+  }, []);
 
-  // Handle merchant marking booking as completed
+  // ✅ Scenario 5: Merchant completes → Customer gets "Review Request"
   const completeBooking = useCallback(async (bookingId: string) => {
     try {
       console.log('✅ Merchant completing booking:', bookingId);
@@ -103,16 +112,16 @@ export function useMerchantBookingActions() {
         return false;
       }
 
-      // Send review request notification to customer if they have a user_id (authenticated booking)
+      // ✅ Enhanced notification for customer review request
       if (booking.user_id) {
-        console.log('📲 Sending review request to customer:', booking.user_id);
-        const notificationResult = await onBookingCompleted(
+        console.log('📲 Sending enhanced review request to customer:', booking.user_id);
+        const notificationResult = await EnhancedNotificationService.notifyCustomerServiceCompleted(
           booking.user_id,
           booking.merchants.shop_name,
           bookingId
         );
         
-        console.log('📊 Review request notification result:', notificationResult);
+        console.log('📊 Enhanced review request notification result:', notificationResult);
       } else {
         console.log('ℹ️ Guest booking - no review request sent');
       }
@@ -124,7 +133,7 @@ export function useMerchantBookingActions() {
       toast.error('Failed to complete booking');
       return false;
     }
-  }, [onBookingCompleted]);
+  }, []);
 
   return {
     cancelBooking,
