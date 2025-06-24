@@ -1,4 +1,3 @@
-
 import { FirebaseApp, initializeApp } from 'firebase/app';
 import { Messaging, getMessaging, getToken, onMessage, MessagePayload } from 'firebase/messaging';
 import { getAuth } from 'firebase/auth';
@@ -20,7 +19,7 @@ let app: FirebaseApp | null = null;
 let messaging: Messaging | null = null;
 
 // Keep track of generated tokens to prevent reuse
-const generatedTokens = new Set<string>();
+// let generatedTokens = new Set<string>(); // Remove this line
 
 // Enhanced mobile detection for Android Chrome
 const isMobile = () => {
@@ -117,11 +116,6 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
 export const setupNotifications = async (): Promise<string | null> => {
   try {
     console.log('🔄 Setting up FCM notifications...');
-    console.log('📱 Device info:', {
-      isMobile: isMobile(),
-      isAndroidChrome: isAndroidChrome(),
-      userAgent: navigator.userAgent
-    });
     
     const firebaseMessaging = getFirebaseMessaging();
     if (!firebaseMessaging) {
@@ -129,90 +123,39 @@ export const setupNotifications = async (): Promise<string | null> => {
       return null;
     }
 
-    // First check permission
+    // Simple permission check
     const hasPermission = await requestNotificationPermission();
     if (!hasPermission) {
       console.error('❌ No notification permission');
       return null;
     }
 
-    // Enhanced service worker registration for Android Chrome
+    // Register service worker if needed
     if ('serviceWorker' in navigator) {
       try {
-        // For Android Chrome, ensure service worker is ready before proceeding
-        const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+        await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
           scope: '/'
         });
-        
-        console.log('✅ Service worker registered:', registration.scope);
-        
-        // Wait for service worker to be ready, especially important for Android Chrome
         await navigator.serviceWorker.ready;
-        console.log('✅ Service worker is ready');
-        
-        // Additional wait for Android Chrome to ensure proper initialization
-        if (isAndroidChrome()) {
-          console.log('📱 Android Chrome: Additional initialization wait...');
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        }
+        console.log('✅ Service worker ready');
       } catch (swError) {
         console.error('❌ Service worker registration failed:', swError);
-        // Continue anyway as some browsers might still work without service worker
       }
     }
 
-    let attempts = 0;
-    const maxAttempts = 5; // Increased attempts for Android Chrome
+    // Get FCM token - simplified, no loops
+    console.log('🔑 Getting FCM token...');
+    const token = await getToken(firebaseMessaging, {
+      vapidKey: VAPID_KEY
+    });
     
-    while (attempts < maxAttempts) {
-      attempts++;
-      console.log(`🔑 Attempting to get FCM token (attempt ${attempts}/${maxAttempts})...`);
-      
-      try {
-        const token = await getToken(firebaseMessaging, {
-          vapidKey: VAPID_KEY
-        });
-        
-        if (token) {
-          // Ensure token uniqueness per session
-          if (generatedTokens.has(token)) {
-            console.warn('⚠️ Token already generated in this session, forcing refresh...');
-            // Clear token cache and try again
-            await navigator.serviceWorker.ready.then(registration => {
-              return registration.unregister();
-            });
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            continue;
-          }
-          
-          generatedTokens.add(token);
-          console.log('✅ FCM token obtained:', token.substring(0, 30) + '...');
-          console.log('🔒 Token unique for this session');
-          console.log('📱 Device type:', isAndroidChrome() ? 'Android Chrome' : isMobile() ? 'Mobile' : 'Desktop');
-          return token;
-        } else {
-          console.warn(`⚠️ No FCM token received on attempt ${attempts}`);
-        }
-      } catch (error) {
-        console.error(`❌ Error getting FCM token on attempt ${attempts}:`, error);
-        
-        // For Android Chrome, provide specific error handling
-        if (isAndroidChrome() && error.message?.includes('messaging/permission-blocked')) {
-          console.error('📱 Android Chrome: Notification permission blocked - user needs to enable in site settings');
-          return null;
-        }
-      }
-      
-      if (attempts < maxAttempts) {
-        console.log('⏳ Waiting before retry...');
-        // Longer wait for Android Chrome
-        const waitTime = isAndroidChrome() ? 3000 : 2000;
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-      }
+    if (token) {
+      console.log('✅ FCM token obtained:', token.substring(0, 30) + '...');
+      return token;
+    } else {
+      console.log('❌ No FCM token received');
+      return null;
     }
-    
-    console.error('❌ Failed to get FCM token after all attempts');
-    return null;
   } catch (error) {
     console.error('❌ Error in setupNotifications:', error);
     return null;
