@@ -59,7 +59,20 @@ export const usePayment = () => {
         throw new Error(bookingError?.message || 'Failed to create booking');
       }
 
-      const response = bookingResponse as BookingResponse;
+      // Safe type conversion
+      let response: BookingResponse;
+      if (typeof bookingResponse === 'string') {
+        try {
+          response = JSON.parse(bookingResponse);
+        } catch {
+          throw new Error('Invalid booking response format');
+        }
+      } else if (bookingResponse && typeof bookingResponse === 'object') {
+        response = bookingResponse as BookingResponse;
+      } else {
+        throw new Error('Invalid booking response');
+      }
+
       console.log('PAYMENT_FLOW: Booking response:', response);
       
       if (!response.success) {
@@ -67,6 +80,10 @@ export const usePayment = () => {
       }
 
       const bookingId = response.booking_id;
+      if (!bookingId) {
+        throw new Error('No booking ID returned');
+      }
+
       console.log('PAYMENT_FLOW: Booking created with ID:', bookingId);
 
       // Step 2: Confirm the booking
