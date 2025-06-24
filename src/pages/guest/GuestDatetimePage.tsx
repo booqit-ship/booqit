@@ -7,7 +7,14 @@ import { ArrowLeft, Calendar, Clock, User, MapPin, RefreshCw } from 'lucide-reac
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
-import { formatDateInIST, getCurrentDateIST, isTodayIST, addDays } from '@/utils/dateUtils';
+import { 
+  formatDateInIST, 
+  getCurrentDateIST, 
+  getCurrentTimeIST,
+  getCurrentTimeISTWithBuffer,
+  isTodayIST, 
+  addDays 
+} from '@/utils/dateUtils';
 
 interface AvailableSlot {
   staff_id: string;
@@ -69,7 +76,7 @@ const GuestDatetimePage: React.FC = () => {
     }
   }, [availableDays.length]);
 
-  // Fetch available slots (same logic as regular customer)
+  // Fetch available slots - EXACT SAME LOGIC AS REGULAR CUSTOMER
   const fetchAvailableSlots = useCallback(async () => {
     if (!selectedDate || !merchantId || !totalDuration) return;
 
@@ -80,14 +87,15 @@ const GuestDatetimePage: React.FC = () => {
       const selectedDateStr = formatDateInIST(selectedDate, 'yyyy-MM-dd');
       const isToday = isTodayIST(selectedDate);
       
-      console.log('GUEST_DATETIME: Fetching slots for:', {
-        date: selectedDateStr,
-        isToday,
-        totalDuration,
-        selectedStaff: selectedStaff || 'any'
-      });
+      console.log('=== GUEST SLOTS FETCH (MIRRORING CUSTOMER LOGIC) ===');
+      console.log('Date:', selectedDateStr, '| Is today:', isToday);
+      console.log('Total duration:', totalDuration, 'minutes');
+      if (isToday) {
+        console.log('Current IST:', getCurrentTimeIST());
+        console.log('Expected start after buffer:', getCurrentTimeISTWithBuffer(40));
+      }
       
-      // Use the same slot function as regular customers
+      // Use same slot function as regular customers with total duration
       const { data: slotsData, error: slotsError } = await supabase.rpc('get_available_slots_with_ist_buffer', {
         p_merchant_id: merchantId,
         p_date: selectedDateStr,
@@ -103,10 +111,32 @@ const GuestDatetimePage: React.FC = () => {
       }
 
       const slots = Array.isArray(slotsData) ? slotsData : [];
-      console.log('GUEST_DATETIME: Fetched slots:', slots.length);
+      console.log('Backend returned', slots.length, 'total slots');
       
+      // CRITICAL: Additional frontend filtering for today to ensure no expired slots
+      let filteredSlots = slots;
+      if (isToday) {
+        const currentBufferTime = getCurrentTimeISTWithBuffer(40);
+        filteredSlots = slots.filter(slot => {
+          const slotTime = typeof slot.time_slot === 'string' 
+            ? slot.time_slot.substring(0, 5) 
+            : formatDateInIST(new Date(`2000-01-01T${slot.time_slot}`), 'HH:mm');
+          return slotTime >= currentBufferTime;
+        });
+        console.log('After frontend filtering (current buffer:', currentBufferTime, '):', filteredSlots.length, 'slots remain');
+      }
+      
+      if (filteredSlots.length === 0) {
+        const errorMsg = isToday 
+          ? `No slots available today after ${getCurrentTimeISTWithBuffer(40)} for ${totalDuration} minutes` 
+          : `No slots available for this date for ${totalDuration} minutes duration`;
+        setError(errorMsg);
+        setAvailableSlots([]);
+        return;
+      }
+
       // Process slots with proper time formatting
-      const processedSlots = slots.map((slot: any) => ({
+      const processedSlots = filteredSlots.map((slot: any) => ({
         staff_id: slot.staff_id,
         staff_name: slot.staff_name,
         time_slot: typeof slot.time_slot === 'string' 
@@ -115,6 +145,10 @@ const GuestDatetimePage: React.FC = () => {
         is_available: slot.is_available,
         conflict_reason: slot.conflict_reason
       }));
+      
+      console.log('Final processed slots:', processedSlots.length);
+      console.log('Available slots:', processedSlots.filter(s => s.is_available).length);
+      console.log('=== END GUEST SLOTS FETCH ===');
       
       setAvailableSlots(processedSlots);
       setLastRefreshTime(new Date());
@@ -128,13 +162,24 @@ const GuestDatetimePage: React.FC = () => {
     }
   }, [selectedDate, merchantId, selectedStaff, totalDuration]);
 
-  // Fetch slots when dependencies change
+  // Fetch slots when dependencies change + setup periodic refresh for today
   useEffect(() => {
     fetchAvailableSlots();
     setSelectedTime(''); // Clear selected time when date changes
+
+    // Set up periodic refresh for today's slots (every minute) - SAME AS CUSTOMER
+    const isToday = selectedDate && isTodayIST(selectedDate);
+    if (isToday) {
+      const interval = setInterval(() => {
+        console.log('GUEST: Auto-refreshing today slots to update buffer time');
+        fetchAvailableSlots();
+      }, 60000); // Refresh every minute
+
+      return () => clearInterval(interval);
+    }
   }, [fetchAvailableSlots]);
 
-  // Real-time updates (same as regular customer)
+  // Real-time updates - EXACT SAME AS REGULAR CUSTOMER
   useEffect(() => {
     if (!merchantId || !selectedDate) return;
 
@@ -198,13 +243,23 @@ const GuestDatetimePage: React.FC = () => {
   const handleTimeSelect = (timeSlot: string) => {
     console.log('GUEST_DATETIME: Time slot selected:', timeSlot);
     
+    // Double-check if slot is still valid for today - SAME AS CUSTOMER
+    if (selectedDate && isTodayIST(selectedDate)) {
+      const currentBufferTime = getCurrentTimeISTWithBuffer(40);
+      if (timeSlot < currentBufferTime) {
+        toast.error('This time slot is no longer available due to time passing');
+        fetchAvailableSlots();
+        return;
+      }
+    }
+    
     // Find if the slot is available
     const availableSlot = availableSlots.find(slot => 
       slot.time_slot === timeSlot && slot.is_available
     );
     
     if (!availableSlot) {
-      toast.error('This time slot is not available');
+      toast.error(`This time slot is not available for ${totalDuration} minutes total duration`);
       return;
     }
 
