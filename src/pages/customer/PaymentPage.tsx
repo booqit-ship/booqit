@@ -10,6 +10,7 @@ import { formatDateInIST } from '@/utils/dateUtils';
 import { useAuth } from '@/contexts/AuthContext';
 import BookingSuccessAnimation from '@/components/customer/BookingSuccessAnimation';
 import BookingFailureAnimation from '@/components/customer/BookingFailureAnimation';
+import { useBookingCompletion } from '@/hooks/useBookingCompletion';
 
 interface BookingResponse {
   success: boolean;
@@ -23,6 +24,8 @@ const PaymentPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { userId } = useAuth();
+  const { onBookingConfirmed, onNewBooking } = useBookingCompletion();
+  
   const {
     merchant,
     selectedServices,
@@ -140,9 +143,45 @@ const PaymentPage: React.FC = () => {
         console.error('PAYMENT_FLOW: Payment record creation failed:', paymentCreationError);
       }
 
-      // Step 4: Send notifications (the database triggers will handle this automatically)
-      // No need to manually send notifications here as the triggers will handle both
-      // customer and merchant notifications properly for authenticated users
+      // Step 4: Manual notification fallback (ensure notifications are sent)
+      try {
+        console.log('PAYMENT_FLOW: Sending manual notifications...');
+        
+        // Send booking confirmation to customer
+        const serviceNames = selectedServices.map(s => s.name).join(', ');
+        const timeSlotFormatted = formatTimeToAmPm(bookingTime);
+        const dateFormatted = formatDateInIST(new Date(bookingDate), 'MMM d, yyyy');
+
+        const customerNotification = await onBookingConfirmed(
+          userId,
+          merchant.shop_name,
+          serviceNames,
+          dateFormatted,
+          timeSlotFormatted,
+          bookingId
+        );
+
+        console.log('PAYMENT_FLOW: Customer notification result:', customerNotification);
+
+        // Send new booking alert to merchant
+        if (merchant?.user_id) {
+          const merchantNotification = await onNewBooking(
+            merchant.user_id,
+            selectedStaffDetails?.name || 'Customer',
+            serviceNames,
+            dateFormatted,
+            timeSlotFormatted,
+            bookingId
+          );
+
+          console.log('PAYMENT_FLOW: Merchant notification result:', merchantNotification);
+        } else {
+          console.warn('PAYMENT_FLOW: No merchant user_id found for notifications');
+        }
+      } catch (notificationError) {
+        console.error('PAYMENT_FLOW: Manual notification error:', notificationError);
+        // Don't fail the booking for notification issues
+      }
 
       console.log('PAYMENT_FLOW: Process completed successfully');
       setShowSuccessAnimation(true);

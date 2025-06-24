@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Smartphone } from 'lucide-react';
@@ -10,6 +9,7 @@ import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { formatDateInIST } from '@/utils/dateUtils';
 import BookingSuccessAnimation from '@/components/customer/BookingSuccessAnimation';
 import BookingFailureAnimation from '@/components/customer/BookingFailureAnimation';
+import { useBookingCompletion } from '@/hooks/useBookingCompletion';
 
 interface BookingResponse {
   success: boolean;
@@ -23,6 +23,7 @@ const GuestPaymentPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const { onNewBooking } = useBookingCompletion();
   
   const {
     guestInfo,
@@ -125,33 +126,26 @@ const GuestPaymentPage: React.FC = () => {
       
       setCreatedBookingId(bookingId);
 
-      // Send notification to merchant about new guest booking
+      // Send notification to merchant about new guest booking using the new service
       try {
-        console.log('GUEST PAYMENT: Sending notification to merchant...');
+        console.log('GUEST PAYMENT: Sending notification to merchant using booking completion service...');
         
         if (merchant?.user_id) {
           const serviceNames = selectedServices.map(s => s.name).join(', ');
           const timeSlotFormatted = formatTimeToAmPm(bookingTime);
           const dateFormatted = formatDateInIST(new Date(bookingDate), 'MMM d, yyyy');
 
-          // Use the edge function directly for merchant notification
-          const { error: notificationError } = await supabase.functions.invoke('send-notification', {
-            body: {
-              userId: merchant.user_id,
-              title: '📅 New Booking!',
-              body: `${guestInfo.name} booked ${serviceNames} for ${dateFormatted} at ${timeSlotFormatted}`,
-              data: {
-                type: 'new_booking',
-                bookingId: bookingId
-              }
-            }
-          });
+          // Use the consolidated notification service for merchant notification
+          const merchantNotification = await onNewBooking(
+            merchant.user_id,
+            guestInfo.name,
+            serviceNames,
+            dateFormatted,
+            timeSlotFormatted,
+            bookingId
+          );
 
-          if (notificationError) {
-            console.error('GUEST PAYMENT: Merchant notification error:', notificationError);
-          } else {
-            console.log('GUEST PAYMENT: Merchant notification sent successfully');
-          }
+          console.log('GUEST PAYMENT: Merchant notification result:', merchantNotification);
         } else {
           console.warn('GUEST PAYMENT: No merchant user_id found');
         }
