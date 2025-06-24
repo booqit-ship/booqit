@@ -119,8 +119,7 @@ const showAndroidChromeNotification = async (title: string, body: string): Promi
           badge: '/icons/icon-192.png',
           tag: 'android-chrome-test',
           requireInteraction: false,
-          silent: false,
-          vibrate: [200, 100, 200]
+          silent: false
         });
         console.log('✅ Android Chrome notification shown via service worker');
       }
@@ -201,27 +200,9 @@ export const setupForegroundMessaging = (onMessageReceived?: (payload: MessagePa
         if (payload.notification && Notification.permission === 'granted') {
           const { title, body } = payload.notification;
           
-          if (androidChrome) {
-            console.log('📱 Android Chrome: Using service worker for foreground notification');
-            // For Android Chrome, use service worker registration
-            if ('serviceWorker' in navigator) {
-              const registration = await navigator.serviceWorker.ready;
-              if (registration.showNotification) {
-                await registration.showNotification(title || 'BooqIt', {
-                  body: body || 'You have a new notification',
-                  icon: '/icons/icon-192.png',
-                  badge: '/icons/icon-192.png',
-                  tag: 'foreground-android-chrome',
-                  requireInteraction: false,
-                  silent: false,
-                  vibrate: [200, 100, 200],
-                  data: payload.data
-                });
-              }
-            }
-          } else if (mobile) {
-            console.log('📱 Using service worker notification for mobile browser');
-            // Let service worker handle other mobile notifications
+          if (androidChrome || mobile) {
+            console.log('📱 Mobile/Android Chrome: Using service worker for foreground notification');
+            // For mobile browsers, use service worker registration
             if ('serviceWorker' in navigator) {
               const registration = await navigator.serviceWorker.ready;
               if (registration.showNotification) {
@@ -230,7 +211,7 @@ export const setupForegroundMessaging = (onMessageReceived?: (payload: MessagePa
                   icon: '/icons/icon-192.png',
                   badge: '/icons/icon-192.png',
                   tag: 'foreground-mobile',
-                  requireInteraction: true,
+                  requireInteraction: false,
                   silent: false,
                   data: payload.data
                 });
