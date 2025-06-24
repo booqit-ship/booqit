@@ -117,11 +117,37 @@ export function useBookingCompletion() {
     }
   }, []);
 
+  // ✅ Merchant cancellation - alias for onMerchantCancelsBooking
+  const onBookingCancelled = useCallback(async (customerId: string, merchantName: string, bookingId: string) => {
+    if (!customerId) {
+      console.warn('⚠️ Invalid customer ID for booking cancellation notification');
+      return false;
+    }
+    
+    try {
+      console.log('📲 Sending booking cancellation notification to customer:', customerId);
+      const result = await EnhancedNotificationService.notifyCustomerBookingCanceled(
+        customerId, 
+        merchantName, 
+        'Service', // Default service name
+        'your appointment time', // Default time text
+        bookingId
+      );
+      
+      console.log('📊 Booking cancellation notification result:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Error sending booking cancellation notification:', error);
+      return false;
+    }
+  }, []);
+
   return { 
     onBookingCompleted, 
     onBookingConfirmed, 
     onCustomerCancelsBooking,
     onMerchantCancelsBooking,
-    onNewBooking 
+    onNewBooking,
+    onBookingCancelled
   };
 }

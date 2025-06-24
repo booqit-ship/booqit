@@ -19,11 +19,15 @@ export class SimpleNotificationService {
     
     // Use enhanced service for better cross-user support
     try {
-      const tokens = await supabase.rpc('get_notification_tokens', {
-        p_target_user_id: userId
-      });
+      // Use direct query instead of RPC to avoid TypeScript issues
+      const { data: tokens, error } = await supabase
+        .from('device_tokens')
+        .select('fcm_token, device_type, device_name, last_used_at')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .order('last_used_at', { ascending: false });
 
-      if (!tokens.data || tokens.data.length === 0) {
+      if (error || !tokens || tokens.length === 0) {
         console.log('⚠️ SIMPLE: No device tokens found for user:', userId);
         return false;
       }
@@ -31,7 +35,7 @@ export class SimpleNotificationService {
       let successCount = 0;
       const invalidTokens: string[] = [];
 
-      for (const device of tokens.data) {
+      for (const device of tokens) {
         try {
           const { data: response, error: sendError } = await supabase.functions.invoke('send-notification', {
             body: {
@@ -72,7 +76,7 @@ export class SimpleNotificationService {
         await this.cleanupInvalidTokens(invalidTokens);
       }
 
-      console.log(`📊 SIMPLE: Notification sent to ${successCount}/${tokens.data.length} devices`);
+      console.log(`📊 SIMPLE: Notification sent to ${successCount}/${tokens.length} devices`);
       return successCount > 0;
     } catch (error) {
       console.error('❌ SIMPLE: Error in sendNotification:', error);

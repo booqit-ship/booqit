@@ -10,9 +10,13 @@ export class EnhancedNotificationService {
    */
   private static async getNotificationTokens(userId: string): Promise<any[]> {
     try {
-      const { data, error } = await supabase.rpc('get_notification_tokens', {
-        p_target_user_id: userId
-      });
+      // Use direct query with RLS instead of RPC since RPC doesn't exist in types
+      const { data, error } = await supabase
+        .from('device_tokens')
+        .select('fcm_token, device_type, device_name, last_used_at')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .order('last_used_at', { ascending: false });
 
       if (error) {
         console.error('❌ ENHANCED: Error fetching tokens:', error);
