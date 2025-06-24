@@ -14,6 +14,7 @@ import BookingFailureAnimation from '@/components/customer/BookingFailureAnimati
 interface BookingResponse {
   success: boolean;
   booking_id?: string;
+  payment_id?: string;
   error?: string;
   message?: string;
 }
@@ -74,7 +75,7 @@ const GuestPaymentPage: React.FC = () => {
 
       const serviceIds = selectedServices.map(s => s.id);
       
-      console.log('GUEST PAYMENT: Creating guest booking with params:', {
+      console.log('GUEST PAYMENT: Creating guest booking with enhanced function:', {
         guestName: guestInfo.name,
         guestPhone: guestInfo.phone,
         guestEmail: guestInfo.email || null,
@@ -83,10 +84,12 @@ const GuestPaymentPage: React.FC = () => {
         staffId: selectedStaff,
         date: bookingDate,
         timeSlot: bookingTime,
-        totalDuration
+        totalDuration,
+        paymentAmount: Number(totalPrice),
+        paymentMethod: 'pay_on_shop'
       });
 
-      // Create guest booking using the safe function
+      // Create guest booking and payment in one database transaction
       const { data: bookingResult, error: bookingError } = await supabase.rpc('create_guest_booking_safe', {
         p_guest_name: guestInfo.name,
         p_guest_phone: guestInfo.phone,
@@ -96,7 +99,9 @@ const GuestPaymentPage: React.FC = () => {
         p_staff_id: selectedStaff,
         p_date: bookingDate,
         p_time_slot: bookingTime,
-        p_total_duration: totalDuration
+        p_total_duration: totalDuration,
+        p_payment_amount: Number(totalPrice),
+        p_payment_method: 'pay_on_shop'
       });
 
       if (bookingError) {
@@ -116,33 +121,9 @@ const GuestPaymentPage: React.FC = () => {
       }
 
       const bookingId = bookingResponse.booking_id;
-      console.log('GUEST PAYMENT: Guest booking created with ID:', bookingId);
+      console.log('GUEST PAYMENT: Guest booking and payment created successfully with ID:', bookingId);
       
       setCreatedBookingId(bookingId);
-
-      // Create payment record for guest booking
-      try {
-        const paymentData = {
-          booking_id: bookingId,
-          method: 'pay_on_shop',
-          amount: Number(totalPrice),
-          status: 'completed'
-        };
-
-        console.log('GUEST PAYMENT: Creating payment record:', paymentData);
-
-        const { error: paymentError } = await supabase
-          .from('payments')
-          .insert(paymentData);
-        
-        if (paymentError) {
-          console.error('GUEST PAYMENT: Payment record error:', paymentError);
-        } else {
-          console.log('GUEST PAYMENT: Payment record created successfully');
-        }
-      } catch (paymentCreationError) {
-        console.error('GUEST PAYMENT: Payment record creation failed:', paymentCreationError);
-      }
 
       // Send notification to merchant about new guest booking
       try {
