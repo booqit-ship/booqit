@@ -6,8 +6,6 @@ DECLARE
   merchant_user_id UUID;
   customer_name TEXT;
   merchant_name TEXT;
-  b_time TIMESTAMP;
-  data_payload JSONB;
 BEGIN
   IF TG_OP = 'INSERT' THEN
     -- New booking → notify merchant (works for both guest and user bookings)
@@ -56,7 +54,7 @@ BEGIN
           );
       END IF;
     ELSIF NEW.status = 'cancelled' AND OLD.status != 'cancelled' THEN
-      -- Notify both parties (if authenticated user exists)
+      -- Get merchant info
       SELECT m.user_id, m.shop_name INTO merchant_user_id, merchant_name
         FROM merchants m
         WHERE m.id = NEW.merchant_id;
@@ -94,8 +92,6 @@ RETURNS TRIGGER AS $$
 DECLARE
   cust_id UUID;
   book_time TIMESTAMP;
-  book_title TEXT;
-  book_body TEXT;
 BEGIN
   -- Only schedule reminders for authenticated users (not guest bookings)
   IF NEW.status = 'confirmed' AND NEW.user_id IS NOT NULL THEN
