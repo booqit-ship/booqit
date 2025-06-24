@@ -85,14 +85,22 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
       // Show a test notification for Android Chrome to confirm it works
       if (isAndroidChrome()) {
         console.log('📱 Android Chrome: Showing test notification');
-        new Notification('🔔 BooqIt Notifications Enabled!', {
+        // Create notification options with proper typing
+        const notificationOptions: NotificationOptions & { vibrate?: number[] } = {
           body: 'You will now receive booking updates on your Android device.',
           icon: '/icons/icon-192.png',
           badge: '/icons/icon-192.png',
           tag: 'android-chrome-test',
           requireInteraction: false,
           silent: false
-        });
+        };
+        
+        // Add vibrate if supported
+        if ('vibrate' in navigator) {
+          notificationOptions.vibrate = [200, 100, 200];
+        }
+        
+        new Notification('🔔 BooqIt Notifications Enabled!', notificationOptions);
       }
       
       return true;
@@ -233,16 +241,23 @@ export const setupForegroundMessaging = (onMessageReceived?: (payload: MessagePa
         console.log('📱 Android Chrome: Enhanced notification handling');
         // For Android Chrome, create browser notification with enhanced options
         if (payload.notification && Notification.permission === 'granted') {
-          const notification = new Notification(payload.notification.title || 'BooqIt', {
+          // Create notification options with proper typing
+          const notificationOptions: NotificationOptions & { vibrate?: number[] } = {
             body: payload.notification.body,
             icon: '/icons/icon-192.png',
             badge: '/icons/icon-192.png',
             tag: 'booqit-android-chrome',
             requireInteraction: true,
             silent: false,
-            vibrate: [200, 100, 200],
             data: payload.data
-          });
+          };
+          
+          // Add vibrate if supported
+          if ('vibrate' in navigator) {
+            notificationOptions.vibrate = [200, 100, 200];
+          }
+          
+          const notification = new Notification(payload.notification.title || 'BooqIt', notificationOptions);
           
           notification.onclick = () => {
             window.focus();
