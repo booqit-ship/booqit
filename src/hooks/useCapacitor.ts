@@ -4,7 +4,8 @@ import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { PushNotifications } from '@capacitor/push-notifications';
-import { requestNotificationPermission, setupNotifications, setupForegroundMessaging } from '@/lib/capacitor-firebase';
+import { setupNotifications } from '@/lib/capacitor-firebase';
+import { requestNotificationPermission } from '@/firebase';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 export const useCapacitor = () => {
@@ -99,7 +100,6 @@ export const useCapacitor = () => {
         const hasPermission = await requestNotificationPermission();
         if (hasPermission) {
           await setupNotifications();
-          setupForegroundMessaging();
           console.log('✅ Web notifications initialized');
         }
       } catch (error) {
