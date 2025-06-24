@@ -1,4 +1,3 @@
-
 import { format, parseISO } from 'date-fns';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 
@@ -111,4 +110,11 @@ export const getTimeUntilNextSlot = (): { minutes: number; seconds: number } => 
     minutes: Math.max(0, diffMinutes),
     seconds: Math.max(0, diffSeconds)
   };
+};
+
+// Add days to a date
+export const addDays = (date: Date, days: number): Date => {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
 };
