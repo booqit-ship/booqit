@@ -1,3 +1,4 @@
+
 import { FirebaseApp, initializeApp } from 'firebase/app';
 import { Messaging, getMessaging, getToken, onMessage, MessagePayload } from 'firebase/messaging';
 import { getAuth } from 'firebase/auth';
@@ -17,9 +18,6 @@ const VAPID_KEY = 'BOw6E7dmADiUQUPalRz3k8o6jtBDKRx4VJHo1q_A24d9ONp8ovN1WCkVDVERy
 
 let app: FirebaseApp | null = null;
 let messaging: Messaging | null = null;
-
-// Keep track of generated tokens to prevent reuse
-// let generatedTokens = new Set<string>(); // Remove this line
 
 // Enhanced mobile detection for Android Chrome
 const isMobile = () => {
@@ -81,25 +79,21 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
     if (permission === 'granted') {
       console.log('✅ Notification permission granted');
       
-      // Show a test notification for Android Chrome to confirm it works
+      // Show a test notification for Android Chrome using service worker
       if (isAndroidChrome()) {
-        console.log('📱 Android Chrome: Showing test notification');
-        // Create notification options with proper typing
-        const notificationOptions: NotificationOptions & { vibrate?: number[] } = {
-          body: 'You will now receive booking updates on your Android device.',
+        console.log('📱 Android Chrome: Showing test notification via service worker');
+        await showAndroidChromeNotification(
+          '🔔 BooqIt Notifications Enabled!',
+          'You will now receive booking updates on your Android device.'
+        );
+      } else {
+        // For other browsers, use regular notification
+        new Notification('🔔 BooqIt Notifications Enabled!', {
+          body: 'You will now receive booking updates and reminders.',
           icon: '/icons/icon-192.png',
           badge: '/icons/icon-192.png',
-          tag: 'android-chrome-test',
-          requireInteraction: false,
-          silent: false
-        };
-        
-        // Add vibrate if supported
-        if ('vibrate' in navigator) {
-          notificationOptions.vibrate = [200, 100, 200];
-        }
-        
-        new Notification('🔔 BooqIt Notifications Enabled!', notificationOptions);
+          tag: 'permission-granted'
+        });
       }
       
       return true;
@@ -110,6 +104,29 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
   } catch (error) {
     console.error('❌ Error requesting notification permission:', error);
     return false;
+  }
+};
+
+// Helper function to show notifications on Android Chrome using service worker
+const showAndroidChromeNotification = async (title: string, body: string): Promise<void> => {
+  try {
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.ready;
+      if (registration.showNotification) {
+        await registration.showNotification(title, {
+          body,
+          icon: '/icons/icon-192.png',
+          badge: '/icons/icon-192.png',
+          tag: 'android-chrome-test',
+          requireInteraction: false,
+          silent: false,
+          vibrate: [200, 100, 200]
+        });
+        console.log('✅ Android Chrome notification shown via service worker');
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error showing Android Chrome notification:', error);
   }
 };
 
@@ -172,7 +189,7 @@ export const setupForegroundMessaging = (onMessageReceived?: (payload: MessagePa
 
     console.log('📲 Setting up foreground message handling...');
     
-    onMessage(firebaseMessaging, (payload) => {
+    onMessage(firebaseMessaging, async (payload) => {
       console.log('📲 Web foreground message received:', payload);
       
       const mobile = isMobile();
@@ -180,44 +197,79 @@ export const setupForegroundMessaging = (onMessageReceived?: (payload: MessagePa
       
       console.log('📱 Device info for foreground handling:', { mobile, androidChrome });
       
-      if (mobile && androidChrome) {
-        console.log('📱 Android Chrome: Enhanced notification handling');
-        // For Android Chrome, create browser notification with enhanced options
+      try {
         if (payload.notification && Notification.permission === 'granted') {
-          // Create notification options with proper typing
-          const notificationOptions: NotificationOptions & { vibrate?: number[] } = {
-            body: payload.notification.body,
-            icon: '/icons/icon-192.png',
-            badge: '/icons/icon-192.png',
-            tag: 'booqit-android-chrome',
-            requireInteraction: true,
-            silent: false,
-            data: payload.data
-          };
+          const { title, body } = payload.notification;
           
-          // Add vibrate if supported
-          if ('vibrate' in navigator) {
-            notificationOptions.vibrate = [200, 100, 200];
+          if (androidChrome) {
+            console.log('📱 Android Chrome: Using service worker for foreground notification');
+            // For Android Chrome, use service worker registration
+            if ('serviceWorker' in navigator) {
+              const registration = await navigator.serviceWorker.ready;
+              if (registration.showNotification) {
+                await registration.showNotification(title || 'BooqIt', {
+                  body: body || 'You have a new notification',
+                  icon: '/icons/icon-192.png',
+                  badge: '/icons/icon-192.png',
+                  tag: 'foreground-android-chrome',
+                  requireInteraction: false,
+                  silent: false,
+                  vibrate: [200, 100, 200],
+                  data: payload.data
+                });
+              }
+            }
+          } else if (mobile) {
+            console.log('📱 Using service worker notification for mobile browser');
+            // Let service worker handle other mobile notifications
+            if ('serviceWorker' in navigator) {
+              const registration = await navigator.serviceWorker.ready;
+              if (registration.showNotification) {
+                await registration.showNotification(title || 'BooqIt', {
+                  body: body || 'You have a new notification',
+                  icon: '/icons/icon-192.png',
+                  badge: '/icons/icon-192.png',
+                  tag: 'foreground-mobile',
+                  requireInteraction: true,
+                  silent: false,
+                  data: payload.data
+                });
+              }
+            }
+          } else {
+            // Handle desktop notifications using regular Notification API
+            console.log('🖥️ Showing desktop notification');
+            const notification = new Notification(title || 'BooqIt Notification', {
+              body: body || 'You have a new notification',
+              icon: '/icons/icon-192.png',
+              badge: '/icons/icon-192.png',
+              tag: 'foreground-desktop',
+              requireInteraction: false,
+              silent: false,
+              data: payload.data
+            });
+
+            notification.onclick = () => {
+              window.focus();
+              notification.close();
+            };
+
+            // Auto-close after 10 seconds
+            setTimeout(() => {
+              notification.close();
+            }, 10000);
           }
-          
-          const notification = new Notification(payload.notification.title || 'BooqIt', notificationOptions);
-          
-          notification.onclick = () => {
-            window.focus();
-            notification.close();
-          };
         }
-      } else if (mobile) {
-        console.log('📱 Using service worker notification for mobile browser');
-        // Let service worker handle other mobile notifications
-        return;
-      } else {
-        // Handle desktop notifications
-        if (payload.notification) {
-          console.log('🖥️ Showing desktop notification');
-          if (onMessageReceived) {
-            onMessageReceived(payload);
-          }
+        
+        // Also call the callback if provided
+        if (onMessageReceived) {
+          onMessageReceived(payload);
+        }
+      } catch (error) {
+        console.error('❌ Error handling foreground message:', error);
+        // Still call callback even if notification display fails
+        if (onMessageReceived) {
+          onMessageReceived(payload);
         }
       }
     });
