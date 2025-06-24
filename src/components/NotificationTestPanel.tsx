@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,126 +13,114 @@ const NotificationTestPanel: React.FC = () => {
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
 
-  // Helper to request notification permission and block on denied
+  // Enhanced permission handling for Android Chrome
   const ensurePermissionGranted = async () => {
     if (!("Notification" in window)) {
       toast.error("Notifications are not supported in this browser.");
       return false;
     }
 
-    // If already granted, shortcut
     if (Notification.permission === "granted") {
       return true;
     }
 
-    // Prompt user for permission
     const permissionResult = await requestNotificationPermission();
 
-    // requestNotificationPermission returns only boolean
     if (permissionResult) {
       toast.success("Notifications permission granted! Proceeding...");
       return true;
     } else {
       toast("To enable test notifications, please allow notifications in your browser settings.", {
-        description:
-          'Click the lock icon in your address bar and set "Notifications" to "Allow", then try again.',
+        description: 'Click the lock icon in your address bar and set "Notifications" to "Allow", then try again.',
         duration: 9000,
         action: {
           label: "Learn How",
-          onClick: () =>
-            window.open(
-              "https://support.google.com/chrome/answer/3220216",
-              "_blank"
-            ),
+          onClick: () => window.open("https://support.google.com/chrome/answer/3220216", "_blank"),
         },
       });
-      // Add debug info so it can be investigated if this fires incorrectly
-      console.warn(
-        "Notification permission not granted. permissionResult:",
-        permissionResult,
-        "Notification.permission:",
-        Notification.permission
-      );
+      console.warn("Notification permission not granted. permissionResult:", permissionResult, "Notification.permission:", Notification.permission);
       return false;
     }
   };
 
-  // Helper to update user's FCM token before sending test notification
   const refreshAndSaveToken = async () => {
     if (!user?.id) {
       toast.error("User not logged in!");
       return false;
     }
-    // Ensure permission
+    
     const granted = await ensurePermissionGranted();
     if (!granted) return false;
 
     try {
       toast("Refreshing your push token...");
       const token = await getFCMToken();
+      
       if (!token) {
-        toast.error(
-          "Could not get a push token—for best results, allow notifications."
-        );
+        toast.error("Could not get a push token—for best results, allow notifications.");
         return false;
       }
-      // Save token to DB (customer/merchant both supported)
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          fcm_token: token,
-          notification_enabled: true,
-          last_notification_sent: new Date().toISOString(),
-        })
-        .eq("id", user.id);
+      
+      // Use the multi-device registration function
+      const { data, error } = await supabase.rpc('register_device_token', {
+        p_user_id: user.id,
+        p_fcm_token: token,
+        p_device_type: /Android/i.test(navigator.userAgent) ? 'android' : /iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'ios' : 'web',
+        p_device_name: navigator.userAgent.includes('Chrome') ? 'Chrome Browser' : 'Browser',
+        p_user_agent: navigator.userAgent
+      });
 
       if (error) {
-        toast.error("Could not update your push token. Try logging out/in.");
+        toast.error("Could not register device token. Try logging out/in.");
+        console.error('Device token registration error:', error);
         return false;
       }
+      
       toast.success("Push token refreshed—attempting to send...");
       return true;
     } catch (err: any) {
-      toast.error(
-        "Error refreshing/saving push token: " +
-          (err.message || "unknown error")
-      );
+      toast.error("Error refreshing/saving push token: " + (err.message || "unknown error"));
       return false;
     }
   };
 
   const handleSendTestNotification = async () => {
-    setSuccessMsg(""); setErrorMsg("");
+    setSuccessMsg(""); 
+    setErrorMsg("");
+    
     if (!user?.id) {
       toast.error("User not logged in!");
       setErrorMsg("User not logged in!");
       return;
     }
+    
     setSending(true);
+    
     const tokenSaved = await refreshAndSaveToken();
     if (!tokenSaved) {
       setSending(false);
       setErrorMsg("Push token not saved or permission not granted.");
       return;
     }
+    
     try {
-      const { data, error } = await supabase.functions.invoke(
-        "send-notification",
-        {
-          body: {
-            userId: user.id,
-            title: "Test Notification 🔔",
-            body: "This is a test notification from BooqIt!",
-          },
-        }
-      );
+      console.log('🔔 Sending test notification to user:', user.id);
+      
+      const { data, error } = await supabase.functions.invoke("send-notification", {
+        body: {
+          userId: user.id,
+          title: "Test Notification 🔔",
+          body: "This is a test notification from BooqIt!",
+          data: {
+            type: 'test',
+            timestamp: Date.now()
+          }
+        },
+      });
 
       if (error) {
         console.error("❌ Error invoking notification:", error);
-        toast.error(
-          "Failed to send test notification: " +
-            (error.message || "Unknown error")
-        );
+        toast.error("Failed to send test notification: " + (error.message || "Unknown error"));
         setErrorMsg(error.message || "Unknown error from edge function");
         return;
       }

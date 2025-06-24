@@ -34,84 +34,59 @@ const getCurrentDomain = () => {
   if (typeof location !== 'undefined') {
     return location.origin;
   }
-  // Use the actual preview domain for Lovable
   return 'https://preview--booqit.lovable.app';
 };
 
-// Handle background messages (when app is not in focus)
+// Handle background messages (when app is not in focus) - CRITICAL FOR ANDROID CHROME
 messaging.onBackgroundMessage((payload) => {
-  console.log('📱 Background message received:', payload);
+  console.log('📱 SW: Background message received:', payload);
   
   const currentDomain = getCurrentDomain();
   const mobile = isMobile();
   const androidChrome = isAndroidChrome();
   
-  console.log('📱 Service worker device info:', { mobile, androidChrome, currentDomain });
+  console.log('📱 SW: Device info:', { mobile, androidChrome, currentDomain });
   
   const notificationTitle = payload.notification?.title || 'BooqIt Notification';
   
-  // Base notification options
+  // Enhanced notification options for all platforms
   const notificationOptions = {
     body: payload.notification?.body || 'You have a new notification',
     icon: `${currentDomain}/icons/icon-192.png`,
     badge: `${currentDomain}/icons/icon-192.png`,
     tag: 'booqit-notification',
-    requireInteraction: !androidChrome, // Less intrusive for Android Chrome
+    requireInteraction: true, // Keep notification visible
     silent: false,
     data: { 
       ...payload.data, 
       click_action: currentDomain,
-      app_name: 'BooqIt'
-    }
+      app_name: 'BooqIt',
+      timestamp: Date.now()
+    },
+    actions: [
+      {
+        action: 'open',
+        title: 'Open BooqIt',
+        icon: `${currentDomain}/icons/icon-192.png`
+      }
+    ]
   };
   
-  // Enhanced options for Android Chrome
-  if (androidChrome) {
-    Object.assign(notificationOptions, {
-      vibrate: [200, 100, 200],
-      requireInteraction: false,
-      actions: [
-        {
-          action: 'open',
-          title: 'Open BooqIt',
-          icon: `${currentDomain}/icons/icon-192.png`
-        }
-      ]
-    });
-  } else if (mobile) {
-    // Other mobile devices
-    Object.assign(notificationOptions, {
-      vibrate: [200, 100, 200],
-      actions: [
-        {
-          action: 'open',
-          title: 'Open BooqIt',
-          icon: `${currentDomain}/icons/icon-192.png`
-        }
-      ]
-    });
-  } else {
-    // Desktop
-    Object.assign(notificationOptions, {
-      actions: [
-        {
-          action: 'open',
-          title: 'Open BooqIt',
-          icon: `${currentDomain}/icons/icon-192.png`
-        }
-      ]
-    });
+  // Vibration for mobile devices
+  if (mobile) {
+    notificationOptions.vibrate = [200, 100, 200, 100, 200];
   }
 
-  console.log('🔔 Showing notification with options:', notificationOptions);
+  console.log('🔔 SW: Showing notification with options:', notificationOptions);
 
+  // ALWAYS use service worker registration for notifications - no Notification constructor
   return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
 // Enhanced notification click handling
 self.addEventListener('notificationclick', (event) => {
-  console.log('🔔 Notification clicked:', event);
-  console.log('📱 Click device info:', { 
+  console.log('🔔 SW: Notification clicked:', event);
+  console.log('📱 SW: Click device info:', { 
     isMobile: isMobile(), 
     isAndroidChrome: isAndroidChrome() 
   });
@@ -121,57 +96,72 @@ self.addEventListener('notificationclick', (event) => {
   const currentDomain = getCurrentDomain();
   const targetUrl = event.notification.data?.click_action || currentDomain;
 
-  console.log('🔔 Opening URL:', targetUrl);
+  console.log('🔔 SW: Opening URL:', targetUrl);
 
-  // Enhanced window handling for Android Chrome
+  // Enhanced window handling for all platforms
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true })
-      .then((clientList) => {
-        console.log('🔔 Found clients:', clientList.length);
-        
-        // If app is already open, focus it
-        for (const client of clientList) {
-          if (client.url.includes(new URL(currentDomain).hostname) && 'focus' in client) {
-            console.log('🔔 Focusing existing client');
-            return client.focus();
-          }
+    clients.matchAll({ 
+      type: 'window', 
+      includeUncontrolled: true 
+    }).then((clientList) => {
+      console.log('🔔 SW: Found clients:', clientList.length);
+      
+      // If app is already open, focus it
+      for (const client of clientList) {
+        if (client.url.includes(new URL(currentDomain).hostname) && 'focus' in client) {
+          console.log('🔔 SW: Focusing existing client:', client.url);
+          return client.focus();
         }
-        
-        // Otherwise open new window
-        if (clients.openWindow) {
-          console.log('🔔 Opening new window');
-          return clients.openWindow(targetUrl);
-        }
-      })
-      .catch((error) => {
-        console.error('❌ Error handling notification click:', error);
-      })
+      }
+      
+      // Otherwise open new window
+      if (clients.openWindow) {
+        console.log('🔔 SW: Opening new window to:', targetUrl);
+        return clients.openWindow(targetUrl);
+      }
+    }).catch((error) => {
+      console.error('❌ SW: Error handling notification click:', error);
+    })
   );
 });
 
 // Handle notification close
 self.addEventListener('notificationclose', (event) => {
-  console.log('🔕 Notification closed:', event);
+  console.log('🔕 SW: Notification closed:', event);
 });
 
-// Enhanced service worker activation for Android Chrome
+// Enhanced service worker activation
 self.addEventListener('activate', (event) => {
-  console.log('🔄 Service worker activated');
-  
-  if (isAndroidChrome()) {
-    console.log('📱 Android Chrome service worker ready');
-  }
-  
+  console.log('🔄 SW: Service worker activated');
   event.waitUntil(self.clients.claim());
 });
 
-// Enhanced installation for Android Chrome
+// Enhanced installation
 self.addEventListener('install', (event) => {
-  console.log('📦 Service worker installed');
-  
-  if (isAndroidChrome()) {
-    console.log('📱 Android Chrome service worker installed');
-  }
-  
+  console.log('📦 SW: Service worker installed');
   self.skipWaiting();
+});
+
+// Handle push events (for additional reliability)
+self.addEventListener('push', (event) => {
+  console.log('📨 SW: Push event received:', event);
+  
+  if (event.data) {
+    const payload = event.data.json();
+    console.log('📨 SW: Push payload:', payload);
+    
+    const notificationTitle = payload.notification?.title || 'BooqIt Notification';
+    const notificationOptions = {
+      body: payload.notification?.body || 'You have a new notification',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      tag: 'booqit-push-notification',
+      requireInteraction: true,
+      data: payload.data || {}
+    };
+    
+    event.waitUntil(
+      self.registration.showNotification(notificationTitle, notificationOptions)
+    );
+  }
 });

@@ -1183,6 +1183,15 @@ export type Database = {
         Args: { p_merchant_id: string }
         Returns: Json
       }
+      get_notification_tokens: {
+        Args: { p_target_user_id: string }
+        Returns: {
+          fcm_token: string
+          device_type: string
+          device_name: string
+          last_used_at: string
+        }[]
+      }
       get_stylist_blocked_ranges: {
         Args: { p_staff_id: string; p_date: string }
         Returns: {
