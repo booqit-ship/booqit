@@ -1,9 +1,9 @@
 
-import { sendBookingConfirmation, sendNewBookingAlert } from './robustNotificationService';
+import { SimpleNotificationService } from './SimpleNotificationService';
 
 /**
- * Legacy notification service - now uses robust notification system
- * @deprecated Use robustNotificationService directly for new code
+ * Legacy notification service - now uses SimpleNotificationService
+ * @deprecated Use SimpleNotificationService directly for new code
  */
 
 export const sendSimpleNotification = async (
@@ -12,15 +12,9 @@ export const sendSimpleNotification = async (
   body: string,
   data?: Record<string, string>
 ) => {
-  console.log('⚠️ LEGACY: sendSimpleNotification called, redirecting to robust service');
+  console.log('⚠️ LEGACY: sendSimpleNotification called, redirecting to SimpleNotificationService');
   
-  const { RobustNotificationService } = await import('./robustNotificationService');
-  
-  return RobustNotificationService.sendNotification(userId, {
-    title,
-    body,
-    data
-  });
+  return SimpleNotificationService.sendNotification(userId, title, body, data);
 };
 
 export const sendNewBookingNotification = async (
@@ -32,7 +26,7 @@ export const sendNewBookingNotification = async (
 ) => {
   console.log('📅 BOOKING NOTIF: Sending new booking notification to merchant:', merchantUserId);
   
-  return sendNewBookingAlert(
+  return SimpleNotificationService.notifyMerchantOfNewBooking(
     merchantUserId,
     customerName,
     serviceName,

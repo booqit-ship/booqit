@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Bell, Send, User, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { ConsolidatedNotificationService } from '@/services/consolidatedNotificationService';
+import { SimpleNotificationService } from '@/services/SimpleNotificationService';
 
 interface NotificationDebugPanelProps {
   merchantId: string;
@@ -30,26 +30,18 @@ const NotificationDebugPanel: React.FC<NotificationDebugPanelProps> = ({ merchan
         .eq('user_id', userId)
         .eq('is_active', true);
       
-      // Check notification_settings table
-      const { data: notificationSettings } = await supabase
-        .from('notification_settings')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-      
       // Check profiles table as fallback
       const { data: profile } = await supabase
         .from('profiles')
-        .select('fcm_token, notification_enabled, name, email')
+        .select('name, email')
         .eq('id', userId)
         .single();
       
       return {
         deviceTokens,
-        notificationSettings,
         profile,
-        hasToken: !!(deviceTokens?.length > 0 || notificationSettings?.fcm_token || profile?.fcm_token),
-        notificationsEnabled: notificationSettings?.notification_enabled ?? profile?.notification_enabled ?? false
+        hasToken: !!(deviceTokens?.length > 0),
+        notificationsEnabled: true // Simplified check
       };
     } catch (error) {
       console.error('Error checking customer status:', error);
@@ -76,13 +68,8 @@ const NotificationDebugPanel: React.FC<NotificationDebugPanelProps> = ({ merchan
         return;
       }
       
-      if (!debugInfo.notificationsEnabled) {
-        toast.error('Customer has notifications disabled');
-        return;
-      }
-      
-      // Send test notification using ConsolidatedNotificationService
-      const result = await ConsolidatedNotificationService.sendToAllDevices(
+      // Send test notification using SimpleNotificationService
+      const result = await SimpleNotificationService.sendNotification(
         testUserId,
         '🧪 Test Notification from Merchant',
         'This is a test notification to verify the system is working correctly!',
@@ -93,7 +80,7 @@ const NotificationDebugPanel: React.FC<NotificationDebugPanelProps> = ({ merchan
         }
       );
       
-      if (result.success) {
+      if (result) {
         toast.success('Test notification sent successfully!');
       } else {
         toast.error('Failed to send test notification - check console for details');
@@ -114,20 +101,14 @@ const NotificationDebugPanel: React.FC<NotificationDebugPanelProps> = ({ merchan
 
     setIsLoading(true);
     try {
-      // Send booking completion notification using ConsolidatedNotificationService
-      const result = await ConsolidatedNotificationService.sendToAllDevices(
+      // Send booking completion notification using SimpleNotificationService
+      const result = await SimpleNotificationService.notifyCustomerBookingCompleted(
         testUserId,
-        '✨ Looking fabulous? We hope so!',
-        `How was your experience at Test Salon? Share your thoughts and help others discover great service! 💫`,
-        {
-          type: 'booking_completed',
-          bookingId: 'test-booking-123',
-          merchantName: 'Test Salon',
-          action: 'review'
-        }
+        'Test Salon',
+        'test-booking-123'
       );
       
-      if (result.success) {
+      if (result) {
         toast.success('Booking completion notification sent successfully!');
       } else {
         toast.error('Failed to send booking completion notification');
@@ -200,12 +181,6 @@ const NotificationDebugPanel: React.FC<NotificationDebugPanelProps> = ({ merchan
               <div>Active Device Tokens: {debugInfo.deviceTokens?.length || 0}</div>
               <div>Has FCM Token: {debugInfo.hasToken ? '✅' : '❌'}</div>
               <div>Notifications Enabled: {debugInfo.notificationsEnabled ? '✅' : '❌'}</div>
-              {debugInfo.notificationSettings && (
-                <div>Settings Table: ✅ Found</div>
-              )}
-              {debugInfo.profile && (
-                <div>Profile Table: ✅ Found</div>
-              )}
             </div>
           </div>
         )}

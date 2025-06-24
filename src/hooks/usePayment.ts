@@ -18,6 +18,13 @@ export interface PaymentData {
   serviceNames: string;
 }
 
+interface BookingResponse {
+  success: boolean;
+  booking_id?: string;
+  error?: string;
+  message?: string;
+}
+
 export const usePayment = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const { user } = useAuth();
@@ -48,11 +55,18 @@ export const usePayment = () => {
         }
       );
 
-      if (bookingError || !bookingResponse?.success) {
-        throw new Error(bookingResponse?.error || 'Failed to create booking');
+      if (bookingError || !bookingResponse) {
+        throw new Error(bookingError?.message || 'Failed to create booking');
       }
 
-      const bookingId = bookingResponse.booking_id;
+      const response = bookingResponse as BookingResponse;
+      console.log('PAYMENT_FLOW: Booking response:', response);
+      
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to create booking');
+      }
+
+      const bookingId = response.booking_id;
       console.log('PAYMENT_FLOW: Booking created with ID:', bookingId);
 
       // Step 2: Confirm the booking

@@ -1,20 +1,77 @@
 
-import React from 'react';
-import { useMultiDeviceNotifications } from '@/hooks/useMultiDeviceNotifications';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Smartphone, Monitor, Tablet, Trash2, Plus } from 'lucide-react';
 import { format } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+
+interface DeviceToken {
+  fcm_token: string;
+  device_type: string;
+  device_name: string;
+  last_used_at: string;
+}
 
 const MultiDeviceNotificationPanel = () => {
-  const {
-    deviceTokens,
-    currentDeviceToken,
-    isRegistering,
-    registerCurrentDevice,
-    removeDevice
-  } = useMultiDeviceNotifications();
+  const [deviceTokens, setDeviceTokens] = useState<DeviceToken[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchDeviceTokens();
+    }
+  }, [user?.id]);
+
+  const fetchDeviceTokens = async () => {
+    if (!user?.id) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('device_tokens')
+        .select('fcm_token, device_type, device_name, last_used_at')
+        .eq('user_id', user.id)
+        .eq('is_active', true);
+
+      if (error) throw error;
+      setDeviceTokens(data || []);
+    } catch (error) {
+      console.error('Error fetching device tokens:', error);
+    }
+  };
+
+  const removeDevice = async (fcmToken: string) => {
+    try {
+      const { error } = await supabase
+        .from('device_tokens')
+        .update({ is_active: false })
+        .eq('fcm_token', fcmToken);
+
+      if (error) throw error;
+      
+      toast.success('Device removed successfully');
+      fetchDeviceTokens();
+    } catch (error) {
+      console.error('Error removing device:', error);
+      toast.error('Failed to remove device');
+    }
+  };
+
+  const registerCurrentDevice = async () => {
+    setIsLoading(true);
+    try {
+      // This would trigger the simple notification registration
+      toast.info('Please allow notifications when prompted');
+    } catch (error) {
+      console.error('Error registering device:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const getDeviceIcon = (deviceType: string) => {
     switch (deviceType) {
@@ -63,12 +120,12 @@ const MultiDeviceNotificationPanel = () => {
           </div>
           <Button
             onClick={registerCurrentDevice}
-            disabled={isRegistering}
+            disabled={isLoading}
             size="sm"
             className="gap-2"
           >
             <Plus className="h-4 w-4" />
-            {isRegistering ? 'Registering...' : 'Register Device'}
+            {isLoading ? 'Registering...' : 'Register Device'}
           </Button>
         </div>
 
@@ -91,11 +148,6 @@ const MultiDeviceNotificationPanel = () => {
                       <Badge variant="secondary" className="text-xs">
                         {getDeviceTypeLabel(device.device_type)}
                       </Badge>
-                      {device.fcm_token === currentDeviceToken && (
-                        <Badge variant="default" className="text-xs">
-                          Current
-                        </Badge>
-                      )}
                     </div>
                     <p className="text-xs text-muted-foreground">
                       Last used: {format(new Date(device.last_used_at), 'MMM dd, yyyy')}

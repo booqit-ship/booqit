@@ -3,15 +3,15 @@ import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Bell, X } from 'lucide-react';
-import { useNotifications } from '@/hooks/useNotifications';
+import { useSimpleNotifications } from '@/hooks/useSimpleNotifications';
 import { useState } from 'react';
 
 const NotificationBanner = () => {
-  const { hasPermission, isSupported, requestPermissionManually } = useNotifications();
+  const { isRegistered, registerForNotifications } = useSimpleNotifications();
   const [isDismissed, setIsDismissed] = useState(false);
 
-  // Don't show banner if notifications are supported and permission is granted, or if dismissed
-  if (!isSupported || hasPermission || isDismissed) {
+  // Don't show banner if notifications are registered or if dismissed
+  if (isRegistered || isDismissed) {
     return null;
   }
 
@@ -33,7 +33,7 @@ const NotificationBanner = () => {
           <div className="flex items-center gap-2">
             <Button
               size="sm"
-              onClick={requestPermissionManually}
+              onClick={registerForNotifications}
               className="bg-orange-600 hover:bg-orange-700 text-white"
             >
               Enable
