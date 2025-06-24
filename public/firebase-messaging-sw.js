@@ -1,13 +1,14 @@
 importScripts('https://www.gstatic.com/firebasejs/10.12.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.12.1/firebase-messaging-compat.js');
 
+// Use consistent Firebase configuration with Android
 firebase.initializeApp({
-  apiKey: "AIzaSyCDB3Lm4ni3jz0oQjgQPye4Pedau_H3S-4",
+  apiKey: "AIzaSyBZXQp0IuO9nQBFUyhLRGsnRuLTJ-UQu44", // Use Android API key
   authDomain: "booqit09-f4cfc.firebaseapp.com",
   projectId: "booqit09-f4cfc",
   storageBucket: "booqit09-f4cfc.firebasestorage.app",
   messagingSenderId: "486416254991",
-  appId: "1:486416254991:web:3aaa6b9fb5c5a6f5d2fb7a",
+  appId: "1:486416254991:android:e30bffb187fd8e0ad2fb7a", // Use Android app ID
   measurementId: "G-14QPC3C9TJ"
 });
 
@@ -37,6 +38,8 @@ const getCurrentDomain = () => {
   return 'https://preview--booqit.lovable.app';
 };
 
+console.log('🔄 SW: Firebase messaging service worker initialized with Android config');
+
 // Handle background messages (when app is not in focus) - CRITICAL FOR ANDROID CHROME
 messaging.onBackgroundMessage((payload) => {
   console.log('📱 SW: Background message received:', payload);
@@ -46,6 +49,7 @@ messaging.onBackgroundMessage((payload) => {
   const androidChrome = isAndroidChrome();
   
   console.log('📱 SW: Device info:', { mobile, androidChrome, currentDomain });
+  console.log('📱 SW: Firebase config used:', firebase.app().options);
   
   const notificationTitle = payload.notification?.title || 'BooqIt Notification';
   
@@ -132,13 +136,13 @@ self.addEventListener('notificationclose', (event) => {
 
 // Enhanced service worker activation
 self.addEventListener('activate', (event) => {
-  console.log('🔄 SW: Service worker activated');
+  console.log('🔄 SW: Service worker activated with Android config');
   event.waitUntil(self.clients.claim());
 });
 
 // Enhanced installation
 self.addEventListener('install', (event) => {
-  console.log('📦 SW: Service worker installed');
+  console.log('📦 SW: Service worker installed with Android config');
   self.skipWaiting();
 });
 

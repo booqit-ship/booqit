@@ -12,6 +12,7 @@ const NotificationTestPanel: React.FC = () => {
   const [sending, setSending] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [debugInfo, setDebugInfo] = useState<any>(null);
 
   // Enhanced permission handling for Android Chrome
   const ensurePermissionGranted = async () => {
@@ -53,11 +54,25 @@ const NotificationTestPanel: React.FC = () => {
     if (!granted) return false;
 
     try {
-      toast("Refreshing your push token...");
+      toast("Refreshing your push token with enhanced configuration...");
+      
+      // Add debug information
+      const debugData = {
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        notificationPermission: Notification.permission,
+        serviceWorkerSupported: 'serviceWorker' in navigator,
+        timestamp: new Date().toISOString()
+      };
+      
+      setDebugInfo(debugData);
+      console.log('🔧 DEBUG INFO:', debugData);
+      
       const token = await getFCMToken();
       
       if (!token) {
-        toast.error("Could not get a push token—for best results, allow notifications.");
+        toast.error("Could not get a push token—check Firebase configuration.");
+        setErrorMsg("Failed to get FCM token - check console for details");
         return false;
       }
       
@@ -73,13 +88,16 @@ const NotificationTestPanel: React.FC = () => {
       if (error) {
         toast.error("Could not register device token. Try logging out/in.");
         console.error('Device token registration error:', error);
+        setErrorMsg(`Database error: ${error.message}`);
         return false;
       }
       
-      toast.success("Push token refreshed—attempting to send...");
+      toast.success("Push token refreshed with Android config—attempting to send...");
       return true;
     } catch (err: any) {
       toast.error("Error refreshing/saving push token: " + (err.message || "unknown error"));
+      setErrorMsg(`Token error: ${err.message || "unknown error"}`);
+      console.error('Token refresh error:', err);
       return false;
     }
   };
@@ -87,6 +105,7 @@ const NotificationTestPanel: React.FC = () => {
   const handleSendTestNotification = async () => {
     setSuccessMsg(""); 
     setErrorMsg("");
+    setDebugInfo(null);
     
     if (!user?.id) {
       toast.error("User not logged in!");
@@ -99,7 +118,6 @@ const NotificationTestPanel: React.FC = () => {
     const tokenSaved = await refreshAndSaveToken();
     if (!tokenSaved) {
       setSending(false);
-      setErrorMsg("Push token not saved or permission not granted.");
       return;
     }
     
@@ -110,10 +128,11 @@ const NotificationTestPanel: React.FC = () => {
         body: {
           userId: user.id,
           title: "Test Notification 🔔",
-          body: "This is a test notification from BooqIt!",
+          body: "This is a test notification from BooqIt with Android config!",
           data: {
             type: 'test',
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            config: 'android'
           }
         },
       });
@@ -127,7 +146,7 @@ const NotificationTestPanel: React.FC = () => {
 
       if (data && data.success) {
         toast.success("Notification sent! Check your device.");
-        setSuccessMsg("Notification sent successfully!");
+        setSuccessMsg("Notification sent successfully with Android configuration!");
         console.log("✅ Notification sent:", data);
       } else {
         toast.error(data?.error || "Notification sending failed");
@@ -146,12 +165,11 @@ const NotificationTestPanel: React.FC = () => {
   return (
     <Card className="max-w-md mx-auto mt-10">
       <CardHeader>
-        <CardTitle>Push Notification Test</CardTitle>
+        <CardTitle>Push Notification Test (Enhanced)</CardTitle>
       </CardHeader>
       <CardContent>
         <p className="mb-4 text-sm">
-          Click the button below to refresh and save your push token and send a
-          test push notification to yourself.
+          Test notifications with Android Firebase configuration and enhanced error handling.
           <br />
           Make sure notifications are enabled in your browser or app!
         </p>
@@ -162,6 +180,14 @@ const NotificationTestPanel: React.FC = () => {
         >
           {sending ? "Sending..." : "Send Test Notification"}
         </Button>
+        
+        {debugInfo && (
+          <div className="mt-4 p-3 bg-gray-100 rounded text-xs">
+            <h4 className="font-semibold mb-2">Debug Info:</h4>
+            <pre className="whitespace-pre-wrap">{JSON.stringify(debugInfo, null, 2)}</pre>
+          </div>
+        )}
+        
         {successMsg && (
           <div className="text-green-600 font-medium mt-2">{successMsg}</div>
         )}

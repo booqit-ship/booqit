@@ -1,14 +1,24 @@
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { TokenCleanupService } from '@/services/TokenCleanupService';
 
+// Circuit breaker for failed registration attempts
+const MAX_RETRY_ATTEMPTS = 3;
+const RETRY_COOLDOWN = 60000; // 1 minute
+const REGISTRATION_TIMEOUT = 30000; // 30 seconds
+
 export const useSimpleNotifications = () => {
   const { isAuthenticated, userId } = useAuth();
   const [isRegistered, setIsRegistered] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Circuit breaker state
+  const retryAttempts = useRef(0);
+  const lastRetryTime = useRef(0);
+  const registrationInProgress = useRef(false);
 
   // Simple device type detection
   const getDeviceType = (): string => {
@@ -51,12 +61,54 @@ export const useSimpleNotifications = () => {
     }
   };
 
-  const registerForNotifications = async () => {
-    if (!isAuthenticated || !userId || isLoading) return;
+  const canRetryRegistration = (): boolean => {
+    const now = Date.now();
+    
+    // Check if we've exceeded max retry attempts
+    if (retryAttempts.current >= MAX_RETRY_ATTEMPTS) {
+      // Reset attempts after cooldown period
+      if (now - lastRetryTime.current > RETRY_COOLDOWN) {
+        console.log('🔄 SIMPLE NOTIFICATIONS: Resetting retry attempts after cooldown');
+        retryAttempts.current = 0;
+        lastRetryTime.current = 0;
+        return true;
+      }
+      console.log('❌ SIMPLE NOTIFICATIONS: Max retry attempts reached, waiting for cooldown');
+      return false;
+    }
+    
+    return true;
+  };
 
+  const registerForNotifications = async () => {
+    if (!isAuthenticated || !userId || isLoading || registrationInProgress.current) {
+      console.log('🔄 SIMPLE NOTIFICATIONS: Registration blocked', {
+        isAuthenticated,
+        hasUserId: !!userId,
+        isLoading,
+        registrationInProgress: registrationInProgress.current
+      });
+      return;
+    }
+
+    // Circuit breaker check
+    if (!canRetryRegistration()) {
+      console.log('🚫 SIMPLE NOTIFICATIONS: Registration blocked by circuit breaker');
+      return;
+    }
+
+    registrationInProgress.current = true;
     setIsLoading(true);
+    
+    const registrationTimer = setTimeout(() => {
+      console.log('⏰ SIMPLE NOTIFICATIONS: Registration timeout');
+      registrationInProgress.current = false;
+      setIsLoading(false);
+    }, REGISTRATION_TIMEOUT);
+
     try {
       console.log('🔔 SIMPLE NOTIFICATIONS: Starting registration for user:', userId);
+      console.log('🔄 SIMPLE NOTIFICATIONS: Retry attempt:', retryAttempts.current + 1);
 
       // Clean up expired tokens first
       await TokenCleanupService.removeInvalidTokensForUser(userId);
@@ -67,18 +119,17 @@ export const useSimpleNotifications = () => {
         if (permission !== 'granted') {
           console.log('❌ Permission denied');
           toast.error('Please enable notifications to receive booking updates');
-          return;
+          throw new Error('Permission denied');
         }
       }
 
-      // Get FCM token
+      // Get FCM token with enhanced error handling
       const { setupNotifications } = await import('@/lib/capacitor-firebase');
       const fcmToken = await setupNotifications();
 
       if (!fcmToken) {
         console.log('❌ No FCM token received');
-        toast.error('Failed to setup notifications. Please try again.');
-        return;
+        throw new Error('Failed to get FCM token');
       }
 
       console.log('✅ FCM token received:', fcmToken.substring(0, 30) + '...');
@@ -94,18 +145,35 @@ export const useSimpleNotifications = () => {
 
       if (error) {
         console.error('❌ Failed to register device token:', error);
-        toast.error('Failed to register for notifications. Please try again.');
-        return;
+        throw new Error(`Database registration failed: ${error.message}`);
       }
 
       console.log('✅ Device token registered successfully:', data);
+      
+      // Reset circuit breaker on success
+      retryAttempts.current = 0;
+      lastRetryTime.current = 0;
+      
       setIsRegistered(true);
       toast.success('Notifications enabled! 🔔');
 
     } catch (error) {
       console.error('❌ Error registering for notifications:', error);
-      toast.error('Failed to setup notifications. Please check your connection.');
+      
+      // Update circuit breaker
+      retryAttempts.current++;
+      lastRetryTime.current = Date.now();
+      
+      if (retryAttempts.current >= MAX_RETRY_ATTEMPTS) {
+        toast.error('Failed to setup notifications. Please try again later.');
+        console.log('🚫 SIMPLE NOTIFICATIONS: Max retry attempts reached');
+      } else {
+        toast.error('Failed to setup notifications. Retrying...');
+        console.log(`🔄 SIMPLE NOTIFICATIONS: Will retry (${retryAttempts.current}/${MAX_RETRY_ATTEMPTS})`);
+      }
     } finally {
+      clearTimeout(registrationTimer);
+      registrationInProgress.current = false;
       setIsLoading(false);
     }
   };
@@ -121,11 +189,11 @@ export const useSimpleNotifications = () => {
 
   // Auto-register when user is authenticated and not already registered
   useEffect(() => {
-    if (isAuthenticated && userId && !isRegistered && !isLoading) {
+    if (isAuthenticated && userId && !isRegistered && !isLoading && !registrationInProgress.current) {
       // Small delay to ensure everything is loaded
       const timer = setTimeout(() => {
         registerForNotifications();
-      }, 1000);
+      }, 2000); // Increased delay to prevent race conditions
       
       return () => clearTimeout(timer);
     }
@@ -134,6 +202,8 @@ export const useSimpleNotifications = () => {
   return {
     isRegistered,
     isLoading,
-    registerForNotifications
+    registerForNotifications,
+    retryAttempts: retryAttempts.current,
+    canRetry: canRetryRegistration()
   };
 };

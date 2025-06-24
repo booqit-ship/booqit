@@ -3,13 +3,14 @@ import { initializeApp } from "firebase/app";
 import { getMessaging, getToken, onMessage, MessagePayload } from "firebase/messaging";
 import { toast } from "sonner";
 
+// Use the correct Firebase configuration that matches Android
 const firebaseConfig = {
-  apiKey: "AIzaSyCDB3Lm4ni3jz0oQjgQPye4Pedau_H3S-4",
+  apiKey: "AIzaSyBZXQp0IuO9nQBFUyhLRGsnRuLTJ-UQu44", // Use Android API key for consistency
   authDomain: "booqit09-f4cfc.firebaseapp.com",
   projectId: "booqit09-f4cfc",
   storageBucket: "booqit09-f4cfc.firebasestorage.app",
   messagingSenderId: "486416254991",
-  appId: "1:486416254991:web:3aaa6b9fb5c5a6f5d2fb7a",
+  appId: "1:486416254991:android:e30bffb187fd8e0ad2fb7a", // Use Android app ID
   measurementId: "G-14QPC3C9TJ"
 };
 
@@ -36,11 +37,16 @@ let messaging: any = null;
 try {
   if (typeof window !== 'undefined') {
     messaging = getMessaging(app);
-    console.log('🔥 Firebase messaging initialized successfully');
+    console.log('🔥 Firebase messaging initialized successfully with Android config');
   }
 } catch (error) {
   console.error('❌ Firebase messaging initialization failed:', error);
 }
+
+// Global state to prevent multiple simultaneous token requests
+let tokenRequestInProgress = false;
+let lastTokenRequest = 0;
+const TOKEN_REQUEST_COOLDOWN = 30000; // 30 seconds cooldown between requests
 
 export const requestNotificationPermission = async (): Promise<boolean> => {
   try {
@@ -80,12 +86,28 @@ export const getFCMToken = async (): Promise<string | null> => {
       return null;
     }
 
-    console.log('📱 Getting FCM token...');
+    // Prevent multiple simultaneous requests
+    const now = Date.now();
+    if (tokenRequestInProgress) {
+      console.log('⏳ Token request already in progress, waiting...');
+      return null;
+    }
+
+    if (now - lastTokenRequest < TOKEN_REQUEST_COOLDOWN) {
+      console.log('⏳ Token request cooldown active, waiting...');
+      return null;
+    }
+
+    tokenRequestInProgress = true;
+    lastTokenRequest = now;
+
+    console.log('📱 Getting FCM token with Android configuration...');
     
     // Request permission first
     const hasPermission = await requestNotificationPermission();
     if (!hasPermission) {
       console.log('❌ No notification permission, cannot get FCM token');
+      tokenRequestInProgress = false;
       return null;
     }
 
@@ -110,8 +132,8 @@ export const getFCMToken = async (): Promise<string | null> => {
       }
     }
 
-    // Get FCM token
-    const vapidKey = "BM8lNTz2mp7qadGhOrQ2e_W1TGkxD_HJqFPuoTiw3-aEZsq30c_D2RkUrSJGNRNEiTEsEcGQhpWnZRlbBjH7xNo";
+    // Get FCM token with correct VAPID key for the project
+    const vapidKey = "BFyMalp8vStokUxFo9Oaqjl5F8p3lBzXjQG0VNWDWMq_bJM8iYYZOYu5T_ZTQP3uA8L-qrZ-YMNhP2sN7H1LRDQ";
     
     const tokenOptions: any = {
       vapidKey
@@ -122,10 +144,16 @@ export const getFCMToken = async (): Promise<string | null> => {
       tokenOptions.serviceWorkerRegistration = registration;
     }
 
+    console.log('🔑 Requesting FCM token with VAPID key...');
     const token = await getToken(messaging, tokenOptions);
     
     if (token) {
       console.log('✅ FCM token obtained:', token.substring(0, 30) + '...');
+      console.log('🔧 Token configuration:', {
+        hasServiceWorker: !!registration,
+        vapidKeyUsed: vapidKey.substring(0, 20) + '...',
+        platform: isAndroidChrome() ? 'Android Chrome' : 'Other'
+      });
       
       // Set up foreground message handling - NO NOTIFICATION CONSTRUCTOR HERE
       onMessage(messaging, (payload: MessagePayload) => {
@@ -147,20 +175,28 @@ export const getFCMToken = async (): Promise<string | null> => {
         });
       });
       
+      tokenRequestInProgress = false;
       return token;
     } else {
-      console.log('❌ No FCM token available');
+      console.log('❌ No FCM token available - check Firebase configuration');
+      tokenRequestInProgress = false;
       return null;
     }
   } catch (error) {
     console.error('❌ Error getting FCM token:', error);
+    console.error('🔧 Error details:', {
+      errorCode: (error as any)?.code,
+      errorMessage: (error as any)?.message,
+      customData: (error as any)?.customData
+    });
+    tokenRequestInProgress = false;
     return null;
   }
 };
 
 // Simplified setup function for use in hooks
 export const setupNotifications = async (): Promise<string | null> => {
-  console.log('🔔 Setting up notifications...');
+  console.log('🔔 Setting up notifications with enhanced error handling...');
   
   try {
     const token = await getFCMToken();
