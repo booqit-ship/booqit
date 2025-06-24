@@ -185,6 +185,7 @@ export type Database = {
       device_tokens: {
         Row: {
           created_at: string | null
+          debug_info: Json | null
           device_name: string | null
           device_type: string
           fcm_token: string
@@ -197,6 +198,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          debug_info?: Json | null
           device_name?: string | null
           device_type: string
           fcm_token: string
@@ -209,6 +211,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          debug_info?: Json | null
           device_name?: string | null
           device_type?: string
           fcm_token?: string
@@ -1030,6 +1033,18 @@ export type Database = {
       deactivate_user_device_tokens: {
         Args: { p_user_id: string }
         Returns: Json
+      }
+      debug_device_tokens: {
+        Args: { p_user_id: string }
+        Returns: {
+          user_id: string
+          fcm_token: string
+          device_type: string
+          device_name: string
+          is_active: boolean
+          last_used_at: string
+          created_at: string
+        }[]
       }
       ensure_user_profile: {
         Args: Record<PropertyKey, never>

@@ -1,281 +1,281 @@
 
 import { supabase } from '@/integrations/supabase/client';
 
-export interface NotificationPayload {
-  title: string;
-  body: string;
-  data?: Record<string, any>;
-}
-
-export interface NotificationSettings {
-  user_id: string;
-  fcm_token: string | null;
-  notification_enabled: boolean;
-  last_notification_sent: string | null;
-  failed_notification_count: number;
-  last_failure_reason: string | null;
+interface NotificationResponse {
+  success: boolean;
+  results: Array<{
+    device_type: string;
+    device_name?: string;
+    success: boolean;
+    error?: string;
+  }>;
 }
 
 /**
- * Consolidated notification service that handles all notification operations with multi-device support
+ * Consolidated notification service that sends to all user devices
  */
 export class ConsolidatedNotificationService {
+  private static readonly EDGE_FUNCTION_URL = 'https://ggclvurfcykbwmhfftkn.supabase.co/functions/v1/send-notification';
+
   /**
-   * Send notification to all user's devices
+   * Send notification to all devices for a user
    */
-  static async sendToAllUserDevices(
+  static async sendToAllDevices(
     userId: string,
-    payload: NotificationPayload
-  ): Promise<{ success: boolean; results: any[] }> {
+    title: string,
+    body: string,
+    data: Record<string, any> = {}
+  ): Promise<NotificationResponse> {
     try {
       console.log('📤 CONSOLIDATED: Sending notification to all devices for user:', userId);
+      console.log('📋 CONSOLIDATED: Notification details:', { title, body, data });
 
       // Get all active device tokens for the user
-      const { data: deviceTokens, error } = await supabase
+      const { data: deviceTokens, error: deviceError } = await supabase
         .from('device_tokens')
         .select('fcm_token, device_type, device_name')
         .eq('user_id', userId)
         .eq('is_active', true);
 
-      if (error) {
-        console.error('❌ CONSOLIDATED: Error fetching device tokens:', error);
-        // Fallback to single notification
-        return this.sendNotificationLegacy(userId, payload);
+      if (deviceError) {
+        console.error('❌ CONSOLIDATED: Error fetching device tokens:', deviceError);
+        throw deviceError;
       }
 
       if (!deviceTokens || deviceTokens.length === 0) {
-        console.log('⚠️ CONSOLIDATED: No device tokens found, trying legacy method');
+        console.warn('⚠️ CONSOLIDATED: No device tokens found, trying legacy method');
+        
         // Fallback to legacy notification_settings table
-        return this.sendNotificationLegacy(userId, payload);
-      }
+        const { data: legacySettings } = await supabase
+          .from('notification_settings')
+          .select('fcm_token')
+          .eq('user_id', userId)
+          .eq('notification_enabled', true)
+          .single();
 
-      console.log(`📱 CONSOLIDATED: Found ${deviceTokens.length} devices for user:`, userId);
-
-      // Send notification to each device token
-      const results = [];
-      for (const device of deviceTokens) {
-        try {
-          const { data, error } = await supabase.functions.invoke('send-notification', {
-            body: {
-              userId,
-              title: payload.title,
-              body: payload.body,
-              data: {
-                ...payload.data,
-                device_type: device.device_type,
-                device_name: device.device_name
-              },
-              fcm_token: device.fcm_token // Direct token for multi-device
-            }
-          });
-
-          results.push({
-            device_type: device.device_type,
-            device_name: device.device_name,
-            success: !error && data?.success,
-            error: error?.message || (!data?.success ? data?.error : null)
-          });
-
-          if (error || !data?.success) {
-            console.error('❌ CONSOLIDATED: Failed to send to device:', device.device_type, error || data?.error);
-          } else {
-            console.log('✅ CONSOLIDATED: Sent to device:', device.device_type, device.device_name);
-          }
-        } catch (deviceError) {
-          console.error('❌ CONSOLIDATED: Error sending to device:', device.device_type, deviceError);
-          results.push({
-            device_type: device.device_type,
-            device_name: device.device_name,
-            success: false,
-            error: deviceError.message
-          });
+        if (legacySettings?.fcm_token) {
+          console.log('🔄 CONSOLIDATED: Using legacy FCM token');
+          const result = await this.sendSingleNotification(
+            userId,
+            title,
+            body,
+            data,
+            legacySettings.fcm_token
+          );
+          
+          return {
+            success: result.success,
+            results: [{
+              device_type: 'unknown',
+              device_name: 'Legacy Device',
+              success: result.success,
+              error: result.error
+            }]
+          };
         }
+
+        return {
+          success: false,
+          results: []
+        };
       }
 
-      const successCount = results.filter(r => r.success).length;
-      console.log(`📊 CONSOLIDATED: Notification sent to ${successCount}/${results.length} devices`);
+      console.log(`📱 CONSOLIDATED: Found ${deviceTokens.length} devices for user: ${userId}`);
 
-      return {
-        success: successCount > 0,
-        results
-      };
-    } catch (error) {
-      console.error('❌ CONSOLIDATED: Error in sendToAllUserDevices:', error);
-      // Final fallback to legacy method
-      return this.sendNotificationLegacy(userId, payload);
-    }
-  }
+      // Send notification to each device
+      const results = await Promise.allSettled(
+        deviceTokens.map(async (device) => {
+          console.log(`📤 CONSOLIDATED: Sending to device: ${device.device_type} ${device.device_name || 'Unknown'}`);
+          
+          const result = await this.sendSingleNotification(
+            userId,
+            title,
+            body,
+            { ...data, device_type: device.device_type, device_name: device.device_name },
+            device.fcm_token
+          );
 
-  /**
-   * Legacy single notification method (fallback)
-   */
-  private static async sendNotificationLegacy(userId: string, payload: NotificationPayload): Promise<{ success: boolean; results: any[] }> {
-    try {
-      const { data, error } = await supabase.functions.invoke('send-notification', {
-        body: {
-          userId,
-          title: payload.title,
-          body: payload.body,
-          data: payload.data
+          return {
+            device_type: device.device_type,
+            device_name: device.device_name,
+            success: result.success,
+            error: result.error
+          };
+        })
+      );
+
+      const processedResults = results.map((result, index) => {
+        if (result.status === 'fulfilled') {
+          const success = result.value.success;
+          console.log(`${success ? '✅' : '❌'} CONSOLIDATED: ${success ? 'Sent to' : 'Failed for'} device: ${deviceTokens[index].device_type} ${deviceTokens[index].device_name || 'Unknown'}`);
+          return result.value;
+        } else {
+          console.error(`❌ CONSOLIDATED: Promise rejected for device ${index}:`, result.reason);
+          return {
+            device_type: deviceTokens[index]?.device_type || 'unknown',
+            device_name: deviceTokens[index]?.device_name,
+            success: false,
+            error: String(result.reason)
+          };
         }
       });
 
-      if (error) {
-        console.error('❌ CONSOLIDATED: Legacy notification error:', error);
-        return { success: false, results: [] };
-      }
+      const successCount = processedResults.filter(r => r.success).length;
+      const totalCount = processedResults.length;
 
-      if (!data?.success) {
-        console.error('❌ CONSOLIDATED: Legacy notification failed:', data?.error);
-        return { success: false, results: [] };
-      }
+      console.log(`📊 CONSOLIDATED: Notification sent to ${successCount}/${totalCount} devices`);
 
-      return { 
-        success: true, 
-        results: [{ device_type: 'legacy', success: true }] 
+      return {
+        success: successCount > 0,
+        results: processedResults
       };
+
     } catch (error) {
-      console.error('❌ CONSOLIDATED: Legacy notification error:', error);
-      return { success: false, results: [] };
+      console.error('❌ CONSOLIDATED: Error sending notifications:', error);
+      return {
+        success: false,
+        results: []
+      };
     }
   }
 
   /**
-   * Send notification to a specific user (uses multi-device by default)
+   * Send notification to a single device
    */
-  static async sendNotification(userId: string, payload: NotificationPayload): Promise<boolean> {
-    const result = await this.sendToAllUserDevices(userId, payload);
-    return result.success;
-  }
-
-  /**
-   * Initialize notification settings for a user
-   */
-  static async initializeUserSettings(userId: string, fcmToken: string): Promise<boolean> {
+  private static async sendSingleNotification(
+    userId: string,
+    title: string,
+    body: string,
+    data: Record<string, any>,
+    fcmToken: string
+  ): Promise<{ success: boolean; error?: string }> {
     try {
-      const { error } = await supabase
-        .from('notification_settings')
-        .upsert({
-          user_id: userId,
-          fcm_token: fcmToken,
-          notification_enabled: true,
-          failed_notification_count: 0,
-          last_failure_reason: null
-        });
+      console.log(`🚀 CONSOLIDATED: Sending single notification to token: ${fcmToken.substring(0, 30)}...`);
 
-      if (error) {
-        console.error('Error initializing settings:', error);
-        return false;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('No valid session');
       }
 
-      return true;
-    } catch (error) {
-      console.error('Error during initialization:', error);
-      return false;
-    }
-  }
+      const response = await fetch(this.EDGE_FUNCTION_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          userId,
+          title,
+          body,
+          data,
+          fcm_token: fcmToken
+        })
+      });
 
-  /**
-   * Update FCM token for a user
-   */
-  static async updateFCMToken(userId: string, fcmToken: string): Promise<boolean> {
-    try {
-      const { error } = await supabase
-        .from('notification_settings')
-        .upsert({
-          user_id: userId,
-          fcm_token: fcmToken,
-          notification_enabled: true,
-          failed_notification_count: 0,
-          last_failure_reason: null
-        });
-
-      if (error) {
-        console.error('Error updating FCM token:', error);
-        return false;
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ CONSOLIDATED: Edge function error:', response.status, errorText);
+        return { success: false, error: `HTTP ${response.status}: ${errorText}` };
       }
 
-      return true;
+      const result = await response.json();
+      console.log('✅ CONSOLIDATED: Single notification result:', result);
+
+      return { success: true };
     } catch (error) {
-      console.error('Error during token update:', error);
-      return false;
+      console.error('❌ CONSOLIDATED: Error sending single notification:', error);
+      return { success: false, error: String(error) };
     }
   }
 }
 
-// Enhanced convenience functions for booking notifications
-export const sendBookingConfirmation = async (
+/**
+ * Send booking confirmation notification to customer
+ */
+export async function sendBookingConfirmation(
   customerId: string,
-  shopName: string,
-  serviceNames: string,
+  merchantName: string,
+  serviceName: string,
   date: string,
   time: string,
   bookingId: string
-) => {
-  return ConsolidatedNotificationService.sendToAllUserDevices(customerId, {
-    title: '🎉 Booking Confirmed!',
-    body: `Your appointment at ${shopName} for ${serviceNames} on ${date} at ${time} is confirmed!`,
-    data: {
+): Promise<NotificationResponse> {
+  return ConsolidatedNotificationService.sendToAllDevices(
+    customerId,
+    '🎉 Booking Confirmed!',
+    `Your appointment at ${merchantName} for ${serviceName} on ${date} at ${time} is confirmed!`,
+    {
       type: 'booking_confirmed',
       bookingId,
-      shopName,
-      serviceNames,
+      shopName: merchantName,
+      serviceNames: serviceName,
       date,
       time
     }
-  });
-};
+  );
+}
 
-export const sendNewBookingAlert = async (
+/**
+ * Send new booking alert to merchant
+ */
+export async function sendNewBookingAlert(
   merchantUserId: string,
   customerName: string,
-  serviceNames: string,
+  serviceName: string,
   dateTime: string,
   bookingId: string
-) => {
-  return ConsolidatedNotificationService.sendToAllUserDevices(merchantUserId, {
-    title: '📅 New Booking!',
-    body: `${customerName} has booked ${serviceNames} for ${dateTime}`,
-    data: {
+): Promise<NotificationResponse> {
+  return ConsolidatedNotificationService.sendToAllDevices(
+    merchantUserId,
+    '📅 New Booking!',
+    `${customerName} has booked ${serviceName} for ${dateTime}`,
+    {
       type: 'new_booking',
       bookingId,
       customerName,
-      serviceNames,
+      serviceNames: serviceName,
       dateTime
     }
-  });
-};
+  );
+}
 
-export const sendBookingCancellation = async (
+/**
+ * Send booking cancellation notification
+ */
+export async function sendBookingCancellation(
   userId: string,
   message: string,
   bookingId: string,
   isMerchant: boolean = false
-) => {
-  return ConsolidatedNotificationService.sendToAllUserDevices(userId, {
-    title: isMerchant ? '❌ Booking Cancelled' : '😔 Booking Cancelled',
-    body: message,
-    data: {
+): Promise<NotificationResponse> {
+  return ConsolidatedNotificationService.sendToAllDevices(
+    userId,
+    '❌ Booking Cancelled',
+    message,
+    {
       type: 'booking_cancelled',
       bookingId,
       isMerchant
     }
-  });
-};
+  );
+}
 
-export const sendBookingCompletedReviewRequest = async (
+/**
+ * Send booking completion review request to customer
+ */
+export async function sendBookingCompletedReviewRequest(
   customerId: string,
   merchantName: string,
   bookingId: string
-) => {
-  return ConsolidatedNotificationService.sendToAllUserDevices(customerId, {
-    title: '⭐ How was your visit?',
-    body: `Hope you enjoyed your service at ${merchantName}! Tap to leave a review and help others discover great service.`,
-    data: {
+): Promise<NotificationResponse> {
+  return ConsolidatedNotificationService.sendToAllDevices(
+    customerId,
+    '⭐ How was your visit?',
+    `Hope you enjoyed your service at ${merchantName}! Tap to leave a review.`,
+    {
       type: 'booking_completed',
       bookingId,
-      merchantName,
-      action: 'review'
+      merchantName
     }
-  });
-};
+  );
+}

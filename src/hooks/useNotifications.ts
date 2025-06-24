@@ -32,6 +32,7 @@ export const useNotifications = () => {
   // Reset initialization when user changes
   useEffect(() => {
     if (lastUserId.current !== userId) {
+      console.log('🔄 NOTIFICATION HOOK: User changed, resetting initialization');
       initializationAttempted.current = false;
       lastUserId.current = userId;
       setIsInitialized(false);
@@ -48,7 +49,12 @@ export const useNotifications = () => {
         return;
       }
 
-      console.log('🔔 NOTIFICATION HOOK: Multi-device auto-initialization triggered', { isAuthenticated, userId, userRole });
+      console.log('🔔 NOTIFICATION HOOK: Multi-device auto-initialization triggered', { 
+        isAuthenticated, 
+        userId, 
+        userRole,
+        sessionId: Date.now() // Add session tracking
+      });
       
       if (!isAuthenticated || !userId || !userRole) {
         console.log('🔔 NOTIFICATION HOOK: Skipping - user not authenticated or missing data');
@@ -91,16 +97,16 @@ export const useNotifications = () => {
         setHasPermission(true);
         console.log('✅ NOTIFICATION HOOK: Permission granted, setting up multi-device notifications...');
 
-        // Step 2: Get FCM token and register device
+        // Step 2: Get FCM token and register device with better error handling
         const { setupNotifications } = await import('@/lib/capacitor-firebase');
         
         let fcmToken = null;
         let attempts = 0;
-        const maxAttempts = 2;
+        const maxAttempts = 3;
 
         while (!fcmToken && attempts < maxAttempts) {
           attempts++;
-          console.log(`🔑 NOTIFICATION HOOK: FCM token attempt ${attempts}/${maxAttempts}`);
+          console.log(`🔑 NOTIFICATION HOOK: FCM token attempt ${attempts}/${maxAttempts} for user ${userId}`);
           
           fcmToken = await setupNotifications();
           
@@ -116,11 +122,15 @@ export const useNotifications = () => {
           return;
         }
 
-        // Step 3: Register current device using multi-device service
+        // Step 3: Register current device using multi-device service with enhanced logging
         const deviceType = MultiDeviceNotificationService.getDeviceType();
         const deviceName = MultiDeviceNotificationService.getDeviceName();
         
-        console.log('📱 NOTIFICATION HOOK: Registering device:', deviceType, deviceName);
+        console.log('📱 NOTIFICATION HOOK: Registering device for user:', userId, {
+          deviceType,
+          deviceName,
+          tokenPrefix: fcmToken.substring(0, 30) + '...'
+        });
         
         const deviceRegistered = await MultiDeviceNotificationService.registerDeviceToken(
           fcmToken,
@@ -141,13 +151,16 @@ export const useNotifications = () => {
           console.warn('⚠️ NOTIFICATION HOOK: Legacy settings initialization failed, but device registered');
         }
 
-        console.log('✅ NOTIFICATION HOOK: Multi-device notification setup successful');
+        // Step 5: Debug current device tokens
+        await MultiDeviceNotificationService.debugUserTokens(userId);
+
+        console.log('✅ NOTIFICATION HOOK: Multi-device notification setup successful for user:', userId);
         setIsInitialized(true);
         setCurrentDeviceRegistered(true);
         setInitializationError(null);
         setRetryCount(0);
         
-        // Step 5: Setup foreground messaging handler
+        // Step 6: Setup foreground messaging handler
         setupForegroundMessaging((payload) => {
           console.log('📱 NOTIFICATION HOOK: Foreground notification received:', payload);
           toast(payload.notification?.title || 'Notification', {
@@ -200,6 +213,9 @@ export const useNotifications = () => {
             setCurrentDeviceRegistered(true);
             setInitializationError(null);
             toast.success('Device registered for notifications! 🔔');
+            
+            // Debug tokens after manual registration
+            await MultiDeviceNotificationService.debugUserTokens(userId);
           } else {
             toast.error('Failed to register device for notifications');
           }
