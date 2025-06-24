@@ -10,7 +10,7 @@ export interface DeviceToken {
 
 export class MultiDeviceNotificationService {
   /**
-   * Register a new device token for the current user
+   * Register a new device token for the current user with enhanced error handling
    */
   static async registerDeviceToken(
     fcmToken: string,
@@ -28,27 +28,51 @@ export class MultiDeviceNotificationService {
 
       const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : null;
 
-      // Since RPC function types aren't available, we'll use raw SQL approach
+      // Use the database function for reliable token registration
       const { data, error } = await supabase
-        .from('device_tokens')
-        .upsert({
-          user_id: user.id,
-          fcm_token: fcmToken,
-          device_type: deviceType,
-          device_name: deviceName,
-          user_agent: userAgent,
-          last_used_at: new Date().toISOString(),
-          is_active: true
-        }, {
-          onConflict: 'user_id,fcm_token'
+        .rpc('register_device_token', {
+          p_user_id: user.id,
+          p_fcm_token: fcmToken,
+          p_device_type: deviceType,
+          p_device_name: deviceName,
+          p_user_agent: userAgent
         });
 
       if (error) {
-        console.error('❌ MULTI-DEVICE: Error registering token:', error);
-        return false;
+        console.error('❌ MULTI-DEVICE: Error registering token via RPC:', error);
+        
+        // Fallback to direct insert
+        const { error: insertError } = await supabase
+          .from('device_tokens')
+          .upsert({
+            user_id: user.id,
+            fcm_token: fcmToken,
+            device_type: deviceType,
+            device_name: deviceName,
+            user_agent: userAgent,
+            last_used_at: new Date().toISOString(),
+            is_active: true
+          }, {
+            onConflict: 'user_id,fcm_token'
+          });
+
+        if (insertError) {
+          console.error('❌ MULTI-DEVICE: Error registering token via direct insert:', insertError);
+          return false;
+        }
       }
 
-      console.log('✅ MULTI-DEVICE: Device token registered successfully');
+      console.log('✅ MULTI-DEVICE: Device token registered successfully:', data);
+      
+      // Also update the legacy notification_settings for backward compatibility
+      await supabase
+        .from('notification_settings')
+        .upsert({
+          user_id: user.id,
+          fcm_token: fcmToken,
+          notification_enabled: true
+        });
+
       return true;
     } catch (error) {
       console.error('❌ MULTI-DEVICE: Error in registerDeviceToken:', error);
@@ -78,6 +102,8 @@ export class MultiDeviceNotificationService {
         console.error('❌ MULTI-DEVICE: Error fetching device tokens:', error);
         return [];
       }
+
+      console.log(`📱 MULTI-DEVICE: Found ${data?.length || 0} active device tokens`);
 
       return (data || []).map(token => ({
         fcm_token: token.fcm_token,
@@ -162,9 +188,9 @@ export class MultiDeviceNotificationService {
     const userAgent = navigator.userAgent;
     
     // Extract browser name
-    if (userAgent.includes('Chrome')) return 'Chrome Browser';
+    if (userAgent.includes('Chrome') && !userAgent.includes('Edge')) return 'Chrome Browser';
     if (userAgent.includes('Firefox')) return 'Firefox Browser';
-    if (userAgent.includes('Safari')) return 'Safari Browser';
+    if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) return 'Safari Browser';
     if (userAgent.includes('Edge')) return 'Edge Browser';
     
     return 'Web Browser';

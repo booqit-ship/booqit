@@ -70,102 +70,127 @@ serve(async (req) => {
     let targetFcmToken = fcm_token;
     let userSettings = null;
 
-    // If direct FCM token is provided, use it (for multi-device notifications)
+    // Priority 1: If direct FCM token is provided, use it (for multi-device notifications)
     if (fcm_token) {
       console.log('🎯 Using direct FCM token for notification:', fcm_token.substring(0, 20) + '...');
       targetFcmToken = fcm_token;
     } else {
       console.log('🔍 Looking up notification settings for user:', userId);
 
-      // Get user's notification settings - try notification_settings table first
-      const { data: notificationSettings, error: notificationError } = await supabaseClient
-        .from('notification_settings')
-        .select('*')
+      // Priority 2: Try device_tokens table first (multi-device support)
+      const { data: deviceTokens, error: deviceError } = await supabaseClient
+        .from('device_tokens')
+        .select('fcm_token, device_type, device_name, is_active')
         .eq('user_id', userId)
-        .maybeSingle();
+        .eq('is_active', true)
+        .order('last_used_at', { ascending: false })
+        .limit(1);
 
-      if (notificationError) {
-        console.error('❌ Error fetching notification settings:', notificationError);
-      } else if (notificationSettings) {
+      if (!deviceError && deviceTokens && deviceTokens.length > 0) {
+        targetFcmToken = deviceTokens[0].fcm_token;
         userSettings = {
-          fcm_token: notificationSettings.fcm_token,
-          notification_enabled: notificationSettings.notification_enabled
+          fcm_token: targetFcmToken,
+          notification_enabled: true
         };
-        targetFcmToken = notificationSettings.fcm_token;
-        console.log('✅ Found notification settings:', {
+        console.log('✅ Found device token from device_tokens table:', {
           user_id: userId,
-          has_fcm_token: !!userSettings.fcm_token,
-          notification_enabled: userSettings.notification_enabled
+          device_type: deviceTokens[0].device_type,
+          device_name: deviceTokens[0].device_name,
+          has_fcm_token: !!targetFcmToken
         });
-      }
-
-      // Fallback to profiles table if no notification settings found
-      if (!userSettings) {
-        console.log('⚠️ No notification settings found, checking profiles table...');
+      } else {
+        // Priority 3: Fallback to notification_settings table
+        console.log('⚠️ No device tokens found, checking notification_settings table...');
         
-        const { data: profile, error: profileError } = await supabaseClient
-          .from('profiles')
-          .select('fcm_token, notification_enabled')
-          .eq('id', userId)
+        const { data: notificationSettings, error: notificationError } = await supabaseClient
+          .from('notification_settings')
+          .select('*')
+          .eq('user_id', userId)
           .maybeSingle();
 
-        if (profileError) {
-          console.error('❌ Profile lookup error:', profileError);
-          
-          // Log this attempt for visibility
-          await supabaseClient.from('notification_logs')
-            .insert({
-              user_id: userId,
-              title,
-              body,
-              type: data?.type || 'general',
-              status: 'failed',
-              error_message: `Profile lookup error: ${profileError.message}`
-            });
-          
-          return new Response(
-            JSON.stringify({ 
-              error: 'Profile lookup failed', 
-              details: profileError.message
-            }),
-            {
-              status: 400,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-            }
-          );
+        if (notificationError) {
+          console.error('❌ Error fetching notification settings:', notificationError);
+        } else if (notificationSettings) {
+          userSettings = {
+            fcm_token: notificationSettings.fcm_token,
+            notification_enabled: notificationSettings.notification_enabled
+          };
+          targetFcmToken = notificationSettings.fcm_token;
+          console.log('✅ Found notification settings:', {
+            user_id: userId,
+            has_fcm_token: !!userSettings.fcm_token,
+            notification_enabled: userSettings.notification_enabled
+          });
         }
 
-        if (!profile) {
-          console.warn('⚠️ No profile found for user:', userId);
+        // Priority 4: Final fallback to profiles table
+        if (!userSettings) {
+          console.log('⚠️ No notification settings found, checking profiles table...');
           
-          // Log this attempt for visibility
-          await supabaseClient.from('notification_logs')
-            .insert({
-              user_id: userId,
-              title,
-              body,
-              type: data?.type || 'general',
-              status: 'failed',
-              error_message: 'No profile found - user needs to enable notifications in the app'
-            });
-          
-          return new Response(
-            JSON.stringify({ 
-              error: 'No profile found for user',
-              message: 'User needs to enable notifications in the app first'
-            }),
-            {
-              status: 400,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-            }
-          );
-        }
+          const { data: profile, error: profileError } = await supabaseClient
+            .from('profiles')
+            .select('fcm_token, notification_enabled')
+            .eq('id', userId)
+            .maybeSingle();
 
-        userSettings = {
-          fcm_token: profile.fcm_token,
-          notification_enabled: profile.notification_enabled
-        };
-        targetFcmToken = profile.fcm_token;
+          if (profileError) {
+            console.error('❌ Profile lookup error:', profileError);
+            
+            // Log this attempt for visibility
+            await supabaseClient.from('notification_logs')
+              .insert({
+                user_id: userId,
+                title,
+                body,
+                type: data?.type || 'general',
+                status: 'failed',
+                error_message: `Profile lookup error: ${profileError.message}`
+              });
+            
+            return new Response(
+              JSON.stringify({ 
+                error: 'Profile lookup failed', 
+                details: profileError.message
+              }),
+              {
+                status: 400,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+              }
+            );
+          }
+
+          if (!profile) {
+            console.warn('⚠️ No profile found for user:', userId);
+            
+            // Log this attempt for visibility
+            await supabaseClient.from('notification_logs')
+              .insert({
+                user_id: userId,
+                title,
+                body,
+                type: data?.type || 'general',
+                status: 'failed',
+                error_message: 'No profile found - user needs to enable notifications in the app'
+              });
+            
+            return new Response(
+              JSON.stringify({ 
+                error: 'No profile found for user',
+                message: 'User needs to enable notifications in the app first'
+              }),
+              {
+                status: 400,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+              }
+            );
+          }
+
+          userSettings = {
+            fcm_token: profile.fcm_token,
+            notification_enabled: profile.notification_enabled
+          };
+          targetFcmToken = profile.fcm_token;
+        }
       }
 
       // Check if notifications are enabled (only if we have user settings)

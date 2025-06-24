@@ -1,94 +1,91 @@
 
 import { useCallback } from "react";
-import { ConsolidatedNotificationService } from "@/services/consolidatedNotificationService";
+import { 
+  sendBookingConfirmation, 
+  sendNewBookingAlert, 
+  sendBookingCancellation, 
+  sendBookingCompletedReviewRequest 
+} from "@/services/consolidatedNotificationService";
 
-// Define a type for the booking completion data
-interface BookingCompletionData {
-  customerId: string;
-  merchantName: string;
-  bookingId: string;
-}
-
-// This hook handles all booking-related notifications
+// This hook handles all booking-related notifications with multi-device support
 export function useBookingCompletion() {
-  // Called when marking booking as completed
+  // Called when marking booking as completed - sends review request to all customer devices
   const onBookingCompleted = useCallback(async (customerId: string, merchantName: string, bookingId: string) => {
     if (!customerId || customerId === 'undefined' || customerId.trim().length === 0) {
-      return;
+      console.warn('⚠️ Invalid customer ID for booking completion notification');
+      return false;
     }
     
     try {
-      const success = await ConsolidatedNotificationService.sendNotification(customerId, {
-        title: "✨ Looking fabulous? We hope so!",
-        body: `How was your experience at ${merchantName}? Share your thoughts and help others discover great service! 💫`,
-        data: {
-          type: 'booking_completed',
-          bookingId,
-          merchantName,
-          action: 'review'
-        }
-      });
+      console.log('📲 Sending booking completion notification to all devices for customer:', customerId);
+      const result = await sendBookingCompletedReviewRequest(customerId, merchantName, bookingId);
       
-      return success;
+      console.log('📊 Booking completion notification result:', result);
+      return result.success;
     } catch (error) {
-      console.error('Error sending booking completion notification:', error);
+      console.error('❌ Error sending booking completion notification:', error);
       return false;
     }
   }, []);
 
-  // Called when booking is confirmed
+  // Called when booking is confirmed - notifies all customer devices
   const onBookingConfirmed = useCallback(async (customerId: string, merchantName: string, serviceName: string, date: string, time: string, bookingId: string) => {
-    if (!customerId) return false;
+    if (!customerId) {
+      console.warn('⚠️ Invalid customer ID for booking confirmation notification');
+      return false;
+    }
     
     try {
-      return await ConsolidatedNotificationService.sendNotification(customerId, {
-        title: "🎉 Booking Confirmed!",
-        body: `Your appointment at ${merchantName} for ${serviceName} on ${date} at ${time} is confirmed!`,
-        data: {
-          type: 'booking_confirmed',
-          bookingId
-        }
-      });
+      console.log('📲 Sending booking confirmation to all devices for customer:', customerId);
+      const result = await sendBookingConfirmation(customerId, merchantName, serviceName, date, time, bookingId);
+      
+      console.log('📊 Booking confirmation notification result:', result);
+      return result.success;
     } catch (error) {
-      console.error('Error sending booking confirmation notification:', error);
+      console.error('❌ Error sending booking confirmation notification:', error);
       return false;
     }
   }, []);
 
-  // Called when booking is cancelled
-  const onBookingCancelled = useCallback(async (customerId: string, merchantName: string, bookingId: string) => {
-    if (!customerId) return false;
+  // Called when merchant cancels booking - notifies all customer devices
+  const onBookingCancelled = useCallback(async (customerId: string, merchantName: string, bookingId: string, cancelledByMerchant: boolean = false) => {
+    if (!customerId) {
+      console.warn('⚠️ Invalid customer ID for booking cancellation notification');
+      return false;
+    }
     
     try {
-      return await ConsolidatedNotificationService.sendNotification(customerId, {
-        title: "Booking Cancelled",
-        body: `Your booking at ${merchantName} has been cancelled. We apologize for any inconvenience.`,
-        data: {
-          type: 'booking_cancelled',
-          bookingId
-        }
-      });
+      const message = cancelledByMerchant 
+        ? `Your booking at ${merchantName} has been cancelled by the merchant. We apologize for any inconvenience.`
+        : `Your booking at ${merchantName} has been cancelled.`;
+      
+      console.log('📲 Sending booking cancellation to all devices for customer:', customerId);
+      const result = await sendBookingCancellation(customerId, message, bookingId, false);
+      
+      console.log('📊 Booking cancellation notification result:', result);
+      return result.success;
     } catch (error) {
-      console.error('Error sending booking cancellation notification:', error);
+      console.error('❌ Error sending booking cancellation notification:', error);
       return false;
     }
   }, []);
 
-  // Called when new booking is created (notify merchant)
+  // Called when new booking is created - notifies all merchant devices
   const onNewBooking = useCallback(async (merchantUserId: string, customerName: string, serviceName: string, date: string, time: string, bookingId: string) => {
-    if (!merchantUserId) return false;
+    if (!merchantUserId) {
+      console.warn('⚠️ Invalid merchant user ID for new booking notification');
+      return false;
+    }
     
     try {
-      return await ConsolidatedNotificationService.sendNotification(merchantUserId, {
-        title: "New Booking! 📅",
-        body: `${customerName} has booked ${serviceName} for ${date} at ${time}`,
-        data: {
-          type: 'new_booking',
-          bookingId
-        }
-      });
+      const dateTime = `${date} at ${time}`;
+      console.log('📲 Sending new booking notification to all devices for merchant:', merchantUserId);
+      const result = await sendNewBookingAlert(merchantUserId, customerName, serviceName, dateTime, bookingId);
+      
+      console.log('📊 New booking notification result:', result);
+      return result.success;
     } catch (error) {
-      console.error('Error sending new booking notification:', error);
+      console.error('❌ Error sending new booking notification:', error);
       return false;
     }
   }, []);
