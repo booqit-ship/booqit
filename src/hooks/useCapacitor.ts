@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { StatusBar, Style } from '@capacitor/status-bar';
+import { PushNotifications } from '@capacitor/push-notifications';
 import { requestNotificationPermission, setupNotifications, setupForegroundMessaging } from '@/lib/capacitor-firebase';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -37,6 +38,38 @@ export const useCapacitor = () => {
           await StatusBar.setStyle({ style: Style.Default });
           await StatusBar.setBackgroundColor({ color: '#7E57C2' });
 
+          // Initialize native push notifications for Android
+          if (Capacitor.getPlatform() === 'android') {
+            console.log('📱 Initializing Android native push notifications...');
+            
+            // Request permissions for native push notifications
+            const permStatus = await PushNotifications.requestPermissions();
+            console.log('📱 Native push permission status:', permStatus);
+            
+            if (permStatus.receive === 'granted') {
+              // Register for push notifications
+              await PushNotifications.register();
+              console.log('📱 Registered for native push notifications');
+              
+              // Add listeners for push notifications
+              PushNotifications.addListener('registration', (token) => {
+                console.log('📱 Native push registration token:', token.value);
+              });
+              
+              PushNotifications.addListener('registrationError', (error) => {
+                console.error('❌ Native push registration error:', error);
+              });
+              
+              PushNotifications.addListener('pushNotificationReceived', (notification) => {
+                console.log('📱 Native push notification received:', notification);
+              });
+              
+              PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+                console.log('📱 Native push notification action performed:', notification);
+              });
+            }
+          }
+
           // Handle app state changes
           App.addListener('appStateChange', ({ isActive }) => {
             console.log('📱 App state changed. Active:', isActive);
@@ -61,16 +94,16 @@ export const useCapacitor = () => {
         }
       }
 
-      // Initialize notifications for both platforms
+      // Initialize web notifications for both platforms (web and native as fallback)
       try {
         const hasPermission = await requestNotificationPermission();
         if (hasPermission) {
           await setupNotifications();
           setupForegroundMessaging();
-          console.log('✅ Notifications initialized');
+          console.log('✅ Web notifications initialized');
         }
       } catch (error) {
-        console.error('❌ Error initializing notifications:', error);
+        console.error('❌ Error initializing web notifications:', error);
       }
 
       setIsReady(true);
