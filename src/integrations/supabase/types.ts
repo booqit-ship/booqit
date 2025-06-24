@@ -940,17 +940,31 @@ export type Database = {
         Returns: Json
       }
       create_guest_booking_safe: {
-        Args: {
-          p_guest_name: string
-          p_guest_phone: string
-          p_guest_email: string
-          p_merchant_id: string
-          p_service_ids: string[]
-          p_staff_id: string
-          p_date: string
-          p_time_slot: string
-          p_total_duration: number
-        }
+        Args:
+          | {
+              p_guest_name: string
+              p_guest_phone: string
+              p_guest_email: string
+              p_merchant_id: string
+              p_service_ids: string[]
+              p_staff_id: string
+              p_date: string
+              p_time_slot: string
+              p_total_duration: number
+            }
+          | {
+              p_guest_name: string
+              p_guest_phone: string
+              p_guest_email: string
+              p_merchant_id: string
+              p_service_ids: string[]
+              p_staff_id: string
+              p_date: string
+              p_time_slot: string
+              p_total_duration: number
+              p_payment_amount?: number
+              p_payment_method?: string
+            }
         Returns: Json
       }
       create_slot_lock: {
