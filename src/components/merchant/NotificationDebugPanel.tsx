@@ -23,6 +23,13 @@ const NotificationDebugPanel: React.FC<NotificationDebugPanelProps> = ({ merchan
     try {
       console.log('🔍 Checking customer notification status for:', userId);
       
+      // Check device_tokens table first
+      const { data: deviceTokens } = await supabase
+        .from('device_tokens')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_active', true);
+      
       // Check notification_settings table
       const { data: notificationSettings } = await supabase
         .from('notification_settings')
@@ -38,9 +45,10 @@ const NotificationDebugPanel: React.FC<NotificationDebugPanelProps> = ({ merchan
         .single();
       
       return {
+        deviceTokens,
         notificationSettings,
         profile,
-        hasToken: !!(notificationSettings?.fcm_token || profile?.fcm_token),
+        hasToken: !!(deviceTokens?.length > 0 || notificationSettings?.fcm_token || profile?.fcm_token),
         notificationsEnabled: notificationSettings?.notification_enabled ?? profile?.notification_enabled ?? false
       };
     } catch (error) {
@@ -73,18 +81,19 @@ const NotificationDebugPanel: React.FC<NotificationDebugPanelProps> = ({ merchan
         return;
       }
       
-      // Send test notification
-      const success = await ConsolidatedNotificationService.sendNotification(testUserId, {
-        title: '🧪 Test Notification from Merchant',
-        body: 'This is a test notification to verify the system is working correctly!',
-        data: {
+      // Send test notification using ConsolidatedNotificationService
+      const result = await ConsolidatedNotificationService.sendToAllDevices(
+        testUserId,
+        '🧪 Test Notification from Merchant',
+        'This is a test notification to verify the system is working correctly!',
+        {
           type: 'test',
           merchantId: merchantId,
           timestamp: new Date().toISOString()
         }
-      });
+      );
       
-      if (success) {
+      if (result.success) {
         toast.success('Test notification sent successfully!');
       } else {
         toast.error('Failed to send test notification - check console for details');
@@ -105,18 +114,20 @@ const NotificationDebugPanel: React.FC<NotificationDebugPanelProps> = ({ merchan
 
     setIsLoading(true);
     try {
-      const success = await ConsolidatedNotificationService.sendNotification(testUserId, {
-        title: '✨ Looking fabulous? We hope so!',
-        body: `How was your experience at Test Salon? Share your thoughts and help others discover great service! 💫`,
-        data: {
+      // Send booking completion notification using ConsolidatedNotificationService
+      const result = await ConsolidatedNotificationService.sendToAllDevices(
+        testUserId,
+        '✨ Looking fabulous? We hope so!',
+        `How was your experience at Test Salon? Share your thoughts and help others discover great service! 💫`,
+        {
           type: 'booking_completed',
           bookingId: 'test-booking-123',
           merchantName: 'Test Salon',
           action: 'review'
         }
-      });
+      );
       
-      if (success) {
+      if (result.success) {
         toast.success('Booking completion notification sent successfully!');
       } else {
         toast.error('Failed to send booking completion notification');
@@ -186,6 +197,7 @@ const NotificationDebugPanel: React.FC<NotificationDebugPanelProps> = ({ merchan
             <div className="space-y-1 text-gray-600">
               <div>Name: {debugInfo.profile?.name || 'N/A'}</div>
               <div>Email: {debugInfo.profile?.email || 'N/A'}</div>
+              <div>Active Device Tokens: {debugInfo.deviceTokens?.length || 0}</div>
               <div>Has FCM Token: {debugInfo.hasToken ? '✅' : '❌'}</div>
               <div>Notifications Enabled: {debugInfo.notificationsEnabled ? '✅' : '❌'}</div>
               {debugInfo.notificationSettings && (
