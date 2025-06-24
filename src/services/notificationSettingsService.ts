@@ -1,6 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { RobustNotificationService } from './robustNotificationService';
+import { MultiDeviceNotificationService } from './multiDeviceNotificationService';
 
 export interface UserNotificationSettings {
   user_id: string;
@@ -14,7 +14,7 @@ export interface UserNotificationSettings {
 }
 
 /**
- * Service for managing user notification settings
+ * Service for managing user notification settings with multi-device support
  */
 export class NotificationSettingsService {
   /**
@@ -22,7 +22,6 @@ export class NotificationSettingsService {
    */
   static async getUserSettings(userId: string): Promise<UserNotificationSettings | null> {
     try {
-      // Ensure user is authenticated before attempting to fetch
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || user.id !== userId) {
         console.error('User not authenticated or ID mismatch');
@@ -52,7 +51,6 @@ export class NotificationSettingsService {
    */
   static async updateNotificationEnabled(userId: string, enabled: boolean): Promise<boolean> {
     try {
-      // Ensure user is authenticated
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || user.id !== userId) {
         console.error('User not authenticated or ID mismatch');
@@ -80,11 +78,10 @@ export class NotificationSettingsService {
   }
 
   /**
-   * Initialize notification settings for a new user
+   * Initialize notification settings for a new user with multi-device support
    */
   static async initializeForUser(userId: string, fcmToken?: string): Promise<boolean> {
     try {
-      // Ensure user is authenticated
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || user.id !== userId) {
         console.error('User not authenticated or ID mismatch for initialization');
@@ -93,7 +90,8 @@ export class NotificationSettingsService {
 
       console.log('🔧 NOTIF SETTINGS: Initializing for authenticated user:', userId);
 
-      const { error } = await supabase
+      // Initialize legacy notification_settings table
+      const { error: settingsError } = await supabase
         .from('notification_settings')
         .upsert({
           user_id: userId,
@@ -105,9 +103,25 @@ export class NotificationSettingsService {
           onConflict: 'user_id'
         });
 
-      if (error) {
-        console.error('❌ NOTIF SETTINGS: Error initializing:', error);
+      if (settingsError) {
+        console.error('❌ NOTIF SETTINGS: Error initializing legacy settings:', settingsError);
         return false;
+      }
+
+      // Register device token if provided
+      if (fcmToken) {
+        const deviceType = MultiDeviceNotificationService.getDeviceType();
+        const deviceName = MultiDeviceNotificationService.getDeviceName();
+        
+        const deviceSuccess = await MultiDeviceNotificationService.registerDeviceToken(
+          fcmToken,
+          deviceType,
+          deviceName
+        );
+
+        if (!deviceSuccess) {
+          console.warn('⚠️ NOTIF SETTINGS: Failed to register device token, but legacy settings initialized');
+        }
       }
 
       console.log('✅ NOTIF SETTINGS: Successfully initialized for user:', userId);
@@ -119,18 +133,41 @@ export class NotificationSettingsService {
   }
 
   /**
-   * Update FCM token for user
+   * Update FCM token for user (legacy support, new tokens should use MultiDeviceNotificationService)
    */
   static async updateFCMToken(userId: string, fcmToken: string): Promise<boolean> {
     try {
-      // Ensure user is authenticated
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || user.id !== userId) {
         console.error('User not authenticated or ID mismatch for FCM token update');
         return false;
       }
 
-      return RobustNotificationService.updateFCMToken(userId, fcmToken);
+      // Update legacy table
+      const { error } = await supabase
+        .from('notification_settings')
+        .update({
+          fcm_token: fcmToken,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId);
+
+      if (error) {
+        console.error('Error updating FCM token in legacy table:', error);
+        return false;
+      }
+
+      // Also register as new device token
+      const deviceType = MultiDeviceNotificationService.getDeviceType();
+      const deviceName = MultiDeviceNotificationService.getDeviceName();
+      
+      await MultiDeviceNotificationService.registerDeviceToken(
+        fcmToken,
+        deviceType,
+        deviceName
+      );
+
+      return true;
     } catch (error) {
       console.error('Error in updateFCMToken:', error);
       return false;
@@ -138,18 +175,18 @@ export class NotificationSettingsService {
   }
 
   /**
-   * Clear FCM token (on logout)
+   * Clear FCM token (on logout) - clears all device tokens
    */
   static async clearFCMToken(userId: string): Promise<boolean> {
     try {
-      // Ensure user is authenticated
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || user.id !== userId) {
         console.error('User not authenticated or ID mismatch for FCM token clear');
         return false;
       }
 
-      const { error } = await supabase
+      // Clear legacy table
+      const { error: legacyError } = await supabase
         .from('notification_settings')
         .update({ 
           fcm_token: null,
@@ -157,8 +194,21 @@ export class NotificationSettingsService {
         })
         .eq('user_id', userId);
 
-      if (error) {
-        console.error('Error clearing FCM token:', error);
+      if (legacyError) {
+        console.error('Error clearing FCM token from legacy table:', legacyError);
+      }
+
+      // Deactivate all device tokens
+      const { error: deviceError } = await supabase
+        .from('device_tokens')
+        .update({ 
+          is_active: false,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId);
+
+      if (deviceError) {
+        console.error('Error deactivating device tokens:', deviceError);
         return false;
       }
 
@@ -174,7 +224,6 @@ export class NotificationSettingsService {
    */
   static async resetFailureCount(userId: string): Promise<boolean> {
     try {
-      // Ensure user is authenticated
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || user.id !== userId) {
         console.error('User not authenticated or ID mismatch');

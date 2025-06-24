@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { requestNotificationPermission, setupForegroundMessaging } from '@/lib/capacitor-firebase';
+import { MultiDeviceNotificationService } from '@/services/multiDeviceNotificationService';
 import { NotificationSettingsService } from '@/services/notificationSettingsService';
 import { toast } from 'sonner';
 
@@ -12,6 +13,7 @@ export const useNotifications = () => {
   const [isSupported, setIsSupported] = useState(true);
   const [initializationError, setInitializationError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [currentDeviceRegistered, setCurrentDeviceRegistered] = useState(false);
   
   // Use refs to prevent infinite loops
   const initializationAttempted = useRef(false);
@@ -35,18 +37,18 @@ export const useNotifications = () => {
       setIsInitialized(false);
       setInitializationError(null);
       setRetryCount(0);
+      setCurrentDeviceRegistered(false);
     }
   }, [userId]);
 
-  // Auto-initialize FCM token only once per user session
+  // Auto-initialize multi-device notifications
   useEffect(() => {
     const autoInitialize = async () => {
-      // Prevent multiple simultaneous initializations
       if (isInitializing.current || initializationAttempted.current) {
         return;
       }
 
-      console.log('🔔 NOTIFICATION HOOK: Auto-initialization triggered', { isAuthenticated, userId, userRole });
+      console.log('🔔 NOTIFICATION HOOK: Multi-device auto-initialization triggered', { isAuthenticated, userId, userRole });
       
       if (!isAuthenticated || !userId || !userRole) {
         console.log('🔔 NOTIFICATION HOOK: Skipping - user not authenticated or missing data');
@@ -60,14 +62,13 @@ export const useNotifications = () => {
         return;
       }
 
-      // Mark as attempted to prevent loops
       initializationAttempted.current = true;
       isInitializing.current = true;
 
       try {
         setInitializationError(null);
 
-        console.log('🔔 NOTIFICATION HOOK: Starting FCM token registration for user:', userId, 'role:', userRole);
+        console.log('🔔 NOTIFICATION HOOK: Starting multi-device notification setup for user:', userId, 'role:', userRole);
 
         // Step 1: Request permission if not granted
         let permission = Notification.permission;
@@ -88,9 +89,9 @@ export const useNotifications = () => {
         }
 
         setHasPermission(true);
-        console.log('✅ NOTIFICATION HOOK: Permission granted, initializing notifications...');
+        console.log('✅ NOTIFICATION HOOK: Permission granted, setting up multi-device notifications...');
 
-        // Step 2: Get FCM token with retry logic
+        // Step 2: Get FCM token and register device
         const { setupNotifications } = await import('@/lib/capacitor-firebase');
         
         let fcmToken = null;
@@ -115,29 +116,47 @@ export const useNotifications = () => {
           return;
         }
 
-        // Step 3: Initialize notification settings with proper authentication
-        const success = await NotificationSettingsService.initializeForUser(userId, fcmToken);
+        // Step 3: Register current device using multi-device service
+        const deviceType = MultiDeviceNotificationService.getDeviceType();
+        const deviceName = MultiDeviceNotificationService.getDeviceName();
         
-        if (success) {
-          console.log('✅ NOTIFICATION HOOK: FCM token registration successful');
-          setIsInitialized(true);
-          setInitializationError(null);
-          setRetryCount(0);
-          
-          // Step 4: Setup foreground messaging handler
-          setupForegroundMessaging((payload) => {
-            console.log('📱 NOTIFICATION HOOK: Foreground notification received:', payload);
-            toast(payload.notification?.title || 'Notification', {
-              description: payload.notification?.body,
-              duration: 5000,
-            });
-          });
-        } else {
-          console.error('❌ NOTIFICATION HOOK: FCM token registration failed');
-          setInitializationError('initialization_failed');
+        console.log('📱 NOTIFICATION HOOK: Registering device:', deviceType, deviceName);
+        
+        const deviceRegistered = await MultiDeviceNotificationService.registerDeviceToken(
+          fcmToken,
+          deviceType,
+          deviceName
+        );
+
+        if (!deviceRegistered) {
+          console.error('❌ NOTIFICATION HOOK: Failed to register device token');
+          setInitializationError('device_registration_failed');
+          return;
         }
+
+        // Step 4: Initialize legacy notification settings for backward compatibility
+        const legacySuccess = await NotificationSettingsService.initializeForUser(userId, fcmToken);
+        
+        if (!legacySuccess) {
+          console.warn('⚠️ NOTIFICATION HOOK: Legacy settings initialization failed, but device registered');
+        }
+
+        console.log('✅ NOTIFICATION HOOK: Multi-device notification setup successful');
+        setIsInitialized(true);
+        setCurrentDeviceRegistered(true);
+        setInitializationError(null);
+        setRetryCount(0);
+        
+        // Step 5: Setup foreground messaging handler
+        setupForegroundMessaging((payload) => {
+          console.log('📱 NOTIFICATION HOOK: Foreground notification received:', payload);
+          toast(payload.notification?.title || 'Notification', {
+            description: payload.notification?.body,
+            duration: 5000,
+          });
+        });
       } catch (error: any) {
-        console.error('❌ NOTIFICATION HOOK: Error during auto-initialization:', error);
+        console.error('❌ NOTIFICATION HOOK: Error during multi-device auto-initialization:', error);
         setInitializationError(error?.message || String(error));
       } finally {
         isInitializing.current = false;
@@ -159,20 +178,30 @@ export const useNotifications = () => {
       setHasPermission(permission);
 
       if (permission && userId && userRole) {
-        console.log('🔔 MANUAL: Permission granted, initializing notifications...');
+        console.log('🔔 MANUAL: Permission granted, setting up multi-device notifications...');
         
         const { setupNotifications } = await import('@/lib/capacitor-firebase');
         const fcmToken = await setupNotifications();
         
         if (fcmToken) {
-          const success = await NotificationSettingsService.initializeForUser(userId, fcmToken);
+          const deviceType = MultiDeviceNotificationService.getDeviceType();
+          const deviceName = MultiDeviceNotificationService.getDeviceName();
           
-          if (success) {
+          const deviceSuccess = await MultiDeviceNotificationService.registerDeviceToken(
+            fcmToken,
+            deviceType,
+            deviceName
+          );
+          
+          const legacySuccess = await NotificationSettingsService.initializeForUser(userId, fcmToken);
+          
+          if (deviceSuccess) {
             setIsInitialized(true);
+            setCurrentDeviceRegistered(true);
             setInitializationError(null);
-            toast.success('Notifications enabled successfully! 🔔');
+            toast.success('Device registered for notifications! 🔔');
           } else {
-            toast.error('Failed to initialize notifications');
+            toast.error('Failed to register device for notifications');
           }
         } else {
           toast.error('Failed to get notification token');
@@ -203,13 +232,14 @@ export const useNotifications = () => {
       return false;
     }
 
-    console.log('🔄 RETRY: Retrying notification initialization...');
+    console.log('🔄 RETRY: Retrying multi-device notification initialization...');
     
     // Reset flags to allow retry
     initializationAttempted.current = false;
     isInitializing.current = false;
     setInitializationError(null);
     setIsInitialized(false);
+    setCurrentDeviceRegistered(false);
     
     // Trigger re-initialization
     setTimeout(() => {
@@ -225,6 +255,7 @@ export const useNotifications = () => {
     isSupported,
     initializationError,
     retryCount,
+    currentDeviceRegistered,
     requestPermissionManually,
     retryInitialization
   };
