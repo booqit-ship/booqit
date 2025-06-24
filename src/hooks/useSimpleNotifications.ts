@@ -4,11 +4,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { TokenCleanupService } from '@/services/TokenCleanupService';
+import { Capacitor } from '@capacitor/core';
 
-// Circuit breaker for failed registration attempts
+// Circuit breaker configuration
 const MAX_RETRY_ATTEMPTS = 3;
-const RETRY_COOLDOWN = 60000; // 1 minute
-const REGISTRATION_TIMEOUT = 30000; // 30 seconds
+const RETRY_COOLDOWN = 30000; // 30 seconds
+const REGISTRATION_TIMEOUT = 20000; // 20 seconds
 
 export const useSimpleNotifications = () => {
   const { isAuthenticated, userId } = useAuth();
@@ -20,19 +21,33 @@ export const useSimpleNotifications = () => {
   const lastRetryTime = useRef(0);
   const registrationInProgress = useRef(false);
 
-  // Simple device type detection
-  const getDeviceType = (): string => {
+  // Cross-device detection
+  const getDeviceInfo = () => {
     const ua = navigator.userAgent;
-    if (/iPhone|iPad|iPod/i.test(ua)) return 'ios';
-    if (/Android/i.test(ua)) return 'android';
+    return {
+      isNative: Capacitor.isNativePlatform(),
+      platform: Capacitor.getPlatform(),
+      isMobile: /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua),
+      isAndroid: /Android/i.test(ua),
+      isiOS: /iPhone|iPad|iPod/i.test(ua),
+      isChrome: /Chrome/i.test(ua) && !/Edge/i.test(ua),
+      userAgent: ua
+    };
+  };
+
+  const getDeviceType = (): string => {
+    const deviceInfo = getDeviceInfo();
+    if (deviceInfo.isiOS) return 'ios';
+    if (deviceInfo.isAndroid) return 'android';
     return 'web';
   };
 
   const getDeviceName = (): string => {
-    const ua = navigator.userAgent;
-    if (/Chrome/i.test(ua)) return 'Chrome Browser';
-    if (/Firefox/i.test(ua)) return 'Firefox Browser';
-    if (/Safari/i.test(ua)) return 'Safari Browser';
+    const deviceInfo = getDeviceInfo();
+    if (deviceInfo.isChrome) return 'Chrome Browser';
+    if (/Firefox/i.test(deviceInfo.userAgent)) return 'Firefox Browser';
+    if (/Safari/i.test(deviceInfo.userAgent)) return 'Safari Browser';
+    if (/Edge/i.test(deviceInfo.userAgent)) return 'Edge Browser';
     return 'Browser';
   };
 
@@ -53,7 +68,7 @@ export const useSimpleNotifications = () => {
       }
 
       const hasTokens = data && data.length > 0;
-      console.log('🔍 SIMPLE NOTIFICATIONS: Existing registration check:', { hasTokens, tokenCount: data?.length || 0 });
+      console.log('🔍 SIMPLE NOTIFICATIONS: Registration check:', { hasTokens, tokenCount: data?.length || 0 });
       return hasTokens;
     } catch (error) {
       console.error('❌ Error in registration check:', error);
@@ -64,16 +79,14 @@ export const useSimpleNotifications = () => {
   const canRetryRegistration = (): boolean => {
     const now = Date.now();
     
-    // Check if we've exceeded max retry attempts
     if (retryAttempts.current >= MAX_RETRY_ATTEMPTS) {
-      // Reset attempts after cooldown period
       if (now - lastRetryTime.current > RETRY_COOLDOWN) {
-        console.log('🔄 SIMPLE NOTIFICATIONS: Resetting retry attempts after cooldown');
+        console.log('🔄 SIMPLE NOTIFICATIONS: Resetting retry attempts');
         retryAttempts.current = 0;
         lastRetryTime.current = 0;
         return true;
       }
-      console.log('❌ SIMPLE NOTIFICATIONS: Max retry attempts reached, waiting for cooldown');
+      console.log('❌ SIMPLE NOTIFICATIONS: Max retry attempts reached');
       return false;
     }
     
@@ -91,7 +104,6 @@ export const useSimpleNotifications = () => {
       return;
     }
 
-    // Circuit breaker check
     if (!canRetryRegistration()) {
       console.log('🚫 SIMPLE NOTIFICATIONS: Registration blocked by circuit breaker');
       return;
@@ -107,25 +119,24 @@ export const useSimpleNotifications = () => {
     }, REGISTRATION_TIMEOUT);
 
     try {
-      console.log('🔔 SIMPLE NOTIFICATIONS: Starting registration for user:', userId);
+      const deviceInfo = getDeviceInfo();
+      console.log('🔔 SIMPLE NOTIFICATIONS: Starting registration for device:', deviceInfo);
       console.log('🔄 SIMPLE NOTIFICATIONS: Retry attempt:', retryAttempts.current + 1);
 
       // Clean up expired tokens first
       await TokenCleanupService.removeInvalidTokensForUser(userId);
 
-      // Check permission
-      if (Notification.permission !== 'granted') {
-        const permission = await Notification.requestPermission();
-        if (permission !== 'granted') {
-          console.log('❌ Permission denied');
-          toast.error('Please enable notifications to receive booking updates');
-          throw new Error('Permission denied');
-        }
-      }
+      let fcmToken: string | null = null;
 
-      // Get FCM token with enhanced error handling
-      const { setupNotifications } = await import('@/lib/capacitor-firebase');
-      const fcmToken = await setupNotifications();
+      if (deviceInfo.isNative) {
+        // Use Capacitor for native platforms
+        const { setupNotifications } = await import('@/lib/capacitor-firebase');
+        fcmToken = await setupNotifications();
+      } else {
+        // Use direct Firebase Web SDK for web platforms
+        const { setupNotifications } = await import('@/firebase');
+        fcmToken = await setupNotifications();
+      }
 
       if (!fcmToken) {
         console.log('❌ No FCM token received');
@@ -134,7 +145,7 @@ export const useSimpleNotifications = () => {
 
       console.log('✅ FCM token received:', fcmToken.substring(0, 30) + '...');
 
-      // Save to database using the register function
+      // Save to database
       const { data, error } = await supabase.rpc('register_device_token', {
         p_user_id: userId,
         p_fcm_token: fcmToken,
@@ -155,7 +166,10 @@ export const useSimpleNotifications = () => {
       lastRetryTime.current = 0;
       
       setIsRegistered(true);
-      toast.success('Notifications enabled! 🔔');
+      
+      // Device-specific success message
+      const deviceName = deviceInfo.isNative ? 'native app' : 'browser';
+      toast.success(`Notifications enabled on your ${deviceName}! 🔔`);
 
     } catch (error) {
       console.error('❌ Error registering for notifications:', error);
@@ -165,7 +179,7 @@ export const useSimpleNotifications = () => {
       lastRetryTime.current = Date.now();
       
       if (retryAttempts.current >= MAX_RETRY_ATTEMPTS) {
-        toast.error('Failed to setup notifications. Please try again later.');
+        toast.error('Failed to setup notifications. Please check your browser settings and try again later.');
         console.log('🚫 SIMPLE NOTIFICATIONS: Max retry attempts reached');
       } else {
         toast.error('Failed to setup notifications. Retrying...');
@@ -190,10 +204,9 @@ export const useSimpleNotifications = () => {
   // Auto-register when user is authenticated and not already registered
   useEffect(() => {
     if (isAuthenticated && userId && !isRegistered && !isLoading && !registrationInProgress.current) {
-      // Small delay to ensure everything is loaded
       const timer = setTimeout(() => {
         registerForNotifications();
-      }, 2000); // Increased delay to prevent race conditions
+      }, 1500); // Reduced delay for better UX
       
       return () => clearTimeout(timer);
     }

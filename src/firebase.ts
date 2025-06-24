@@ -3,57 +3,60 @@ import { initializeApp } from "firebase/app";
 import { getMessaging, getToken, onMessage, MessagePayload } from "firebase/messaging";
 import { toast } from "sonner";
 
-// Use the correct Firebase configuration that matches Android
+// Correct web Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyBZXQp0IuO9nQBFUyhLRGsnRuLTJ-UQu44", // Use Android API key for consistency
+  apiKey: "AIzaSyCDB3Lm4ni3jz0oQjgQPye4Pedau_H3S-4", // Web API key
   authDomain: "booqit09-f4cfc.firebaseapp.com",
   projectId: "booqit09-f4cfc",
   storageBucket: "booqit09-f4cfc.firebasestorage.app",
   messagingSenderId: "486416254991",
-  appId: "1:486416254991:android:e30bffb187fd8e0ad2fb7a", // Use Android app ID
+  appId: "1:486416254991:web:3aaa6b9fb5c5a6f5d2fb7a", // Web app ID
   measurementId: "G-14QPC3C9TJ"
 };
 
 const app = initializeApp(firebaseConfig);
 
-// Enhanced mobile detection
-const isMobile = (): boolean => {
-  if (typeof navigator !== 'undefined') {
-    return /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-  }
-  return false;
+// Enhanced device detection for cross-platform compatibility
+const getDeviceInfo = () => {
+  const ua = navigator.userAgent;
+  return {
+    isMobile: /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua),
+    isAndroid: /Android/i.test(ua),
+    isiOS: /iPhone|iPad|iPod/i.test(ua),
+    isChrome: /Chrome/i.test(ua) && !/Edge/i.test(ua),
+    isFirefox: /Firefox/i.test(ua),
+    isSafari: /Safari/i.test(ua) && !/Chrome/i.test(ua),
+    isEdge: /Edge/i.test(ua),
+    isPWA: window.matchMedia('(display-mode: standalone)').matches,
+    platform: navigator.platform
+  };
 };
 
-const isAndroidChrome = (): boolean => {
-  if (typeof navigator !== 'undefined') {
-    const ua = navigator.userAgent;
-    return ua.includes('Android') && ua.includes('Chrome') && !ua.includes('Edge');
-  }
-  return false;
-};
-
-// Initialize messaging with error handling
+// Initialize messaging with proper error handling
 let messaging: any = null;
 try {
   if (typeof window !== 'undefined') {
     messaging = getMessaging(app);
-    console.log('🔥 Firebase messaging initialized successfully with Android config');
+    console.log('🔥 Firebase messaging initialized with web configuration');
+    console.log('🔧 Device info:', getDeviceInfo());
   }
 } catch (error) {
   console.error('❌ Firebase messaging initialization failed:', error);
 }
 
-// Global state to prevent multiple simultaneous token requests
+// Global state management for token requests
 let tokenRequestInProgress = false;
 let lastTokenRequest = 0;
-const TOKEN_REQUEST_COOLDOWN = 30000; // 30 seconds cooldown between requests
+const TOKEN_REQUEST_COOLDOWN = 10000; // Reduced to 10 seconds for better UX
 
 export const requestNotificationPermission = async (): Promise<boolean> => {
   try {
-    console.log('🔔 Requesting notification permission...');
-    
+    const deviceInfo = getDeviceInfo();
+    console.log('🔔 Requesting notification permission on:', deviceInfo);
+
     if (!("Notification" in window)) {
-      console.error('❌ This browser does not support notifications');
+      console.error('❌ Notifications not supported on this browser');
+      toast.error('Notifications are not supported on this browser');
       return false;
     }
 
@@ -62,19 +65,35 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
       return true;
     }
 
-    // For Android Chrome, be more explicit about the permission request
-    const permission = await Notification.requestPermission();
-    console.log('🔔 Permission result:', permission);
-    
-    if (permission === 'granted') {
+    // Enhanced permission request with device-specific messaging
+    let permissionResult;
+    if (deviceInfo.isiOS && deviceInfo.isSafari) {
+      // iOS Safari requires user gesture
+      toast.info('Please allow notifications when prompted');
+      permissionResult = await Notification.requestPermission();
+    } else {
+      permissionResult = await Notification.requestPermission();
+    }
+
+    console.log('🔔 Permission result:', permissionResult);
+
+    if (permissionResult === 'granted') {
       console.log('✅ Notification permission granted');
       return true;
     } else {
-      console.log('❌ Notification permission denied');
+      const deviceSpecificMessage = deviceInfo.isiOS 
+        ? 'Enable notifications in Safari settings for this site'
+        : 'Click the notification icon in your address bar to enable notifications';
+      
+      toast.error('Notification permission denied', {
+        description: deviceSpecificMessage,
+        duration: 8000
+      });
       return false;
     }
   } catch (error) {
     console.error('❌ Error requesting notification permission:', error);
+    toast.error('Error requesting notification permission');
     return false;
   }
 };
@@ -86,32 +105,32 @@ export const getFCMToken = async (): Promise<string | null> => {
       return null;
     }
 
-    // Prevent multiple simultaneous requests
     const now = Date.now();
     if (tokenRequestInProgress) {
-      console.log('⏳ Token request already in progress, waiting...');
+      console.log('⏳ Token request already in progress');
       return null;
     }
 
     if (now - lastTokenRequest < TOKEN_REQUEST_COOLDOWN) {
-      console.log('⏳ Token request cooldown active, waiting...');
+      console.log('⏳ Token request cooldown active');
       return null;
     }
 
     tokenRequestInProgress = true;
     lastTokenRequest = now;
 
-    console.log('📱 Getting FCM token with Android configuration...');
-    
+    const deviceInfo = getDeviceInfo();
+    console.log('📱 Getting FCM token for device:', deviceInfo);
+
     // Request permission first
     const hasPermission = await requestNotificationPermission();
     if (!hasPermission) {
-      console.log('❌ No notification permission, cannot get FCM token');
+      console.log('❌ No notification permission');
       tokenRequestInProgress = false;
       return null;
     }
 
-    // Register service worker if not already registered
+    // Register service worker with enhanced error handling
     let registration: ServiceWorkerRegistration | undefined;
     
     if ('serviceWorker' in navigator) {
@@ -122,53 +141,42 @@ export const getFCMToken = async (): Promise<string | null> => {
         });
         
         console.log('✅ Service worker registered:', registration.scope);
-        
-        // Wait for service worker to be ready
         await navigator.serviceWorker.ready;
         console.log('✅ Service worker ready');
       } catch (swError) {
         console.error('❌ Service worker registration failed:', swError);
-        // Continue without service worker for development
+        // Continue without service worker - some browsers/modes might not support it
       }
     }
 
-    // Get FCM token with correct VAPID key for the project
-    const vapidKey = "BFyMalp8vStokUxFo9Oaqjl5F8p3lBzXjQG0VNWDWMq_bJM8iYYZOYu5T_ZTQP3uA8L-qrZ-YMNhP2sN7H1LRDQ";
+    // Correct VAPID key for web push
+    const vapidKey = "BOw6E7dmADiUQUPalRz3k8o6jtBDKRx4VJHo1q_A24d9ONp8ovN1WCkVDVERyhc0NcK_f9QHaUy1MaCLC5q1_L4";
     
-    const tokenOptions: any = {
-      vapidKey
-    };
+    const tokenOptions: any = { vapidKey };
     
-    // Use service worker registration if available
     if (registration) {
       tokenOptions.serviceWorkerRegistration = registration;
     }
 
-    console.log('🔑 Requesting FCM token with VAPID key...');
+    console.log('🔑 Requesting FCM token with web VAPID key...');
     const token = await getToken(messaging, tokenOptions);
     
     if (token) {
-      console.log('✅ FCM token obtained:', token.substring(0, 30) + '...');
+      console.log('✅ FCM token obtained successfully');
       console.log('🔧 Token configuration:', {
         hasServiceWorker: !!registration,
-        vapidKeyUsed: vapidKey.substring(0, 20) + '...',
-        platform: isAndroidChrome() ? 'Android Chrome' : 'Other'
+        deviceInfo,
+        tokenLength: token.length
       });
       
-      // Set up foreground message handling - NO NOTIFICATION CONSTRUCTOR HERE
+      // Set up foreground message handling
       onMessage(messaging, (payload: MessagePayload) => {
         console.log('📱 Foreground message received:', payload);
         
-        // For Android Chrome, rely entirely on service worker
-        if (isAndroidChrome()) {
-          console.log('📱 Android Chrome detected - using service worker only');
-          return;
-        }
-        
-        // For other platforms, just show a toast
         const title = payload.notification?.title || 'New Notification';
         const body = payload.notification?.body || 'You have a new notification';
         
+        // Show toast notification for foreground messages
         toast(title, {
           description: body,
           duration: 5000,
@@ -178,30 +186,25 @@ export const getFCMToken = async (): Promise<string | null> => {
       tokenRequestInProgress = false;
       return token;
     } else {
-      console.log('❌ No FCM token available - check Firebase configuration');
+      console.log('❌ No FCM token received - check configuration');
       tokenRequestInProgress = false;
       return null;
     }
   } catch (error) {
     console.error('❌ Error getting FCM token:', error);
-    console.error('🔧 Error details:', {
-      errorCode: (error as any)?.code,
-      errorMessage: (error as any)?.message,
-      customData: (error as any)?.customData
-    });
     tokenRequestInProgress = false;
     return null;
   }
 };
 
-// Simplified setup function for use in hooks
+// Simplified setup function
 export const setupNotifications = async (): Promise<string | null> => {
-  console.log('🔔 Setting up notifications with enhanced error handling...');
+  console.log('🔔 Setting up notifications with cross-device compatibility...');
   
   try {
     const token = await getFCMToken();
     if (token) {
-      console.log('✅ Notifications setup complete');
+      console.log('✅ Cross-device notifications setup complete');
       return token;
     } else {
       console.log('❌ Failed to setup notifications');

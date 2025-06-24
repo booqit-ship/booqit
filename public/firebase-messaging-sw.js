@@ -1,36 +1,39 @@
+
 importScripts('https://www.gstatic.com/firebasejs/10.12.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.12.1/firebase-messaging-compat.js');
 
-// Use consistent Firebase configuration with Android
+// Use correct web Firebase configuration (matching main app)
 firebase.initializeApp({
-  apiKey: "AIzaSyBZXQp0IuO9nQBFUyhLRGsnRuLTJ-UQu44", // Use Android API key
+  apiKey: "AIzaSyCDB3Lm4ni3jz0oQjgQPye4Pedau_H3S-4", // Web API key
   authDomain: "booqit09-f4cfc.firebaseapp.com",
   projectId: "booqit09-f4cfc",
   storageBucket: "booqit09-f4cfc.firebasestorage.app",
   messagingSenderId: "486416254991",
-  appId: "1:486416254991:android:e30bffb187fd8e0ad2fb7a", // Use Android app ID
+  appId: "1:486416254991:web:3aaa6b9fb5c5a6f5d2fb7a", // Web app ID
   measurementId: "G-14QPC3C9TJ"
 });
 
 const messaging = firebase.messaging();
 
-// Enhanced mobile detection
-const isMobile = () => {
-  if (typeof navigator !== 'undefined') {
-    return /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-  }
-  return false;
-};
-
-const isAndroidChrome = () => {
+// Enhanced cross-device detection
+const getDeviceInfo = () => {
   if (typeof navigator !== 'undefined') {
     const ua = navigator.userAgent;
-    return ua.includes('Android') && ua.includes('Chrome') && !ua.includes('Edge');
+    return {
+      isMobile: /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua),
+      isAndroid: /Android/i.test(ua),
+      isiOS: /iPhone|iPad|iPod/i.test(ua),
+      isChrome: /Chrome/i.test(ua) && !/Edge/i.test(ua),
+      isFirefox: /Firefox/i.test(ua),
+      isSafari: /Safari/i.test(ua) && !/Chrome/i.test(ua),
+      isEdge: /Edge/i.test(ua),
+      isPWA: self.matchMedia && self.matchMedia('(display-mode: standalone)').matches
+    };
   }
-  return false;
+  return { isMobile: false, isAndroid: false, isiOS: false, isChrome: false };
 };
 
-// Get current domain for click actions
+// Get current domain with fallback
 const getCurrentDomain = () => {
   if (typeof location !== 'undefined') {
     return location.origin;
@@ -38,62 +41,70 @@ const getCurrentDomain = () => {
   return 'https://preview--booqit.lovable.app';
 };
 
-console.log('🔄 SW: Firebase messaging service worker initialized with Android config');
+console.log('🔄 SW: Firebase messaging service worker initialized with web config');
+console.log('🔧 SW: Device info:', getDeviceInfo());
+console.log('🔧 SW: Firebase config:', firebase.app().options);
 
-// Handle background messages (when app is not in focus) - CRITICAL FOR ANDROID CHROME
+// Handle background messages with cross-device compatibility
 messaging.onBackgroundMessage((payload) => {
   console.log('📱 SW: Background message received:', payload);
   
   const currentDomain = getCurrentDomain();
-  const mobile = isMobile();
-  const androidChrome = isAndroidChrome();
+  const deviceInfo = getDeviceInfo();
   
-  console.log('📱 SW: Device info:', { mobile, androidChrome, currentDomain });
-  console.log('📱 SW: Firebase config used:', firebase.app().options);
+  console.log('📱 SW: Processing notification for device:', deviceInfo);
   
   const notificationTitle = payload.notification?.title || 'BooqIt Notification';
+  const notificationBody = payload.notification?.body || 'You have a new notification';
   
-  // Enhanced notification options for all platforms
+  // Cross-device notification options
   const notificationOptions = {
-    body: payload.notification?.body || 'You have a new notification',
+    body: notificationBody,
     icon: `${currentDomain}/icons/icon-192.png`,
     badge: `${currentDomain}/icons/icon-192.png`,
     tag: 'booqit-notification',
-    requireInteraction: true, // Keep notification visible
+    requireInteraction: deviceInfo.isMobile, // Keep visible on mobile
     silent: false,
     data: { 
       ...payload.data, 
       click_action: currentDomain,
       app_name: 'BooqIt',
-      timestamp: Date.now()
-    },
-    actions: [
-      {
-        action: 'open',
-        title: 'Open BooqIt',
-        icon: `${currentDomain}/icons/icon-192.png`
-      }
-    ]
+      timestamp: Date.now(),
+      deviceInfo: deviceInfo
+    }
   };
   
-  // Vibration for mobile devices
-  if (mobile) {
-    notificationOptions.vibrate = [200, 100, 200, 100, 200];
+  // Add device-specific enhancements
+  if (deviceInfo.isMobile) {
+    notificationOptions.vibrate = [200, 100, 200];
+    // Add actions for mobile devices
+    notificationOptions.actions = [
+      {
+        action: 'open',
+        title: 'Open App',
+        icon: `${currentDomain}/icons/icon-192.png`
+      }
+    ];
+  }
+  
+  // iOS Safari specific handling
+  if (deviceInfo.isiOS && deviceInfo.isSafari) {
+    // iOS Safari has limited notification support
+    notificationOptions.requireInteraction = true;
   }
 
   console.log('🔔 SW: Showing notification with options:', notificationOptions);
 
-  // ALWAYS use service worker registration for notifications - no Notification constructor
+  // Always use service worker registration for cross-device compatibility
   return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
-// Enhanced notification click handling
+// Enhanced notification click handling for all devices
 self.addEventListener('notificationclick', (event) => {
   console.log('🔔 SW: Notification clicked:', event);
-  console.log('📱 SW: Click device info:', { 
-    isMobile: isMobile(), 
-    isAndroidChrome: isAndroidChrome() 
-  });
+  
+  const deviceInfo = getDeviceInfo();
+  console.log('📱 SW: Click on device:', deviceInfo);
 
   event.notification.close();
   
@@ -102,7 +113,7 @@ self.addEventListener('notificationclick', (event) => {
 
   console.log('🔔 SW: Opening URL:', targetUrl);
 
-  // Enhanced window handling for all platforms
+  // Cross-device window handling
   event.waitUntil(
     clients.matchAll({ 
       type: 'window', 
@@ -110,17 +121,17 @@ self.addEventListener('notificationclick', (event) => {
     }).then((clientList) => {
       console.log('🔔 SW: Found clients:', clientList.length);
       
-      // If app is already open, focus it
+      // Try to focus existing window first
       for (const client of clientList) {
         if (client.url.includes(new URL(currentDomain).hostname) && 'focus' in client) {
-          console.log('🔔 SW: Focusing existing client:', client.url);
+          console.log('🔔 SW: Focusing existing client');
           return client.focus();
         }
       }
       
-      // Otherwise open new window
+      // Open new window with device-specific handling
       if (clients.openWindow) {
-        console.log('🔔 SW: Opening new window to:', targetUrl);
+        console.log('🔔 SW: Opening new window');
         return clients.openWindow(targetUrl);
       }
     }).catch((error) => {
@@ -131,22 +142,21 @@ self.addEventListener('notificationclick', (event) => {
 
 // Handle notification close
 self.addEventListener('notificationclose', (event) => {
-  console.log('🔕 SW: Notification closed:', event);
+  console.log('🔕 SW: Notification closed on device:', getDeviceInfo());
 });
 
-// Enhanced service worker activation
+// Enhanced service worker lifecycle
 self.addEventListener('activate', (event) => {
-  console.log('🔄 SW: Service worker activated with Android config');
+  console.log('🔄 SW: Service worker activated with web config');
   event.waitUntil(self.clients.claim());
 });
 
-// Enhanced installation
 self.addEventListener('install', (event) => {
-  console.log('📦 SW: Service worker installed with Android config');
+  console.log('📦 SW: Service worker installed with web config');
   self.skipWaiting();
 });
 
-// Handle push events (for additional reliability)
+// Handle push events for additional reliability across devices
 self.addEventListener('push', (event) => {
   console.log('📨 SW: Push event received:', event);
   
@@ -154,14 +164,17 @@ self.addEventListener('push', (event) => {
     const payload = event.data.json();
     console.log('📨 SW: Push payload:', payload);
     
+    const deviceInfo = getDeviceInfo();
+    const currentDomain = getCurrentDomain();
+    
     const notificationTitle = payload.notification?.title || 'BooqIt Notification';
     const notificationOptions = {
       body: payload.notification?.body || 'You have a new notification',
-      icon: '/icons/icon-192.png',
-      badge: '/icons/icon-192.png',
+      icon: `${currentDomain}/icons/icon-192.png`,
+      badge: `${currentDomain}/icons/icon-192.png`,
       tag: 'booqit-push-notification',
-      requireInteraction: true,
-      data: payload.data || {}
+      requireInteraction: deviceInfo.isMobile,
+      data: { ...payload.data, deviceInfo }
     };
     
     event.waitUntil(

@@ -1,9 +1,8 @@
 
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
-import { getFCMToken } from '@/firebase';
 
-// Enhanced logging for debugging
+// Enhanced logging for cross-platform debugging
 const logPlatformInfo = () => {
   console.log('🔔 CAPACITOR-FIREBASE: Platform detection:', {
     isNative: Capacitor.isNativePlatform(),
@@ -16,7 +15,7 @@ export const setupNotifications = async (): Promise<string | null> => {
   logPlatformInfo();
   
   if (Capacitor.isNativePlatform()) {
-    // Native platform (iOS/Android app)
+    // Native platform (iOS/Android app) - Use Capacitor Push Notifications
     try {
       console.log('📱 Native platform detected - using Capacitor Push Notifications');
       
@@ -40,11 +39,11 @@ export const setupNotifications = async (): Promise<string | null> => {
             resolve(null);
           });
           
-          // Timeout after 30 seconds
+          // Timeout after 20 seconds
           setTimeout(() => {
             console.error('⏰ Native registration timeout');
             resolve(null);
-          }, 30000);
+          }, 20000);
         });
       } else {
         console.log('❌ Native push permission denied');
@@ -55,22 +54,11 @@ export const setupNotifications = async (): Promise<string | null> => {
       return null;
     }
   } else {
-    // Web platform - use Firebase Web SDK with enhanced error handling
-    console.log('🌐 Web platform detected - using Firebase Web SDK');
+    // Web platform - this should not be called anymore, but handle gracefully
+    console.log('🌐 Web platform detected - redirecting to Firebase Web SDK');
+    console.warn('⚠️ CAPACITOR-FIREBASE: Web platforms should use direct Firebase integration');
     
-    try {
-      const token = await getFCMToken();
-      
-      if (token) {
-        console.log('✅ CAPACITOR-FIREBASE: Web FCM token obtained successfully');
-        return token;
-      } else {
-        console.log('❌ CAPACITOR-FIREBASE: Failed to get web FCM token');
-        return null;
-      }
-    } catch (error) {
-      console.error('❌ CAPACITOR-FIREBASE: Web FCM setup error:', error);
-      return null;
-    }
+    // Return null to indicate this method should not be used for web
+    return null;
   }
 };
