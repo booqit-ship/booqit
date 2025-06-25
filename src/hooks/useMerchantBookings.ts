@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -18,12 +19,6 @@ interface Booking {
   customer_phone: string;
   customer_email: string;
   status: string;
-}
-
-interface UpdateBookingResponse {
-  success: boolean;
-  error?: string;
-  message?: string;
 }
 
 export const useMerchantBookings = () => {
@@ -89,7 +84,7 @@ export const useMerchantBookings = () => {
     try {
       console.log(`🔄 MERCHANT: Updating booking ${bookingId} to ${newStatus}`);
 
-      // ✅ FIXED: Remove updated_at field - only update status
+      // Direct status update - no RPC calls and no updated_at field
       const { error: updateError } = await supabase
         .from('bookings')
         .update({ 
@@ -104,9 +99,9 @@ export const useMerchantBookings = () => {
 
       console.log('✅ MERCHANT: Booking status updated successfully');
 
-      // ✅ Send additional standardized notifications only if needed
+      // Send additional standardized notifications
       try {
-        // Get booking details for enhanced notifications (optional - the trigger handles basic ones)
+        // Get booking details for enhanced notifications
         const { data: bookingData, error: fetchError } = await supabase
           .from('bookings')
           .select(`
