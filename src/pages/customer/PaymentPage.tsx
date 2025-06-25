@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Smartphone } from 'lucide-react';
@@ -12,13 +13,6 @@ import BookingSuccessAnimation from '@/components/customer/BookingSuccessAnimati
 import BookingFailureAnimation from '@/components/customer/BookingFailureAnimation';
 import { useBookingCompletion } from '@/hooks/useBookingCompletion';
 import { NotificationTemplateService } from '@/services/NotificationTemplateService';
-
-interface BookingResponse {
-  success: boolean;
-  booking_id?: string;
-  error?: string;
-  message?: string;
-}
 
 const PaymentPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
@@ -59,90 +53,84 @@ const PaymentPage: React.FC = () => {
     setIsProcessing(true);
     
     try {
-      console.log('PAYMENT_FLOW: Starting authenticated user payment processing...');
+      console.log('PAYMENT_FLOW: Starting direct confirmed booking creation...');
 
       // Simulate payment processing (2 seconds)
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       const serviceId = selectedServices[0]?.id;
       
-      console.log('PAYMENT_FLOW: Creating authenticated user booking...');
+      // ✅ FIXED: Direct booking creation with confirmed status - no two-step process
+      console.log('PAYMENT_FLOW: Creating confirmed booking directly...');
 
-      // ✅ FIXED: Use standardized RPC function for slot reservation
-      const { data: reserveResult, error: reserveError } = await supabase.rpc('reserve_slot_immediately', {
-        p_user_id: userId,
-        p_merchant_id: merchantId,
-        p_service_id: serviceId,
-        p_staff_id: selectedStaff,
-        p_date: bookingDate,
-        p_time_slot: bookingTime,
-        p_service_duration: totalDuration
-      });
-
-      if (reserveError) {
-        console.error('PAYMENT_FLOW: Error reserving slot:', reserveError);
-        setShowFailureAnimation(true);
-        return;
-      }
-
-      const reserveResponse = reserveResult as unknown as BookingResponse;
-      console.log('PAYMENT_FLOW: Slot reservation response:', reserveResponse);
+      // Get customer info first
+      let customerInfo = { name: 'Customer', email: '', phone: '' };
       
-      if (!reserveResponse.success) {
-        console.error('PAYMENT_FLOW: Slot reservation failed:', reserveResponse.error);
-        toast.error(reserveResponse.error || 'Failed to reserve slot');
+      // Try to get from profiles first
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('name, email, phone')
+        .eq('id', userId)
+        .single();
+
+      if (profileData) {
+        customerInfo = profileData;
+      } else {
+        // Fallback to auth.users if no profile
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (authUser) {
+          customerInfo = {
+            name: authUser.user_metadata?.name || 'Customer',
+            email: authUser.email || '',
+            phone: authUser.user_metadata?.phone || ''
+          };
+        }
+      }
+
+      // Get staff name
+      const { data: staffData } = await supabase
+        .from('staff')
+        .select('name')
+        .eq('id', selectedStaff)
+        .single();
+
+      const staffName = staffData?.name || 'Stylist';
+
+      // ✅ Direct confirmed booking creation - single step
+      const { data: bookingData, error: bookingError } = await supabase
+        .from('bookings')
+        .insert({
+          user_id: userId,
+          merchant_id: merchantId,
+          service_id: serviceId,
+          staff_id: selectedStaff,
+          date: bookingDate,
+          time_slot: bookingTime,
+          status: 'confirmed', // ✅ Directly set as confirmed
+          payment_status: 'completed', // ✅ Directly set as completed
+          customer_name: customerInfo.name,
+          customer_email: customerInfo.email,
+          customer_phone: customerInfo.phone,
+          stylist_name: staffName,
+          services: selectedServices,
+          total_duration: totalDuration
+        })
+        .select()
+        .single();
+
+      if (bookingError) {
+        console.error('PAYMENT_FLOW: Error creating confirmed booking:', bookingError);
+        toast.error(bookingError.message || 'Failed to create booking');
         setShowFailureAnimation(true);
         return;
       }
 
-      const bookingId = reserveResponse.booking_id;
-      console.log('PAYMENT_FLOW: Booking created with ID:', bookingId);
+      const bookingId = bookingData.id;
+      console.log('PAYMENT_FLOW: Confirmed booking created with ID:', bookingId);
       
       setCreatedBookingId(bookingId);
 
-      // ✅ FIXED: Use standardized RPC function for confirmation instead of direct update
-      const { data: confirmResult, error: confirmError } = await supabase.rpc('confirm_pending_booking', {
-        p_booking_id: bookingId,
-        p_user_id: userId
-      });
-
-      if (confirmError) {
-        console.error('PAYMENT_FLOW: Error confirming booking:', confirmError);
-        setShowFailureAnimation(true);
-        return;
-      }
-
-      const confirmResponse = confirmResult as unknown as BookingResponse;
-      if (!confirmResponse.success) {
-        console.error('PAYMENT_FLOW: Booking confirmation failed:', confirmResponse.error);
-        toast.error(confirmResponse.error || 'Failed to confirm booking');
-        setShowFailureAnimation(true);
-        return;
-      }
-
-      // Update booking with additional details using safe direct update (non-status fields)
-      try {
-        const { error: updateError } = await supabase
-          .from('bookings')
-          .update({
-            services: selectedServices,
-            total_duration: totalDuration,
-            payment_status: 'completed'
-          })
-          .eq('id', bookingId);
-
-        if (updateError) {
-          console.error('PAYMENT_FLOW: Error updating booking details:', updateError);
-          // Don't fail the process for this
-        }
-      } catch (updateDetailError) {
-        console.error('PAYMENT_FLOW: Booking detail update failed:', updateDetailError);
-        // Don't fail the process for this
-      }
-
-      console.log('PAYMENT_FLOW: Booking confirmed successfully');
-
-      // Step 3: Create payment record (non-blocking)
+      // Step 2: Create payment record (non-blocking)
       try {
         const paymentData = {
           booking_id: bookingId,
@@ -166,7 +154,7 @@ const PaymentPage: React.FC = () => {
         console.error('PAYMENT_FLOW: Payment record creation failed:', paymentCreationError);
       }
 
-      // ✅ Step 4: Send enhanced standardized notifications (the trigger handles basic ones)
+      // ✅ Step 3: Send enhanced standardized notifications
       try {
         console.log('PAYMENT_FLOW: Sending enhanced standardized notifications...');
         
