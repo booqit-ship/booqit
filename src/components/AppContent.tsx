@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import {
   BrowserRouter as Router,
@@ -87,165 +86,163 @@ const AppContent: React.FC = () => {
 
   return (
     <ErrorBoundary>
-      <Router>
-        <AppInit />
-        <Routes>
-          {/* Auth Routes */}
-          <Route path="/auth" element={<LazyRoute><Auth /></LazyRoute>} />
-          <Route path="/forgot-password" element={<LazyRoute><ForgotPasswordPage /></LazyRoute>} />
-          <Route path="/reset-password" element={<LazyRoute><ResetPasswordPage /></LazyRoute>} />
-          <Route path="/verify" element={<LazyRoute><VerifyPage /></LazyRoute>} />
+      <AppInit />
+      <Routes>
+        {/* Auth Routes */}
+        <Route path="/auth" element={<LazyRoute><Auth /></LazyRoute>} />
+        <Route path="/forgot-password" element={<LazyRoute><ForgotPasswordPage /></LazyRoute>} />
+        <Route path="/reset-password" element={<LazyRoute><ResetPasswordPage /></LazyRoute>} />
+        <Route path="/verify" element={<LazyRoute><VerifyPage /></LazyRoute>} />
 
-          {/* Guest Booking Routes - Complete Flow */}
-          <Route path="/book/:merchantId/:shopName" element={<LazyRoute><GuestInfoPage /></LazyRoute>} />
-          <Route path="/book/:merchantId" element={<LazyRoute><GuestInfoPage /></LazyRoute>} />
-          <Route path="/guest-shop/:merchantId" element={<LazyRoute><GuestShopDetailsPage /></LazyRoute>} />
-          <Route path="/guest-services/:merchantId" element={<LazyRoute><GuestServiceSelectionPage /></LazyRoute>} />
-          <Route path="/guest-staff/:merchantId" element={<LazyRoute><GuestStaffSelectionPage /></LazyRoute>} />
-          <Route path="/guest-datetime/:merchantId" element={<LazyRoute><GuestDatetimePage /></LazyRoute>} />
-          <Route path="/guest-payment/:merchantId" element={<LazyRoute><GuestPaymentPage /></LazyRoute>} />
-          <Route path="/guest-booking-success/:merchantId" element={<LazyRoute><GuestBookingSuccessPage /></LazyRoute>} />
+        {/* Guest Booking Routes - Complete Flow */}
+        <Route path="/book/:merchantId/:shopName" element={<LazyRoute><GuestInfoPage /></LazyRoute>} />
+        <Route path="/book/:merchantId" element={<LazyRoute><GuestInfoPage /></LazyRoute>} />
+        <Route path="/guest-shop/:merchantId" element={<LazyRoute><GuestShopDetailsPage /></LazyRoute>} />
+        <Route path="/guest-services/:merchantId" element={<LazyRoute><GuestServiceSelectionPage /></LazyRoute>} />
+        <Route path="/guest-staff/:merchantId" element={<LazyRoute><GuestStaffSelectionPage /></LazyRoute>} />
+        <Route path="/guest-datetime/:merchantId" element={<LazyRoute><GuestDatetimePage /></LazyRoute>} />
+        <Route path="/guest-payment/:merchantId" element={<LazyRoute><GuestPaymentPage /></LazyRoute>} />
+        <Route path="/guest-booking-success/:merchantId" element={<LazyRoute><GuestBookingSuccessPage /></LazyRoute>} />
 
-          {/* Merchant Routes */}
-          <Route path="/merchant/auth" element={<LazyRoute><Auth /></LazyRoute>} />
-          <Route path="/merchant/onboarding" element={<LazyRoute><ProtectedRoute><OnboardingPage /></ProtectedRoute></LazyRoute>} />
-          <Route path="/merchant" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantDashboard /></MerchantLayout></ProtectedRoute></LazyRoute>} />
-          <Route path="/merchant/dashboard" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantDashboard /></MerchantLayout></ProtectedRoute></LazyRoute>} />
-          <Route path="/merchant/services" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantServices /></MerchantLayout></ProtectedRoute></LazyRoute>} />
-          <Route path="/merchant/calendar" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantCalendar /></MerchantLayout></ProtectedRoute></LazyRoute>} />
-          <Route path="/merchant/profile" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantProfile /></MerchantLayout></ProtectedRoute></LazyRoute>} />
-          <Route path="/merchant/analytics" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><AnalyticsPage /></MerchantLayout></ProtectedRoute></LazyRoute>} />
-          <Route path="/merchant/settings" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantSettingsPage /></MerchantLayout></ProtectedRoute></LazyRoute>} />
+        {/* Merchant Routes */}
+        <Route path="/merchant/auth" element={<LazyRoute><Auth /></LazyRoute>} />
+        <Route path="/merchant/onboarding" element={<LazyRoute><ProtectedRoute><OnboardingPage /></ProtectedRoute></LazyRoute>} />
+        <Route path="/merchant" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantDashboard /></MerchantLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/merchant/dashboard" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantDashboard /></MerchantLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/merchant/services" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantServices /></MerchantLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/merchant/calendar" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantCalendar /></MerchantLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/merchant/profile" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantProfile /></MerchantLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/merchant/analytics" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><AnalyticsPage /></MerchantLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/merchant/settings" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantSettingsPage /></MerchantLayout></ProtectedRoute></LazyRoute>} />
 
-          {/* Merchant Settings Sub-Pages */}
-          <Route
-            path="/merchant/settings/business-information"
-            element={
-              <LazyRoute>
-                <ProtectedRoute requiredRole="merchant">
-                  <MerchantLayout>
-                    <MerchantBusinessInfoPage />
-                  </MerchantLayout>
-                </ProtectedRoute>
-              </LazyRoute>
-            }
-          />
-          <Route
-            path="/merchant/settings/banking-details"
-            element={
-              <LazyRoute>
-                <ProtectedRoute requiredRole="merchant">
-                  <MerchantLayout>
-                    <MerchantBankingDetailsPage />
-                  </MerchantLayout>
-                </ProtectedRoute>
-              </LazyRoute>
-            }
-          />
-          <Route
-            path="/merchant/settings/notifications"
-            element={
-              <LazyRoute>
-                <ProtectedRoute requiredRole="merchant">
-                  <MerchantLayout>
-                    <NotificationsPage />
-                  </MerchantLayout>
-                </ProtectedRoute>
-              </LazyRoute>
-            }
-          />
-          <Route
-            path="/merchant/settings/contact"
-            element={
-              <LazyRoute>
-                <ProtectedRoute requiredRole="merchant">
-                  <MerchantLayout>
-                    <MerchantContactPage />
-                  </MerchantLayout>
-                </ProtectedRoute>
-              </LazyRoute>
-            }
-          />
-          <Route
-            path="/merchant/settings/about"
-            element={
-              <LazyRoute>
-                <ProtectedRoute requiredRole="merchant">
-                  <MerchantLayout>
-                    <MerchantAboutPage />
-                  </MerchantLayout>
-                </ProtectedRoute>
-              </LazyRoute>
-            }
-          />
-          <Route
-            path="/merchant/settings/privacy-policy"
-            element={
-              <LazyRoute>
-                <ProtectedRoute requiredRole="merchant">
-                  <MerchantLayout>
-                    <MerchantPrivacyPolicyPage />
-                  </MerchantLayout>
-                </ProtectedRoute>
-              </LazyRoute>
-            }
-          />
-          <Route
-            path="/merchant/settings/terms-conditions"
-            element={
-              <LazyRoute>
-                <ProtectedRoute requiredRole="merchant">
-                  <MerchantLayout>
-                    <MerchantTermsConditionsPage />
-                  </MerchantLayout>
-                </ProtectedRoute>
-              </LazyRoute>
-            }
-          />
-          <Route
-            path="/merchant/settings/delete-account"
-            element={
-              <LazyRoute>
-                <ProtectedRoute requiredRole="merchant">
-                  <MerchantLayout>
-                    <MerchantDeleteAccountPage />
-                  </MerchantLayout>
-                </ProtectedRoute>
-              </LazyRoute>
-            }
-          />
+        {/* Merchant Settings Sub-Pages */}
+        <Route
+          path="/merchant/settings/business-information"
+          element={
+            <LazyRoute>
+              <ProtectedRoute requiredRole="merchant">
+                <MerchantLayout>
+                  <MerchantBusinessInfoPage />
+                </MerchantLayout>
+              </ProtectedRoute>
+            </LazyRoute>
+          }
+        />
+        <Route
+          path="/merchant/settings/banking-details"
+          element={
+            <LazyRoute>
+              <ProtectedRoute requiredRole="merchant">
+                <MerchantLayout>
+                  <MerchantBankingDetailsPage />
+                </MerchantLayout>
+              </ProtectedRoute>
+            </LazyRoute>
+          }
+        />
+        <Route
+          path="/merchant/settings/notifications"
+          element={
+            <LazyRoute>
+              <ProtectedRoute requiredRole="merchant">
+                <MerchantLayout>
+                  <NotificationsPage />
+                </MerchantLayout>
+              </ProtectedRoute>
+            </LazyRoute>
+          }
+        />
+        <Route
+          path="/merchant/settings/contact"
+          element={
+            <LazyRoute>
+              <ProtectedRoute requiredRole="merchant">
+                <MerchantLayout>
+                  <MerchantContactPage />
+                </MerchantLayout>
+              </ProtectedRoute>
+            </LazyRoute>
+          }
+        />
+        <Route
+          path="/merchant/settings/about"
+          element={
+            <LazyRoute>
+              <ProtectedRoute requiredRole="merchant">
+                <MerchantLayout>
+                  <MerchantAboutPage />
+                </MerchantLayout>
+              </ProtectedRoute>
+            </LazyRoute>
+          }
+        />
+        <Route
+          path="/merchant/settings/privacy-policy"
+          element={
+            <LazyRoute>
+              <ProtectedRoute requiredRole="merchant">
+                <MerchantLayout>
+                  <MerchantPrivacyPolicyPage />
+                </MerchantLayout>
+              </ProtectedRoute>
+            </LazyRoute>
+          }
+        />
+        <Route
+          path="/merchant/settings/terms-conditions"
+          element={
+            <LazyRoute>
+              <ProtectedRoute requiredRole="merchant">
+                <MerchantLayout>
+                  <MerchantTermsConditionsPage />
+                </MerchantLayout>
+              </ProtectedRoute>
+            </LazyRoute>
+          }
+        />
+        <Route
+          path="/merchant/settings/delete-account"
+          element={
+            <LazyRoute>
+              <ProtectedRoute requiredRole="merchant">
+                <MerchantLayout>
+                  <MerchantDeleteAccountPage />
+                </MerchantLayout>
+              </ProtectedRoute>
+            </LazyRoute>
+          }
+        />
 
-          {/* Customer Routes */}
-          <Route path="/" element={<LazyRoute><Index /></LazyRoute>} />
-          <Route path="/home" element={<LazyRoute><ProtectedRoute><CustomerLayout><HomePage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
-          <Route path="/search" element={<LazyRoute><ProtectedRoute><CustomerLayout><SearchPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
-          <Route path="/map" element={<LazyRoute><ProtectedRoute><CustomerLayout><MapPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
-          <Route path="/merchant/:merchantId" element={<LazyRoute><ProtectedRoute><CustomerLayout><MerchantDetailPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        {/* Customer Routes */}
+        <Route path="/" element={<LazyRoute><Index /></LazyRoute>} />
+        <Route path="/home" element={<LazyRoute><ProtectedRoute><CustomerLayout><HomePage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/search" element={<LazyRoute><ProtectedRoute><CustomerLayout><SearchPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/map" element={<LazyRoute><ProtectedRoute><CustomerLayout><MapPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/merchant/:merchantId" element={<LazyRoute><ProtectedRoute><CustomerLayout><MerchantDetailPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
 
-          <Route path="/booking/:merchantId/services" element={<LazyRoute><ProtectedRoute><CustomerLayout><ServiceSelectionPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
-          <Route path="/booking/:merchantId/staff" element={<LazyRoute><ProtectedRoute><CustomerLayout><StaffSelectionPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
-          <Route path="/booking/:merchantId/datetime" element={<LazyRoute><ProtectedRoute><CustomerLayout><DateTimeSelectionPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
-          <Route path="/booking-summary" element={<LazyRoute><ProtectedRoute><CustomerLayout><BookingSummaryPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
-          <Route path="/payment/:merchantId" element={<LazyRoute><ProtectedRoute><CustomerLayout><PaymentPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
-          <Route path="/receipt/:bookingId" element={<LazyRoute><ProtectedRoute><CustomerLayout><ReceiptPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
-          <Route path="/calendar" element={<LazyRoute><ProtectedRoute><CustomerLayout><CalendarPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
-          <Route path="/bookings-history" element={<LazyRoute><ProtectedRoute><CustomerLayout><BookingsHistoryPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
-          <Route path="/profile" element={<LazyRoute><ProtectedRoute><CustomerLayout><ProfilePage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
-          <Route path="/account" element={<LazyRoute><ProtectedRoute><CustomerLayout><AccountPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
-          <Route path="/reviews" element={<LazyRoute><ProtectedRoute><CustomerLayout><ReviewsPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
-          <Route path="/settings" element={<LazyRoute><ProtectedRoute><CustomerLayout><SettingsPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/booking/:merchantId/services" element={<LazyRoute><ProtectedRoute><CustomerLayout><ServiceSelectionPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/booking/:merchantId/staff" element={<LazyRoute><ProtectedRoute><CustomerLayout><StaffSelectionPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/booking/:merchantId/datetime" element={<LazyRoute><ProtectedRoute><CustomerLayout><DateTimeSelectionPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/booking-summary" element={<LazyRoute><ProtectedRoute><CustomerLayout><BookingSummaryPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/payment/:merchantId" element={<LazyRoute><ProtectedRoute><CustomerLayout><PaymentPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/receipt/:bookingId" element={<LazyRoute><ProtectedRoute><CustomerLayout><ReceiptPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/calendar" element={<LazyRoute><ProtectedRoute><CustomerLayout><CalendarPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/bookings-history" element={<LazyRoute><ProtectedRoute><CustomerLayout><BookingsHistoryPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/profile" element={<LazyRoute><ProtectedRoute><CustomerLayout><ProfilePage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/account" element={<LazyRoute><ProtectedRoute><CustomerLayout><AccountPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/reviews" element={<LazyRoute><ProtectedRoute><CustomerLayout><ReviewsPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/settings" element={<LazyRoute><ProtectedRoute><CustomerLayout><SettingsPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
 
-          <Route path="/settings/account" element={<LazyRoute><ProtectedRoute><CustomerLayout><AccountPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
-          <Route path="/settings/privacy-policy" element={<LazyRoute><ProtectedRoute><CustomerLayout><PrivacyPolicy /></CustomerLayout></ProtectedRoute></LazyRoute>} />
-          <Route path="/settings/terms-conditions" element={<LazyRoute><ProtectedRoute><CustomerLayout><TermsAndConditions /></CustomerLayout></ProtectedRoute></LazyRoute>} />
-          <Route path="/settings/contact" element={<LazyRoute><ProtectedRoute><CustomerLayout><ContactPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
-          <Route path="/settings/about" element={<LazyRoute><ProtectedRoute><CustomerLayout><AboutPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
-          <Route path="/settings/delete-account" element={<LazyRoute><ProtectedRoute><CustomerLayout><DeleteAccountPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
-          
-          {/* Catch-all route for 404 */}
-          <Route path="*" element={<LazyRoute><NotFound /></LazyRoute>} />
-        </Routes>
-      </Router>
+        <Route path="/settings/account" element={<LazyRoute><ProtectedRoute><CustomerLayout><AccountPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/settings/privacy-policy" element={<LazyRoute><ProtectedRoute><CustomerLayout><PrivacyPolicy /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/settings/terms-conditions" element={<LazyRoute><ProtectedRoute><CustomerLayout><TermsAndConditions /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/settings/contact" element={<LazyRoute><ProtectedRoute><CustomerLayout><ContactPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/settings/about" element={<LazyRoute><ProtectedRoute><CustomerLayout><AboutPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/settings/delete-account" element={<LazyRoute><ProtectedRoute><CustomerLayout><DeleteAccountPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        
+        {/* Catch-all route for 404 */}
+        <Route path="*" element={<LazyRoute><NotFound /></LazyRoute>} />
+      </Routes>
     </ErrorBoundary>
   );
 };
