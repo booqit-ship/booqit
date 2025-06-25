@@ -59,8 +59,8 @@ export const usePayment = () => {
         throw new Error(bookingError.message);
       }
 
-      // Cast the response to the expected type
-      const response = bookingResult as BookingResponse;
+      // Cast the response properly to handle the actual RPC return format
+      const response = bookingResult as unknown as BookingResponse;
 
       if (!response?.success) {
         console.error('PAYMENT_FLOW: Booking failed:', response?.error);
