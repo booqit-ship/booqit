@@ -151,25 +151,18 @@ const BookingCard: React.FC<BookingCardProps> = ({
     try {
       console.log(`🔄 BOOKING_CARD: Updating booking ${booking.id} to ${newStatus}`);
 
-      // ✅ FIXED: Use ONLY the standardized RPC function - no direct updates
-      const { data: updateResult, error: updateError } = await supabase.rpc('update_booking_status_and_release_slots', {
-        p_booking_id: booking.id,
-        p_new_status: newStatus,
-        p_merchant_user_id: user.id
-      });
+      // ✅ FIXED: Use simple direct status update instead of complex RPC
+      const { error: updateError } = await supabase
+        .from('bookings')
+        .update({ 
+          status: newStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', booking.id);
 
       if (updateError) {
         console.error('❌ BOOKING_CARD: Error updating booking status:', updateError);
         toast.error('Failed to update booking status');
-        return;
-      }
-
-      // Type cast the response safely
-      const updateResponse = updateResult as unknown as UpdateBookingResponse;
-
-      if (!updateResponse?.success) {
-        console.error('❌ BOOKING_CARD: Status update failed:', updateResponse?.error);
-        toast.error(updateResponse?.error || 'Failed to update booking status');
         return;
       }
 

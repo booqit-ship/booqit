@@ -1,4 +1,3 @@
-
 import { useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { NotificationTemplateService } from "@/services/NotificationTemplateService";
@@ -48,25 +47,18 @@ export function useMerchantBookingActions() {
         return false;
       }
 
-      // Use the standardized RPC function for cancellation
-      const { data: cancelResult, error: cancelError } = await supabase.rpc('update_booking_status_and_release_slots', {
-        p_booking_id: bookingId,
-        p_new_status: 'cancelled',
-        p_merchant_user_id: user.id
-      });
+      // ✅ FIXED: Use simple direct status update instead of complex RPC
+      const { error: cancelError } = await supabase
+        .from('bookings')
+        .update({ 
+          status: 'cancelled',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', bookingId);
 
       if (cancelError) {
         console.error('❌ MERCHANT: Error cancelling booking:', cancelError);
         toast.error('Failed to cancel booking');
-        return false;
-      }
-
-      // Type cast the response safely
-      const cancelResponse = cancelResult as unknown as BookingActionResponse;
-
-      if (!cancelResponse?.success) {
-        console.error('❌ MERCHANT: Cancellation failed:', cancelResponse?.error);
-        toast.error(cancelResponse?.error || 'Failed to cancel booking');
         return false;
       }
 
@@ -146,25 +138,18 @@ export function useMerchantBookingActions() {
         return false;
       }
 
-      // Use the standardized RPC function for completion
-      const { data: completeResult, error: completeError } = await supabase.rpc('update_booking_status_and_release_slots', {
-        p_booking_id: bookingId,
-        p_new_status: 'completed',
-        p_merchant_user_id: user.id
-      });
+      // ✅ FIXED: Use simple direct status update instead of complex RPC
+      const { error: completeError } = await supabase
+        .from('bookings')
+        .update({ 
+          status: 'completed',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', bookingId);
 
       if (completeError) {
         console.error('❌ MERCHANT: Error completing booking:', completeError);
         toast.error('Failed to complete booking');
-        return false;
-      }
-
-      // Type cast the response safely
-      const completeResponse = completeResult as unknown as BookingActionResponse;
-
-      if (!completeResponse?.success) {
-        console.error('❌ MERCHANT: Completion failed:', completeResponse?.error);
-        toast.error(completeResponse?.error || 'Failed to complete booking');
         return false;
       }
 
