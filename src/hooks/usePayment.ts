@@ -40,17 +40,19 @@ export const usePayment = () => {
     console.log('PAYMENT_FLOW: Starting confirmed booking creation via RPC...');
 
     try {
-      // ✅ Use working RPC function instead of direct insert
+      // ✅ Use the correct RPC function that exists in the database
       console.log('PAYMENT_FLOW: Creating confirmed booking via RPC...');
       
-      const { data: rpcResult, error: rpcError } = await supabase.rpc('create_confirmed_booking', {
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('create_confirmed_booking_with_services', {
         p_user_id: user.id,
         p_merchant_id: paymentData.merchantId,
         p_service_id: paymentData.serviceIds[0],
         p_staff_id: paymentData.staffId,
         p_date: paymentData.date,
         p_time_slot: paymentData.timeSlot,
-        p_service_duration: paymentData.totalDuration
+        p_service_duration: paymentData.totalDuration,
+        p_services: JSON.stringify(paymentData.serviceIds.map(id => ({ id }))),
+        p_total_duration: paymentData.totalDuration
       });
 
       // Type cast the response safely
@@ -81,31 +83,7 @@ export const usePayment = () => {
         console.error('PAYMENT_FLOW: Payment status update failed:', paymentUpdateError);
       }
 
-      // Step 3: Handle multiple services (add to booking_services table)
-      if (paymentData.serviceIds.length > 1) {
-        try {
-          console.log('PAYMENT_FLOW: Adding multiple services...');
-          
-          const additionalServices = paymentData.serviceIds.slice(1).map(serviceId => ({
-            booking_id: bookingId,
-            service_id: serviceId
-          }));
-
-          const { error: servicesError } = await supabase
-            .from('booking_services')
-            .insert(additionalServices);
-          
-          if (servicesError) {
-            console.error('PAYMENT_FLOW: Additional services error:', servicesError);
-          } else {
-            console.log('PAYMENT_FLOW: Multiple services added successfully');
-          }
-        } catch (servicesError) {
-          console.error('PAYMENT_FLOW: Multiple services addition failed:', servicesError);
-        }
-      }
-
-      // Step 4: Create payment record
+      // Step 3: Create payment record
       const { error: paymentError } = await supabase
         .from('payments')
         .insert({
@@ -121,7 +99,7 @@ export const usePayment = () => {
         console.log('PAYMENT_FLOW: Payment record created successfully');
       }
 
-      // Step 5: Send notifications using enhanced service
+      // Step 4: Send notifications using enhanced service
       console.log('PAYMENT_FLOW: Sending notifications...');
 
       // Format date and time for notifications

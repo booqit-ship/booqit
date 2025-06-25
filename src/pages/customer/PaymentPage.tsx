@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Smartphone } from 'lucide-react';
@@ -67,17 +66,19 @@ const PaymentPage: React.FC = () => {
 
       const serviceId = selectedServices[0]?.id;
       
-      // ✅ Use working RPC function instead of direct insert
+      // ✅ Use the correct RPC function that exists in the database
       console.log('PAYMENT_FLOW: Creating confirmed booking via RPC...');
 
-      const { data: rpcResult, error: rpcError } = await supabase.rpc('create_confirmed_booking', {
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('create_confirmed_booking_with_services', {
         p_user_id: userId,
         p_merchant_id: merchantId,
         p_service_id: serviceId,
         p_staff_id: selectedStaff,
         p_date: bookingDate,
         p_time_slot: bookingTime,
-        p_service_duration: totalDuration
+        p_service_duration: totalDuration,
+        p_services: JSON.stringify(selectedServices.map(s => ({ id: s.id, name: s.name }))),
+        p_total_duration: totalDuration
       });
 
       // Type cast the response safely
@@ -113,31 +114,7 @@ const PaymentPage: React.FC = () => {
         console.error('PAYMENT_FLOW: Payment status update failed:', paymentUpdateError);
       }
 
-      // Step 3: Handle multiple services (add to booking_services table)
-      if (selectedServices.length > 1) {
-        try {
-          console.log('PAYMENT_FLOW: Adding multiple services...');
-          
-          const additionalServices = selectedServices.slice(1).map(service => ({
-            booking_id: bookingId,
-            service_id: service.id
-          }));
-
-          const { error: servicesError } = await supabase
-            .from('booking_services')
-            .insert(additionalServices);
-          
-          if (servicesError) {
-            console.error('PAYMENT_FLOW: Additional services error:', servicesError);
-          } else {
-            console.log('PAYMENT_FLOW: Multiple services added successfully');
-          }
-        } catch (servicesError) {
-          console.error('PAYMENT_FLOW: Multiple services addition failed:', servicesError);
-        }
-      }
-
-      // Step 4: Create payment record (non-blocking)
+      // Step 3: Create payment record (non-blocking)
       try {
         const paymentData = {
           booking_id: bookingId,
@@ -161,7 +138,7 @@ const PaymentPage: React.FC = () => {
         console.error('PAYMENT_FLOW: Payment record creation failed:', paymentCreationError);
       }
 
-      // ✅ Step 5: Send enhanced standardized notifications
+      // ✅ Step 4: Send enhanced standardized notifications
       try {
         console.log('PAYMENT_FLOW: Sending enhanced standardized notifications...');
         
