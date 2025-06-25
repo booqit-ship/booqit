@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Smartphone } from 'lucide-react';
@@ -53,84 +52,81 @@ const PaymentPage: React.FC = () => {
     setIsProcessing(true);
     
     try {
-      console.log('PAYMENT_FLOW: Starting direct confirmed booking creation...');
+      console.log('PAYMENT_FLOW: Starting confirmed booking creation via RPC...');
 
       // Simulate payment processing (2 seconds)
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       const serviceId = selectedServices[0]?.id;
       
-      // ✅ FIXED: Direct booking creation with confirmed status - no two-step process
-      console.log('PAYMENT_FLOW: Creating confirmed booking directly...');
+      // ✅ Use working RPC function instead of direct insert
+      console.log('PAYMENT_FLOW: Creating confirmed booking via RPC...');
 
-      // Get customer info first
-      let customerInfo = { name: 'Customer', email: '', phone: '' };
-      
-      // Try to get from profiles first
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('name, email, phone')
-        .eq('id', userId)
-        .single();
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('create_confirmed_booking', {
+        p_user_id: userId,
+        p_merchant_id: merchantId,
+        p_service_id: serviceId,
+        p_staff_id: selectedStaff,
+        p_date: bookingDate,
+        p_time_slot: bookingTime,
+        p_service_duration: totalDuration
+      });
 
-      if (profileData) {
-        customerInfo = profileData;
-      } else {
-        // Fallback to auth.users if no profile
-        const { data: { user: authUser } } = await supabase.auth.getUser();
-        if (authUser) {
-          customerInfo = {
-            name: authUser.user_metadata?.name || 'Customer',
-            email: authUser.email || '',
-            phone: authUser.user_metadata?.phone || ''
-          };
-        }
-      }
-
-      // Get staff name
-      const { data: staffData } = await supabase
-        .from('staff')
-        .select('name')
-        .eq('id', selectedStaff)
-        .single();
-
-      const staffName = staffData?.name || 'Stylist';
-
-      // ✅ Direct confirmed booking creation - single step
-      const { data: bookingData, error: bookingError } = await supabase
-        .from('bookings')
-        .insert({
-          user_id: userId,
-          merchant_id: merchantId,
-          service_id: serviceId,
-          staff_id: selectedStaff,
-          date: bookingDate,
-          time_slot: bookingTime,
-          status: 'confirmed', // ✅ Directly set as confirmed
-          payment_status: 'completed', // ✅ Directly set as completed
-          customer_name: customerInfo.name,
-          customer_email: customerInfo.email,
-          customer_phone: customerInfo.phone,
-          stylist_name: staffName,
-          services: selectedServices,
-          total_duration: totalDuration
-        })
-        .select()
-        .single();
-
-      if (bookingError) {
-        console.error('PAYMENT_FLOW: Error creating confirmed booking:', bookingError);
-        toast.error(bookingError.message || 'Failed to create booking');
+      if (rpcError || !rpcResult?.success) {
+        console.error('PAYMENT_FLOW: RPC error:', rpcError || rpcResult);
+        toast.error(rpcError?.message || rpcResult?.error || 'Failed to create booking');
         setShowFailureAnimation(true);
         return;
       }
 
-      const bookingId = bookingData.id;
+      const bookingId = rpcResult.booking_id;
       console.log('PAYMENT_FLOW: Confirmed booking created with ID:', bookingId);
       
       setCreatedBookingId(bookingId);
 
-      // Step 2: Create payment record (non-blocking)
+      // Step 2: Update payment status to completed (RPC creates with 'pending')
+      try {
+        console.log('PAYMENT_FLOW: Updating payment status to completed...');
+        
+        const { error: paymentUpdateError } = await supabase
+          .from('bookings')
+          .update({ payment_status: 'completed' })
+          .eq('id', bookingId);
+        
+        if (paymentUpdateError) {
+          console.error('PAYMENT_FLOW: Payment status update error:', paymentUpdateError);
+        } else {
+          console.log('PAYMENT_FLOW: Payment status updated to completed');
+        }
+      } catch (paymentUpdateError) {
+        console.error('PAYMENT_FLOW: Payment status update failed:', paymentUpdateError);
+      }
+
+      // Step 3: Handle multiple services (add to booking_services table)
+      if (selectedServices.length > 1) {
+        try {
+          console.log('PAYMENT_FLOW: Adding multiple services...');
+          
+          const additionalServices = selectedServices.slice(1).map(service => ({
+            booking_id: bookingId,
+            service_id: service.id
+          }));
+
+          const { error: servicesError } = await supabase
+            .from('booking_services')
+            .insert(additionalServices);
+          
+          if (servicesError) {
+            console.error('PAYMENT_FLOW: Additional services error:', servicesError);
+          } else {
+            console.log('PAYMENT_FLOW: Multiple services added successfully');
+          }
+        } catch (servicesError) {
+          console.error('PAYMENT_FLOW: Multiple services addition failed:', servicesError);
+        }
+      }
+
+      // Step 4: Create payment record (non-blocking)
       try {
         const paymentData = {
           booking_id: bookingId,
@@ -154,7 +150,7 @@ const PaymentPage: React.FC = () => {
         console.error('PAYMENT_FLOW: Payment record creation failed:', paymentCreationError);
       }
 
-      // ✅ Step 3: Send enhanced standardized notifications
+      // ✅ Step 5: Send enhanced standardized notifications
       try {
         console.log('PAYMENT_FLOW: Sending enhanced standardized notifications...');
         
@@ -188,7 +184,7 @@ const PaymentPage: React.FC = () => {
             {
               type: 'new_booking',
               bookingId,
-              customerName, // ✅ FIXED: Use actual customer name, not stylist name
+              customerName,
               serviceName: serviceNames,
               dateTime: dateTimeFormatted
             }

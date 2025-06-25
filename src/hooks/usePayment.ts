@@ -30,70 +30,72 @@ export const usePayment = () => {
     }
 
     setIsProcessing(true);
-    console.log('PAYMENT_FLOW: Starting direct confirmed booking creation...');
+    console.log('PAYMENT_FLOW: Starting confirmed booking creation via RPC...');
 
     try {
-      // Get customer info first
-      let customerInfo = { name: 'Customer', email: '', phone: '' };
+      // ✅ Use working RPC function instead of direct insert
+      console.log('PAYMENT_FLOW: Creating confirmed booking via RPC...');
       
-      // Try to get from profiles first
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('name, email, phone')
-        .eq('id', user.id)
-        .single();
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('create_confirmed_booking', {
+        p_user_id: user.id,
+        p_merchant_id: paymentData.merchantId,
+        p_service_id: paymentData.serviceIds[0],
+        p_staff_id: paymentData.staffId,
+        p_date: paymentData.date,
+        p_time_slot: paymentData.timeSlot,
+        p_service_duration: paymentData.totalDuration
+      });
 
-      if (profileData) {
-        customerInfo = profileData;
-      } else {
-        // Fallback to auth.users if no profile
-        customerInfo = {
-          name: user.user_metadata?.name || 'Customer',
-          email: user.email || '',
-          phone: user.user_metadata?.phone || ''
-        };
+      if (rpcError || !rpcResult?.success) {
+        throw new Error(rpcError?.message || rpcResult?.error || 'Failed to create booking');
       }
 
-      // Get staff name
-      const { data: staffData } = await supabase
-        .from('staff')
-        .select('name')
-        .eq('id', paymentData.staffId)
-        .single();
-
-      const staffName = staffData?.name || 'Stylist';
-
-      // ✅ FIXED: Direct confirmed booking creation - single step, no RPC calls
-      console.log('PAYMENT_FLOW: Creating confirmed booking directly...');
-      
-      const { data: bookingData, error: bookingError } = await supabase
-        .from('bookings')
-        .insert({
-          user_id: user.id,
-          merchant_id: paymentData.merchantId,
-          service_id: paymentData.serviceIds[0],
-          staff_id: paymentData.staffId,
-          date: paymentData.date,
-          time_slot: paymentData.timeSlot,
-          status: 'confirmed', // ✅ Directly set as confirmed
-          payment_status: 'completed', // ✅ Directly set as completed
-          customer_name: customerInfo.name,
-          customer_email: customerInfo.email,
-          customer_phone: customerInfo.phone,
-          stylist_name: staffName,
-          total_duration: paymentData.totalDuration
-        })
-        .select()
-        .single();
-
-      if (bookingError) {
-        throw new Error(bookingError.message || 'Failed to create booking');
-      }
-
-      const bookingId = bookingData.id;
+      const bookingId = rpcResult.booking_id;
       console.log('PAYMENT_FLOW: Confirmed booking created with ID:', bookingId);
 
-      // Step 2: Create payment record
+      // Step 2: Update payment status to completed (RPC creates with 'pending')
+      try {
+        console.log('PAYMENT_FLOW: Updating payment status to completed...');
+        
+        const { error: paymentUpdateError } = await supabase
+          .from('bookings')
+          .update({ payment_status: 'completed' })
+          .eq('id', bookingId);
+        
+        if (paymentUpdateError) {
+          console.error('PAYMENT_FLOW: Payment status update error:', paymentUpdateError);
+        } else {
+          console.log('PAYMENT_FLOW: Payment status updated to completed');
+        }
+      } catch (paymentUpdateError) {
+        console.error('PAYMENT_FLOW: Payment status update failed:', paymentUpdateError);
+      }
+
+      // Step 3: Handle multiple services (add to booking_services table)
+      if (paymentData.serviceIds.length > 1) {
+        try {
+          console.log('PAYMENT_FLOW: Adding multiple services...');
+          
+          const additionalServices = paymentData.serviceIds.slice(1).map(serviceId => ({
+            booking_id: bookingId,
+            service_id: serviceId
+          }));
+
+          const { error: servicesError } = await supabase
+            .from('booking_services')
+            .insert(additionalServices);
+          
+          if (servicesError) {
+            console.error('PAYMENT_FLOW: Additional services error:', servicesError);
+          } else {
+            console.log('PAYMENT_FLOW: Multiple services added successfully');
+          }
+        } catch (servicesError) {
+          console.error('PAYMENT_FLOW: Multiple services addition failed:', servicesError);
+        }
+      }
+
+      // Step 4: Create payment record
       const { error: paymentError } = await supabase
         .from('payments')
         .insert({
@@ -109,7 +111,7 @@ export const usePayment = () => {
         console.log('PAYMENT_FLOW: Payment record created successfully');
       }
 
-      // Step 3: Send notifications using enhanced service
+      // Step 5: Send notifications using enhanced service
       console.log('PAYMENT_FLOW: Sending notifications...');
 
       // Format date and time for notifications
