@@ -8,6 +8,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useInvalidateBookingsData } from '@/hooks/useBookingsData';
 import { useBookingCompletion } from '@/hooks/useBookingCompletion';
+import { useAuth } from '@/contexts/AuthContext';
+import { NotificationTemplateService } from '@/services/NotificationTemplateService';
 import { 
   AlertDialog, 
   AlertDialogAction, 
@@ -43,6 +45,12 @@ interface BookingCardProps {
   onStatusChange: (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => Promise<void>;
 }
 
+interface UpdateBookingResponse {
+  success: boolean;
+  error?: string;
+  message?: string;
+}
+
 const BookingCard: React.FC<BookingCardProps> = ({
   booking,
   onStatusChange
@@ -51,6 +59,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const invalidateBookings = useInvalidateBookingsData();
   const { onBookingCompleted, onBookingCancelled } = useBookingCompletion();
+  const { user } = useAuth();
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -134,27 +143,42 @@ const BookingCard: React.FC<BookingCardProps> = ({
   };
 
   const handleStatusUpdate = async (newStatus: 'confirmed' | 'completed' | 'cancelled') => {
+    if (!user?.id) {
+      toast.error('You must be logged in to update booking status');
+      return;
+    }
+
     try {
-      let updateData: any = { status: newStatus };
-      
-      if (newStatus === 'completed') {
-        updateData.payment_status = 'completed';
-      }
+      console.log(`🔄 BOOKING_CARD: Updating booking ${booking.id} to ${newStatus}`);
 
-      const { error } = await supabase
-        .from('bookings')
-        .update(updateData)
-        .eq('id', booking.id);
+      // ✅ FIXED: Use ONLY the standardized RPC function - no direct updates
+      const { data: updateResult, error: updateError } = await supabase.rpc('update_booking_status_and_release_slots', {
+        p_booking_id: booking.id,
+        p_new_status: newStatus,
+        p_merchant_user_id: user.id
+      });
 
-      if (error) {
-        console.error('Error updating booking status:', error);
+      if (updateError) {
+        console.error('❌ BOOKING_CARD: Error updating booking status:', updateError);
         toast.error('Failed to update booking status');
         return;
       }
 
-      // Send notifications based on status change
-      if (newStatus === 'completed') {
-        try {
+      // Type cast the response safely
+      const updateResponse = updateResult as unknown as UpdateBookingResponse;
+
+      if (!updateResponse?.success) {
+        console.error('❌ BOOKING_CARD: Status update failed:', updateResponse?.error);
+        toast.error(updateResponse?.error || 'Failed to update booking status');
+        return;
+      }
+
+      console.log('✅ BOOKING_CARD: Booking status updated successfully');
+
+      // ✅ Send enhanced standardized notifications
+      try {
+        if (newStatus === 'completed') {
+          // Get merchant data for notifications
           const { data: merchantData } = await supabase
             .from('merchants')
             .select('shop_name')
@@ -162,18 +186,26 @@ const BookingCard: React.FC<BookingCardProps> = ({
             .single();
           
           const merchantName = merchantData?.shop_name || 'the salon';
-          const customerId = booking.user_id;
           
-          if (customerId) {
-            await onBookingCompleted(customerId, merchantName, booking.id);
+          if (booking.user_id) {
+            await NotificationTemplateService.sendStandardizedNotification(
+              booking.user_id,
+              'booking_completed',
+              {
+                type: 'booking_completed',
+                bookingId: booking.id,
+                shopName: merchantName,
+                serviceName: '',
+                dateTime: ''
+              }
+            );
+            console.log('📧 BOOKING_CARD: Review request sent to customer');
             toast.success(`Booking completed! Review request sent to ${booking.customer_name || 'customer'}`);
+          } else {
+            console.log('ℹ️ BOOKING_CARD: Guest booking - no review request sent');
+            toast.success('Booking marked as completed');
           }
-        } catch (notificationError) {
-          console.error('Error sending completion notification:', notificationError);
-          toast.error('Booking completed but failed to send notification to customer');
-        }
-      } else if (newStatus === 'cancelled') {
-        try {
+        } else if (newStatus === 'cancelled') {
           const { data: merchantData } = await supabase
             .from('merchants')
             .select('shop_name')
@@ -181,17 +213,36 @@ const BookingCard: React.FC<BookingCardProps> = ({
             .single();
           
           const merchantName = merchantData?.shop_name || 'the salon';
-          const customerId = booking.user_id;
           
-          if (customerId) {
-            await onBookingCancelled(customerId, merchantName, booking.id);
+          if (booking.user_id) {
+            const dateTimeFormatted = NotificationTemplateService.formatDateTime(
+              booking.date, 
+              booking.time_slot
+            );
+
+            await NotificationTemplateService.sendStandardizedNotification(
+              booking.user_id,
+              'booking_cancelled',
+              {
+                type: 'booking_cancelled',
+                bookingId: booking.id,
+                shopName: merchantName,
+                serviceName: serviceInfo.names,
+                dateTime: dateTimeFormatted
+              }
+            );
+            console.log('📧 BOOKING_CARD: Cancellation notification sent to customer');
             toast.success(`Booking cancelled. Customer has been notified.`);
+          } else {
+            console.log('ℹ️ BOOKING_CARD: Guest booking - no notification sent');
+            toast.success('Booking cancelled successfully');
           }
-        } catch (notificationError) {
-          console.error('Error sending cancellation notification:', notificationError);
-          toast.error('Booking cancelled but failed to send notification to customer');
+        } else {
+          toast.success(`Booking ${newStatus} successfully`);
         }
-      } else {
+      } catch (notificationError) {
+        console.error('❌ BOOKING_CARD: Enhanced notification error:', notificationError);
+        // Don't fail the status update for notification issues
         toast.success(`Booking ${newStatus} successfully`);
       }
       
@@ -204,7 +255,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
       // Call the parent's status change handler
       await onStatusChange(booking.id, newStatus);
     } catch (error) {
-      console.error('Error updating booking status:', error);
+      console.error('❌ BOOKING_CARD: Error updating booking status:', error);
       toast.error('Failed to update booking status');
     }
   };

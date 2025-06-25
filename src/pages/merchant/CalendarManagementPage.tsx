@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -29,6 +28,12 @@ interface BookingWithCustomerDetails {
   customer_phone?: string;
   customer_email?: string;
   stylist_name?: string;
+}
+
+interface UpdateBookingResponse {
+  success: boolean;
+  error?: string;
+  message?: string;
 }
 
 const CalendarManagementPage: React.FC = () => {
@@ -222,23 +227,37 @@ const CalendarManagementPage: React.FC = () => {
   }, [merchantId, queryClient]);
 
   const handleStatusChange = async (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
+    if (!userId) {
+      toast.error('You must be logged in to update booking status');
+      return;
+    }
+
     try {
-      let updateData: any = { status: newStatus };
-      
-      if (newStatus === 'completed') {
-        updateData.payment_status = 'completed';
-      }
+      console.log(`🔄 CALENDAR_MANAGEMENT: Updating booking ${bookingId} to ${newStatus}`);
 
-      const { error } = await supabase
-        .from('bookings')
-        .update(updateData)
-        .eq('id', bookingId);
+      // ✅ FIXED: Use ONLY the standardized RPC function - no direct updates
+      const { data: updateResult, error: updateError } = await supabase.rpc('update_booking_status_and_release_slots', {
+        p_booking_id: bookingId,
+        p_new_status: newStatus,
+        p_merchant_user_id: userId
+      });
 
-      if (error) {
-        console.error('Error updating booking status:', error);
-        toast.error(`Failed to update booking status: ${error.message}`);
+      if (updateError) {
+        console.error('❌ CALENDAR_MANAGEMENT: Error updating booking status:', updateError);
+        toast.error(`Failed to update booking status: ${updateError.message}`);
         return;
       }
+
+      // Type cast the response safely
+      const updateResponse = updateResult as unknown as UpdateBookingResponse;
+
+      if (!updateResponse?.success) {
+        console.error('❌ CALENDAR_MANAGEMENT: Status update failed:', updateResponse?.error);
+        toast.error(updateResponse?.error || 'Failed to update booking status');
+        return;
+      }
+
+      console.log('✅ CALENDAR_MANAGEMENT: Booking status updated successfully');
       
       // Force immediate refresh
       refetchBookings();
@@ -246,8 +265,10 @@ const CalendarManagementPage: React.FC = () => {
       // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ['bookings', merchantId] });
       queryClient.invalidateQueries({ queryKey: ['appointment-counts', merchantId] });
+
+      toast.success(`Booking ${newStatus} successfully`);
     } catch (error) {
-      console.error('Error updating booking status:', error);
+      console.error('❌ CALENDAR_MANAGEMENT: Error updating booking status:', error);
       toast.error('Failed to update booking status. Please try again.');
     }
   };
