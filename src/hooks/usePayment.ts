@@ -18,6 +18,13 @@ export interface PaymentData {
   serviceNames: string;
 }
 
+interface BookingResponse {
+  success: boolean;
+  booking_id?: string;
+  error?: string;
+  message?: string;
+}
+
 export const usePayment = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const { user } = useAuth();
@@ -30,83 +37,68 @@ export const usePayment = () => {
     }
 
     setIsProcessing(true);
-    console.log('PAYMENT_FLOW: Starting simplified payment processing...');
+    console.log('PAYMENT_FLOW: Starting payment processing...');
 
     try {
-      // Get customer info
-      let customerInfo = { name: '', email: '', phone: '' };
-      
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('name, email, phone')
-        .eq('id', user.id)
-        .single();
+      // Step 1: Create booking
+      console.log('PAYMENT_FLOW: Creating booking...');
+      const { data: bookingResponse, error: bookingError } = await supabase.rpc(
+        'reserve_slot_immediately',
+        {
+          p_user_id: user.id,
+          p_merchant_id: paymentData.merchantId,
+          p_service_id: paymentData.serviceIds[0],
+          p_staff_id: paymentData.staffId,
+          p_date: paymentData.date,
+          p_time_slot: paymentData.timeSlot,
+          p_service_duration: paymentData.totalDuration
+        }
+      );
 
-      if (profile) {
-        customerInfo = {
-          name: profile.name || user.user_metadata?.name || 'Customer',
-          email: profile.email || user.email || '',
-          phone: profile.phone || user.user_metadata?.phone || ''
-        };
+      if (bookingError || !bookingResponse) {
+        throw new Error(bookingError?.message || 'Failed to create booking');
+      }
+
+      // Safe type conversion
+      let response: BookingResponse;
+      if (typeof bookingResponse === 'string') {
+        try {
+          response = JSON.parse(bookingResponse);
+        } catch {
+          throw new Error('Invalid booking response format');
+        }
+      } else if (bookingResponse && typeof bookingResponse === 'object') {
+        response = bookingResponse as unknown as BookingResponse;
       } else {
-        // Create profile if it doesn't exist
-        customerInfo = {
-          name: user.user_metadata?.name || 'Customer',
-          email: user.email || '',
-          phone: user.user_metadata?.phone || ''
-        };
-
-        await supabase
-          .from('profiles')
-          .insert({
-            id: user.id,
-            name: customerInfo.name,
-            email: customerInfo.email,
-            phone: customerInfo.phone,
-            role: 'customer'
-          });
+        throw new Error('Invalid booking response');
       }
 
-      // Get staff info
-      const { data: staffInfo } = await supabase
-        .from('staff')
-        .select('name')
-        .eq('id', paymentData.staffId)
-        .single();
-
-      console.log('PAYMENT_FLOW: Creating confirmed booking directly...');
-
-      // Create booking directly with confirmed status
-      const { data: bookingData, error: bookingError } = await supabase
-        .from('bookings')
-        .insert({
-          user_id: user.id,
-          merchant_id: paymentData.merchantId,
-          service_id: paymentData.serviceIds[0],
-          staff_id: paymentData.staffId,
-          date: paymentData.date,
-          time_slot: paymentData.timeSlot,
-          status: 'confirmed',
-          payment_status: 'completed',
-          customer_name: customerInfo.name,
-          customer_email: customerInfo.email,
-          customer_phone: customerInfo.phone,
-          stylist_name: staffInfo?.name || 'Stylist',
-          total_duration: paymentData.totalDuration,
-          services: paymentData.serviceIds.map(id => ({ id }))
-        })
-        .select()
-        .single();
-
-      if (bookingError) {
-        console.error('PAYMENT_FLOW: Error creating booking:', bookingError);
-        throw new Error(bookingError.message);
+      console.log('PAYMENT_FLOW: Booking response:', response);
+      
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to create booking');
       }
 
-      const bookingId = bookingData.id;
-      console.log('PAYMENT_FLOW: Booking created successfully with ID:', bookingId);
+      const bookingId = response.booking_id;
+      if (!bookingId) {
+        throw new Error('No booking ID returned');
+      }
 
-      // Create payment record
+      console.log('PAYMENT_FLOW: Booking created with ID:', bookingId);
+
+      // Step 2: Confirm the booking
+      const { error: confirmError } = await supabase.rpc('confirm_pending_booking', {
+        p_booking_id: bookingId,
+        p_user_id: user.id
+      });
+
+      if (confirmError) {
+        throw new Error('Failed to confirm booking');
+      }
+
+      console.log('PAYMENT_FLOW: Booking confirmed successfully');
+
+      // Step 3: Create payment record
       const { error: paymentError } = await supabase
         .from('payments')
         .insert({
@@ -118,12 +110,11 @@ export const usePayment = () => {
 
       if (paymentError) {
         console.error('PAYMENT_FLOW: Payment record error:', paymentError);
-        // Don't fail the booking for payment record issues
       } else {
         console.log('PAYMENT_FLOW: Payment record created successfully');
       }
 
-      // Send notifications using simple service
+      // Step 4: Send notifications using simple service
       console.log('PAYMENT_FLOW: Sending notifications...');
 
       // Notify customer
@@ -145,7 +136,7 @@ export const usePayment = () => {
       if (merchant?.user_id) {
         const merchantNotified = await SimpleNotificationService.notifyMerchantOfNewBooking(
           merchant.user_id,
-          customerInfo.name,
+          user.user_metadata?.name || 'Customer',
           paymentData.serviceNames,
           `${paymentData.date} at ${paymentData.timeSlot}`,
           bookingId

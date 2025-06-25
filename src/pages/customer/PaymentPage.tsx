@@ -13,6 +13,13 @@ import BookingFailureAnimation from '@/components/customer/BookingFailureAnimati
 import { useBookingCompletion } from '@/hooks/useBookingCompletion';
 import { NotificationTemplateService } from '@/services/NotificationTemplateService';
 
+interface BookingResponse {
+  success: boolean;
+  booking_id?: string;
+  error?: string;
+  message?: string;
+}
+
 const PaymentPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
@@ -52,90 +59,103 @@ const PaymentPage: React.FC = () => {
     setIsProcessing(true);
     
     try {
-      console.log('PAYMENT_FLOW: Starting simplified authenticated user payment processing...');
+      console.log('PAYMENT_FLOW: Starting authenticated user payment processing...');
 
       // Simulate payment processing (2 seconds)
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Get customer info
-      let customerInfo = { name: '', email: '', phone: '' };
+      const serviceId = selectedServices[0]?.id;
       
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('name, email, phone')
-        .eq('id', userId)
-        .single();
+      console.log('PAYMENT_FLOW: Creating authenticated user booking...');
 
-      if (profile) {
-        customerInfo = {
-          name: profile.name || user?.user_metadata?.name || 'Customer',
-          email: profile.email || user?.email || '',
-          phone: profile.phone || user?.user_metadata?.phone || ''
-        };
-      } else {
-        // Create profile if it doesn't exist
-        customerInfo = {
-          name: user?.user_metadata?.name || 'Customer',
-          email: user?.email || '',
-          phone: user?.user_metadata?.phone || ''
-        };
+      // ✅ FIXED: Use standardized RPC function for slot reservation
+      const { data: reserveResult, error: reserveError } = await supabase.rpc('reserve_slot_immediately', {
+        p_user_id: userId,
+        p_merchant_id: merchantId,
+        p_service_id: serviceId,
+        p_staff_id: selectedStaff,
+        p_date: bookingDate,
+        p_time_slot: bookingTime,
+        p_service_duration: totalDuration
+      });
 
-        await supabase
-          .from('profiles')
-          .insert({
-            id: userId,
-            name: customerInfo.name,
-            email: customerInfo.email,
-            phone: customerInfo.phone,
-            role: 'customer'
-          });
-      }
-
-      console.log('PAYMENT_FLOW: Creating booking directly with confirmed status...');
-
-      // Create booking directly with confirmed status (no RPC needed)
-      const { data: bookingData, error: bookingError } = await supabase
-        .from('bookings')
-        .insert({
-          user_id: userId,
-          merchant_id: merchantId,
-          service_id: selectedServices[0]?.id,
-          staff_id: selectedStaff,
-          date: bookingDate,
-          time_slot: bookingTime,
-          status: 'confirmed',
-          payment_status: 'completed',
-          customer_name: customerInfo.name,
-          customer_email: customerInfo.email,
-          customer_phone: customerInfo.phone,
-          stylist_name: selectedStaffDetails?.name || 'Stylist',
-          total_duration: totalDuration,
-          services: selectedServices
-        })
-        .select()
-        .single();
-
-      if (bookingError) {
-        console.error('PAYMENT_FLOW: Error creating booking:', bookingError);
-        toast.error(bookingError.message || 'Failed to create booking');
+      if (reserveError) {
+        console.error('PAYMENT_FLOW: Error reserving slot:', reserveError);
         setShowFailureAnimation(true);
         return;
       }
 
-      const bookingId = bookingData.id;
-      console.log('PAYMENT_FLOW: Booking created successfully with ID:', bookingId);
+      const reserveResponse = reserveResult as unknown as BookingResponse;
+      console.log('PAYMENT_FLOW: Slot reservation response:', reserveResponse);
+      
+      if (!reserveResponse.success) {
+        console.error('PAYMENT_FLOW: Slot reservation failed:', reserveResponse.error);
+        toast.error(reserveResponse.error || 'Failed to reserve slot');
+        setShowFailureAnimation(true);
+        return;
+      }
+
+      const bookingId = reserveResponse.booking_id;
+      console.log('PAYMENT_FLOW: Booking created with ID:', bookingId);
+      
       setCreatedBookingId(bookingId);
 
-      // Create payment record
+      // ✅ FIXED: Use standardized RPC function for confirmation instead of direct update
+      const { data: confirmResult, error: confirmError } = await supabase.rpc('confirm_pending_booking', {
+        p_booking_id: bookingId,
+        p_user_id: userId
+      });
+
+      if (confirmError) {
+        console.error('PAYMENT_FLOW: Error confirming booking:', confirmError);
+        setShowFailureAnimation(true);
+        return;
+      }
+
+      const confirmResponse = confirmResult as unknown as BookingResponse;
+      if (!confirmResponse.success) {
+        console.error('PAYMENT_FLOW: Booking confirmation failed:', confirmResponse.error);
+        toast.error(confirmResponse.error || 'Failed to confirm booking');
+        setShowFailureAnimation(true);
+        return;
+      }
+
+      // Update booking with additional details using safe direct update (non-status fields)
       try {
+        const { error: updateError } = await supabase
+          .from('bookings')
+          .update({
+            services: selectedServices,
+            total_duration: totalDuration,
+            payment_status: 'completed'
+          })
+          .eq('id', bookingId);
+
+        if (updateError) {
+          console.error('PAYMENT_FLOW: Error updating booking details:', updateError);
+          // Don't fail the process for this
+        }
+      } catch (updateDetailError) {
+        console.error('PAYMENT_FLOW: Booking detail update failed:', updateDetailError);
+        // Don't fail the process for this
+      }
+
+      console.log('PAYMENT_FLOW: Booking confirmed successfully');
+
+      // Step 3: Create payment record (non-blocking)
+      try {
+        const paymentData = {
+          booking_id: bookingId,
+          method: 'pay_on_shop',
+          amount: Number(totalPrice),
+          status: 'completed'
+        };
+
+        console.log('PAYMENT_FLOW: Creating payment record:', paymentData);
+
         const { error: paymentError } = await supabase
           .from('payments')
-          .insert({
-            booking_id: bookingId,
-            method: 'pay_on_shop',
-            amount: Number(totalPrice),
-            status: 'completed'
-          });
+          .insert(paymentData);
         
         if (paymentError) {
           console.error('PAYMENT_FLOW: Payment record error:', paymentError);
@@ -146,15 +166,18 @@ const PaymentPage: React.FC = () => {
         console.error('PAYMENT_FLOW: Payment record creation failed:', paymentCreationError);
       }
 
-      // Send enhanced standardized notifications
+      // ✅ Step 4: Send enhanced standardized notifications (the trigger handles basic ones)
       try {
         console.log('PAYMENT_FLOW: Sending enhanced standardized notifications...');
         
         const serviceNames = selectedServices.map(s => s.name).join(', ');
         const dateTimeFormatted = NotificationTemplateService.formatDateTime(bookingDate, bookingTime);
-        const customerName = customerInfo.name;
 
-        // Enhanced Customer "Booking Confirmed" notification
+        // Get correct customer name from user profile/auth
+        const customerName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'Customer';
+        console.log('PAYMENT_FLOW: Using customer name:', customerName);
+
+        // ✅ Enhanced Customer "Booking Confirmed" notification
         const customerNotified = await NotificationTemplateService.sendStandardizedNotification(
           userId,
           'booking_confirmed',
@@ -169,7 +192,7 @@ const PaymentPage: React.FC = () => {
 
         console.log('PAYMENT_FLOW: Enhanced customer notification result:', customerNotified);
 
-        // Enhanced Merchant "New Booking" notification 
+        // ✅ Enhanced Merchant "New Booking" notification 
         if (merchant?.user_id) {
           const merchantNotified = await NotificationTemplateService.sendStandardizedNotification(
             merchant.user_id,
@@ -177,7 +200,7 @@ const PaymentPage: React.FC = () => {
             {
               type: 'new_booking',
               bookingId,
-              customerName,
+              customerName, // ✅ FIXED: Use actual customer name, not stylist name
               serviceName: serviceNames,
               dateTime: dateTimeFormatted
             }
