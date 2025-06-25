@@ -18,10 +18,10 @@ export function useBookingNotifications() {
     // Send welcome notification using standardized service
     NotificationTemplateService.sendStandardizedNotification(
       userId,
-      'new_booking', // Using existing template structure
+      'welcome', // Now this is a valid type
       {
         type: 'welcome',
-        bookingId: '',
+        bookingId: '', // Empty for welcome notifications
         customerName: user.user_metadata.name,
         serviceName: 'Welcome to Booqit',
         dateTime: new Date().toLocaleDateString()

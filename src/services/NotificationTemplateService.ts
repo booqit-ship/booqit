@@ -2,7 +2,7 @@
 import { supabase } from '@/integrations/supabase/client';
 
 export interface NotificationData {
-  type: 'new_booking' | 'booking_confirmed' | 'booking_cancelled' | 'booking_completed' | 'reminder';
+  type: 'new_booking' | 'booking_confirmed' | 'booking_cancelled' | 'booking_completed' | 'reminder' | 'welcome';
   bookingId: string;
   customerName?: string;
   shopName?: string;
@@ -44,6 +44,17 @@ export class NotificationTemplateService {
    */
   static getNotificationTemplate(type: NotificationData['type'], data: NotificationData) {
     switch (type) {
+      case 'welcome':
+        return {
+          title: '🎉 Welcome to Booqit!',
+          body: `Hi ${data.customerName || 'there'}! Welcome to Booqit. Start booking your favorite services now!`,
+          data: {
+            type: 'welcome',
+            bookingId: data.bookingId,
+            customerName: data.customerName
+          }
+        };
+
       case 'new_booking':
         return {
           title: '📅 New Booking!',
