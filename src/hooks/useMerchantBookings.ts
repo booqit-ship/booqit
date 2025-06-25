@@ -119,8 +119,8 @@ export const useMerchantBookings = () => {
         throw updateError;
       }
 
-      // Type cast the response
-      const updateResponse = updateResult as UpdateBookingResponse;
+      // Type cast the response safely
+      const updateResponse = updateResult as unknown as UpdateBookingResponse;
 
       if (!updateResponse?.success) {
         console.error('❌ MERCHANT: Status update failed:', updateResponse?.error);

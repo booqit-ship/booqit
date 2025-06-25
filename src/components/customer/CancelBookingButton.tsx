@@ -83,8 +83,8 @@ const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
         return;
       }
 
-      // Type cast the response
-      const cancelResponse = cancelResult as CancelBookingResponse;
+      // Type cast the response safely
+      const cancelResponse = cancelResult as unknown as CancelBookingResponse;
 
       if (!cancelResponse?.success) {
         console.error('❌ CUSTOMER: Cancellation failed:', cancelResponse?.error);

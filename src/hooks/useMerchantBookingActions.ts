@@ -61,8 +61,8 @@ export function useMerchantBookingActions() {
         return false;
       }
 
-      // Type cast the response
-      const cancelResponse = cancelResult as BookingActionResponse;
+      // Type cast the response safely
+      const cancelResponse = cancelResult as unknown as BookingActionResponse;
 
       if (!cancelResponse?.success) {
         console.error('❌ MERCHANT: Cancellation failed:', cancelResponse?.error);
@@ -159,8 +159,8 @@ export function useMerchantBookingActions() {
         return false;
       }
 
-      // Type cast the response
-      const completeResponse = completeResult as BookingActionResponse;
+      // Type cast the response safely
+      const completeResponse = completeResult as unknown as BookingActionResponse;
 
       if (!completeResponse?.success) {
         console.error('❌ MERCHANT: Completion failed:', completeResponse?.error);
