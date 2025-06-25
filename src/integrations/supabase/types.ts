@@ -979,6 +979,20 @@ export type Database = {
         }
         Returns: Json
       }
+      create_confirmed_booking_with_services: {
+        Args: {
+          p_user_id: string
+          p_merchant_id: string
+          p_service_id: string
+          p_staff_id: string
+          p_date: string
+          p_time_slot: string
+          p_service_duration: number
+          p_services: string
+          p_total_duration: number
+        }
+        Returns: Json
+      }
       create_guest_booking: {
         Args: {
           p_guest_name: string
