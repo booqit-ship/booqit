@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { SimpleNotificationService } from '@/services/SimpleNotificationService';
+import { NotificationTemplateService } from '@/services/NotificationTemplateService';
 
 export interface PaymentData {
   merchantId: string;
@@ -30,80 +30,36 @@ export const usePayment = () => {
     }
 
     setIsProcessing(true);
-    console.log('PAYMENT_FLOW: Starting simplified payment processing...');
+    console.log('PAYMENT_FLOW: Starting payment processing with existing RPC...');
 
     try {
-      // Get customer info
-      let customerInfo = { name: '', email: '', phone: '' };
-      
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('name, email, phone')
-        .eq('id', user.id)
-        .single();
-
-      if (profile) {
-        customerInfo = {
-          name: profile.name || user.user_metadata?.name || 'Customer',
-          email: profile.email || user.email || '',
-          phone: profile.phone || user.user_metadata?.phone || ''
-        };
-      } else {
-        // Create profile if it doesn't exist
-        customerInfo = {
-          name: user.user_metadata?.name || 'Customer',
-          email: user.email || '',
-          phone: user.user_metadata?.phone || ''
-        };
-
-        await supabase
-          .from('profiles')
-          .insert({
-            id: user.id,
-            name: customerInfo.name,
-            email: customerInfo.email,
-            phone: customerInfo.phone,
-            role: 'customer'
-          });
-      }
-
-      // Get staff info
-      const { data: staffInfo } = await supabase
-        .from('staff')
-        .select('name')
-        .eq('id', paymentData.staffId)
-        .single();
-
-      console.log('PAYMENT_FLOW: Creating confirmed booking directly...');
-
-      // Create booking directly with confirmed status
-      const { data: bookingData, error: bookingError } = await supabase
-        .from('bookings')
-        .insert({
-          user_id: user.id,
-          merchant_id: paymentData.merchantId,
-          service_id: paymentData.serviceIds[0],
-          staff_id: paymentData.staffId,
-          date: paymentData.date,
-          time_slot: paymentData.timeSlot,
-          status: 'confirmed',
-          payment_status: 'completed',
-          customer_name: customerInfo.name,
-          customer_email: customerInfo.email,
-          customer_phone: customerInfo.phone,
-          stylist_name: staffInfo?.name || 'Stylist',
-          total_duration: paymentData.totalDuration,
-          services: paymentData.serviceIds.map(id => ({ id }))
-        })
-        .select()
-        .single();
+      // Use the existing working RPC function
+      const { data: bookingResult, error: bookingError } = await supabase.rpc(
+        'create_confirmed_booking_with_services',
+        {
+          p_user_id: user.id,
+          p_merchant_id: paymentData.merchantId,
+          p_service_id: paymentData.serviceIds[0],
+          p_staff_id: paymentData.staffId,
+          p_date: paymentData.date,
+          p_time_slot: paymentData.timeSlot,
+          p_service_duration: paymentData.totalDuration,
+          p_services: JSON.stringify(paymentData.serviceIds.map(id => ({ id }))),
+          p_total_duration: paymentData.totalDuration
+        }
+      );
 
       if (bookingError) {
-        console.error('PAYMENT_FLOW: Error creating booking:', bookingError);
+        console.error('PAYMENT_FLOW: Booking creation error:', bookingError);
         throw new Error(bookingError.message);
       }
 
-      const bookingId = bookingData.id;
+      if (!bookingResult?.success) {
+        console.error('PAYMENT_FLOW: Booking failed:', bookingResult?.error);
+        throw new Error(bookingResult?.error || 'Booking failed');
+      }
+
+      const bookingId = bookingResult.booking_id;
       console.log('PAYMENT_FLOW: Booking created successfully with ID:', bookingId);
 
       // Create payment record
@@ -123,16 +79,20 @@ export const usePayment = () => {
         console.log('PAYMENT_FLOW: Payment record created successfully');
       }
 
-      // Send notifications using simple service
+      // Send notifications using enhanced template service
       console.log('PAYMENT_FLOW: Sending notifications...');
 
       // Notify customer
-      const customerNotified = await SimpleNotificationService.notifyCustomerBookingConfirmed(
+      const customerNotified = await NotificationTemplateService.sendStandardizedNotification(
         user.id,
-        paymentData.merchantName,
-        paymentData.serviceNames,
-        `${paymentData.date} at ${paymentData.timeSlot}`,
-        bookingId
+        'booking_confirmed',
+        {
+          type: 'booking_confirmed',
+          bookingId,
+          shopName: paymentData.merchantName,
+          serviceName: paymentData.serviceNames,
+          dateTime: NotificationTemplateService.formatDateTime(paymentData.date, paymentData.timeSlot)
+        }
       );
 
       // Get merchant user ID and notify merchant
@@ -143,12 +103,16 @@ export const usePayment = () => {
         .single();
 
       if (merchant?.user_id) {
-        const merchantNotified = await SimpleNotificationService.notifyMerchantOfNewBooking(
+        const merchantNotified = await NotificationTemplateService.sendStandardizedNotification(
           merchant.user_id,
-          customerInfo.name,
-          paymentData.serviceNames,
-          `${paymentData.date} at ${paymentData.timeSlot}`,
-          bookingId
+          'new_booking',
+          {
+            type: 'new_booking',
+            bookingId,
+            customerName: user.user_metadata?.name || 'Customer',
+            serviceName: paymentData.serviceNames,
+            dateTime: NotificationTemplateService.formatDateTime(paymentData.date, paymentData.timeSlot)
+          }
         );
         console.log('PAYMENT_FLOW: Merchant notification result:', merchantNotified);
       }

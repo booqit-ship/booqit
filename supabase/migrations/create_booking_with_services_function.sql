@@ -100,7 +100,7 @@ BEGIN
     p_date,
     p_time_slot::text,
     'confirmed',
-    'pending',
+    'completed',
     customer_info.name,
     customer_info.email,
     customer_info.phone,

@@ -10,7 +10,6 @@ import { formatDateInIST } from '@/utils/dateUtils';
 import { useAuth } from '@/contexts/AuthContext';
 import BookingSuccessAnimation from '@/components/customer/BookingSuccessAnimation';
 import BookingFailureAnimation from '@/components/customer/BookingFailureAnimation';
-import { useBookingCompletion } from '@/hooks/useBookingCompletion';
 import { NotificationTemplateService } from '@/services/NotificationTemplateService';
 
 const PaymentPage: React.FC = () => {
@@ -18,7 +17,6 @@ const PaymentPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { userId, user } = useAuth();
-  const { onBookingConfirmed, onNewBooking } = useBookingCompletion();
   
   const {
     merchant,
@@ -52,77 +50,42 @@ const PaymentPage: React.FC = () => {
     setIsProcessing(true);
     
     try {
-      console.log('PAYMENT_FLOW: Starting simplified authenticated user payment processing...');
+      console.log('PAYMENT_FLOW: Starting payment processing with existing RPC...');
 
       // Simulate payment processing (2 seconds)
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Get customer info
-      let customerInfo = { name: '', email: '', phone: '' };
-      
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('name, email, phone')
-        .eq('id', userId)
-        .single();
-
-      if (profile) {
-        customerInfo = {
-          name: profile.name || user?.user_metadata?.name || 'Customer',
-          email: profile.email || user?.email || '',
-          phone: profile.phone || user?.user_metadata?.phone || ''
-        };
-      } else {
-        // Create profile if it doesn't exist
-        customerInfo = {
-          name: user?.user_metadata?.name || 'Customer',
-          email: user?.email || '',
-          phone: user?.user_metadata?.phone || ''
-        };
-
-        await supabase
-          .from('profiles')
-          .insert({
-            id: userId,
-            name: customerInfo.name,
-            email: customerInfo.email,
-            phone: customerInfo.phone,
-            role: 'customer'
-          });
-      }
-
-      console.log('PAYMENT_FLOW: Creating booking directly with confirmed status...');
-
-      // Create booking directly with confirmed status (no RPC needed)
-      const { data: bookingData, error: bookingError } = await supabase
-        .from('bookings')
-        .insert({
-          user_id: userId,
-          merchant_id: merchantId,
-          service_id: selectedServices[0]?.id,
-          staff_id: selectedStaff,
-          date: bookingDate,
-          time_slot: bookingTime,
-          status: 'confirmed',
-          payment_status: 'completed',
-          customer_name: customerInfo.name,
-          customer_email: customerInfo.email,
-          customer_phone: customerInfo.phone,
-          stylist_name: selectedStaffDetails?.name || 'Stylist',
-          total_duration: totalDuration,
-          services: selectedServices
-        })
-        .select()
-        .single();
+      // Use the existing working RPC function
+      const { data: bookingResult, error: bookingError } = await supabase.rpc(
+        'create_confirmed_booking_with_services',
+        {
+          p_user_id: userId,
+          p_merchant_id: merchantId,
+          p_service_id: selectedServices[0]?.id,
+          p_staff_id: selectedStaff,
+          p_date: bookingDate,
+          p_time_slot: bookingTime,
+          p_service_duration: totalDuration,
+          p_services: JSON.stringify(selectedServices),
+          p_total_duration: totalDuration
+        }
+      );
 
       if (bookingError) {
-        console.error('PAYMENT_FLOW: Error creating booking:', bookingError);
+        console.error('PAYMENT_FLOW: Booking creation error:', bookingError);
         toast.error(bookingError.message || 'Failed to create booking');
         setShowFailureAnimation(true);
         return;
       }
 
-      const bookingId = bookingData.id;
+      if (!bookingResult?.success) {
+        console.error('PAYMENT_FLOW: Booking failed:', bookingResult?.error);
+        toast.error(bookingResult?.error || 'Booking failed');
+        setShowFailureAnimation(true);
+        return;
+      }
+
+      const bookingId = bookingResult.booking_id;
       console.log('PAYMENT_FLOW: Booking created successfully with ID:', bookingId);
       setCreatedBookingId(bookingId);
 
@@ -152,7 +115,7 @@ const PaymentPage: React.FC = () => {
         
         const serviceNames = selectedServices.map(s => s.name).join(', ');
         const dateTimeFormatted = NotificationTemplateService.formatDateTime(bookingDate, bookingTime);
-        const customerName = customerInfo.name;
+        const customerName = user?.user_metadata?.name || 'Customer';
 
         // Enhanced Customer "Booking Confirmed" notification
         const customerNotified = await NotificationTemplateService.sendStandardizedNotification(
