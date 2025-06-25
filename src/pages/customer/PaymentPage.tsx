@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Smartphone } from 'lucide-react';
@@ -12,6 +13,13 @@ import BookingSuccessAnimation from '@/components/customer/BookingSuccessAnimati
 import BookingFailureAnimation from '@/components/customer/BookingFailureAnimation';
 import { useBookingCompletion } from '@/hooks/useBookingCompletion';
 import { NotificationTemplateService } from '@/services/NotificationTemplateService';
+
+interface RpcBookingResponse {
+  success: boolean;
+  booking_id?: string;
+  error?: string;
+  message?: string;
+}
 
 const PaymentPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
@@ -72,14 +80,17 @@ const PaymentPage: React.FC = () => {
         p_service_duration: totalDuration
       });
 
-      if (rpcError || !rpcResult?.success) {
-        console.error('PAYMENT_FLOW: RPC error:', rpcError || rpcResult);
-        toast.error(rpcError?.message || rpcResult?.error || 'Failed to create booking');
+      // Type cast the response
+      const result = rpcResult as RpcBookingResponse;
+
+      if (rpcError || !result?.success) {
+        console.error('PAYMENT_FLOW: RPC error:', rpcError || result);
+        toast.error(rpcError?.message || result?.error || 'Failed to create booking');
         setShowFailureAnimation(true);
         return;
       }
 
-      const bookingId = rpcResult.booking_id;
+      const bookingId = result.booking_id;
       console.log('PAYMENT_FLOW: Confirmed booking created with ID:', bookingId);
       
       setCreatedBookingId(bookingId);

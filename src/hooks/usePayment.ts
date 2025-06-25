@@ -18,6 +18,13 @@ export interface PaymentData {
   serviceNames: string;
 }
 
+interface RpcBookingResponse {
+  success: boolean;
+  booking_id?: string;
+  error?: string;
+  message?: string;
+}
+
 export const usePayment = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const { user } = useAuth();
@@ -46,11 +53,14 @@ export const usePayment = () => {
         p_service_duration: paymentData.totalDuration
       });
 
-      if (rpcError || !rpcResult?.success) {
-        throw new Error(rpcError?.message || rpcResult?.error || 'Failed to create booking');
+      // Type cast the response
+      const result = rpcResult as RpcBookingResponse;
+
+      if (rpcError || !result?.success) {
+        throw new Error(rpcError?.message || result?.error || 'Failed to create booking');
       }
 
-      const bookingId = rpcResult.booking_id;
+      const bookingId = result.booking_id;
       console.log('PAYMENT_FLOW: Confirmed booking created with ID:', bookingId);
 
       // Step 2: Update payment status to completed (RPC creates with 'pending')
