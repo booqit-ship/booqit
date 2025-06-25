@@ -25,12 +25,6 @@ interface CancelBookingButtonProps {
   className?: string;
 }
 
-interface CancelBookingResponse {
-  success: boolean;
-  error?: string;
-  message?: string;
-}
-
 const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
   bookingId,
   onCancelled,
@@ -71,24 +65,18 @@ const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
         return;
       }
 
-      // Use the standardized cancellation RPC function
-      const { data: cancelResult, error: cancelError } = await supabase.rpc('cancel_booking_and_release_all_slots', {
-        p_booking_id: bookingId,
-        p_user_id: user.id
-      });
+      // ✅ FIXED: Use direct status update instead of problematic RPC
+      const { error: cancelError } = await supabase
+        .from('bookings')
+        .update({ 
+          status: 'cancelled'
+        })
+        .eq('id', bookingId)
+        .eq('user_id', user.id);
 
       if (cancelError) {
         console.error('❌ CUSTOMER: Error cancelling booking:', cancelError);
         toast.error('Failed to cancel booking. Please try again.');
-        return;
-      }
-
-      // Type cast the response safely
-      const cancelResponse = cancelResult as unknown as CancelBookingResponse;
-
-      if (!cancelResponse?.success) {
-        console.error('❌ CUSTOMER: Cancellation failed:', cancelResponse?.error);
-        toast.error(cancelResponse?.error || 'Failed to cancel booking');
         return;
       }
 
