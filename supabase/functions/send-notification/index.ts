@@ -11,7 +11,7 @@ interface NotificationRequest {
   title: string
   body: string
   data?: Record<string, string>
-  fcm_token?: string // For direct token specification (multi-device)
+  fcm_token?: string // For direct token specification (single device)
 }
 
 serve(async (req) => {
@@ -67,36 +67,32 @@ serve(async (req) => {
       );
     }
 
-    let targetFcmToken = fcm_token;
+    let deviceTokens: any[] = [];
     let userSettings = null;
 
-    // Priority 1: If direct FCM token is provided, use it (for multi-device notifications)
+    // Priority 1: If direct FCM token is provided, use it (for single device notifications)
     if (fcm_token) {
       console.log('🎯 Using direct FCM token for notification:', fcm_token.substring(0, 20) + '...');
-      targetFcmToken = fcm_token;
+      deviceTokens = [{ fcm_token, device_type: 'direct', device_name: 'Direct Token', is_active: true }];
     } else {
-      console.log('🔍 Looking up notification settings for user:', userId);
+      console.log('🔍 Looking up ALL notification devices for user:', userId);
 
-      // Priority 2: Try device_tokens table first (multi-device support)
-      const { data: deviceTokens, error: deviceError } = await supabaseClient
+      // Priority 2: Get ALL device tokens (removed limit(1) for multi-device support)
+      const { data: allDeviceTokens, error: deviceError } = await supabaseClient
         .from('device_tokens')
         .select('fcm_token, device_type, device_name, is_active')
         .eq('user_id', userId)
         .eq('is_active', true)
-        .order('last_used_at', { ascending: false })
-        .limit(1);
+        .order('last_used_at', { ascending: false });
 
-      if (!deviceError && deviceTokens && deviceTokens.length > 0) {
-        targetFcmToken = deviceTokens[0].fcm_token;
+      if (!deviceError && allDeviceTokens && allDeviceTokens.length > 0) {
+        deviceTokens = allDeviceTokens;
         userSettings = {
-          fcm_token: targetFcmToken,
           notification_enabled: true
         };
-        console.log('✅ Found device token from device_tokens table:', {
+        console.log(`✅ Found ${deviceTokens.length} device tokens from device_tokens table:`, {
           user_id: userId,
-          device_type: deviceTokens[0].device_type,
-          device_name: deviceTokens[0].device_name,
-          has_fcm_token: !!targetFcmToken
+          devices: deviceTokens.map(d => ({ type: d.device_type, name: d.device_name }))
         });
       } else {
         // Priority 3: Fallback to notification_settings table
@@ -115,7 +111,14 @@ serve(async (req) => {
             fcm_token: notificationSettings.fcm_token,
             notification_enabled: notificationSettings.notification_enabled
           };
-          targetFcmToken = notificationSettings.fcm_token;
+          if (notificationSettings.fcm_token) {
+            deviceTokens = [{ 
+              fcm_token: notificationSettings.fcm_token, 
+              device_type: 'legacy', 
+              device_name: 'Legacy Token',
+              is_active: true 
+            }];
+          }
           console.log('✅ Found notification settings:', {
             user_id: userId,
             has_fcm_token: !!userSettings.fcm_token,
@@ -124,7 +127,7 @@ serve(async (req) => {
         }
 
         // Priority 4: Final fallback to profiles table
-        if (!userSettings) {
+        if (deviceTokens.length === 0) {
           console.log('⚠️ No notification settings found, checking profiles table...');
           
           const { data: profile, error: profileError } = await supabaseClient
@@ -189,7 +192,14 @@ serve(async (req) => {
             fcm_token: profile.fcm_token,
             notification_enabled: profile.notification_enabled
           };
-          targetFcmToken = profile.fcm_token;
+          if (profile.fcm_token) {
+            deviceTokens = [{ 
+              fcm_token: profile.fcm_token, 
+              device_type: 'profile', 
+              device_name: 'Profile Token',
+              is_active: true 
+            }];
+          }
         }
       }
 
@@ -217,8 +227,8 @@ serve(async (req) => {
       }
     }
 
-    if (!targetFcmToken) {
-      console.warn('⚠️ User has no FCM token - user must enable push notifications in their app');
+    if (deviceTokens.length === 0) {
+      console.warn('⚠️ User has no FCM tokens - user must enable push notifications in their app');
       
       // Log this attempt for better visibility
       await supabaseClient.from('notification_logs')
@@ -228,12 +238,12 @@ serve(async (req) => {
           body,
           type: data?.type || 'general',
           status: 'failed',
-          error_message: 'No FCM token found - user needs to enable notifications in browser'
+          error_message: 'No FCM tokens found - user needs to enable notifications in browser'
         });
       
       return new Response(
         JSON.stringify({ 
-          error: 'No FCM token found for user',
+          error: 'No FCM tokens found for user',
           message: 'User needs to enable push notifications in their browser'
         }),
         {
@@ -243,62 +253,105 @@ serve(async (req) => {
       );
     }
 
-    console.log('🚀 Attempting to send notification to FCM token:', targetFcmToken.substring(0, 20) + '...');
+    console.log(`🚀 Attempting to send notification to ${deviceTokens.length} devices for user:`, userId);
 
-    // Send the notification using Firebase v1 API
-    let notificationResult;
-    try {
-      notificationResult = await sendNotificationToToken(
-        targetFcmToken,
+    // Send notifications to ALL devices in parallel
+    const notificationPromises = deviceTokens.map(async (device, index) => {
+      try {
+        console.log(`📤 [${index + 1}/${deviceTokens.length}] Sending to ${device.device_type} device:`, device.device_name || 'Unknown');
+        
+        const result = await sendNotificationToToken(
+          device.fcm_token,
+          title,
+          body,
+          { ...data, debug_id: `${userId}:${Date.now()}:${index}` }
+        );
+        
+        console.log(`✅ [${index + 1}/${deviceTokens.length}] Notification sent successfully to ${device.device_type}:`, result);
+        
+        return {
+          success: true,
+          device: device.device_type,
+          token: device.fcm_token.substring(0, 20) + '...',
+          result
+        };
+        
+      } catch (fcmError) {
+        let errorMsg = fcmError?.message || String(fcmError);
+        console.error(`❌ [${index + 1}/${deviceTokens.length}] FCM send error for ${device.device_type}:`, errorMsg);
+        
+        // Check if token is invalid and should be cleaned up
+        const isInvalidToken = errorMsg.includes('UNREGISTERED') || 
+                              errorMsg.includes('invalid') ||
+                              errorMsg.includes('NotRegistered');
+        
+        if (isInvalidToken) {
+          console.log(`🧹 [${index + 1}/${deviceTokens.length}] Cleaning up invalid token for ${device.device_type}`);
+          try {
+            await supabaseClient
+              .from('device_tokens')
+              .update({ is_active: false })
+              .eq('fcm_token', device.fcm_token);
+            console.log(`✅ [${index + 1}/${deviceTokens.length}] Invalid token cleaned up`);
+          } catch (cleanupError) {
+            console.error(`❌ [${index + 1}/${deviceTokens.length}] Token cleanup failed:`, cleanupError);
+          }
+        }
+        
+        return {
+          success: false,
+          device: device.device_type,
+          token: device.fcm_token.substring(0, 20) + '...',
+          error: errorMsg,
+          invalidToken: isInvalidToken
+        };
+      }
+    });
+
+    // Wait for all notifications to complete
+    const results = await Promise.allSettled(notificationPromises);
+    
+    // Process results
+    const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+    const failed = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success)).length;
+    const invalidTokens = results
+      .filter(r => r.status === 'fulfilled' && r.value.invalidToken)
+      .map(r => r.value.token);
+
+    console.log(`📊 Multi-device notification results: ${successful} successful, ${failed} failed, ${invalidTokens.length} invalid tokens cleaned up`);
+
+    // Log the overall result
+    const logStatus = successful > 0 ? 'sent' : 'failed';
+    const logMessage = successful > 0 
+      ? `Sent to ${successful}/${deviceTokens.length} devices` 
+      : 'Failed to send to any device';
+
+    await supabaseClient.from('notification_logs')
+      .insert({
+        user_id: userId,
         title,
         body,
-        { ...data, debug_id: `${userId}:${Date.now()}` }
-      );
-      
-      console.log('✅ FCM notification sent successfully:', notificationResult);
-      
-      // Log success in notification_logs
-      await supabaseClient.from('notification_logs')
-        .insert({
-          user_id: userId,
-          title,
-          body,
-          type: data?.type || 'general',
-          status: 'sent',
-          fcm_response: JSON.stringify(notificationResult).slice(0, 499)
-        });
-        
-    } catch (fcmError) {
-      let errorMsg = fcmError?.message || String(fcmError);
-      console.error('❌ FCM send error:', errorMsg);
-      
-      await supabaseClient.from('notification_logs')
-        .insert({
-          user_id: userId,
-          title,
-          body,
-          type: data?.type || 'general',
-          status: 'failed',
-          error_message: errorMsg
-        });
-      
-      return new Response(
-        JSON.stringify({
-          error: 'Failed to send notification',
-          details: errorMsg
-        }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-    }
+        type: data?.type || 'general',
+        status: logStatus,
+        fcm_response: JSON.stringify({
+          total_devices: deviceTokens.length,
+          successful,
+          failed,
+          invalid_tokens_cleaned: invalidTokens.length
+        }).slice(0, 499)
+      });
 
     return new Response(
       JSON.stringify({
-        success: true,
-        message: 'Notification sent successfully',
-        result: notificationResult
+        success: successful > 0,
+        message: logMessage,
+        details: {
+          total_devices: deviceTokens.length,
+          successful,
+          failed,
+          invalid_tokens_cleaned: invalidTokens.length
+        },
+        results: results.map(r => r.status === 'fulfilled' ? r.value : { success: false, error: 'Promise rejected' })
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
