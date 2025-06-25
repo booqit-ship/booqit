@@ -3,13 +3,14 @@ import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { TokenCleanupService } from '@/services/TokenCleanupService';
+import { EnhancedTokenCleanupService } from '@/services/EnhancedTokenCleanupService';
 import { Capacitor } from '@capacitor/core';
 
 // Circuit breaker configuration
 const MAX_RETRY_ATTEMPTS = 3;
 const RETRY_COOLDOWN = 30000; // 30 seconds
-const REGISTRATION_TIMEOUT = 20000; // 20 seconds
+const REGISTRATION_TIMEOUT = 25000; // 25 seconds
+const TOKEN_REFRESH_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
 
 export const useSimpleNotifications = () => {
   const { isAuthenticated, userId } = useAuth();
@@ -20,6 +21,7 @@ export const useSimpleNotifications = () => {
   const retryAttempts = useRef(0);
   const lastRetryTime = useRef(0);
   const registrationInProgress = useRef(false);
+  const lastTokenRefresh = useRef(0);
 
   // Cross-device detection
   const getDeviceInfo = () => {
@@ -55,25 +57,24 @@ export const useSimpleNotifications = () => {
     if (!isAuthenticated || !userId) return false;
 
     try {
-      const { data, error } = await supabase
-        .from('device_tokens')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('is_active', true)
-        .limit(1);
-
-      if (error) {
-        console.error('❌ Error checking existing registration:', error);
-        return false;
-      }
-
-      const hasTokens = data && data.length > 0;
-      console.log('🔍 SIMPLE NOTIFICATIONS: Registration check:', { hasTokens, tokenCount: data?.length || 0 });
-      return hasTokens;
+      const validTokenCount = await EnhancedTokenCleanupService.validateAndCleanupUserTokens(userId);
+      const hasValidTokens = validTokenCount > 0;
+      
+      console.log('🔍 SIMPLE NOTIFICATIONS: Registration check:', { 
+        hasValidTokens, 
+        validTokenCount 
+      });
+      
+      return hasValidTokens;
     } catch (error) {
       console.error('❌ Error in registration check:', error);
       return false;
     }
+  };
+
+  const shouldRefreshToken = (): boolean => {
+    const now = Date.now();
+    return (now - lastTokenRefresh.current) > TOKEN_REFRESH_INTERVAL;
   };
 
   const canRetryRegistration = (): boolean => {
@@ -91,6 +92,25 @@ export const useSimpleNotifications = () => {
     }
     
     return true;
+  };
+
+  const forceRefreshTokens = async () => {
+    if (!userId) return;
+    
+    try {
+      console.log('🔄 SIMPLE NOTIFICATIONS: Force refreshing tokens');
+      await EnhancedTokenCleanupService.forceRefreshUserTokens(userId);
+      lastTokenRefresh.current = Date.now();
+      setIsRegistered(false);
+      
+      // Wait a moment then re-register
+      setTimeout(() => {
+        registerForNotifications();
+      }, 2000);
+      
+    } catch (error) {
+      console.error('❌ Error force refreshing tokens:', error);
+    }
   };
 
   const registerForNotifications = async () => {
@@ -123,8 +143,12 @@ export const useSimpleNotifications = () => {
       console.log('🔔 SIMPLE NOTIFICATIONS: Starting registration for device:', deviceInfo);
       console.log('🔄 SIMPLE NOTIFICATIONS: Retry attempt:', retryAttempts.current + 1);
 
-      // Clean up expired tokens first
-      await TokenCleanupService.removeInvalidTokensForUser(userId);
+      // Clean up any stale tokens first
+      if (shouldRefreshToken()) {
+        console.log('🧹 SIMPLE NOTIFICATIONS: Cleaning up stale tokens');
+        await EnhancedTokenCleanupService.validateAndCleanupUserTokens(userId);
+        lastTokenRefresh.current = Date.now();
+      }
 
       let fcmToken: string | null = null;
 
@@ -145,7 +169,7 @@ export const useSimpleNotifications = () => {
 
       console.log('✅ FCM token received:', fcmToken.substring(0, 30) + '...');
 
-      // Save to database
+      // Save to database with enhanced error handling
       const { data, error } = await supabase.rpc('register_device_token', {
         p_user_id: userId,
         p_fcm_token: fcmToken,
@@ -164,6 +188,7 @@ export const useSimpleNotifications = () => {
       // Reset circuit breaker on success
       retryAttempts.current = 0;
       lastRetryTime.current = 0;
+      lastTokenRefresh.current = Date.now();
       
       setIsRegistered(true);
       
@@ -179,7 +204,7 @@ export const useSimpleNotifications = () => {
       lastRetryTime.current = Date.now();
       
       if (retryAttempts.current >= MAX_RETRY_ATTEMPTS) {
-        toast.error('Failed to setup notifications. Please check your browser settings and try again later.');
+        toast.error('Failed to setup notifications. Try refreshing your tokens or check browser settings.');
         console.log('🚫 SIMPLE NOTIFICATIONS: Max retry attempts reached');
       } else {
         toast.error('Failed to setup notifications. Retrying...');
@@ -206,16 +231,36 @@ export const useSimpleNotifications = () => {
     if (isAuthenticated && userId && !isRegistered && !isLoading && !registrationInProgress.current) {
       const timer = setTimeout(() => {
         registerForNotifications();
-      }, 1500); // Reduced delay for better UX
+      }, 1500);
       
       return () => clearTimeout(timer);
     }
   }, [isAuthenticated, userId, isRegistered, isLoading]);
 
+  // Periodic token refresh check
+  useEffect(() => {
+    if (!isAuthenticated || !userId) return;
+
+    const refreshInterval = setInterval(() => {
+      if (shouldRefreshToken()) {
+        console.log('🔄 SIMPLE NOTIFICATIONS: Time for periodic token refresh');
+        checkExistingRegistration().then(hasTokens => {
+          if (!hasTokens) {
+            setIsRegistered(false);
+            registerForNotifications();
+          }
+        });
+      }
+    }, 60 * 60 * 1000); // Check every hour
+
+    return () => clearInterval(refreshInterval);
+  }, [isAuthenticated, userId]);
+
   return {
     isRegistered,
     isLoading,
     registerForNotifications,
+    forceRefreshTokens,
     retryAttempts: retryAttempts.current,
     canRetry: canRetryRegistration()
   };
