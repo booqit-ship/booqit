@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { PermanentSession } from '@/utils/permanentSession';
+import { UserRole } from '@/types';
 
 interface AuthContextType {
   user: User | null;
@@ -11,9 +12,11 @@ interface AuthContextType {
   userRole: string;
   isAuthenticated: boolean;
   isLoading: boolean;
+  loading: boolean; // Added for backward compatibility
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   updateUserRole: (newRole: string) => void;
+  setAuth: (authenticated: boolean, role: UserRole, userId: string) => void; // Added missing method
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -33,6 +36,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+
+  // Add the missing setAuth method
+  const setAuth = (authenticated: boolean, role: UserRole, userId: string) => {
+    setIsAuthenticated(authenticated);
+    setUserRole(role);
+    setUserId(userId);
+  };
 
   useEffect(() => {
     const loadSession = async () => {
@@ -258,11 +268,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     userRole,
     isAuthenticated,
     isLoading,
+    loading: isLoading, // Added for backward compatibility
     login,
     logout,
     updateUserRole,
+    setAuth, // Added missing method
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
-

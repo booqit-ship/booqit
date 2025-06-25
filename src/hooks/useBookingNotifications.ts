@@ -2,6 +2,7 @@
 import { useCallback } from "react";
 import { sendWelcomeNotification, sendNewBookingNotification, sendBookingCompletedNotification, sendDailyReminderNotification } from "@/services/eventNotificationService";
 import { useAuth } from "@/contexts/AuthContext";
+import { UserRole } from "@/types";
 
 /**
  * Hook for triggering key engagement and booking notifications via business logic.
@@ -12,7 +13,7 @@ export function useBookingNotifications() {
   // Trigger after user login
   const notifyWelcome = useCallback(() => {
     if (!userId || !userRole || !user?.user_metadata?.name) return;
-    sendWelcomeNotification(userId, userRole, user.user_metadata.name);
+    sendWelcomeNotification(userId, userRole as UserRole, user.user_metadata.name);
   }, [userId, userRole, user]);
 
   // Trigger for new booking (call in booking flow after successful booking)
@@ -34,7 +35,7 @@ export function useBookingNotifications() {
   // Generic daily reminder notification (should be scheduled server-side via cron)
   const notifyDailyReminder = useCallback(() => {
     if (!userId || !userRole || !user?.user_metadata?.name) return;
-    sendDailyReminderNotification(userId, userRole, user.user_metadata.name);
+    sendDailyReminderNotification(userId, userRole as UserRole, user.user_metadata.name);
   }, [userId, userRole, user]);
 
   return {
