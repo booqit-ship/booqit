@@ -47,12 +47,11 @@ export function useMerchantBookingActions() {
         return false;
       }
 
-      // ✅ FIXED: Use simple direct status update instead of complex RPC
+      // ✅ FIXED: Remove updated_at field - only update status
       const { error: cancelError } = await supabase
         .from('bookings')
         .update({ 
-          status: 'cancelled',
-          updated_at: new Date().toISOString()
+          status: 'cancelled'
         })
         .eq('id', bookingId);
 
@@ -138,12 +137,11 @@ export function useMerchantBookingActions() {
         return false;
       }
 
-      // ✅ FIXED: Use simple direct status update instead of complex RPC
+      // ✅ FIXED: Remove updated_at field - only update status
       const { error: completeError } = await supabase
         .from('bookings')
         .update({ 
-          status: 'completed',
-          updated_at: new Date().toISOString()
+          status: 'completed'
         })
         .eq('id', bookingId);
 

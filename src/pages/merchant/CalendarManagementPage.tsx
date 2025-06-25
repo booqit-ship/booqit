@@ -235,12 +235,11 @@ const CalendarManagementPage: React.FC = () => {
     try {
       console.log(`🔄 CALENDAR_MANAGEMENT: Updating booking ${bookingId} to ${newStatus}`);
 
-      // ✅ FIXED: Use simple direct status update instead of complex RPC
+      // ✅ FIXED: Remove updated_at field - only update status
       const { error: updateError } = await supabase
         .from('bookings')
         .update({ 
-          status: newStatus,
-          updated_at: new Date().toISOString()
+          status: newStatus
         })
         .eq('id', bookingId);
 
