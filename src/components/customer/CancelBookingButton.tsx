@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Trash2, Loader2 } from 'lucide-react';
+import { NotificationTemplateService } from '@/services/NotificationTemplateService';
 import { 
   AlertDialog,
   AlertDialogAction,
@@ -36,6 +37,7 @@ const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
   const handleCancelBooking = async () => {
     try {
       setLoading(true);
+      console.log('🚫 CUSTOMER: Cancelling booking:', bookingId);
 
       // Get current user
       const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -45,17 +47,83 @@ const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
         return;
       }
 
-      // Update booking status to cancelled
-      const { error } = await supabase
+      // Get booking details first for notifications
+      const { data: bookingData, error: fetchError } = await supabase
         .from('bookings')
-        .update({ status: 'cancelled' })
+        .select(`
+          *,
+          merchants!inner(shop_name, user_id),
+          services!inner(name)
+        `)
         .eq('id', bookingId)
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .single();
 
-      if (error) {
-        console.error('Error cancelling booking:', error);
+      if (fetchError || !bookingData) {
+        console.error('❌ CUSTOMER: Error fetching booking:', fetchError);
+        toast.error('Failed to fetch booking details');
+        return;
+      }
+
+      // Use the standardized cancellation RPC function
+      const { data: cancelResult, error: cancelError } = await supabase.rpc('cancel_booking_and_release_all_slots', {
+        p_booking_id: bookingId,
+        p_user_id: user.id
+      });
+
+      if (cancelError) {
+        console.error('❌ CUSTOMER: Error cancelling booking:', cancelError);
         toast.error('Failed to cancel booking. Please try again.');
         return;
+      }
+
+      if (!cancelResult?.success) {
+        console.error('❌ CUSTOMER: Cancellation failed:', cancelResult?.error);
+        toast.error(cancelResult?.error || 'Failed to cancel booking');
+        return;
+      }
+
+      console.log('✅ CUSTOMER: Booking cancelled successfully');
+
+      // ✅ Send standardized notifications
+      try {
+        const dateTimeFormatted = NotificationTemplateService.formatDateTime(
+          bookingData.date, 
+          bookingData.time_slot
+        );
+
+        // Notify merchant about cancellation
+        if (bookingData.merchants?.user_id) {
+          await NotificationTemplateService.sendStandardizedNotification(
+            bookingData.merchants.user_id,
+            'booking_cancelled',
+            {
+              type: 'booking_cancelled',
+              bookingId,
+              customerName: bookingData.customer_name || 'Customer',
+              serviceName: bookingData.services?.name || 'Service',
+              dateTime: dateTimeFormatted
+            }
+          );
+          console.log('📧 CUSTOMER: Merchant notification sent');
+        }
+
+        // Notify customer (confirmation)
+        await NotificationTemplateService.sendStandardizedNotification(
+          user.id,
+          'booking_cancelled',
+          {
+            type: 'booking_cancelled',
+            bookingId,
+            shopName: bookingData.merchants?.shop_name || 'Shop',
+            serviceName: bookingData.services?.name || 'Service',
+            dateTime: dateTimeFormatted
+          }
+        );
+        console.log('📧 CUSTOMER: Customer confirmation sent');
+      } catch (notificationError) {
+        console.error('❌ CUSTOMER: Notification error:', notificationError);
+        // Don't fail the cancellation for notification issues
       }
 
       toast.success('Booking cancelled successfully');
@@ -66,7 +134,7 @@ const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
       }
 
     } catch (error) {
-      console.error('Error cancelling booking:', error);
+      console.error('❌ CUSTOMER: Unexpected error cancelling booking:', error);
       toast.error('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);

@@ -1,76 +1,101 @@
 
 import { useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { EnhancedNotificationService } from "@/services/EnhancedNotificationService";
+import { NotificationTemplateService } from "@/services/NotificationTemplateService";
 import { toast } from "sonner";
-import { formatTimeToAmPm } from "@/utils/timeUtils";
-import { formatDateInIST } from "@/utils/dateUtils";
 
 export function useMerchantBookingActions() {
   // ✅ Scenario 4: Merchant cancels → Customer gets "Booking Canceled"
   const cancelBooking = useCallback(async (bookingId: string) => {
     try {
-      console.log('🚫 Merchant cancelling booking:', bookingId);
+      console.log('🚫 MERCHANT: Cancelling booking:', bookingId);
 
-      // Get booking details first
-      const { data: booking, error: fetchError } = await supabase
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        toast.error('You must be logged in to cancel bookings');
+        return false;
+      }
+
+      // Get booking details first for notifications
+      const { data: bookingData, error: fetchError } = await supabase
         .from('bookings')
         .select(`
           *,
-          merchants!inner(shop_name, user_id)
+          merchants!inner(shop_name, user_id),
+          services!inner(name)
         `)
         .eq('id', bookingId)
         .single();
 
-      if (fetchError || !booking) {
-        console.error('❌ Error fetching booking for cancellation:', fetchError);
+      if (fetchError || !bookingData) {
+        console.error('❌ MERCHANT: Error fetching booking:', fetchError);
         toast.error('Failed to fetch booking details');
         return false;
       }
 
-      // Update booking status to cancelled
-      const { data, error } = await supabase.functions.invoke('update-booking-status', {
-        body: {
-          bookingId,
-          newStatus: 'cancelled',
-          merchantUserId: booking.merchants.user_id
-        }
+      // Verify merchant ownership
+      if (bookingData.merchants.user_id !== user.id) {
+        console.error('❌ MERCHANT: Unauthorized cancellation attempt');
+        toast.error('Unauthorized');
+        return false;
+      }
+
+      // Use the standardized RPC function for cancellation
+      const { data: cancelResult, error: cancelError } = await supabase.rpc('update_booking_status_and_release_slots', {
+        p_booking_id: bookingId,
+        p_new_status: 'cancelled',
+        p_merchant_user_id: user.id
       });
 
-      if (error) {
-        console.error('❌ Error cancelling booking:', error);
+      if (cancelError) {
+        console.error('❌ MERCHANT: Error cancelling booking:', cancelError);
         toast.error('Failed to cancel booking');
         return false;
       }
 
-      // ✅ Enhanced notification for customer
-      if (booking.user_id) {
-        console.log('📲 Sending enhanced cancellation notification to customer:', booking.user_id);
-        
-        // Get service name from booking
-        const serviceName = booking.services?.[0]?.name || 'Service';
-        const timeFormatted = formatTimeToAmPm(booking.time_slot);
-        const dateFormatted = formatDateInIST(new Date(booking.date), 'MMM d, yyyy');
-        const dateTimeFormatted = `${dateFormatted} at ${timeFormatted}`;
-        
-        const notificationResult = await EnhancedNotificationService.notifyCustomerBookingCanceled(
-          booking.user_id,
-          booking.merchants.shop_name,
-          serviceName,
-          dateTimeFormatted,
-          bookingId,
-          'Merchant canceled the appointment'
+      if (!cancelResult?.success) {
+        console.error('❌ MERCHANT: Cancellation failed:', cancelResult?.error);
+        toast.error(cancelResult?.error || 'Failed to cancel booking');
+        return false;
+      }
+
+      console.log('✅ MERCHANT: Booking cancelled successfully');
+
+      // ✅ Send standardized notifications
+      try {
+        const dateTimeFormatted = NotificationTemplateService.formatDateTime(
+          bookingData.date, 
+          bookingData.time_slot
         );
-        
-        console.log('📊 Enhanced cancellation notification result:', notificationResult);
-      } else {
-        console.log('ℹ️ Guest booking - no notification sent for cancellation');
+
+        // Notify customer about cancellation (only for authenticated users)
+        if (bookingData.user_id) {
+          await NotificationTemplateService.sendStandardizedNotification(
+            bookingData.user_id,
+            'booking_cancelled',
+            {
+              type: 'booking_cancelled',
+              bookingId,
+              shopName: bookingData.merchants.shop_name || 'Shop',
+              serviceName: bookingData.services?.name || 'Service',
+              dateTime: dateTimeFormatted
+            }
+          );
+          console.log('📧 MERCHANT: Customer notification sent');
+        } else {
+          console.log('ℹ️ MERCHANT: Guest booking - no notification sent');
+        }
+      } catch (notificationError) {
+        console.error('❌ MERCHANT: Notification error:', notificationError);
+        // Don't fail the cancellation for notification issues
       }
 
       toast.success('Booking cancelled successfully');
       return true;
     } catch (error) {
-      console.error('❌ Error in cancelBooking:', error);
+      console.error('❌ MERCHANT: Unexpected error in cancelBooking:', error);
       toast.error('Failed to cancel booking');
       return false;
     }
@@ -79,10 +104,18 @@ export function useMerchantBookingActions() {
   // ✅ Scenario 5: Merchant completes → Customer gets "Review Request"
   const completeBooking = useCallback(async (bookingId: string) => {
     try {
-      console.log('✅ Merchant completing booking:', bookingId);
+      console.log('✅ MERCHANT: Completing booking:', bookingId);
 
-      // Get booking details first
-      const { data: booking, error: fetchError } = await supabase
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        toast.error('You must be logged in to complete bookings');
+        return false;
+      }
+
+      // Get booking details first for notifications
+      const { data: bookingData, error: fetchError } = await supabase
         .from('bookings')
         .select(`
           *,
@@ -91,45 +124,67 @@ export function useMerchantBookingActions() {
         .eq('id', bookingId)
         .single();
 
-      if (fetchError || !booking) {
-        console.error('❌ Error fetching booking for completion:', fetchError);
+      if (fetchError || !bookingData) {
+        console.error('❌ MERCHANT: Error fetching booking:', fetchError);
         toast.error('Failed to fetch booking details');
         return false;
       }
 
-      // Update booking status to completed
-      const { data, error } = await supabase.functions.invoke('update-booking-status', {
-        body: {
-          bookingId,
-          newStatus: 'completed',
-          merchantUserId: booking.merchants.user_id
-        }
+      // Verify merchant ownership
+      if (bookingData.merchants.user_id !== user.id) {
+        console.error('❌ MERCHANT: Unauthorized completion attempt');
+        toast.error('Unauthorized');
+        return false;
+      }
+
+      // Use the standardized RPC function for completion
+      const { data: completeResult, error: completeError } = await supabase.rpc('update_booking_status_and_release_slots', {
+        p_booking_id: bookingId,
+        p_new_status: 'completed',
+        p_merchant_user_id: user.id
       });
 
-      if (error) {
-        console.error('❌ Error completing booking:', error);
+      if (completeError) {
+        console.error('❌ MERCHANT: Error completing booking:', completeError);
         toast.error('Failed to complete booking');
         return false;
       }
 
-      // ✅ Enhanced notification for customer review request
-      if (booking.user_id) {
-        console.log('📲 Sending enhanced review request to customer:', booking.user_id);
-        const notificationResult = await EnhancedNotificationService.notifyCustomerServiceCompleted(
-          booking.user_id,
-          booking.merchants.shop_name,
-          bookingId
-        );
-        
-        console.log('📊 Enhanced review request notification result:', notificationResult);
-      } else {
-        console.log('ℹ️ Guest booking - no review request sent');
+      if (!completeResult?.success) {
+        console.error('❌ MERCHANT: Completion failed:', completeResult?.error);
+        toast.error(completeResult?.error || 'Failed to complete booking');
+        return false;
+      }
+
+      console.log('✅ MERCHANT: Booking completed successfully');
+
+      // ✅ Send standardized review request (only for authenticated users)
+      try {
+        if (bookingData.user_id) {
+          await NotificationTemplateService.sendStandardizedNotification(
+            bookingData.user_id,
+            'booking_completed',
+            {
+              type: 'booking_completed',
+              bookingId,
+              shopName: bookingData.merchants.shop_name || 'Shop',
+              serviceName: '',
+              dateTime: ''
+            }
+          );
+          console.log('📧 MERCHANT: Review request sent to customer');
+        } else {
+          console.log('ℹ️ MERCHANT: Guest booking - no review request sent');
+        }
+      } catch (notificationError) {
+        console.error('❌ MERCHANT: Notification error:', notificationError);
+        // Don't fail the completion for notification issues
       }
 
       toast.success('Booking marked as completed');
       return true;
     } catch (error) {
-      console.error('❌ Error in completeBooking:', error);
+      console.error('❌ MERCHANT: Unexpected error in completeBooking:', error);
       toast.error('Failed to complete booking');
       return false;
     }

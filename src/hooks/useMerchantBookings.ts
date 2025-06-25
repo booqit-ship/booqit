@@ -1,9 +1,10 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Merchant } from '@/types';
-import { SimpleNotificationService } from '@/services/SimpleNotificationService';
+import { NotificationTemplateService } from '@/services/NotificationTemplateService';
 
 interface Booking {
   id: string;
@@ -81,36 +82,89 @@ export const useMerchantBookings = () => {
     if (!user?.id) return;
 
     try {
-      const { data, error } = await supabase.rpc('update_booking_status_and_release_slots', {
+      console.log(`🔄 MERCHANT: Updating booking ${bookingId} to ${newStatus}`);
+
+      // Get booking details first for notifications
+      const { data: bookingData, error: fetchError } = await supabase
+        .from('bookings')
+        .select(`
+          *,
+          merchants!inner(shop_name, user_id),
+          services!inner(name)
+        `)
+        .eq('id', bookingId)
+        .single();
+
+      if (fetchError || !bookingData) {
+        console.error('❌ MERCHANT: Error fetching booking:', fetchError);
+        toast.error('Failed to fetch booking details');
+        return;
+      }
+
+      // Use the standardized RPC function
+      const { data: updateResult, error: updateError } = await supabase.rpc('update_booking_status_and_release_slots', {
         p_booking_id: bookingId,
         p_new_status: newStatus,
         p_merchant_user_id: user.id
       });
 
-      if (error) throw error;
-
-      // Send notifications using simple service
-      const booking = bookings.find(b => b.id === bookingId);
-      if (booking && booking.user_id) {
-        if (newStatus === 'completed') {
-          await SimpleNotificationService.notifyCustomerBookingCompleted(
-            booking.user_id,
-            merchant?.shop_name || 'Your salon',
-            bookingId
-          );
-        } else if (newStatus === 'cancelled') {
-          await SimpleNotificationService.notifyBookingCancelled(
-            booking.user_id,
-            `Your booking at ${merchant?.shop_name || 'the salon'} has been cancelled.`,
-            bookingId
-          );
+      if (updateError) {
+        console.error('❌ MERCHANT: Error updating booking status:', updateError);
+        throw updateError;
       }
-    }
+
+      if (!updateResult?.success) {
+        console.error('❌ MERCHANT: Status update failed:', updateResult?.error);
+        throw new Error(updateResult?.error || 'Failed to update booking status');
+      }
+
+      // ✅ Send standardized notifications
+      try {
+        if (bookingData.user_id) { // Only for authenticated users
+          const dateTimeFormatted = NotificationTemplateService.formatDateTime(
+            bookingData.date, 
+            bookingData.time_slot
+          );
+
+          if (newStatus === 'completed') {
+            await NotificationTemplateService.sendStandardizedNotification(
+              bookingData.user_id,
+              'booking_completed',
+              {
+                type: 'booking_completed',
+                bookingId,
+                shopName: bookingData.merchants?.shop_name || 'Shop',
+                serviceName: '',
+                dateTime: ''
+              }
+            );
+            console.log('📧 MERCHANT: Review request sent');
+          } else if (newStatus === 'cancelled') {
+            await NotificationTemplateService.sendStandardizedNotification(
+              bookingData.user_id,
+              'booking_cancelled',
+              {
+                type: 'booking_cancelled',
+                bookingId,
+                shopName: bookingData.merchants?.shop_name || 'Shop',
+                serviceName: bookingData.services?.name || 'Service',
+                dateTime: dateTimeFormatted
+              }
+            );
+            console.log('📧 MERCHANT: Cancellation notification sent');
+          }
+        } else {
+          console.log('ℹ️ MERCHANT: Guest booking - no notification sent');
+        }
+      } catch (notificationError) {
+        console.error('❌ MERCHANT: Notification error:', notificationError);
+        // Don't fail the status update for notification issues
+      }
 
       toast.success(`Booking ${newStatus} successfully`);
       await fetchBookings();
     } catch (error: any) {
-      console.error('Error updating booking status:', error);
+      console.error('❌ MERCHANT: Error updating booking status:', error);
       toast.error(error.message || 'Failed to update booking status');
     }
   };
