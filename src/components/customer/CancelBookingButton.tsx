@@ -65,7 +65,7 @@ const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
         return;
       }
 
-      // Direct status update - no RPC calls
+      // ✅ FIXED: Use direct status update instead of problematic RPC
       const { error: cancelError } = await supabase
         .from('bookings')
         .update({ 
@@ -82,7 +82,7 @@ const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
 
       console.log('✅ CUSTOMER: Booking cancelled successfully');
 
-      // Send standardized notifications
+      // ✅ Send standardized notifications
       try {
         const dateTimeFormatted = NotificationTemplateService.formatDateTime(
           bookingData.date, 

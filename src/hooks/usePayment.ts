@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { NotificationTemplateService } from '@/services/NotificationTemplateService';
+import { SimpleNotificationService } from '@/services/SimpleNotificationService';
 
 export interface PaymentData {
   merchantId: string;
@@ -37,12 +37,13 @@ export const usePayment = () => {
     }
 
     setIsProcessing(true);
-    console.log('PAYMENT_FLOW: Starting payment processing with working RPC...');
+    console.log('PAYMENT_FLOW: Starting payment processing...');
 
     try {
-      // Use the working RPC function (same as guest bookings use)
-      const { data: bookingResult, error: bookingError } = await supabase.rpc(
-        'create_confirmed_booking',
+      // Step 1: Create booking
+      console.log('PAYMENT_FLOW: Creating booking...');
+      const { data: bookingResponse, error: bookingError } = await supabase.rpc(
+        'reserve_slot_immediately',
         {
           p_user_id: user.id,
           p_merchant_id: paymentData.merchantId,
@@ -54,39 +55,50 @@ export const usePayment = () => {
         }
       );
 
-      if (bookingError) {
-        console.error('PAYMENT_FLOW: Booking creation error:', bookingError);
-        throw new Error(bookingError.message);
+      if (bookingError || !bookingResponse) {
+        throw new Error(bookingError?.message || 'Failed to create booking');
       }
 
-      // Cast the response properly to handle the actual RPC return format
-      const response = bookingResult as unknown as BookingResponse;
+      // Safe type conversion
+      let response: BookingResponse;
+      if (typeof bookingResponse === 'string') {
+        try {
+          response = JSON.parse(bookingResponse);
+        } catch {
+          throw new Error('Invalid booking response format');
+        }
+      } else if (bookingResponse && typeof bookingResponse === 'object') {
+        response = bookingResponse as unknown as BookingResponse;
+      } else {
+        throw new Error('Invalid booking response');
+      }
 
-      if (!response?.success) {
-        console.error('PAYMENT_FLOW: Booking failed:', response?.error);
-        throw new Error(response?.error || 'Booking failed');
+      console.log('PAYMENT_FLOW: Booking response:', response);
+      
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to create booking');
       }
 
       const bookingId = response.booking_id;
-      console.log('PAYMENT_FLOW: Booking created successfully with ID:', bookingId);
-
-      // Update booking with services data and payment status
-      try {
-        await supabase
-          .from('bookings')
-          .update({
-            services: paymentData.serviceIds.map(id => ({ id })),
-            total_duration: paymentData.totalDuration,
-            payment_status: 'completed'
-          })
-          .eq('id', bookingId);
-        
-        console.log('PAYMENT_FLOW: Booking updated with services and payment status');
-      } catch (updateError) {
-        console.error('PAYMENT_FLOW: Booking update error:', updateError);
+      if (!bookingId) {
+        throw new Error('No booking ID returned');
       }
 
-      // Create payment record
+      console.log('PAYMENT_FLOW: Booking created with ID:', bookingId);
+
+      // Step 2: Confirm the booking
+      const { error: confirmError } = await supabase.rpc('confirm_pending_booking', {
+        p_booking_id: bookingId,
+        p_user_id: user.id
+      });
+
+      if (confirmError) {
+        throw new Error('Failed to confirm booking');
+      }
+
+      console.log('PAYMENT_FLOW: Booking confirmed successfully');
+
+      // Step 3: Create payment record
       const { error: paymentError } = await supabase
         .from('payments')
         .insert({
@@ -98,25 +110,20 @@ export const usePayment = () => {
 
       if (paymentError) {
         console.error('PAYMENT_FLOW: Payment record error:', paymentError);
-        // Don't fail the booking for payment record issues
       } else {
         console.log('PAYMENT_FLOW: Payment record created successfully');
       }
 
-      // Send notifications using enhanced template service
+      // Step 4: Send notifications using simple service
       console.log('PAYMENT_FLOW: Sending notifications...');
 
       // Notify customer
-      const customerNotified = await NotificationTemplateService.sendStandardizedNotification(
+      const customerNotified = await SimpleNotificationService.notifyCustomerBookingConfirmed(
         user.id,
-        'booking_confirmed',
-        {
-          type: 'booking_confirmed',
-          bookingId: bookingId!,
-          shopName: paymentData.merchantName,
-          serviceName: paymentData.serviceNames,
-          dateTime: NotificationTemplateService.formatDateTime(paymentData.date, paymentData.timeSlot)
-        }
+        paymentData.merchantName,
+        paymentData.serviceNames,
+        `${paymentData.date} at ${paymentData.timeSlot}`,
+        bookingId
       );
 
       // Get merchant user ID and notify merchant
@@ -127,16 +134,12 @@ export const usePayment = () => {
         .single();
 
       if (merchant?.user_id) {
-        const merchantNotified = await NotificationTemplateService.sendStandardizedNotification(
+        const merchantNotified = await SimpleNotificationService.notifyMerchantOfNewBooking(
           merchant.user_id,
-          'new_booking',
-          {
-            type: 'new_booking',
-            bookingId: bookingId!,
-            customerName: user.user_metadata?.name || 'Customer',
-            serviceName: paymentData.serviceNames,
-            dateTime: NotificationTemplateService.formatDateTime(paymentData.date, paymentData.timeSlot)
-          }
+          user.user_metadata?.name || 'Customer',
+          paymentData.serviceNames,
+          `${paymentData.date} at ${paymentData.timeSlot}`,
+          bookingId
         );
         console.log('PAYMENT_FLOW: Merchant notification result:', merchantNotified);
       }
