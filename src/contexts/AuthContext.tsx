@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -203,11 +204,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('🚪 AUTH: Starting logout process');
       
-      // Clean up user tokens before logout
+      // ✅ ENHANCED: Clean up user tokens before logout using the new service
       if (userId) {
         console.log('🧹 AUTH: Cleaning up notification tokens');
-        const { EnhancedTokenCleanupService } = await import('@/services/EnhancedTokenCleanupService');
-        await EnhancedTokenCleanupService.cleanupUserTokensOnLogout(userId);
+        try {
+          const { EnhancedTokenCleanupService } = await import('@/services/EnhancedTokenCleanupService');
+          await EnhancedTokenCleanupService.cleanupUserTokensOnLogout(userId);
+        } catch (cleanupError) {
+          console.error('❌ AUTH: Token cleanup failed:', cleanupError);
+          // Don't block logout if cleanup fails
+        }
       }
 
       // Clear permanent session

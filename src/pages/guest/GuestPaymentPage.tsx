@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Smartphone } from 'lucide-react';
@@ -10,6 +11,7 @@ import { formatDateInIST } from '@/utils/dateUtils';
 import BookingSuccessAnimation from '@/components/customer/BookingSuccessAnimation';
 import BookingFailureAnimation from '@/components/customer/BookingFailureAnimation';
 import { useBookingCompletion } from '@/hooks/useBookingCompletion';
+import { NotificationTemplateService } from '@/services/NotificationTemplateService';
 
 interface BookingResponse {
   success: boolean;
@@ -126,23 +128,25 @@ const GuestPaymentPage: React.FC = () => {
       
       setCreatedBookingId(bookingId);
 
-      // Send notification to merchant about new guest booking using the new service
+      // ✅ Send notification to merchant about new guest booking using standardized service
       try {
-        console.log('GUEST PAYMENT: Sending notification to merchant using booking completion service...');
+        console.log('GUEST PAYMENT: Sending notification to merchant using standardized service...');
         
         if (merchant?.user_id) {
           const serviceNames = selectedServices.map(s => s.name).join(', ');
-          const timeSlotFormatted = formatTimeToAmPm(bookingTime);
-          const dateFormatted = formatDateInIST(new Date(bookingDate), 'MMM d, yyyy');
+          const dateTimeFormatted = NotificationTemplateService.formatDateTime(bookingDate, bookingTime);
 
-          // Use the consolidated notification service for merchant notification
-          const merchantNotification = await onNewBooking(
+          // ✅ FIXED: Use guest name (not stylist name) for merchant notification
+          const merchantNotification = await NotificationTemplateService.sendStandardizedNotification(
             merchant.user_id,
-            guestInfo.name,
-            serviceNames,
-            dateFormatted,
-            timeSlotFormatted,
-            bookingId
+            'new_booking',
+            {
+              type: 'new_booking',
+              bookingId,
+              customerName: guestInfo.name, // ✅ FIXED: Use actual guest name
+              serviceName: serviceNames,
+              dateTime: dateTimeFormatted
+            }
           );
 
           console.log('GUEST PAYMENT: Merchant notification result:', merchantNotification);

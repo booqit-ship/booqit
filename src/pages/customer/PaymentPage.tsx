@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Smartphone } from 'lucide-react';
@@ -11,7 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import BookingSuccessAnimation from '@/components/customer/BookingSuccessAnimation';
 import BookingFailureAnimation from '@/components/customer/BookingFailureAnimation';
 import { useBookingCompletion } from '@/hooks/useBookingCompletion';
-import { EnhancedNotificationService } from '@/services/EnhancedNotificationService';
+import { NotificationTemplateService } from '@/services/NotificationTemplateService';
 
 interface BookingResponse {
   success: boolean;
@@ -24,7 +25,7 @@ const PaymentPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { userId } = useAuth();
+  const { userId, user } = useAuth();
   const { onBookingConfirmed, onNewBooking } = useBookingCompletion();
   
   const {
@@ -143,43 +144,54 @@ const PaymentPage: React.FC = () => {
         console.error('PAYMENT_FLOW: Payment record creation failed:', paymentCreationError);
       }
 
-      // ✅ Step 4: Enhanced notification system with all scenarios
+      // ✅ Step 4: FIXED - Use standardized notification service with correct customer name
       try {
-        console.log('PAYMENT_FLOW: Sending enhanced notifications...');
+        console.log('PAYMENT_FLOW: Sending standardized notifications...');
         
         const serviceNames = selectedServices.map(s => s.name).join(', ');
         const timeSlotFormatted = formatTimeToAmPm(bookingTime);
         const dateFormatted = formatDateInIST(new Date(bookingDate), 'MMM d, yyyy');
-        const dateTimeFormatted = `${dateFormatted} at ${timeSlotFormatted}`;
+        const dateTimeFormatted = NotificationTemplateService.formatDateTime(bookingDate, bookingTime);
 
-        // ✅ Scenario 1: Customer gets "Booking Confirmed"
-        const customerNotification = await EnhancedNotificationService.notifyCustomerBookingConfirmed(
+        // Get correct customer name from user profile/auth
+        const customerName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'Customer';
+        console.log('PAYMENT_FLOW: Using customer name:', customerName);
+
+        // ✅ Customer gets "Booking Confirmed" notification
+        const customerNotified = await NotificationTemplateService.sendStandardizedNotification(
           userId,
-          merchant.shop_name,
-          serviceNames,
-          dateTimeFormatted,
-          bookingId
+          'booking_confirmed',
+          {
+            type: 'booking_confirmed',
+            bookingId,
+            shopName: merchant.shop_name,
+            serviceName: serviceNames,
+            dateTime: dateTimeFormatted
+          }
         );
 
-        console.log('PAYMENT_FLOW: Customer notification result:', customerNotification);
+        console.log('PAYMENT_FLOW: Customer notification result:', customerNotified);
 
-        // ✅ Scenario 2: Merchant gets "New Booking"
+        // ✅ Merchant gets "New Booking" notification with CORRECT customer name
         if (merchant?.user_id) {
-          const customerName = selectedStaffDetails?.name || 'Customer';
-          const merchantNotification = await EnhancedNotificationService.notifyMerchantNewBooking(
+          const merchantNotified = await NotificationTemplateService.sendStandardizedNotification(
             merchant.user_id,
-            customerName,
-            serviceNames,
-            dateTimeFormatted,
-            bookingId
+            'new_booking',
+            {
+              type: 'new_booking',
+              bookingId,
+              customerName, // ✅ FIXED: Use actual customer name, not stylist name
+              serviceName: serviceNames,
+              dateTime: dateTimeFormatted
+            }
           );
 
-          console.log('PAYMENT_FLOW: Merchant notification result:', merchantNotification);
+          console.log('PAYMENT_FLOW: Merchant notification result:', merchantNotified);
         } else {
           console.warn('PAYMENT_FLOW: No merchant user_id found for notifications');
         }
       } catch (notificationError) {
-        console.error('PAYMENT_FLOW: Enhanced notification error:', notificationError);
+        console.error('PAYMENT_FLOW: Notification error:', notificationError);
         // Don't fail the booking for notification issues
       }
 
