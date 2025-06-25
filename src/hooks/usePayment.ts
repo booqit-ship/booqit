@@ -53,8 +53,8 @@ export const usePayment = () => {
         p_service_duration: paymentData.totalDuration
       });
 
-      // Type cast the response
-      const result = rpcResult as RpcBookingResponse;
+      // Type cast the response safely
+      const result = rpcResult as unknown as RpcBookingResponse;
 
       if (rpcError || !result?.success) {
         throw new Error(rpcError?.message || result?.error || 'Failed to create booking');

@@ -80,8 +80,8 @@ const PaymentPage: React.FC = () => {
         p_service_duration: totalDuration
       });
 
-      // Type cast the response
-      const result = rpcResult as RpcBookingResponse;
+      // Type cast the response safely
+      const result = rpcResult as unknown as RpcBookingResponse;
 
       if (rpcError || !result?.success) {
         console.error('PAYMENT_FLOW: RPC error:', rpcError || result);
