@@ -25,6 +25,12 @@ interface CancelBookingButtonProps {
   className?: string;
 }
 
+interface CancelBookingResponse {
+  success: boolean;
+  error?: string;
+  message?: string;
+}
+
 const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
   bookingId,
   onCancelled,
@@ -77,9 +83,12 @@ const CancelBookingButton: React.FC<CancelBookingButtonProps> = ({
         return;
       }
 
-      if (!cancelResult?.success) {
-        console.error('❌ CUSTOMER: Cancellation failed:', cancelResult?.error);
-        toast.error(cancelResult?.error || 'Failed to cancel booking');
+      // Type cast the response
+      const cancelResponse = cancelResult as CancelBookingResponse;
+
+      if (!cancelResponse?.success) {
+        console.error('❌ CUSTOMER: Cancellation failed:', cancelResponse?.error);
+        toast.error(cancelResponse?.error || 'Failed to cancel booking');
         return;
       }
 

@@ -4,6 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { NotificationTemplateService } from "@/services/NotificationTemplateService";
 import { toast } from "sonner";
 
+interface BookingActionResponse {
+  success: boolean;
+  error?: string;
+  message?: string;
+}
+
 export function useMerchantBookingActions() {
   // ✅ Scenario 4: Merchant cancels → Customer gets "Booking Canceled"
   const cancelBooking = useCallback(async (bookingId: string) => {
@@ -55,9 +61,12 @@ export function useMerchantBookingActions() {
         return false;
       }
 
-      if (!cancelResult?.success) {
-        console.error('❌ MERCHANT: Cancellation failed:', cancelResult?.error);
-        toast.error(cancelResult?.error || 'Failed to cancel booking');
+      // Type cast the response
+      const cancelResponse = cancelResult as BookingActionResponse;
+
+      if (!cancelResponse?.success) {
+        console.error('❌ MERCHANT: Cancellation failed:', cancelResponse?.error);
+        toast.error(cancelResponse?.error || 'Failed to cancel booking');
         return false;
       }
 
@@ -150,9 +159,12 @@ export function useMerchantBookingActions() {
         return false;
       }
 
-      if (!completeResult?.success) {
-        console.error('❌ MERCHANT: Completion failed:', completeResult?.error);
-        toast.error(completeResult?.error || 'Failed to complete booking');
+      // Type cast the response
+      const completeResponse = completeResult as BookingActionResponse;
+
+      if (!completeResponse?.success) {
+        console.error('❌ MERCHANT: Completion failed:', completeResponse?.error);
+        toast.error(completeResponse?.error || 'Failed to complete booking');
         return false;
       }
 

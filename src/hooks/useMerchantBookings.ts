@@ -21,6 +21,12 @@ interface Booking {
   status: string;
 }
 
+interface UpdateBookingResponse {
+  success: boolean;
+  error?: string;
+  message?: string;
+}
+
 export const useMerchantBookings = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
@@ -113,9 +119,12 @@ export const useMerchantBookings = () => {
         throw updateError;
       }
 
-      if (!updateResult?.success) {
-        console.error('❌ MERCHANT: Status update failed:', updateResult?.error);
-        throw new Error(updateResult?.error || 'Failed to update booking status');
+      // Type cast the response
+      const updateResponse = updateResult as UpdateBookingResponse;
+
+      if (!updateResponse?.success) {
+        console.error('❌ MERCHANT: Status update failed:', updateResponse?.error);
+        throw new Error(updateResponse?.error || 'Failed to update booking status');
       }
 
       // ✅ Send standardized notifications
