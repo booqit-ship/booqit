@@ -148,7 +148,7 @@ export class EnhancedTokenCleanupService {
               userId,
               title: 'Token Validation',
               body: 'Silent validation check',
-              data: { type: 'validation', silent: true },
+              data: { type: 'validation', silent: 'true' },
               fcm_token: token.fcm_token
             }
           });
