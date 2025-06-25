@@ -90,24 +90,7 @@ export const useMerchantBookings = () => {
     try {
       console.log(`🔄 MERCHANT: Updating booking ${bookingId} to ${newStatus}`);
 
-      // Get booking details first for notifications
-      const { data: bookingData, error: fetchError } = await supabase
-        .from('bookings')
-        .select(`
-          *,
-          merchants!inner(shop_name, user_id),
-          services!inner(name)
-        `)
-        .eq('id', bookingId)
-        .single();
-
-      if (fetchError || !bookingData) {
-        console.error('❌ MERCHANT: Error fetching booking:', fetchError);
-        toast.error('Failed to fetch booking details');
-        return;
-      }
-
-      // Use the standardized RPC function
+      // ✅ FIXED: Use ONLY the standardized RPC function - no direct updates
       const { data: updateResult, error: updateError } = await supabase.rpc('update_booking_status_and_release_slots', {
         p_booking_id: bookingId,
         p_new_status: newStatus,
@@ -127,9 +110,22 @@ export const useMerchantBookings = () => {
         throw new Error(updateResponse?.error || 'Failed to update booking status');
       }
 
-      // ✅ Send standardized notifications
+      console.log('✅ MERCHANT: Booking status updated successfully');
+
+      // ✅ Send additional standardized notifications only if needed
       try {
-        if (bookingData.user_id) { // Only for authenticated users
+        // Get booking details for enhanced notifications (optional - the trigger handles basic ones)
+        const { data: bookingData, error: fetchError } = await supabase
+          .from('bookings')
+          .select(`
+            *,
+            merchants!inner(shop_name, user_id),
+            services!inner(name)
+          `)
+          .eq('id', bookingId)
+          .single();
+
+        if (!fetchError && bookingData && bookingData.user_id) {
           const dateTimeFormatted = NotificationTemplateService.formatDateTime(
             bookingData.date, 
             bookingData.time_slot
@@ -147,7 +143,7 @@ export const useMerchantBookings = () => {
                 dateTime: ''
               }
             );
-            console.log('📧 MERCHANT: Review request sent');
+            console.log('📧 MERCHANT: Enhanced review request sent');
           } else if (newStatus === 'cancelled') {
             await NotificationTemplateService.sendStandardizedNotification(
               bookingData.user_id,
@@ -160,13 +156,13 @@ export const useMerchantBookings = () => {
                 dateTime: dateTimeFormatted
               }
             );
-            console.log('📧 MERCHANT: Cancellation notification sent');
+            console.log('📧 MERCHANT: Enhanced cancellation notification sent');
           }
         } else {
-          console.log('ℹ️ MERCHANT: Guest booking - no notification sent');
+          console.log('ℹ️ MERCHANT: Booking not found or guest booking - basic notification sent by trigger');
         }
       } catch (notificationError) {
-        console.error('❌ MERCHANT: Notification error:', notificationError);
+        console.error('❌ MERCHANT: Enhanced notification error:', notificationError);
         // Don't fail the status update for notification issues
       }
 

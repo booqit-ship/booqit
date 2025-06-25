@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Smartphone } from 'lucide-react';
@@ -69,7 +68,7 @@ const PaymentPage: React.FC = () => {
       
       console.log('PAYMENT_FLOW: Creating authenticated user booking...');
 
-      // Step 1: Reserve the slot with total duration
+      // ✅ FIXED: Use standardized RPC function for slot reservation
       const { data: reserveResult, error: reserveError } = await supabase.rpc('reserve_slot_immediately', {
         p_user_id: userId,
         p_merchant_id: merchantId,
@@ -101,21 +100,44 @@ const PaymentPage: React.FC = () => {
       
       setCreatedBookingId(bookingId);
 
-      // Step 2: Update booking with services and confirm status
-      const { error: updateError } = await supabase
-        .from('bookings')
-        .update({
-          status: 'confirmed',
-          services: selectedServices,
-          total_duration: totalDuration,
-          payment_status: 'completed'
-        })
-        .eq('id', bookingId);
+      // ✅ FIXED: Use standardized RPC function for confirmation instead of direct update
+      const { data: confirmResult, error: confirmError } = await supabase.rpc('confirm_pending_booking', {
+        p_booking_id: bookingId,
+        p_user_id: userId
+      });
 
-      if (updateError) {
-        console.error('PAYMENT_FLOW: Error updating booking:', updateError);
+      if (confirmError) {
+        console.error('PAYMENT_FLOW: Error confirming booking:', confirmError);
         setShowFailureAnimation(true);
         return;
+      }
+
+      const confirmResponse = confirmResult as unknown as BookingResponse;
+      if (!confirmResponse.success) {
+        console.error('PAYMENT_FLOW: Booking confirmation failed:', confirmResponse.error);
+        toast.error(confirmResponse.error || 'Failed to confirm booking');
+        setShowFailureAnimation(true);
+        return;
+      }
+
+      // Update booking with additional details using safe direct update (non-status fields)
+      try {
+        const { error: updateError } = await supabase
+          .from('bookings')
+          .update({
+            services: selectedServices,
+            total_duration: totalDuration,
+            payment_status: 'completed'
+          })
+          .eq('id', bookingId);
+
+        if (updateError) {
+          console.error('PAYMENT_FLOW: Error updating booking details:', updateError);
+          // Don't fail the process for this
+        }
+      } catch (updateDetailError) {
+        console.error('PAYMENT_FLOW: Booking detail update failed:', updateDetailError);
+        // Don't fail the process for this
       }
 
       console.log('PAYMENT_FLOW: Booking confirmed successfully');
@@ -144,20 +166,18 @@ const PaymentPage: React.FC = () => {
         console.error('PAYMENT_FLOW: Payment record creation failed:', paymentCreationError);
       }
 
-      // ✅ Step 4: FIXED - Use standardized notification service with correct customer name
+      // ✅ Step 4: Send enhanced standardized notifications (the trigger handles basic ones)
       try {
-        console.log('PAYMENT_FLOW: Sending standardized notifications...');
+        console.log('PAYMENT_FLOW: Sending enhanced standardized notifications...');
         
         const serviceNames = selectedServices.map(s => s.name).join(', ');
-        const timeSlotFormatted = formatTimeToAmPm(bookingTime);
-        const dateFormatted = formatDateInIST(new Date(bookingDate), 'MMM d, yyyy');
         const dateTimeFormatted = NotificationTemplateService.formatDateTime(bookingDate, bookingTime);
 
         // Get correct customer name from user profile/auth
         const customerName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'Customer';
         console.log('PAYMENT_FLOW: Using customer name:', customerName);
 
-        // ✅ Customer gets "Booking Confirmed" notification
+        // ✅ Enhanced Customer "Booking Confirmed" notification
         const customerNotified = await NotificationTemplateService.sendStandardizedNotification(
           userId,
           'booking_confirmed',
@@ -170,9 +190,9 @@ const PaymentPage: React.FC = () => {
           }
         );
 
-        console.log('PAYMENT_FLOW: Customer notification result:', customerNotified);
+        console.log('PAYMENT_FLOW: Enhanced customer notification result:', customerNotified);
 
-        // ✅ Merchant gets "New Booking" notification with CORRECT customer name
+        // ✅ Enhanced Merchant "New Booking" notification 
         if (merchant?.user_id) {
           const merchantNotified = await NotificationTemplateService.sendStandardizedNotification(
             merchant.user_id,
@@ -186,12 +206,12 @@ const PaymentPage: React.FC = () => {
             }
           );
 
-          console.log('PAYMENT_FLOW: Merchant notification result:', merchantNotified);
+          console.log('PAYMENT_FLOW: Enhanced merchant notification result:', merchantNotified);
         } else {
-          console.warn('PAYMENT_FLOW: No merchant user_id found for notifications');
+          console.warn('PAYMENT_FLOW: No merchant user_id found for enhanced notifications');
         }
       } catch (notificationError) {
-        console.error('PAYMENT_FLOW: Notification error:', notificationError);
+        console.error('PAYMENT_FLOW: Enhanced notification error:', notificationError);
         // Don't fail the booking for notification issues
       }
 
