@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Smartphone } from 'lucide-react';
@@ -11,6 +12,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import BookingSuccessAnimation from '@/components/customer/BookingSuccessAnimation';
 import BookingFailureAnimation from '@/components/customer/BookingFailureAnimation';
 import { NotificationTemplateService } from '@/services/NotificationTemplateService';
+
+interface BookingResponse {
+  success: boolean;
+  booking_id?: string;
+  error?: string;
+  message?: string;
+}
 
 const PaymentPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
@@ -55,9 +63,9 @@ const PaymentPage: React.FC = () => {
       // Simulate payment processing (2 seconds)
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Use the existing working RPC function
+      // Use the existing working RPC function with proper type casting
       const { data: bookingResult, error: bookingError } = await supabase.rpc(
-        'create_confirmed_booking_with_services',
+        'create_confirmed_booking_with_services' as any,
         {
           p_user_id: userId,
           p_merchant_id: merchantId,
@@ -78,16 +86,19 @@ const PaymentPage: React.FC = () => {
         return;
       }
 
-      if (!bookingResult?.success) {
-        console.error('PAYMENT_FLOW: Booking failed:', bookingResult?.error);
-        toast.error(bookingResult?.error || 'Booking failed');
+      // Cast the response to the expected type
+      const response = bookingResult as BookingResponse;
+
+      if (!response?.success) {
+        console.error('PAYMENT_FLOW: Booking failed:', response?.error);
+        toast.error(response?.error || 'Booking failed');
         setShowFailureAnimation(true);
         return;
       }
 
-      const bookingId = bookingResult.booking_id;
+      const bookingId = response.booking_id;
       console.log('PAYMENT_FLOW: Booking created successfully with ID:', bookingId);
-      setCreatedBookingId(bookingId);
+      setCreatedBookingId(bookingId!);
 
       // Create payment record
       try {
@@ -123,7 +134,7 @@ const PaymentPage: React.FC = () => {
           'booking_confirmed',
           {
             type: 'booking_confirmed',
-            bookingId,
+            bookingId: bookingId!,
             shopName: merchant.shop_name,
             serviceName: serviceNames,
             dateTime: dateTimeFormatted
@@ -139,7 +150,7 @@ const PaymentPage: React.FC = () => {
             'new_booking',
             {
               type: 'new_booking',
-              bookingId,
+              bookingId: bookingId!,
               customerName,
               serviceName: serviceNames,
               dateTime: dateTimeFormatted

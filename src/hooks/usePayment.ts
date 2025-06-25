@@ -18,6 +18,13 @@ export interface PaymentData {
   serviceNames: string;
 }
 
+interface BookingResponse {
+  success: boolean;
+  booking_id?: string;
+  error?: string;
+  message?: string;
+}
+
 export const usePayment = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const { user } = useAuth();
@@ -33,9 +40,9 @@ export const usePayment = () => {
     console.log('PAYMENT_FLOW: Starting payment processing with existing RPC...');
 
     try {
-      // Use the existing working RPC function
+      // Use the existing working RPC function with proper type casting
       const { data: bookingResult, error: bookingError } = await supabase.rpc(
-        'create_confirmed_booking_with_services',
+        'create_confirmed_booking_with_services' as any,
         {
           p_user_id: user.id,
           p_merchant_id: paymentData.merchantId,
@@ -54,12 +61,15 @@ export const usePayment = () => {
         throw new Error(bookingError.message);
       }
 
-      if (!bookingResult?.success) {
-        console.error('PAYMENT_FLOW: Booking failed:', bookingResult?.error);
-        throw new Error(bookingResult?.error || 'Booking failed');
+      // Cast the response to the expected type
+      const response = bookingResult as BookingResponse;
+
+      if (!response?.success) {
+        console.error('PAYMENT_FLOW: Booking failed:', response?.error);
+        throw new Error(response?.error || 'Booking failed');
       }
 
-      const bookingId = bookingResult.booking_id;
+      const bookingId = response.booking_id;
       console.log('PAYMENT_FLOW: Booking created successfully with ID:', bookingId);
 
       // Create payment record
@@ -88,7 +98,7 @@ export const usePayment = () => {
         'booking_confirmed',
         {
           type: 'booking_confirmed',
-          bookingId,
+          bookingId: bookingId!,
           shopName: paymentData.merchantName,
           serviceName: paymentData.serviceNames,
           dateTime: NotificationTemplateService.formatDateTime(paymentData.date, paymentData.timeSlot)
@@ -108,7 +118,7 @@ export const usePayment = () => {
           'new_booking',
           {
             type: 'new_booking',
-            bookingId,
+            bookingId: bookingId!,
             customerName: user.user_metadata?.name || 'Customer',
             serviceName: paymentData.serviceNames,
             dateTime: NotificationTemplateService.formatDateTime(paymentData.date, paymentData.timeSlot)
