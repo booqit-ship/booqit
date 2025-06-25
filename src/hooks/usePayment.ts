@@ -37,12 +37,12 @@ export const usePayment = () => {
     }
 
     setIsProcessing(true);
-    console.log('PAYMENT_FLOW: Starting payment processing with existing RPC...');
+    console.log('PAYMENT_FLOW: Starting payment processing with working RPC...');
 
     try {
-      // Use the existing working RPC function with proper type casting
+      // Use the working RPC function (same as guest bookings use)
       const { data: bookingResult, error: bookingError } = await supabase.rpc(
-        'create_confirmed_booking_with_services' as any,
+        'create_confirmed_booking',
         {
           p_user_id: user.id,
           p_merchant_id: paymentData.merchantId,
@@ -50,9 +50,7 @@ export const usePayment = () => {
           p_staff_id: paymentData.staffId,
           p_date: paymentData.date,
           p_time_slot: paymentData.timeSlot,
-          p_service_duration: paymentData.totalDuration,
-          p_services: JSON.stringify(paymentData.serviceIds.map(id => ({ id }))),
-          p_total_duration: paymentData.totalDuration
+          p_service_duration: paymentData.totalDuration
         }
       );
 
@@ -71,6 +69,22 @@ export const usePayment = () => {
 
       const bookingId = response.booking_id;
       console.log('PAYMENT_FLOW: Booking created successfully with ID:', bookingId);
+
+      // Update booking with services data and payment status
+      try {
+        await supabase
+          .from('bookings')
+          .update({
+            services: paymentData.serviceIds.map(id => ({ id })),
+            total_duration: paymentData.totalDuration,
+            payment_status: 'completed'
+          })
+          .eq('id', bookingId);
+        
+        console.log('PAYMENT_FLOW: Booking updated with services and payment status');
+      } catch (updateError) {
+        console.error('PAYMENT_FLOW: Booking update error:', updateError);
+      }
 
       // Create payment record
       const { error: paymentError } = await supabase
