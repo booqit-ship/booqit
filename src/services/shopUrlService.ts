@@ -50,19 +50,26 @@ class ShopUrlService {
       const { data, error } = await supabase
         .rpc('resolve_shop_slug', { p_shop_slug: shopSlug });
 
+      console.log('ShopUrlService: RPC Response:', { data, error });
+
       if (error) {
         console.error('ShopUrlService: Database error:', error);
         return { success: false, error: error.message };
       }
 
       // Check if we got valid data with proper type checking
-      if (!data || !Array.isArray(data) || data.length === 0 || !(data[0] as unknown as ResolveShopRpcResponse)?.success) {
-        console.log('ShopUrlService: No shop found for slug:', shopSlug);
-        return { success: false, error: 'Shop not found' };
+      if (!data || !Array.isArray(data) || data.length === 0) {
+        console.log('ShopUrlService: No data returned for slug:', shopSlug);
+        return { success: false, error: 'Shop not found - no data returned' };
       }
 
-      // Cast the first item to our expected type
       const result = data[0] as unknown as ResolveShopRpcResponse;
+      console.log('ShopUrlService: Parsed result:', result);
+
+      if (!result || !result.success) {
+        console.log('ShopUrlService: Shop resolution failed for slug:', shopSlug);
+        return { success: false, error: 'Shop not found - resolution failed' };
+      }
 
       const merchantInfo: MerchantInfo = {
         id: result.merchant_id,
@@ -81,7 +88,7 @@ class ShopUrlService {
 
     } catch (error) {
       console.error('ShopUrlService: Unexpected error:', error);
-      return { success: false, error: 'Failed to resolve shop URL' };
+      return { success: false, error: `Failed to resolve shop URL: ${error instanceof Error ? error.message : 'Unknown error'}` };
     }
   }
 

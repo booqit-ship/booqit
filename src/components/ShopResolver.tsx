@@ -37,37 +37,48 @@ const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
   const { shopSlug } = useParams();
   const navigate = useNavigate();
   const [isResolving, setIsResolving] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const resolveShop = async () => {
       if (!shopSlug) {
         console.log('SHOP RESOLVER: No shop slug provided');
+        setError('No shop slug provided');
         setIsResolving(false);
         return;
       }
 
       console.log('SHOP RESOLVER: Resolving shop slug:', shopSlug);
+      console.log('SHOP RESOLVER: Current URL:', window.location.href);
 
       try {
-        // Use the new resolve function that doesn't require auth
-        const { data, error } = await supabase
+        // Use the resolve function that doesn't require auth
+        const { data, error: rpcError } = await supabase
           .rpc('resolve_shop_slug', { p_shop_slug: shopSlug });
 
-        if (error) {
-          console.error('SHOP RESOLVER: Database error:', error);
-          navigate('/404');
+        console.log('SHOP RESOLVER: RPC Response:', { data, error: rpcError });
+
+        if (rpcError) {
+          console.error('SHOP RESOLVER: Database error:', rpcError);
+          setError(`Database error: ${rpcError.message}`);
           return;
         }
 
         // Check if we got valid data with proper type checking
-        if (!data || !Array.isArray(data) || data.length === 0 || !(data[0] as unknown as ResolveShopRpcResponse)?.success) {
-          console.log('SHOP RESOLVER: Shop not found:', shopSlug);
-          navigate('/404');
+        if (!data || !Array.isArray(data) || data.length === 0) {
+          console.log('SHOP RESOLVER: No data returned for slug:', shopSlug);
+          setError('Shop not found - no data returned');
           return;
         }
 
-        // Cast the first item to our expected type
         const result = data[0] as unknown as ResolveShopRpcResponse;
+        console.log('SHOP RESOLVER: Parsed result:', result);
+
+        if (!result || !result.success) {
+          console.log('SHOP RESOLVER: Shop resolution failed:', result);
+          setError('Shop not found - resolution failed');
+          return;
+        }
 
         const merchantData: MerchantData = {
           id: result.merchant_id,
@@ -81,7 +92,8 @@ const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
           description: result.description
         };
 
-        console.log('SHOP RESOLVER: Shop resolved:', merchantData.shop_name);
+        console.log('SHOP RESOLVER: Shop resolved successfully:', merchantData.shop_name);
+        console.log('SHOP RESOLVER: Navigating to guest-info with merchant ID:', merchantData.id);
         
         // Navigate to guest info page with merchant data
         navigate(`/guest-info/${merchantData.id}`, {
@@ -95,7 +107,7 @@ const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
 
       } catch (error) {
         console.error('SHOP RESOLVER: Unexpected error:', error);
-        navigate('/404');
+        setError(`Unexpected error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       } finally {
         setIsResolving(false);
       }
@@ -110,6 +122,26 @@ const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-booqit-primary mx-auto mb-4"></div>
           <p className="text-gray-600 font-poppins">Loading shop...</p>
+          <p className="text-sm text-gray-500 mt-2">Resolving: {shopSlug}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-6">
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <h1 className="text-2xl font-bold text-gray-800 mb-2 font-righteous">Shop Not Found</h1>
+          <p className="text-gray-600 font-poppins mb-4">{error}</p>
+          <p className="text-sm text-gray-500 mb-4">Shop slug: {shopSlug}</p>
+          <button 
+            onClick={() => window.location.href = '/'}
+            className="bg-booqit-primary hover:bg-booqit-primary/90 text-white px-4 py-2 rounded font-poppins"
+          >
+            Go to Home
+          </button>
         </div>
       </div>
     );
