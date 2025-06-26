@@ -1344,7 +1344,18 @@ export type Database = {
       }
       resolve_shop_slug: {
         Args: { p_shop_slug: string }
-        Returns: Json
+        Returns: {
+          success: boolean
+          merchant_id: string
+          shop_name: string
+          category: string
+          address: string
+          image_url: string
+          open_time: string
+          close_time: string
+          rating: number
+          description: string
+        }[]
       }
       update_booking_status: {
         Args: {

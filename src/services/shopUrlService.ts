@@ -28,7 +28,7 @@ interface ResolveShopResponse {
   error?: string;
 }
 
-// Type for the RPC response
+// Type for the RPC response - updated to match the actual database function return
 interface ResolveShopRpcResponse {
   success: boolean;
   merchant_id: string;
@@ -63,7 +63,7 @@ class ShopUrlService {
         return { success: false, error: 'Shop not found - no data returned' };
       }
 
-      const result = data[0] as unknown as ResolveShopRpcResponse;
+      const result = data[0] as ResolveShopRpcResponse;
       console.log('ShopUrlService: Parsed result:', result);
 
       if (!result || !result.success) {

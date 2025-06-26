@@ -19,7 +19,7 @@ interface MerchantData {
   description?: string;
 }
 
-// Type for the RPC response
+// Type for the RPC response - updated to match the actual database function return
 interface ResolveShopRpcResponse {
   success: boolean;
   merchant_id: string;
@@ -71,7 +71,7 @@ const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
           return;
         }
 
-        const result = data[0] as unknown as ResolveShopRpcResponse;
+        const result = data[0] as ResolveShopRpcResponse;
         console.log('SHOP RESOLVER: Parsed result:', result);
 
         if (!result || !result.success) {
