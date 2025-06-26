@@ -1,16 +1,21 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { CheckCircle, Calendar, Clock, MapPin, User, Navigation } from 'lucide-react';
+import { CheckCircle, Calendar, Clock, MapPin, User, Navigation, Download } from 'lucide-react';
+import { toast } from 'sonner';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { formatDateInIST } from '@/utils/dateUtils';
+import ReceiptTemplate from '@/components/receipt/ReceiptTemplate';
+import { downloadReceiptImage, triggerAutoDownload, type ReceiptData } from '@/utils/receiptDownload';
 
 const GuestBookingSuccessPage: React.FC = () => {
   const { merchantId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [autoDownloadTriggered, setAutoDownloadTriggered] = useState(false);
   
   const { 
     bookingId,
@@ -22,6 +27,44 @@ const GuestBookingSuccessPage: React.FC = () => {
     guestInfo,
     selectedStaffDetails
   } = location.state || {};
+
+  const receiptData: ReceiptData = {
+    bookingId,
+    merchant,
+    selectedServices,
+    totalPrice,
+    bookingDate,
+    bookingTime,
+    guestInfo,
+    selectedStaffDetails
+  };
+
+  useEffect(() => {
+    // Auto-download the receipt after 3 seconds
+    if (bookingId && merchant && !autoDownloadTriggered) {
+      setAutoDownloadTriggered(true);
+      triggerAutoDownload(receiptData, 'receipt-template')
+        .then(() => {
+          toast.success('Receipt downloaded automatically!');
+        })
+        .catch(() => {
+          console.log('Auto-download failed, manual download still available');
+        });
+    }
+  }, [bookingId, merchant, autoDownloadTriggered]);
+
+  const handleDownloadReceipt = async () => {
+    setIsDownloading(true);
+    try {
+      await downloadReceiptImage(receiptData, 'receipt-template');
+      toast.success('Receipt downloaded successfully!');
+    } catch (error) {
+      console.error('Download failed:', error);
+      toast.error('Failed to download receipt. Please try again.');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   const handleNewBooking = () => {
     navigate(`/book/${merchantId}`);
@@ -138,19 +181,18 @@ const GuestBookingSuccessPage: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Important Notes */}
-        <Card className="border-blue-200 bg-gradient-to-r from-blue-50 to-blue-100 mb-6 shadow-lg">
-          <CardContent className="p-5">
-            <h4 className="font-medium text-blue-800 mb-3 font-righteous text-lg">Important Notes:</h4>
-            <ul className="text-sm text-blue-700 space-y-2 font-poppins">
-              <li>• Please arrive 5-10 minutes before your appointment</li>
-              <li>• Your slot is confirmed and reserved</li>
-            </ul>
-          </CardContent>
-        </Card>
-
         {/* Actions */}
         <div className="space-y-4">
+          <Button 
+            onClick={handleDownloadReceipt}
+            disabled={isDownloading}
+            variant="outline" 
+            className="w-full h-12 border-green-300 text-green-600 hover:bg-green-50 font-poppins font-medium"
+          >
+            <Download className="h-5 w-5 mr-2" />
+            {isDownloading ? 'Downloading...' : 'Download Receipt'}
+          </Button>
+
           <Button 
             onClick={handleViewOnMap}
             variant="outline" 
@@ -172,6 +214,13 @@ const GuestBookingSuccessPage: React.FC = () => {
           <p className="text-sm text-gray-500 font-poppins">
             Thank you for choosing our service! We look forward to seeing you.
           </p>
+        </div>
+
+        {/* Hidden Receipt Template for Image Generation */}
+        <div className="fixed -left-[9999px] -top-[9999px] opacity-0 pointer-events-none">
+          <div id="receipt-template">
+            <ReceiptTemplate data={receiptData} forImage={true} />
+          </div>
         </div>
       </div>
     </div>
