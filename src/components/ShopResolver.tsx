@@ -1,10 +1,22 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { shopUrlService } from '@/services/shopUrlService';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ShopResolverProps {
   children: React.ReactNode;
+}
+
+interface MerchantData {
+  id: string;
+  shop_name: string;
+  category: string;
+  address: string;
+  image_url?: string;
+  open_time: string;
+  close_time: string;
+  rating?: number;
+  description?: string;
 }
 
 const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
@@ -23,23 +35,45 @@ const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
       console.log('SHOP RESOLVER: Resolving shop slug:', shopSlug);
 
       try {
-        const response = await shopUrlService.resolveShopSlug(shopSlug);
+        // Use the new resolve function that doesn't require auth
+        const { data, error } = await supabase
+          .rpc('resolve_shop_slug', { p_shop_slug: shopSlug });
 
-        if (!response.success) {
+        if (error) {
+          console.error('SHOP RESOLVER: Database error:', error);
+          navigate('/404');
+          return;
+        }
+
+        // Check if we got valid data
+        if (!data || data.length === 0 || !data[0]?.success) {
           console.log('SHOP RESOLVER: Shop not found:', shopSlug);
           navigate('/404');
           return;
         }
 
-        console.log('SHOP RESOLVER: Shop resolved:', response.merchant);
+        const merchantData: MerchantData = {
+          id: data[0].merchant_id,
+          shop_name: data[0].shop_name,
+          category: data[0].category,
+          address: data[0].address,
+          image_url: data[0].image_url,
+          open_time: data[0].open_time,
+          close_time: data[0].close_time,
+          rating: data[0].rating,
+          description: data[0].description
+        };
+
+        console.log('SHOP RESOLVER: Shop resolved:', merchantData.shop_name);
         
         // Navigate to guest info page with merchant data
-        navigate(`/book/${response.merchant!.id}`, {
+        navigate(`/guest-info/${merchantData.id}`, {
           state: { 
-            merchant: response.merchant,
+            merchant: merchantData,
             fromCustomUrl: true,
             shopSlug: shopSlug
-          }
+          },
+          replace: true
         });
 
       } catch (error) {

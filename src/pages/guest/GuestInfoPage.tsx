@@ -22,7 +22,7 @@ interface Merchant {
 }
 
 const GuestInfoPage: React.FC = () => {
-  const { merchantId, shopName } = useParams();
+  const { merchantId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
@@ -41,7 +41,7 @@ const GuestInfoPage: React.FC = () => {
   const shopSlug = location.state?.shopSlug;
 
   useEffect(() => {
-    console.log('GUEST INFO: Page loaded with params:', { merchantId, shopName });
+    console.log('GUEST INFO: Page loaded with params:', { merchantId });
     console.log('GUEST INFO: Location state:', location.state);
     
     if (merchantFromState) {
@@ -52,9 +52,9 @@ const GuestInfoPage: React.FC = () => {
       fetchMerchantData();
     } else {
       console.error('GUEST INFO: No merchant ID or merchant data available');
-      setIsLoading(false);
+      navigate('/404');
     }
-  }, [merchantId, merchantFromState]);
+  }, [merchantId, merchantFromState, navigate]);
 
   const fetchMerchantData = async () => {
     if (!merchantId) return;
@@ -71,6 +71,11 @@ const GuestInfoPage: React.FC = () => {
 
       if (error) {
         console.error('GUEST INFO: Error fetching merchant:', error);
+        if (error.code === 'PGRST116') {
+          // No merchant found
+          navigate('/404');
+          return;
+        }
         throw error;
       }
       
@@ -83,6 +88,7 @@ const GuestInfoPage: React.FC = () => {
         description: "Failed to load shop information",
         variant: "destructive",
       });
+      navigate('/404');
     } finally {
       setIsLoading(false);
     }
@@ -114,7 +120,7 @@ const GuestInfoPage: React.FC = () => {
     // Store guest info in session storage
     sessionStorage.setItem('guestBookingInfo', JSON.stringify(guestInfo));
     
-    // Navigate to shop details page
+    // Navigate to shop details page with proper data passing
     navigate(`/guest-shop/${merchant.id}`, { 
       state: { 
         guestInfo, 
@@ -125,7 +131,7 @@ const GuestInfoPage: React.FC = () => {
     });
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setGuestInfo(prev => ({
       ...prev,
@@ -169,7 +175,7 @@ const GuestInfoPage: React.FC = () => {
               variant="ghost" 
               size="icon"
               className="text-gray-600 hover:bg-gray-100"
-              onClick={() => navigate(-1)}
+              onClick={() => window.history.length > 1 ? navigate(-1) : navigate('/')}
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>

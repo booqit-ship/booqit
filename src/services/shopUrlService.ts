@@ -16,6 +16,10 @@ export interface MerchantInfo {
   category: string;
   address: string;
   image_url?: string;
+  open_time: string;
+  close_time: string;
+  rating?: number;
+  description?: string;
 }
 
 interface ResolveShopResponse {
@@ -25,19 +29,39 @@ interface ResolveShopResponse {
 }
 
 class ShopUrlService {
-  async resolveShopSlug(shopSlug: string): Promise<{ success: boolean; merchant?: MerchantInfo; error?: string }> {
+  async resolveShopSlug(shopSlug: string): Promise<ResolveShopResponse> {
     try {
+      console.log('ShopUrlService: Resolving slug:', shopSlug);
+      
       const { data, error } = await supabase
         .rpc('resolve_shop_slug', { p_shop_slug: shopSlug });
 
       if (error) {
-        console.error('ShopUrlService: Error resolving shop slug:', error);
+        console.error('ShopUrlService: Database error:', error);
         return { success: false, error: error.message };
       }
 
-      // Type assertion for the RPC response
-      const response = data as unknown as ResolveShopResponse;
-      return response;
+      // Check if we got valid data
+      if (!data || data.length === 0 || !data[0]?.success) {
+        console.log('ShopUrlService: No shop found for slug:', shopSlug);
+        return { success: false, error: 'Shop not found' };
+      }
+
+      const merchantInfo: MerchantInfo = {
+        id: data[0].merchant_id,
+        shop_name: data[0].shop_name,
+        category: data[0].category,
+        address: data[0].address,
+        image_url: data[0].image_url,
+        open_time: data[0].open_time,
+        close_time: data[0].close_time,
+        rating: data[0].rating,
+        description: data[0].description
+      };
+
+      console.log('ShopUrlService: Successfully resolved merchant:', merchantInfo.shop_name);
+      return { success: true, merchant: merchantInfo };
+
     } catch (error) {
       console.error('ShopUrlService: Unexpected error:', error);
       return { success: false, error: 'Failed to resolve shop URL' };
