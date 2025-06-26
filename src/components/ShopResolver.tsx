@@ -1,22 +1,10 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { shopUrlService } from '@/services/shopUrlService';
 
 interface ShopResolverProps {
   children: React.ReactNode;
-}
-
-interface ResolveShopResponse {
-  success: boolean;
-  merchant?: {
-    id: string;
-    shop_name: string;
-    category: string;
-    address: string;
-    image_url?: string;
-  };
-  error?: string;
 }
 
 const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
@@ -27,6 +15,7 @@ const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
   useEffect(() => {
     const resolveShop = async () => {
       if (!shopSlug) {
+        console.log('SHOP RESOLVER: No shop slug provided');
         setIsResolving(false);
         return;
       }
@@ -34,17 +23,7 @@ const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
       console.log('SHOP RESOLVER: Resolving shop slug:', shopSlug);
 
       try {
-        const { data, error } = await supabase
-          .rpc('resolve_shop_slug', { p_shop_slug: shopSlug });
-
-        if (error) {
-          console.error('SHOP RESOLVER: Error resolving shop:', error);
-          navigate('/404');
-          return;
-        }
-
-        // Type assertion for the RPC response
-        const response = data as unknown as ResolveShopResponse;
+        const response = await shopUrlService.resolveShopSlug(shopSlug);
 
         if (!response.success) {
           console.log('SHOP RESOLVER: Shop not found:', shopSlug);
@@ -54,11 +33,12 @@ const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
 
         console.log('SHOP RESOLVER: Shop resolved:', response.merchant);
         
-        // Redirect to guest info page with merchant data
+        // Navigate to guest info page with merchant data
         navigate(`/book/${response.merchant!.id}`, {
           state: { 
             merchant: response.merchant,
-            fromCustomUrl: true 
+            fromCustomUrl: true,
+            shopSlug: shopSlug
           }
         });
 

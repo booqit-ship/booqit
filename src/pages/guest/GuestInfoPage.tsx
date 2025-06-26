@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -6,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Store } from 'lucide-react';
 
 interface Merchant {
   id: string;
@@ -37,6 +38,7 @@ const GuestInfoPage: React.FC = () => {
   // Get merchant from location state if coming from custom URL
   const merchantFromState = location.state?.merchant;
   const fromCustomUrl = location.state?.fromCustomUrl;
+  const shopSlug = location.state?.shopSlug;
 
   useEffect(() => {
     console.log('GUEST INFO: Page loaded with params:', { merchantId, shopName });
@@ -117,7 +119,8 @@ const GuestInfoPage: React.FC = () => {
       state: { 
         guestInfo, 
         merchant,
-        isGuestBooking: true 
+        isGuestBooking: true,
+        shopSlug: shopSlug
       }
     });
   };
@@ -144,36 +147,80 @@ const GuestInfoPage: React.FC = () => {
   if (!merchant) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
+        <div className="text-center max-w-md mx-auto p-6">
+          <Store className="h-16 w-16 text-gray-400 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-gray-800 mb-2 font-righteous">Shop Not Found</h1>
-          <p className="text-gray-600 font-poppins">The booking link may be invalid or expired.</p>
+          <p className="text-gray-600 font-poppins mb-4">The booking link may be invalid or expired.</p>
+          <Button onClick={() => navigate('/')} className="bg-booqit-primary hover:bg-booqit-primary/90">
+            Go to Home
+          </Button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 py-6">
-      <div className="container mx-auto max-w-md">
-        {/* Header */}
-        <div className="bg-booqit-primary text-white p-4 rounded-t-md flex items-center justify-between">
-          <Button 
-            variant="ghost" 
-            size="icon"
-            className="text-white hover:bg-white/20"
-            onClick={() => navigate(-1)}
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <h1 className="text-xl font-medium font-righteous">Enter Your Details</h1>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header with shop info */}
+      <div className="bg-white border-b">
+        <div className="max-w-md mx-auto p-4">
+          <div className="flex items-center gap-3 mb-4">
+            <Button 
+              variant="ghost" 
+              size="icon"
+              className="text-gray-600 hover:bg-gray-100"
+              onClick={() => navigate(-1)}
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex-1">
+              <h1 className="text-xl font-bold text-booqit-primary font-righteous">Book Appointment</h1>
+              <p className="text-sm text-gray-600 font-poppins">{merchant.shop_name}</p>
+            </div>
+          </div>
+          
+          {/* Shop info card */}
+          <Card className="mb-4">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                {merchant.image_url ? (
+                  <img
+                    src={merchant.image_url}
+                    alt={merchant.shop_name}
+                    className="w-16 h-16 rounded-lg object-cover"
+                  />
+                ) : (
+                  <div className="w-16 h-16 bg-booqit-primary/10 rounded-lg flex items-center justify-center">
+                    <Store className="h-8 w-8 text-booqit-primary" />
+                  </div>
+                )}
+                <div className="flex-1">
+                  <h2 className="font-semibold text-lg font-righteous">{merchant.shop_name}</h2>
+                  <p className="text-sm text-gray-600 font-poppins">{merchant.category}</p>
+                  <p className="text-xs text-gray-500 mt-1 font-poppins">{merchant.address}</p>
+                  {merchant.rating && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <span className="text-yellow-400">⭐</span>
+                      <span className="text-sm font-poppins">{merchant.rating.toFixed(1)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
+      </div>
 
-        <Card className="shadow-md rounded-md">
-          <CardContent className="p-6">
+      <div className="max-w-md mx-auto p-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-righteous">Enter Your Details</CardTitle>
+          </CardHeader>
+          <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <Label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                  Your Name
+                <Label htmlFor="name" className="block text-sm font-medium text-gray-700 font-poppins">
+                  Your Name *
                 </Label>
                 <Input
                   type="text"
@@ -181,13 +228,15 @@ const GuestInfoPage: React.FC = () => {
                   name="name"
                   value={guestInfo.name}
                   onChange={handleChange}
-                  placeholder="John Doe"
-                  className="mt-1 block w-full"
+                  placeholder="Enter your full name"
+                  className="mt-1 font-poppins"
+                  required
                 />
               </div>
+              
               <div>
-                <Label htmlFor="phone" className="block text-sm font-medium text-gray-700">
-                  Phone Number
+                <Label htmlFor="phone" className="block text-sm font-medium text-gray-700 font-poppins">
+                  Phone Number *
                 </Label>
                 <Input
                   type="tel"
@@ -195,12 +244,14 @@ const GuestInfoPage: React.FC = () => {
                   name="phone"
                   value={guestInfo.phone}
                   onChange={handleChange}
-                  placeholder="123-456-7890"
-                  className="mt-1 block w-full"
+                  placeholder="Enter your phone number"
+                  className="mt-1 font-poppins"
+                  required
                 />
               </div>
+              
               <div>
-                <Label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                <Label htmlFor="email" className="block text-sm font-medium text-gray-700 font-poppins">
                   Email Address (optional)
                 </Label>
                 <Input
@@ -209,15 +260,17 @@ const GuestInfoPage: React.FC = () => {
                   name="email"
                   value={guestInfo.email}
                   onChange={handleChange}
-                  placeholder="john.doe@example.com"
-                  className="mt-1 block w-full"
+                  placeholder="Enter your email"
+                  className="mt-1 font-poppins"
                 />
               </div>
-              <div>
-                <Button type="submit" className="w-full bg-booqit-primary text-white">
-                  Continue to Shop Details
-                </Button>
-              </div>
+              
+              <Button 
+                type="submit" 
+                className="w-full bg-booqit-primary hover:bg-booqit-primary/90 font-poppins"
+              >
+                Continue to Services
+              </Button>
             </form>
           </CardContent>
         </Card>
