@@ -45,8 +45,8 @@ const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
           return;
         }
 
-        // Check if we got valid data
-        if (!data || data.length === 0 || !data[0]?.success) {
+        // Check if we got valid data with proper type checking
+        if (!data || !Array.isArray(data) || data.length === 0 || !data[0]?.success) {
           console.log('SHOP RESOLVER: Shop not found:', shopSlug);
           navigate('/404');
           return;

@@ -41,8 +41,8 @@ class ShopUrlService {
         return { success: false, error: error.message };
       }
 
-      // Check if we got valid data
-      if (!data || data.length === 0 || !data[0]?.success) {
+      // Check if we got valid data with proper type checking
+      if (!data || !Array.isArray(data) || data.length === 0 || !data[0]?.success) {
         console.log('ShopUrlService: No shop found for slug:', shopSlug);
         return { success: false, error: 'Shop not found' };
       }
