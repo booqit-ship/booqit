@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Store } from 'lucide-react';
+import { Store, Calendar, History } from 'lucide-react';
 
 interface Merchant {
   id: string;
@@ -147,6 +147,14 @@ const GuestInfoPage: React.FC = () => {
     }));
   };
 
+  const handleCancelBooking = () => {
+    navigate('/guest-cancel-booking');
+  };
+
+  const handleViewHistory = () => {
+    navigate('/guest-booking-history');
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 flex items-center justify-center px-4">
@@ -216,7 +224,7 @@ const GuestInfoPage: React.FC = () => {
       </div>
 
       <div className="max-w-lg mx-auto px-4 py-6">
-        <Card className="shadow-xl border-0 bg-white">
+        <Card className="shadow-xl border-0 bg-white mb-6">
           <CardHeader className="text-center pb-4">
             <CardTitle className="font-righteous text-2xl text-gray-800">Your Details</CardTitle>
             <p className="text-gray-600 font-poppins text-sm">Let's get you booked quickly</p>
@@ -277,6 +285,35 @@ const GuestInfoPage: React.FC = () => {
                 Continue to Services
               </Button>
             </form>
+          </CardContent>
+        </Card>
+
+        {/* Booking Management Options */}
+        <Card className="shadow-xl border-0 bg-white">
+          <CardHeader className="text-center pb-4">
+            <CardTitle className="font-righteous text-xl text-gray-800">Manage Existing Bookings</CardTitle>
+            <p className="text-gray-600 font-poppins text-sm">Cancel bookings or view your booking history</p>
+          </CardHeader>
+          <CardContent className="px-6 pb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Button
+                onClick={handleCancelBooking}
+                variant="outline"
+                className="h-12 border-2 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-poppins font-medium transition-all duration-200"
+              >
+                <Calendar className="w-5 h-5 mr-2" />
+                Cancel Booking
+              </Button>
+              
+              <Button
+                onClick={handleViewHistory}
+                variant="outline"
+                className="h-12 border-2 border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 font-poppins font-medium transition-all duration-200"
+              >
+                <History className="w-5 h-5 mr-2" />
+                View History
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
