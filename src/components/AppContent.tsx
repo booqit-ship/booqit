@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import LazyRoute from '@/components/LazyRoute';
 import AppInit from '@/components/AppInit';
+import ShopResolver from '@/components/ShopResolver';
 import Index from '@/pages/Index';
 import HomePage from '@/pages/customer/HomePage';
 import SearchPage from '@/pages/customer/SearchPage';
@@ -239,6 +240,18 @@ const AppContent: React.FC = () => {
         <Route path="/settings/contact" element={<LazyRoute><ProtectedRoute><CustomerLayout><ContactPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
         <Route path="/settings/about" element={<LazyRoute><ProtectedRoute><CustomerLayout><AboutPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
         <Route path="/settings/delete-account" element={<LazyRoute><ProtectedRoute><CustomerLayout><DeleteAccountPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        
+        {/* Custom Shop URL Route - Must be last to avoid conflicts */}
+        <Route 
+          path="/:shopSlug" 
+          element={
+            <LazyRoute>
+              <ShopResolver>
+                <div />
+              </ShopResolver>
+            </LazyRoute>
+          } 
+        />
         
         {/* Catch-all route for 404 */}
         <Route path="*" element={<LazyRoute><NotFound /></LazyRoute>} />

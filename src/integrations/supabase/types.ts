@@ -684,6 +684,44 @@ export type Database = {
         }
         Relationships: []
       }
+      shop_urls: {
+        Row: {
+          created_at: string
+          custom_domain: string | null
+          id: string
+          is_active: boolean
+          merchant_id: string
+          shop_slug: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          custom_domain?: string | null
+          id?: string
+          is_active?: boolean
+          merchant_id: string
+          shop_slug: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          custom_domain?: string | null
+          id?: string
+          is_active?: boolean
+          merchant_id?: string
+          shop_slug?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_urls_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "merchants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       slot_locks: {
         Row: {
           created_at: string
@@ -1082,6 +1120,10 @@ export type Database = {
           | { p_report_date: string; p_report_type: string }
         Returns: undefined
       }
+      generate_shop_slug: {
+        Args: { shop_name: string }
+        Returns: string
+      }
       get_available_slots: {
         Args:
           | { p_merchant_id: string; p_date: string; p_staff_id?: string }
@@ -1298,6 +1340,10 @@ export type Database = {
           p_time_slot: string
           p_service_duration: number
         }
+        Returns: Json
+      }
+      resolve_shop_slug: {
+        Args: { p_shop_slug: string }
         Returns: Json
       }
       update_booking_status: {
