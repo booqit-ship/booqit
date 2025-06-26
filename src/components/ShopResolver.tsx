@@ -7,6 +7,18 @@ interface ShopResolverProps {
   children: React.ReactNode;
 }
 
+interface ResolveShopResponse {
+  success: boolean;
+  merchant?: {
+    id: string;
+    shop_name: string;
+    category: string;
+    address: string;
+    image_url?: string;
+  };
+  error?: string;
+}
+
 const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
   const { shopSlug } = useParams();
   const navigate = useNavigate();
@@ -31,18 +43,21 @@ const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
           return;
         }
 
-        if (!data.success) {
+        // Type assertion for the RPC response
+        const response = data as ResolveShopResponse;
+
+        if (!response.success) {
           console.log('SHOP RESOLVER: Shop not found:', shopSlug);
           navigate('/404');
           return;
         }
 
-        console.log('SHOP RESOLVER: Shop resolved:', data.merchant);
+        console.log('SHOP RESOLVER: Shop resolved:', response.merchant);
         
         // Redirect to guest info page with merchant data
-        navigate(`/book/${data.merchant.id}`, {
+        navigate(`/book/${response.merchant!.id}`, {
           state: { 
-            merchant: data.merchant,
+            merchant: response.merchant,
             fromCustomUrl: true 
           }
         });

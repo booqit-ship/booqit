@@ -18,6 +18,12 @@ export interface MerchantInfo {
   image_url?: string;
 }
 
+interface ResolveShopResponse {
+  success: boolean;
+  merchant?: MerchantInfo;
+  error?: string;
+}
+
 class ShopUrlService {
   async resolveShopSlug(shopSlug: string): Promise<{ success: boolean; merchant?: MerchantInfo; error?: string }> {
     try {
@@ -29,7 +35,9 @@ class ShopUrlService {
         return { success: false, error: error.message };
       }
 
-      return data;
+      // Type assertion for the RPC response
+      const response = data as ResolveShopResponse;
+      return response;
     } catch (error) {
       console.error('ShopUrlService: Unexpected error:', error);
       return { success: false, error: 'Failed to resolve shop URL' };
