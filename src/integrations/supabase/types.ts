@@ -951,10 +951,6 @@ export type Database = {
         Args: { p_booking_id: string; p_user_id: string }
         Returns: Json
       }
-      cancel_guest_booking_safe: {
-        Args: { p_booking_id: string }
-        Returns: Json
-      }
       cancel_pending_booking: {
         Args: { p_booking_id: string; p_user_id: string }
         Returns: Json
@@ -1237,50 +1233,6 @@ export type Database = {
           time_slot: string
           slot_status: string
           status_reason: string
-        }[]
-      }
-      get_guest_booking_history: {
-        Args: { p_phone_number: string }
-        Returns: {
-          booking_id: string
-          booking_date: string
-          booking_time: string
-          customer_name: string
-          customer_phone: string
-          customer_email: string
-          shop_name: string
-          shop_address: string
-          service_name: string
-          service_duration: number
-          service_price: number
-          stylist_name: string
-          booking_status: string
-          total_duration: number
-          created_at: string
-          merchant_id: string
-        }[]
-      }
-      get_guest_booking_receipt_data: {
-        Args: { p_booking_id: string }
-        Returns: Json
-      }
-      get_guest_bookings_for_cancellation: {
-        Args: { p_booking_id?: string; p_phone_number?: string }
-        Returns: {
-          booking_id: string
-          booking_date: string
-          booking_time: string
-          customer_name: string
-          customer_phone: string
-          customer_email: string
-          shop_name: string
-          shop_address: string
-          service_name: string
-          service_duration: number
-          service_price: number
-          stylist_name: string
-          booking_status: string
-          total_duration: number
         }[]
       }
       get_merchant_booking_info: {
