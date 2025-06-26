@@ -44,7 +44,7 @@ const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
         }
 
         // Type assertion for the RPC response
-        const response = data as ResolveShopResponse;
+        const response = data as unknown as ResolveShopResponse;
 
         if (!response.success) {
           console.log('SHOP RESOLVER: Shop not found:', shopSlug);

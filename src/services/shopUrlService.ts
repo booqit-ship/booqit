@@ -36,7 +36,7 @@ class ShopUrlService {
       }
 
       // Type assertion for the RPC response
-      const response = data as ResolveShopResponse;
+      const response = data as unknown as ResolveShopResponse;
       return response;
     } catch (error) {
       console.error('ShopUrlService: Unexpected error:', error);
