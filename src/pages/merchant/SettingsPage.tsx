@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -6,9 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Merchant, BankInfo } from '@/types';
-import { LogOut, Settings, Mail, Info, Shield, FileText, Trash2, ChevronRight, User, CreditCard, Bell, Share2, Copy, Check } from 'lucide-react';
+import { LogOut, Settings, Mail, Info, Shield, FileText, Trash2, ChevronRight, User, CreditCard, Bell } from 'lucide-react';
 import SettingsBusinessForm from '@/components/merchant/SettingsBusinessForm';
 import SettingsBankingForm from '@/components/merchant/SettingsBankingForm';
+import BookingUrlManager from '@/components/merchant/BookingUrlManager';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 
@@ -22,7 +24,6 @@ const SettingsPage: React.FC = () => {
   const { userId, logout, user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [merchant, setMerchant] = useState<Merchant | null>(null);
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const fetchMerchantData = async () => {
@@ -64,36 +65,6 @@ const SettingsPage: React.FC = () => {
       console.error('Logout error:', error);
       toast('Logout failed', {
         description: 'Failed to logout. Please try again.',
-        style: {
-          backgroundColor: 'red',
-          color: 'white'
-        }
-      });
-    }
-  };
-
-  const generateBookingLink = () => {
-    if (!merchant) return '';
-    const shopName = merchant.shop_name.toLowerCase().replace(/\s+/g, '-');
-    return `https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com/book/${merchant.id}/${shopName}`;
-  };
-
-  const copyBookingLink = async () => {
-    const link = generateBookingLink();
-    try {
-      await navigator.clipboard.writeText(link);
-      setCopied(true);
-      toast('Booking link copied!', {
-        description: 'Share this link with your customers',
-        style: {
-          backgroundColor: 'green',
-          color: 'white'
-        }
-      });
-      setTimeout(() => setCopied(false), 2000);
-    } catch (error) {
-      toast('Failed to copy link', {
-        description: 'Please try again',
         style: {
           backgroundColor: 'red',
           color: 'white'
@@ -199,43 +170,13 @@ const SettingsPage: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Share Booking Link */}
-        <div className="space-y-1">
-          <h2 className="text-lg font-semibold px-1 mb-3">Share Your Business</h2>
-          <Card className="border-booqit-primary/20">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-booqit-primary/10 rounded-lg flex items-center justify-center">
-                    <Share2 className="h-5 w-5 text-booqit-primary" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium">Share Booking Link</h3>
-                    <p className="text-sm text-gray-600">
-                      {merchant?.shop_name} Booking - Direct link for customers
-                    </p>
-                  </div>
-                </div>
-                <Button 
-                  onClick={copyBookingLink}
-                  className="bg-booqit-primary hover:bg-booqit-primary/90"
-                  size="sm"
-                >
-                  {copied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
-                  {copied ? 'Copied!' : 'Copy Link'}
-                </Button>
-              </div>
-              <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-                <p className="text-xs text-gray-500 break-all">
-                  {generateBookingLink()}
-                </p>
-              </div>
-              <p className="text-xs text-gray-500 mt-2">
-                Share this link anywhere - customers can book directly without creating an account
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Booking URL Manager */}
+        {merchant && (
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold px-1 mb-3">Share Your Business</h2>
+            <BookingUrlManager merchantId={merchant.id} shopName={merchant.shop_name} />
+          </div>
+        )}
 
         {/* Business Management */}
         <div className="space-y-1">
