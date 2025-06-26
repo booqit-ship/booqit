@@ -1,172 +1,91 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { Store } from 'lucide-react';
-
-interface Merchant {
-  id: string;
-  shop_name: string;
-  category: string;
-  address: string;
-  description?: string;
-  open_time: string;
-  close_time: string;
-  rating?: number;
-  image_url?: string;
-}
+import { ArrowLeft, User, Phone, Mail, ArrowRight, X, History } from 'lucide-react';
+import { toast } from 'sonner';
 
 const GuestInfoPage: React.FC = () => {
   const { merchantId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { toast } = useToast();
   
-  const [merchant, setMerchant] = useState<Merchant | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { merchant, selectedServices, totalPrice, totalDuration } = location.state || {};
+
   const [guestInfo, setGuestInfo] = useState({
     name: '',
     phone: '',
     email: ''
   });
 
-  const merchantFromState = location.state?.merchant;
-  const fromCustomUrl = location.state?.fromCustomUrl;
-  const shopSlug = location.state?.shopSlug;
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
 
-  useEffect(() => {
-    console.log('QUICK BOOQIT: Page loaded with params:', { merchantId });
-    console.log('QUICK BOOQIT: Location state:', location.state);
-    console.log('QUICK BOOQIT: From custom URL:', fromCustomUrl);
-    console.log('QUICK BOOQIT: Shop slug:', shopSlug);
+  const validateForm = () => {
+    const newErrors: {[key: string]: string} = {};
     
-    if (merchantFromState) {
-      console.log('QUICK BOOQIT: Using merchant from custom URL resolution');
-      setMerchant(merchantFromState);
-      setIsLoading(false);
-    } else if (merchantId) {
-      fetchMerchantData();
-    } else {
-      console.error('QUICK BOOQIT: No merchant ID or merchant data available');
-      toast({
-        title: "Error",
-        description: "No shop information available",
-        variant: "destructive",
-      });
-      navigate('/');
+    if (!guestInfo.name.trim()) {
+      newErrors.name = 'Name is required';
     }
-  }, [merchantId, merchantFromState, navigate]);
-
-  const fetchMerchantData = async () => {
-    if (!merchantId) return;
     
-    setIsLoading(true);
-    try {
-      console.log('QUICK BOOQIT: Fetching merchant data for:', merchantId);
-      
-      const { data: merchantData, error } = await supabase
-        .from('merchants')
-        .select('*')
-        .eq('id', merchantId)
-        .single();
-
-      if (error) {
-        console.error('QUICK BOOQIT: Error fetching merchant:', error);
-        if (error.code === 'PGRST116') {
-          toast({
-            title: "Shop Not Found",
-            description: "The requested shop could not be found",
-            variant: "destructive",
-          });
-          navigate('/');
-          return;
-        }
-        throw error;
-      }
-      
-      console.log('QUICK BOOQIT: Merchant data loaded:', merchantData.shop_name);
-      setMerchant(merchantData);
-    } catch (error) {
-      console.error('QUICK BOOQIT: Error fetching merchant data:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load shop information",
-        variant: "destructive",
-      });
-      navigate('/');
-    } finally {
-      setIsLoading(false);
+    if (!guestInfo.phone.trim()) {
+      newErrors.phone = 'Phone number is required';
+    } else if (!/^\d{10}$/.test(guestInfo.phone.replace(/\D/g, ''))) {
+      newErrors.phone = 'Please enter a valid 10-digit phone number';
     }
+    
+    if (guestInfo.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestInfo.email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!guestInfo.name.trim() || !guestInfo.phone.trim()) {
-      toast({
-        title: "Missing Information",
-        description: "Please fill in your name and phone number",
-        variant: "destructive",
-      });
+  const handleContinue = () => {
+    if (!validateForm()) {
+      toast.error('Please fix the errors before continuing');
       return;
     }
 
-    if (!merchant) {
-      toast({
-        title: "Error",
-        description: "Shop information not available",
-        variant: "destructive",
-      });
+    if (!selectedServices || selectedServices.length === 0) {
+      toast.error('Please select services first');
+      navigate(`/book/${merchantId}`);
       return;
     }
 
-    console.log('QUICK BOOQIT: Submitting info:', guestInfo);
-    
-    sessionStorage.setItem('guestBookingInfo', JSON.stringify(guestInfo));
-    
-    navigate(`/guest-shop/${merchant.id}`, { 
+    navigate(`/guest-staff/${merchantId}`, { 
       state: { 
         guestInfo, 
-        merchant,
-        isGuestBooking: true,
-        shopSlug: shopSlug
-      }
+        merchant, 
+        selectedServices, 
+        totalPrice, 
+        totalDuration 
+      } 
     });
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setGuestInfo(prev => ({
-      ...prev,
-      [name]: value
-    }));
+  const handleCancelBooking = () => {
+    navigate('/guest-cancel-booking');
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 flex items-center justify-center px-4">
-        <div className="text-center max-w-sm w-full">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 font-poppins">Loading shop information...</p>
-        </div>
-      </div>
-    );
-  }
+  const handleViewHistory = () => {
+    navigate('/guest-booking-history');
+  };
 
-  if (!merchant) {
+  if (!merchant || !selectedServices) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 flex items-center justify-center px-4">
         <div className="text-center max-w-md mx-auto">
-          <Store className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-gray-800 mb-2 font-righteous">Shop Not Found</h1>
-          <p className="text-gray-600 font-poppins mb-4">The booking link may be invalid or expired.</p>
-          <Button onClick={() => navigate('/')} className="bg-purple-600 hover:bg-purple-700">
-            Go to Home
+          <h1 className="text-2xl font-bold text-gray-800 mb-2 font-righteous">Invalid Request</h1>
+          <p className="text-gray-600 font-poppins">Please start your booking from the beginning.</p>
+          <Button 
+            onClick={() => navigate(`/book/${merchantId}`)}
+            className="mt-4 bg-purple-600 hover:bg-purple-700"
+          >
+            Start Booking
           </Button>
         </div>
       </div>
@@ -174,111 +93,168 @@ const GuestInfoPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 pb-32">
       {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white">
-        <div className="max-w-lg mx-auto px-4 py-6">
-          <div className="text-center">
-            <h1 className="text-3xl font-bold text-white font-righteous mb-2">Quick Booqit</h1>
-            <p className="text-purple-100 font-poppins">{merchant.shop_name}</p>
+      <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white sticky top-0 z-10 shadow-lg">
+        <div className="max-w-lg mx-auto px-4 py-4">
+          <div className="relative flex items-center justify-center">
+            <Button 
+              variant="ghost" 
+              size="icon"
+              className="absolute left-0 text-white hover:bg-white/20 rounded-full"
+              onClick={() => navigate(-1)}
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <h1 className="text-xl font-medium font-righteous">Your Information</h1>
           </div>
-          
-          {/* Shop info card */}
-          <Card className="mt-6 bg-white/10 border-white/20 backdrop-blur-sm">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-3">
-                {merchant.image_url ? (
-                  <img
-                    src={merchant.image_url}
-                    alt={merchant.shop_name}
-                    className="w-16 h-16 rounded-xl object-cover shadow-lg"
-                  />
-                ) : (
-                  <div className="w-16 h-16 bg-purple-100 rounded-xl flex items-center justify-center shadow-lg">
-                    <Store className="h-8 w-8 text-purple-600" />
-                  </div>
-                )}
-                <div className="flex-1">
-                  <h2 className="font-semibold text-lg font-righteous text-white">{merchant.shop_name}</h2>
-                  <p className="text-sm text-purple-100 font-poppins">{merchant.category}</p>
-                  <p className="text-xs text-purple-200 mt-1 font-poppins">{merchant.address}</p>
-                  {merchant.rating && (
-                    <div className="flex items-center gap-1 mt-1">
-                      <span className="text-yellow-300">⭐</span>
-                      <span className="text-sm font-poppins text-purple-100">{merchant.rating.toFixed(1)}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </div>
 
       <div className="max-w-lg mx-auto px-4 py-6">
-        <Card className="shadow-xl border-0 bg-white">
-          <CardHeader className="text-center pb-4">
-            <CardTitle className="font-righteous text-2xl text-gray-800">Your Details</CardTitle>
-            <p className="text-gray-600 font-poppins text-sm">Let's get you booked quickly</p>
-          </CardHeader>
-          <CardContent className="px-6 pb-6">
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div className="space-y-2">
-                <Label htmlFor="name" className="text-sm font-medium text-gray-700 font-poppins">
-                  Your Name *
-                </Label>
-                <Input
-                  type="text"
-                  id="name"
-                  name="name"
-                  value={guestInfo.name}
-                  onChange={handleChange}
-                  placeholder="Enter your full name"
-                  className="h-12 font-poppins border-gray-200 focus:border-purple-500 focus:ring-purple-500"
-                  required
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="phone" className="text-sm font-medium text-gray-700 font-poppins">
-                  Phone Number *
-                </Label>
-                <Input
-                  type="tel"
-                  id="phone"
-                  name="phone"
-                  value={guestInfo.phone}
-                  onChange={handleChange}
-                  placeholder="Enter your phone number"
-                  className="h-12 font-poppins border-gray-200 focus:border-purple-500 focus:ring-purple-500"
-                  required
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-sm font-medium text-gray-700 font-poppins">
-                  Email Address (optional)
-                </Label>
-                <Input
-                  type="email"
-                  id="email"
-                  name="email"
-                  value={guestInfo.email}
-                  onChange={handleChange}
-                  placeholder="Enter your email"
-                  className="h-12 font-poppins border-gray-200 focus:border-purple-500 focus:ring-purple-500"
-                />
-              </div>
+        {/* Guest Booking Management Options */}
+        <Card className="mb-6 border-gray-200 bg-white shadow-lg">
+          <CardContent className="p-5">
+            <h3 className="font-semibold mb-4 font-righteous text-gray-800">Already have a booking?</h3>
+            <div className="grid grid-cols-1 gap-3">
+              <Button 
+                onClick={handleCancelBooking}
+                variant="outline" 
+                className="w-full h-12 border-red-300 text-red-600 hover:bg-red-50 font-poppins font-medium"
+              >
+                <X className="h-5 w-5 mr-2" />
+                Cancel Existing Booking
+              </Button>
               
               <Button 
-                type="submit" 
-                className="w-full h-12 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 font-poppins font-medium text-base shadow-lg transition-all duration-200 transform hover:scale-[1.02]"
+                onClick={handleViewHistory}
+                variant="outline" 
+                className="w-full h-12 border-blue-300 text-blue-600 hover:bg-blue-50 font-poppins font-medium"
               >
-                Continue to Services
+                <History className="h-5 w-5 mr-2" />
+                View Booking History
               </Button>
-            </form>
+            </div>
           </CardContent>
         </Card>
+
+        {/* Booking Summary */}
+        <Card className="mb-6 border-purple-200 bg-gradient-to-r from-purple-50 to-purple-100 shadow-lg">
+          <CardContent className="p-5">
+            <h3 className="font-semibold mb-3 font-righteous text-purple-800">Booking Summary</h3>
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between bg-white p-3 rounded-lg shadow-sm">
+                <span className="font-poppins text-gray-600">Services:</span>
+                <span className="font-medium">{selectedServices?.length || 0} selected</span>
+              </div>
+              <div className="flex justify-between bg-white p-3 rounded-lg shadow-sm">
+                <span className="font-poppins text-gray-600">Total Duration:</span>
+                <span className="font-medium">{totalDuration} minutes</span>
+              </div>
+              <div className="flex justify-between font-semibold text-base bg-white p-3 rounded-lg shadow-sm border-t-2 border-purple-200">
+                <span className="font-poppins text-purple-800">Total Price:</span>
+                <span className="text-purple-600 text-lg">₹{totalPrice}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Guest Information Form */}
+        <Card className="shadow-xl border-0 bg-white">
+          <CardContent className="p-6">
+            <div className="space-y-5">
+              <div>
+                <h3 className="text-xl font-semibold mb-2 font-righteous text-gray-800">Contact Information</h3>
+                <p className="text-gray-600 text-sm font-poppins">
+                  Please provide your details for the booking confirmation
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="name" className="text-sm font-medium text-gray-700 font-poppins">
+                    Full Name *
+                  </Label>
+                  <div className="relative mt-1">
+                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <Input
+                      id="name"
+                      type="text"
+                      value={guestInfo.name}
+                      onChange={(e) => {
+                        setGuestInfo(prev => ({ ...prev, name: e.target.value }));
+                        if (errors.name) setErrors(prev => ({ ...prev, name: '' }));
+                      }}
+                      className={`pl-10 h-12 font-poppins ${errors.name ? 'border-red-500' : ''}`}
+                      placeholder="Enter your full name"
+                    />
+                  </div>
+                  {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
+                </div>
+
+                <div>
+                  <Label htmlFor="phone" className="text-sm font-medium text-gray-700 font-poppins">
+                    Phone Number *
+                  </Label>
+                  <div className="relative mt-1">
+                    <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <Input
+                      id="phone"
+                      type="tel"
+                      value={guestInfo.phone}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\D/g, '');
+                        setGuestInfo(prev => ({ ...prev, phone: value }));
+                        if (errors.phone) setErrors(prev => ({ ...prev, phone: '' }));
+                      }}
+                      className={`pl-10 h-12 font-poppins ${errors.phone ? 'border-red-500' : ''}`}
+                      placeholder="Enter your phone number"
+                      maxLength={10}
+                    />
+                  </div>
+                  {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
+                </div>
+
+                <div>
+                  <Label htmlFor="email" className="text-sm font-medium text-gray-700 font-poppins">
+                    Email Address (Optional)
+                  </Label>
+                  <div className="relative mt-1">
+                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <Input
+                      id="email"
+                      type="email"
+                      value={guestInfo.email}
+                      onChange={(e) => {
+                        setGuestInfo(prev => ({ ...prev, email: e.target.value }));
+                        if (errors.email) setErrors(prev => ({ ...prev, email: '' }));
+                      }}
+                      className={`pl-10 h-12 font-poppins ${errors.email ? 'border-red-500' : ''}`}
+                      placeholder="Enter your email address"
+                    />
+                  </div>
+                  {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Fixed Bottom Bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-2xl">
+        <div className="max-w-lg mx-auto p-4">
+          <Button 
+            className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white text-lg py-6 font-poppins font-medium shadow-lg transition-all duration-200 transform hover:scale-[1.02]"
+            size="lg"
+            onClick={handleContinue}
+          >
+            <div className="flex items-center justify-between w-full">
+              <span>Continue to Staff Selection</span>
+              <ArrowRight className="h-5 w-5" />
+            </div>
+          </Button>
+        </div>
       </div>
     </div>
   );
