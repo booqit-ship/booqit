@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, Smartphone } from 'lucide-react';
+import { ChevronLeft, Smartphone, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
@@ -44,26 +44,15 @@ const GuestPaymentPage: React.FC = () => {
   const [showFailureAnimation, setShowFailureAnimation] = useState(false);
   const [createdBookingId, setCreatedBookingId] = useState<string | null>(null);
 
-  console.log('GUEST PAYMENT: Page loaded with data:', {
-    guestInfo,
-    merchant: !!merchant,
-    selectedServices: selectedServices?.length || 0,
-    totalPrice,
-    totalDuration,
-    selectedStaff,
-    bookingDate,
-    bookingTime
-  });
-
   const handlePayment = async () => {
     if (!guestInfo || !merchantId) {
-      console.error('GUEST PAYMENT: Missing guest info or merchant ID');
+      console.error('PAYMENT: Missing info or merchant ID');
       setShowFailureAnimation(true);
       return;
     }
     
     if (!selectedServices || !selectedStaff || !bookingDate || !bookingTime) {
-      console.error('GUEST PAYMENT: Missing booking details');
+      console.error('PAYMENT: Missing booking details');
       setShowFailureAnimation(true);
       return;
     }
@@ -71,28 +60,10 @@ const GuestPaymentPage: React.FC = () => {
     setIsProcessing(true);
     
     try {
-      console.log('GUEST PAYMENT: Starting guest booking creation...');
-
-      // Simulate payment processing
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       const serviceIds = selectedServices.map(s => s.id);
       
-      console.log('GUEST PAYMENT: Creating guest booking with enhanced function:', {
-        guestName: guestInfo.name,
-        guestPhone: guestInfo.phone,
-        guestEmail: guestInfo.email || null,
-        merchantId,
-        serviceIds,
-        staffId: selectedStaff,
-        date: bookingDate,
-        timeSlot: bookingTime,
-        totalDuration,
-        paymentAmount: Number(totalPrice),
-        paymentMethod: 'pay_on_shop'
-      });
-
-      // Create guest booking and payment in one database transaction
       const { data: bookingResult, error: bookingError } = await supabase.rpc('create_guest_booking_safe', {
         p_guest_name: guestInfo.name,
         p_guest_phone: guestInfo.phone,
@@ -108,61 +79,50 @@ const GuestPaymentPage: React.FC = () => {
       });
 
       if (bookingError) {
-        console.error('GUEST PAYMENT: Error creating guest booking:', bookingError);
+        console.error('PAYMENT: Error creating booking:', bookingError);
         setShowFailureAnimation(true);
         return;
       }
 
       const bookingResponse = bookingResult as unknown as BookingResponse;
-      console.log('GUEST PAYMENT: Guest booking response:', bookingResponse);
       
       if (!bookingResponse.success) {
-        console.error('GUEST PAYMENT: Guest booking failed:', bookingResponse.error);
+        console.error('PAYMENT: Booking failed:', bookingResponse.error);
         toast.error(bookingResponse.error || 'Failed to create booking');
         setShowFailureAnimation(true);
         return;
       }
 
       const bookingId = bookingResponse.booking_id;
-      console.log('GUEST PAYMENT: Guest booking and payment created successfully with ID:', bookingId);
-      
       setCreatedBookingId(bookingId);
 
-      // ✅ Send notification to merchant about new guest booking using standardized service
       try {
-        console.log('GUEST PAYMENT: Sending notification to merchant using standardized service...');
-        
         if (merchant?.user_id) {
           const serviceNames = selectedServices.map(s => s.name).join(', ');
           const dateTimeFormatted = NotificationTemplateService.formatDateTime(bookingDate, bookingTime);
 
-          // ✅ FIXED: Use guest name (not stylist name) for merchant notification
           const merchantNotification = await NotificationTemplateService.sendStandardizedNotification(
             merchant.user_id,
             'new_booking',
             {
               type: 'new_booking',
               bookingId,
-              customerName: guestInfo.name, // ✅ FIXED: Use actual guest name
+              customerName: guestInfo.name,
               serviceName: serviceNames,
               dateTime: dateTimeFormatted
             }
           );
 
-          console.log('GUEST PAYMENT: Merchant notification result:', merchantNotification);
-        } else {
-          console.warn('GUEST PAYMENT: No merchant user_id found');
+          console.log('PAYMENT: Merchant notification result:', merchantNotification);
         }
       } catch (merchantNotificationError) {
-        console.error('GUEST PAYMENT: Error sending merchant notification:', merchantNotificationError);
-        // Don't fail the booking for notification issues
+        console.error('PAYMENT: Error sending merchant notification:', merchantNotificationError);
       }
 
-      console.log('GUEST PAYMENT: Guest booking process completed successfully');
       setShowSuccessAnimation(true);
 
     } catch (error) {
-      console.error('GUEST PAYMENT: Critical error:', error);
+      console.error('PAYMENT: Critical error:', error);
       setShowFailureAnimation(true);
     } finally {
       setIsProcessing(false);
@@ -188,7 +148,6 @@ const GuestPaymentPage: React.FC = () => {
         }
       });
     } else {
-      // Fallback to merchant page
       navigate(`/book/${merchantId}`);
     }
   };
@@ -204,54 +163,54 @@ const GuestPaymentPage: React.FC = () => {
   
   if (!guestInfo || !merchant || !selectedServices || !bookingDate || !bookingTime) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center p-4">
-        <p className="text-gray-500 mb-4">Booking information missing</p>
-        <Button onClick={() => navigate(-1)}>Go Back</Button>
+      <div className="h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-br from-purple-50 via-white to-purple-50">
+        <p className="text-gray-500 mb-4 font-poppins">Booking information missing</p>
+        <Button onClick={() => navigate(-1)} className="bg-purple-600 hover:bg-purple-700">Go Back</Button>
       </div>
     );
   }
   
   return (
     <>
-      {/* Success Animation */}
       <BookingSuccessAnimation 
         isVisible={showSuccessAnimation}
         onComplete={handleSuccessComplete}
       />
 
-      {/* Failure Animation */}
       <BookingFailureAnimation 
         isVisible={showFailureAnimation}
         onComplete={handleFailureComplete}
       />
 
-      <div className="pb-24 bg-white min-h-screen">
-        <div className="bg-booqit-primary text-white p-4 sticky top-0 z-10">
-          <div className="relative flex items-center justify-center">
-            <Button variant="ghost" size="icon" className="absolute left-0 text-white hover:bg-white/20" onClick={handleGoBack}>
-              <ChevronLeft className="h-5 w-5" />
-            </Button>
-            <h1 className="text-xl font-medium font-righteous">Payment</h1>
+      <div className="pb-32 bg-gradient-to-br from-purple-50 via-white to-purple-50 min-h-screen">
+        <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white sticky top-0 z-10 shadow-lg">
+          <div className="max-w-lg mx-auto px-4 py-4">
+            <div className="relative flex items-center justify-center">
+              <Button variant="ghost" size="icon" className="absolute left-0 text-white hover:bg-white/20 rounded-full" onClick={handleGoBack}>
+                <ChevronLeft className="h-5 w-5" />
+              </Button>
+              <h1 className="text-xl font-medium font-righteous">Payment</h1>
+            </div>
           </div>
         </div>
 
-        <div className="p-4 space-y-6">
-          {/* Guest Info */}
-          <Card className="border-l-4 border-l-booqit-primary">
-            <CardHeader>
-              <CardTitle className="font-righteous text-lg font-light">Guest Information</CardTitle>
+        <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
+          {/* Info */}
+          <Card className="border-purple-200 bg-gradient-to-r from-purple-50 to-purple-100 shadow-lg">
+            <CardHeader className="pb-3">
+              <CardTitle className="font-righteous text-lg text-purple-800">Your Information</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="flex justify-between">
+            <CardContent className="space-y-3">
+              <div className="flex justify-between bg-white p-3 rounded-lg shadow-sm">
                 <span className="font-poppins text-gray-600">Name</span>
                 <span className="font-poppins font-medium">{guestInfo.name}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between bg-white p-3 rounded-lg shadow-sm">
                 <span className="font-poppins text-gray-600">Phone</span>
                 <span className="font-poppins font-medium">{guestInfo.phone}</span>
               </div>
               {guestInfo.email && (
-                <div className="flex justify-between">
+                <div className="flex justify-between bg-white p-3 rounded-lg shadow-sm">
                   <span className="font-poppins text-gray-600">Email</span>
                   <span className="font-poppins font-medium">{guestInfo.email}</span>
                 </div>
@@ -260,9 +219,9 @@ const GuestPaymentPage: React.FC = () => {
           </Card>
 
           {/* Booking Summary */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-righteous text-lg font-light">Booking Summary</CardTitle>
+          <Card className="shadow-lg border-0">
+            <CardHeader className="pb-3">
+              <CardTitle className="font-righteous text-lg text-gray-800">Booking Summary</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex justify-between">
@@ -299,50 +258,62 @@ const GuestPaymentPage: React.FC = () => {
                 <span className="font-poppins font-medium">{totalDuration} minutes</span>
               </div>
               
-              <hr />
+              <hr className="border-purple-100" />
               
               <div className="flex justify-between text-lg font-semibold">
-                <span className="font-righteous">Total</span>
-                <span className="font-righteous">₹{totalPrice}</span>
+                <span className="font-righteous text-purple-800">Total</span>
+                <span className="font-righteous text-purple-600">₹{totalPrice}</span>
               </div>
             </CardContent>
           </Card>
 
           {/* Payment Method */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-righteous text-lg font-light">Payment Method</CardTitle>
+          <Card className="shadow-lg border-0">
+            <CardHeader className="pb-3">
+              <CardTitle className="font-righteous text-lg text-gray-800">Payment Method</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-center p-6 bg-blue-50 rounded-lg border border-blue-200">
+            <CardContent>
+              <div className="flex items-center justify-center p-6 bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl border border-blue-200">
                 <div className="text-center">
-                  <Smartphone className="h-8 w-8 mx-auto text-blue-600 mb-2" />
-                  <span className="text-blue-800 font-medium font-poppins">Pay at Shop</span>
-                  <p className="text-sm text-blue-600 mt-1">Complete payment at the shop</p>
+                  <Smartphone className="h-10 w-10 mx-auto text-blue-600 mb-3" />
+                  <span className="text-blue-800 font-medium font-poppins text-lg">Pay at Shop</span>
+                  <p className="text-sm text-blue-600 mt-1 font-poppins">Complete payment at the shop</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           {/* Status Message */}
-          <Card className="bg-blue-50 border-blue-200">
+          <Card className="bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200 shadow-lg">
             <CardContent className="p-4">
-              <p className="text-blue-800 text-sm font-poppins">
+              <p className="text-blue-800 text-sm font-poppins text-center">
                 ℹ️ Complete payment to confirm your booking. Payment is done at the shop.
               </p>
             </CardContent>
           </Card>
         </div>
 
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
-          <Button 
-            size="lg" 
-            onClick={handlePayment} 
-            disabled={isProcessing} 
-            className="w-full bg-booqit-primary hover:bg-booqit-primary/90 py-6 font-poppins font-semibold text-base"
-          >
-            {isProcessing ? 'Processing...' : `Confirm Booking - Pay ₹${totalPrice} at Shop`}
-          </Button>
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-2xl">
+          <div className="max-w-lg mx-auto p-4">
+            <Button 
+              size="lg" 
+              onClick={handlePayment} 
+              disabled={isProcessing} 
+              className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 py-6 font-poppins font-semibold text-base shadow-lg transition-all duration-200 transform hover:scale-[1.02]"
+            >
+              {isProcessing ? (
+                <div className="flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  Processing...
+                </div>
+              ) : (
+                <div className="flex items-center justify-between w-full">
+                  <span>Confirm Booking - Pay ₹{totalPrice} at Shop</span>
+                  <ChevronRight className="h-5 w-5" />
+                </div>
+              )}
+            </Button>
+          </div>
         </div>
       </div>
     </>

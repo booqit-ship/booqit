@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Clock, MapPin, Star, Users, Phone, Mail } from 'lucide-react';
+import { ArrowLeft, Clock, MapPin, Star, Users, Phone, Mail, ChevronRight } from 'lucide-react';
 
 interface Service {
   id: string;
@@ -47,15 +47,13 @@ const GuestShopDetailsPage: React.FC = () => {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Get guest info from location state or sessionStorage
   const guestInfo = location.state?.guestInfo || JSON.parse(sessionStorage.getItem('guestBookingInfo') || '{}');
 
   useEffect(() => {
-    console.log('GUEST SHOP DETAILS: Loading page with guest info:', guestInfo);
+    console.log('SHOP DETAILS: Loading page with info:', guestInfo);
     
-    // Redirect if no guest info
     if (!guestInfo.name || !guestInfo.phone) {
-      console.log('GUEST SHOP DETAILS: Missing guest info, redirecting to booking form');
+      console.log('SHOP DETAILS: Missing info, redirecting to booking form');
       navigate(`/book/${merchantId}`);
       return;
     }
@@ -68,9 +66,8 @@ const GuestShopDetailsPage: React.FC = () => {
     
     setIsLoading(true);
     try {
-      console.log('GUEST SHOP DETAILS: Fetching merchant data for:', merchantId);
+      console.log('SHOP DETAILS: Fetching merchant data for:', merchantId);
       
-      // Fetch merchant data
       const { data: merchantData, error: merchantError } = await supabase
         .from('merchants')
         .select('*')
@@ -82,10 +79,9 @@ const GuestShopDetailsPage: React.FC = () => {
         throw merchantError;
       }
       
-      console.log('GUEST SHOP DETAILS: Merchant data loaded:', merchantData.shop_name);
+      console.log('SHOP DETAILS: Merchant data loaded:', merchantData.shop_name);
       setMerchant(merchantData);
 
-      // Fetch services
       const { data: servicesData, error: servicesError } = await supabase
         .from('services')
         .select('*')
@@ -97,10 +93,9 @@ const GuestShopDetailsPage: React.FC = () => {
         throw servicesError;
       }
       
-      console.log('GUEST SHOP DETAILS: Services loaded:', servicesData?.length || 0);
+      console.log('SHOP DETAILS: Services loaded:', servicesData?.length || 0);
       setServices(servicesData || []);
 
-      // Fetch reviews
       const { data: reviewsData, error: reviewsError } = await supabase
         .from('reviews')
         .select(`
@@ -115,12 +110,12 @@ const GuestShopDetailsPage: React.FC = () => {
         .limit(5);
 
       if (!reviewsError && reviewsData) {
-        console.log('GUEST SHOP DETAILS: Reviews loaded:', reviewsData.length);
+        console.log('SHOP DETAILS: Reviews loaded:', reviewsData.length);
         setReviews(reviewsData);
       }
 
     } catch (error) {
-      console.error('GUEST SHOP DETAILS: Error fetching shop data:', error);
+      console.error('SHOP DETAILS: Error fetching shop data:', error);
       toast.error('Failed to load shop information');
     } finally {
       setIsLoading(false);
@@ -130,9 +125,8 @@ const GuestShopDetailsPage: React.FC = () => {
   const handleStartBooking = () => {
     if (!merchant) return;
     
-    console.log('GUEST SHOP DETAILS: Starting booking process');
+    console.log('SHOP DETAILS: Starting booking process');
     
-    // Navigate to service selection page
     navigate(`/guest-services/${merchantId}`, { 
       state: { 
         guestInfo, 
@@ -163,9 +157,9 @@ const GuestShopDetailsPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-booqit-primary mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
           <p className="text-gray-600 font-poppins">Loading shop details...</p>
         </div>
       </div>
@@ -174,13 +168,13 @@ const GuestShopDetailsPage: React.FC = () => {
 
   if (!merchant) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 flex items-center justify-center px-4">
+        <div className="text-center max-w-md mx-auto">
           <h1 className="text-2xl font-bold text-gray-800 mb-2 font-righteous">Shop Not Found</h1>
           <p className="text-gray-600 font-poppins">The booking link may be invalid or expired.</p>
           <Button 
             onClick={() => navigate(-1)}
-            className="mt-4"
+            className="mt-4 bg-purple-600 hover:bg-purple-700"
           >
             Go Back
           </Button>
@@ -190,47 +184,49 @@ const GuestShopDetailsPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 pb-32">
       {/* Header */}
-      <div className="bg-booqit-primary text-white p-4 sticky top-0 z-10">
-        <div className="relative flex items-center justify-center">
-          <Button 
-            variant="ghost" 
-            size="icon"
-            className="absolute left-0 text-white hover:bg-white/20"
-            onClick={() => navigate(-1)}
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <h1 className="text-xl font-medium font-righteous">Shop Details</h1>
+      <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white sticky top-0 z-10 shadow-lg">
+        <div className="max-w-lg mx-auto px-4 py-4">
+          <div className="relative flex items-center justify-center">
+            <Button 
+              variant="ghost" 
+              size="icon"
+              className="absolute left-0 text-white hover:bg-white/20 rounded-full"
+              onClick={() => navigate(-1)}
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <h1 className="text-xl font-medium font-righteous">Shop Details</h1>
+          </div>
         </div>
       </div>
 
-      <div className="p-4 space-y-6">
-        {/* Guest Info Card */}
-        <Card className="border-booqit-primary/20 bg-blue-50">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 bg-booqit-primary/10 rounded-full flex items-center justify-center">
-                <Users className="h-5 w-5 text-booqit-primary" />
+      <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
+        {/* Info Card */}
+        <Card className="border-purple-200 bg-gradient-to-r from-purple-50 to-purple-100 shadow-lg">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-purple-200 rounded-full flex items-center justify-center">
+                <Users className="h-6 w-6 text-purple-600" />
               </div>
               <div>
-                <h3 className="font-semibold font-righteous text-booqit-primary">Booking For</h3>
-                <p className="text-sm text-gray-600 font-poppins">Guest booking details</p>
+                <h3 className="font-semibold font-righteous text-purple-800">Booking For</h3>
+                <p className="text-sm text-purple-600 font-poppins">Quick booking details</p>
               </div>
             </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-gray-500" />
+            <div className="space-y-3 text-sm">
+              <div className="flex items-center gap-2 bg-white p-3 rounded-lg shadow-sm">
+                <Users className="h-4 w-4 text-purple-500" />
                 <span className="font-poppins font-medium">{guestInfo.name}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <Phone className="h-4 w-4 text-gray-500" />
+              <div className="flex items-center gap-2 bg-white p-3 rounded-lg shadow-sm">
+                <Phone className="h-4 w-4 text-purple-500" />
                 <span className="font-poppins">{guestInfo.phone}</span>
               </div>
               {guestInfo.email && (
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-gray-500" />
+                <div className="flex items-center gap-2 bg-white p-3 rounded-lg shadow-sm">
+                  <Mail className="h-4 w-4 text-purple-500" />
                   <span className="font-poppins">{guestInfo.email}</span>
                 </div>
               )}
@@ -239,11 +235,11 @@ const GuestShopDetailsPage: React.FC = () => {
         </Card>
 
         {/* Shop Info */}
-        <Card className="shadow-sm">
+        <Card className="shadow-xl border-0 bg-white">
           <CardContent className="p-6">
             <div className="space-y-4">
               <div>
-                <h2 className="text-2xl font-bold text-booqit-dark font-righteous">{merchant.shop_name}</h2>
+                <h2 className="text-2xl font-bold text-gray-800 font-righteous">{merchant.shop_name}</h2>
                 <Badge variant="secondary" className="mt-2 font-poppins">
                   {merchant.category}
                 </Badge>
@@ -280,9 +276,9 @@ const GuestShopDetailsPage: React.FC = () => {
         </Card>
 
         {/* Services */}
-        <Card className="shadow-sm">
+        <Card className="shadow-xl border-0 bg-white">
           <CardHeader>
-            <CardTitle className="font-righteous">Available Services</CardTitle>
+            <CardTitle className="font-righteous text-gray-800">Available Services</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             {services.length === 0 ? (
@@ -293,7 +289,7 @@ const GuestShopDetailsPage: React.FC = () => {
               <div className="space-y-0">
                 {services.map((service, index) => (
                   <div key={service.id}>
-                    <div className="p-4 hover:bg-gray-50 transition-colors">
+                    <div className="p-4 hover:bg-purple-50 transition-colors">
                       <div className="flex justify-between items-center">
                         <div className="flex-1">
                           <h4 className="font-semibold font-righteous">{service.name}</h4>
@@ -310,7 +306,7 @@ const GuestShopDetailsPage: React.FC = () => {
                           </div>
                         </div>
                         <div className="text-right ml-4">
-                          <div className="text-lg font-bold text-booqit-primary">
+                          <div className="text-lg font-bold text-purple-600">
                             ₹{service.price}
                           </div>
                         </div>
@@ -326,9 +322,9 @@ const GuestShopDetailsPage: React.FC = () => {
 
         {/* Reviews */}
         {reviews.length > 0 && (
-          <Card className="shadow-sm">
+          <Card className="shadow-xl border-0 bg-white">
             <CardHeader>
-              <CardTitle className="font-righteous">Customer Reviews</CardTitle>
+              <CardTitle className="font-righteous text-gray-800">Customer Reviews</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {reviews.map((review) => (
@@ -349,15 +345,24 @@ const GuestShopDetailsPage: React.FC = () => {
       </div>
 
       {/* Fixed Bottom Bar */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t shadow-lg">
-        <Button 
-          className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6 font-poppins"
-          size="lg"
-          onClick={handleStartBooking}
-          disabled={services.length === 0}
-        >
-          {services.length === 0 ? 'No Services Available' : 'Start Booking Process'}
-        </Button>
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-2xl">
+        <div className="max-w-lg mx-auto p-4">
+          <Button 
+            className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white text-lg py-6 font-poppins font-medium shadow-lg transition-all duration-200 transform hover:scale-[1.02]"
+            size="lg"
+            onClick={handleStartBooking}
+            disabled={services.length === 0}
+          >
+            {services.length === 0 ? (
+              'No Services Available'
+            ) : (
+              <div className="flex items-center justify-between w-full">
+                <span>Start Booking Process</span>
+                <ChevronRight className="h-5 w-5" />
+              </div>
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   );
