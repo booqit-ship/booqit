@@ -1,4 +1,5 @@
 
+
 -- Drop the existing function first
 DROP FUNCTION IF EXISTS public.resolve_shop_slug(text);
 
@@ -58,7 +59,7 @@ RETURNS TABLE(
   image_url TEXT,
   open_time TIME,
   close_time TIME,
-  rating NUMERIC,
+  rating DOUBLE PRECISION,
   description TEXT
 )
 LANGUAGE plpgsql
@@ -85,7 +86,8 @@ BEGIN
   
   -- If no results found, return failure
   IF NOT FOUND THEN
-    RETURN QUERY SELECT false, NULL::UUID, NULL::TEXT, NULL::TEXT, NULL::TEXT, NULL::TEXT, NULL::TIME, NULL::TIME, NULL::NUMERIC, NULL::TEXT;
+    RETURN QUERY SELECT false, NULL::UUID, NULL::TEXT, NULL::TEXT, NULL::TEXT, NULL::TEXT, NULL::TIME, NULL::TIME, NULL::DOUBLE PRECISION, NULL::TEXT;
   END IF;
 END;
 $$;
+
