@@ -28,6 +28,20 @@ interface ResolveShopResponse {
   error?: string;
 }
 
+// Type for the RPC response
+interface ResolveShopRpcResponse {
+  success: boolean;
+  merchant_id: string;
+  shop_name: string;
+  category: string;
+  address: string;
+  image_url?: string;
+  open_time: string;
+  close_time: string;
+  rating?: number;
+  description?: string;
+}
+
 class ShopUrlService {
   async resolveShopSlug(shopSlug: string): Promise<ResolveShopResponse> {
     try {
@@ -42,21 +56,24 @@ class ShopUrlService {
       }
 
       // Check if we got valid data with proper type checking
-      if (!data || !Array.isArray(data) || data.length === 0 || !data[0]?.success) {
+      if (!data || !Array.isArray(data) || data.length === 0 || !(data[0] as ResolveShopRpcResponse)?.success) {
         console.log('ShopUrlService: No shop found for slug:', shopSlug);
         return { success: false, error: 'Shop not found' };
       }
 
+      // Cast the first item to our expected type
+      const result = data[0] as ResolveShopRpcResponse;
+
       const merchantInfo: MerchantInfo = {
-        id: data[0].merchant_id,
-        shop_name: data[0].shop_name,
-        category: data[0].category,
-        address: data[0].address,
-        image_url: data[0].image_url,
-        open_time: data[0].open_time,
-        close_time: data[0].close_time,
-        rating: data[0].rating,
-        description: data[0].description
+        id: result.merchant_id,
+        shop_name: result.shop_name,
+        category: result.category,
+        address: result.address,
+        image_url: result.image_url,
+        open_time: result.open_time,
+        close_time: result.close_time,
+        rating: result.rating,
+        description: result.description
       };
 
       console.log('ShopUrlService: Successfully resolved merchant:', merchantInfo.shop_name);
