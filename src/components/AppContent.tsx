@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import {
   BrowserRouter as Router,
@@ -98,6 +99,7 @@ const AppContent: React.FC = () => {
         {/* Guest Booking Routes - Complete Flow */}
         <Route path="/book/:merchantId/:shopName" element={<LazyRoute><GuestInfoPage /></LazyRoute>} />
         <Route path="/book/:merchantId" element={<LazyRoute><GuestInfoPage /></LazyRoute>} />
+        <Route path="/guest-info/:merchantId" element={<LazyRoute><GuestInfoPage /></LazyRoute>} />
         <Route path="/guest-shop/:merchantId" element={<LazyRoute><GuestShopDetailsPage /></LazyRoute>} />
         <Route path="/guest-services/:merchantId" element={<LazyRoute><GuestServiceSelectionPage /></LazyRoute>} />
         <Route path="/guest-staff/:merchantId" element={<LazyRoute><GuestStaffSelectionPage /></LazyRoute>} />

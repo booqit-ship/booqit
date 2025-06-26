@@ -43,6 +43,8 @@ const GuestInfoPage: React.FC = () => {
   useEffect(() => {
     console.log('GUEST INFO: Page loaded with params:', { merchantId });
     console.log('GUEST INFO: Location state:', location.state);
+    console.log('GUEST INFO: From custom URL:', fromCustomUrl);
+    console.log('GUEST INFO: Shop slug:', shopSlug);
     
     if (merchantFromState) {
       console.log('GUEST INFO: Using merchant from custom URL resolution');
@@ -52,7 +54,12 @@ const GuestInfoPage: React.FC = () => {
       fetchMerchantData();
     } else {
       console.error('GUEST INFO: No merchant ID or merchant data available');
-      navigate('/404');
+      toast({
+        title: "Error",
+        description: "No merchant information available",
+        variant: "destructive",
+      });
+      navigate('/');
     }
   }, [merchantId, merchantFromState, navigate]);
 
@@ -73,7 +80,12 @@ const GuestInfoPage: React.FC = () => {
         console.error('GUEST INFO: Error fetching merchant:', error);
         if (error.code === 'PGRST116') {
           // No merchant found
-          navigate('/404');
+          toast({
+            title: "Shop Not Found",
+            description: "The requested shop could not be found",
+            variant: "destructive",
+          });
+          navigate('/');
           return;
         }
         throw error;
@@ -88,7 +100,7 @@ const GuestInfoPage: React.FC = () => {
         description: "Failed to load shop information",
         variant: "destructive",
       });
-      navigate('/404');
+      navigate('/');
     } finally {
       setIsLoading(false);
     }

@@ -95,7 +95,7 @@ const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
         console.log('SHOP RESOLVER: Shop resolved successfully:', merchantData.shop_name);
         console.log('SHOP RESOLVER: Navigating to guest-info with merchant ID:', merchantData.id);
         
-        // Navigate to guest info page with merchant data
+        // Navigate to guest info page with merchant data - using the correct route
         navigate(`/guest-info/${merchantData.id}`, {
           state: { 
             merchant: merchantData,
