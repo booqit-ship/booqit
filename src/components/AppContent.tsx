@@ -1,7 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
 import {
-  BrowserRouter as Router,
   Route,
   Routes,
 } from 'react-router-dom';
@@ -61,6 +60,8 @@ import GuestStaffSelectionPage from '@/pages/guest/GuestStaffSelectionPage';
 import GuestDatetimePage from '@/pages/guest/GuestDatetimePage';
 import GuestPaymentPage from '@/pages/guest/GuestPaymentPage';
 import GuestBookingSuccessPage from '@/pages/guest/GuestBookingSuccessPage';
+import GuestBookingCancellationPage from '@/pages/guest/GuestBookingCancellationPage';
+import GuestBookingHistoryPage from '@/pages/guest/GuestBookingHistoryPage';
 import NotFound from '@/pages/NotFound';
 
 const AppContent: React.FC = () => {
@@ -106,6 +107,10 @@ const AppContent: React.FC = () => {
         <Route path="/guest-datetime/:merchantId" element={<LazyRoute><GuestDatetimePage /></LazyRoute>} />
         <Route path="/guest-payment/:merchantId" element={<LazyRoute><GuestPaymentPage /></LazyRoute>} />
         <Route path="/guest-booking-success/:merchantId" element={<LazyRoute><GuestBookingSuccessPage /></LazyRoute>} />
+        
+        {/* Guest Booking Management Routes */}
+        <Route path="/guest-cancel-booking" element={<LazyRoute><GuestBookingCancellationPage /></LazyRoute>} />
+        <Route path="/guest-booking-history" element={<LazyRoute><GuestBookingHistoryPage /></LazyRoute>} />
 
         {/* Merchant Routes */}
         <Route path="/merchant/auth" element={<LazyRoute><Auth /></LazyRoute>} />
