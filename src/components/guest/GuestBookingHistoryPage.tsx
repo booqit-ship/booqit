@@ -124,13 +124,13 @@ const GuestBookingHistoryPage: React.FC = () => {
         return;
       }
 
-      // Handle both direct JSON response and string response
-      const result = typeof data === 'object' && data !== null ? data : JSON.parse(data || '{}');
+      // Handle the response properly - data is already parsed
+      const result = data as { success: boolean; data?: any; error?: string };
       
-      if (!result.success || !result.data) {
+      if (!result || !result.success || !result.data) {
         toast({
           title: "Receipt Error",
-          description: result.error || "Receipt data not available",
+          description: result?.error || "Receipt data not available",
           variant: "destructive",
         });
         return;

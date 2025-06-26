@@ -111,13 +111,13 @@ const GuestBookingCancellationPage: React.FC = () => {
         return;
       }
 
-      // Handle both direct JSON response and wrapped response
-      const result = typeof data === 'object' && data !== null ? data : JSON.parse(data || '{}');
+      // Handle the response properly - data is already parsed
+      const result = data as { success: boolean; error?: string; message?: string };
 
-      if (!result.success) {
+      if (!result || !result.success) {
         toast({
           title: "Cancellation Failed",
-          description: result.error || "Failed to cancel booking",
+          description: result?.error || "Failed to cancel booking",
           variant: "destructive",
         });
         return;
