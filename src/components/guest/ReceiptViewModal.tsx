@@ -147,4 +147,3 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
     </Dialog>
   );
 };
-</ReceiptViewModal>
