@@ -32,23 +32,27 @@ export const generateReceiptImage = async (elementId: string): Promise<Blob> => 
     throw new Error('Receipt element not found');
   }
 
+  // Wait a bit for the element to be fully rendered
+  await new Promise(resolve => setTimeout(resolve, 500));
+
   const canvas = await html2canvas(element, {
     backgroundColor: '#ffffff',
     scale: 2, // Higher quality
     useCORS: true,
     allowTaint: true,
-    width: 800,
+    width: element.scrollWidth || 800,
     height: element.scrollHeight,
     scrollX: 0,
     scrollY: 0,
+    logging: false, // Disable logging for cleaner console
   });
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (blob) {
         resolve(blob);
       } else {
-        throw new Error('Failed to generate image');
+        reject(new Error('Failed to generate image'));
       }
     }, 'image/png', 1.0);
   });

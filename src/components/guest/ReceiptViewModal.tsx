@@ -9,7 +9,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Download, X } from 'lucide-react';
+import { Download, X, Loader2 } from 'lucide-react';
 import ReceiptTemplate from '@/components/receipt/ReceiptTemplate';
 
 interface ReceiptViewModalProps {
@@ -26,6 +26,7 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
   const { toast } = useToast();
   const [receiptData, setReceiptData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
     if (isOpen && bookingId) {
@@ -52,7 +53,8 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
         return;
       }
 
-      const result = data as { success: boolean; data?: any; error?: string };
+      // Handle both direct JSON response and string response
+      const result = typeof data === 'object' && data !== null ? data : JSON.parse(data || '{}');
 
       if (!result.success) {
         toast({
@@ -79,6 +81,7 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
   const handleDownload = async () => {
     if (!receiptData || !bookingId) return;
 
+    setIsDownloading(true);
     try {
       // Import the receipt download utility dynamically
       const { downloadReceiptImage } = await import('@/utils/receiptDownload');
@@ -97,6 +100,8 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
         description: "Failed to download receipt",
         variant: "destructive",
       });
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -110,11 +115,15 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
           <div className="flex gap-2">
             <Button
               onClick={handleDownload}
-              disabled={!receiptData}
+              disabled={!receiptData || isDownloading}
               size="sm"
               className="bg-green-600 hover:bg-green-700"
             >
-              <Download className="w-4 h-4 mr-1" />
+              {isDownloading ? (
+                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4 mr-1" />
+              )}
               Download
             </Button>
             <Button
