@@ -5,38 +5,38 @@ import { Toaster } from 'sonner';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { useAuth } from '@/contexts/AuthContext';
 
-// Auth Pages
-import LoginPage from '@/pages/auth/LoginPage';
-import SignupPage from '@/pages/auth/SignupPage';
-import ForgotPasswordPage from '@/pages/auth/ForgotPasswordPage';
-import ResetPasswordPage from '@/pages/auth/ResetPasswordPage';
-import VerifyEmailPage from '@/pages/auth/VerifyEmailPage';
+// Auth Pages - using correct paths
+import LoginPage from '@/pages/AuthPage';
+import SignupPage from '@/pages/AuthPage';
+import ForgotPasswordPage from '@/pages/ForgotPasswordPage';
+import ResetPasswordPage from '@/pages/ResetPasswordPage';
+import VerifyEmailPage from '@/pages/VerifyPage';
 
-// Customer Pages
-import CustomerDashboard from '@/pages/customer/CustomerDashboard';
-import BookingPage from '@/pages/customer/BookingPage';
-import CustomerBookingsPage from '@/pages/customer/CustomerBookingsPage';
-import CustomerProfilePage from '@/pages/customer/CustomerProfilePage';
+// Customer Pages - using correct paths
+import CustomerDashboard from '@/pages/customer/HomePage';
+import BookingPage from '@/pages/customer/ServiceSelectionPage';
+import CustomerBookingsPage from '@/pages/customer/BookingsHistoryPage';
+import CustomerProfilePage from '@/pages/customer/ProfilePage';
 
-// Merchant Pages
-import MerchantDashboard from '@/pages/merchant/MerchantDashboard';
-import MerchantBookingsPage from '@/pages/merchant/MerchantBookingsPage';
-import MerchantServicesPage from '@/pages/merchant/MerchantServicesPage';
-import MerchantStaffPage from '@/pages/merchant/MerchantStaffPage';
-import MerchantProfilePage from '@/pages/merchant/MerchantProfilePage';
-import MerchantSetupPage from '@/pages/merchant/MerchantSetupPage';
+// Merchant Pages - using correct paths
+import MerchantDashboard from '@/pages/merchant/DashboardPage';
+import MerchantBookingsPage from '@/pages/merchant/CalendarManagementPage';
+import MerchantServicesPage from '@/pages/merchant/ServicesPage';
+import MerchantStaffPage from '@/pages/merchant/ServicesPage';
+import MerchantProfilePage from '@/pages/merchant/ProfilePage';
+import MerchantSetupPage from '@/pages/merchant/OnboardingPage';
 
 // Guest Pages
 import GuestBookingPage from '@/pages/guest/GuestBookingPage';
 import GuestInfoPage from '@/pages/guest/GuestInfoPage';
 import GuestStaffSelectionPage from '@/pages/guest/GuestStaffSelectionPage';
-import GuestDateTimeSelectionPage from '@/pages/guest/GuestDateTimeSelectionPage';
+import GuestDateTimeSelectionPage from '@/pages/guest/GuestDatetimePage';
 import GuestBookingSuccessPage from '@/pages/guest/GuestBookingSuccessPage';
 import GuestBookingCancellationPage from '@/pages/guest/GuestBookingCancellationPage';
 import GuestBookingHistoryPage from '@/pages/guest/GuestBookingHistoryPage';
 
 // Public Pages
-import LandingPage from '@/pages/LandingPage';
+import LandingPage from '@/pages/Index';
 
 // Create a query client
 const queryClient = new QueryClient({

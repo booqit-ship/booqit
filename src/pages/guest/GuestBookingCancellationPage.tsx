@@ -29,6 +29,13 @@ interface BookingData {
   total_duration: number;
 }
 
+interface CancellationResponse {
+  success: boolean;
+  error?: string;
+  message?: string;
+  booking_id?: string;
+}
+
 const GuestBookingCancellationPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchValue, setSearchValue] = useState('');
@@ -88,8 +95,9 @@ const GuestBookingCancellationPage: React.FC = () => {
         return;
       }
 
-      if (!data.success) {
-        toast.error(data.error || 'Failed to cancel booking');
+      const response = data as CancellationResponse;
+      if (!response.success) {
+        toast.error(response.error || 'Failed to cancel booking');
         return;
       }
 

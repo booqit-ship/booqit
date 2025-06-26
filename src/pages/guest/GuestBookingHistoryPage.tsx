@@ -1,18 +1,18 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Search, Calendar, Clock, MapPin, User, Download, Eye, History } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ArrowLeft, Search, X, Calendar, Clock, MapPin, User, Receipt, Download, History } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { formatTimeToAmPm } from '@/utils/timeUtils';
 import { formatDateInIST } from '@/utils/dateUtils';
 import ReceiptViewModal from '@/components/guest/ReceiptViewModal';
 
-interface HistoryBookingData {
+interface BookingHistoryData {
   booking_id: string;
   booking_date: string;
   booking_time: string;
@@ -31,13 +31,19 @@ interface HistoryBookingData {
   merchant_id: string;
 }
 
+interface ReceiptResponse {
+  success: boolean;
+  error?: string;
+  data?: any;
+}
+
 const GuestBookingHistoryPage: React.FC = () => {
   const navigate = useNavigate();
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [bookings, setBookings] = useState<HistoryBookingData[]>([]);
+  const [bookings, setBookings] = useState<BookingHistoryData[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [selectedReceiptBookingId, setSelectedReceiptBookingId] = useState<string>('');
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -109,41 +115,53 @@ const GuestBookingHistoryPage: React.FC = () => {
     }
   };
 
-  const handleViewReceipt = (bookingId: string) => {
-    setSelectedBookingId(bookingId);
-    setShowReceiptModal(true);
-  };
-
-  const handleDownloadReceipt = async (booking: HistoryBookingData) => {
+  const handleViewReceipt = async (bookingId: string) => {
     try {
-      // Get detailed receipt data
       const { data, error } = await supabase.rpc('get_guest_booking_receipt_data', {
-        p_booking_id: booking.booking_id
+        p_booking_id: bookingId
       });
 
-      if (error || !data.success) {
-        toast.error('Failed to generate receipt data');
+      if (error) {
+        console.error('Receipt data error:', error);
+        toast.error('Failed to load receipt data');
         return;
       }
 
-      // Use existing receipt download utility
-      const { downloadReceiptImage } = await import('@/utils/receiptDownload');
-      
-      // Create a temporary receipt element
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = `
-        <div id="temp-receipt-${booking.booking_id}" style="position: fixed; left: -9999px; top: -9999px;">
-          <!-- Receipt content will be rendered here -->
-        </div>
-      `;
-      document.body.appendChild(tempDiv);
+      const response = data as ReceiptResponse;
+      if (!response.success) {
+        toast.error(response.error || 'Failed to load receipt data');
+        return;
+      }
 
-      // Download the receipt
-      await downloadReceiptImage(data.data, `temp-receipt-${booking.booking_id}`);
-      
-      // Clean up
-      document.body.removeChild(tempDiv);
-      
+      setSelectedReceiptBookingId(bookingId);
+      setShowReceiptModal(true);
+    } catch (error) {
+      console.error('Receipt error:', error);
+      toast.error('Failed to load receipt');
+    }
+  };
+
+  const handleDownloadReceipt = async (bookingId: string) => {
+    try {
+      const { data, error } = await supabase.rpc('get_guest_booking_receipt_data', {
+        p_booking_id: bookingId
+      });
+
+      if (error) {
+        console.error('Download error:', error);
+        toast.error('Failed to download receipt');
+        return;
+      }
+
+      const response = data as ReceiptResponse;
+      if (!response.success) {
+        toast.error(response.error || 'Failed to download receipt');
+        return;
+      }
+
+      // Use the receipt download utility
+      const { downloadReceiptImage } = await import('@/utils/receiptDownload');
+      await downloadReceiptImage(response.data, `receipt-${bookingId}`);
       toast.success('Receipt downloaded successfully!');
     } catch (error) {
       console.error('Download error:', error);
@@ -298,11 +316,11 @@ const GuestBookingHistoryPage: React.FC = () => {
                         variant="outline"
                         className="flex-1 h-10 border-blue-300 text-blue-600 hover:bg-blue-50 font-poppins"
                       >
-                        <Eye className="h-4 w-4 mr-2" />
+                        <Receipt className="h-4 w-4 mr-2" />
                         View Receipt
                       </Button>
                       <Button 
-                        onClick={() => handleDownloadReceipt(booking)}
+                        onClick={() => handleDownloadReceipt(booking.booking_id)}
                         variant="outline"
                         className="flex-1 h-10 border-green-300 text-green-600 hover:bg-green-50 font-poppins"
                       >
@@ -333,13 +351,13 @@ const GuestBookingHistoryPage: React.FC = () => {
       </div>
 
       {/* Receipt View Modal */}
-      {showReceiptModal && selectedBookingId && (
+      {showReceiptModal && selectedReceiptBookingId && (
         <ReceiptViewModal
-          bookingId={selectedBookingId}
+          bookingId={selectedReceiptBookingId}
           isOpen={showReceiptModal}
           onClose={() => {
             setShowReceiptModal(false);
-            setSelectedBookingId(null);
+            setSelectedReceiptBookingId('');
           }}
         />
       )}

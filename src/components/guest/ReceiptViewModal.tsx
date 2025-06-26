@@ -19,6 +19,12 @@ interface ReceiptViewModalProps {
   onClose: () => void;
 }
 
+interface ReceiptResponse {
+  success: boolean;
+  error?: string;
+  data?: ReceiptData;
+}
+
 const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
   bookingId,
   isOpen,
@@ -47,12 +53,13 @@ const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
         return;
       }
 
-      if (!data.success) {
-        toast.error(data.error || 'Failed to load receipt data');
+      const response = data as ReceiptResponse;
+      if (!response.success) {
+        toast.error(response.error || 'Failed to load receipt data');
         return;
       }
 
-      setReceiptData(data.data);
+      setReceiptData(response.data || null);
     } catch (error) {
       console.error('Receipt data error:', error);
       toast.error('Failed to load receipt data');
