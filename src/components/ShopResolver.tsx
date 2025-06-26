@@ -60,14 +60,14 @@ const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
         }
 
         // Check if we got valid data with proper type checking
-        if (!data || !Array.isArray(data) || data.length === 0 || !(data[0] as ResolveShopRpcResponse)?.success) {
+        if (!data || !Array.isArray(data) || data.length === 0 || !(data[0] as unknown as ResolveShopRpcResponse)?.success) {
           console.log('SHOP RESOLVER: Shop not found:', shopSlug);
           navigate('/404');
           return;
         }
 
         // Cast the first item to our expected type
-        const result = data[0] as ResolveShopRpcResponse;
+        const result = data[0] as unknown as ResolveShopRpcResponse;
 
         const merchantData: MerchantData = {
           id: result.merchant_id,

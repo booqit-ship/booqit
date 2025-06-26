@@ -56,13 +56,13 @@ class ShopUrlService {
       }
 
       // Check if we got valid data with proper type checking
-      if (!data || !Array.isArray(data) || data.length === 0 || !(data[0] as ResolveShopRpcResponse)?.success) {
+      if (!data || !Array.isArray(data) || data.length === 0 || !(data[0] as unknown as ResolveShopRpcResponse)?.success) {
         console.log('ShopUrlService: No shop found for slug:', shopSlug);
         return { success: false, error: 'Shop not found' };
       }
 
       // Cast the first item to our expected type
-      const result = data[0] as ResolveShopRpcResponse;
+      const result = data[0] as unknown as ResolveShopRpcResponse;
 
       const merchantInfo: MerchantInfo = {
         id: result.merchant_id,
