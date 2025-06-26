@@ -1,5 +1,4 @@
 
-
 -- Drop the existing function first
 DROP FUNCTION IF EXISTS public.resolve_shop_slug(text);
 
@@ -90,4 +89,3 @@ BEGIN
   END IF;
 END;
 $$;
-
