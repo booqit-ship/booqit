@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, User, Users } from 'lucide-react';
+import { ArrowLeft, User, Users, Check, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
 import { Staff } from '@/types';
@@ -17,7 +17,7 @@ const StaffSelectionPage: React.FC = () => {
   const { merchant, selectedServices, totalPrice, totalDuration } = location.state;
 
   const [staff, setStaff] = useState<Staff[]>([]);
-  const [selectedStaff, setSelectedStaff] = useState<string>('any');
+  const [selectedStaff, setSelectedStaff] = useState<string>('');
   const [selectedStaffDetails, setSelectedStaffDetails] = useState<Staff | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -51,13 +51,18 @@ const StaffSelectionPage: React.FC = () => {
     fetchStaff();
   }, [merchantId]);
 
-  const handleStaffChange = (value: string) => {
-    setSelectedStaff(value);
-    if (value === 'any') {
+  const handleStaffSelect = (staffMember: Staff | null) => {
+    console.log('STAFF SELECTION: Staff selected:', staffMember?.name || 'Any Available');
+    
+    if (staffMember === null) {
+      setSelectedStaff('');
+      setSelectedStaffDetails(null);
+    } else if (selectedStaff === staffMember.id) {
+      setSelectedStaff('');
       setSelectedStaffDetails(null);
     } else {
-      const staffMember = staff.find(s => s.id === value);
-      setSelectedStaffDetails(staffMember || null);
+      setSelectedStaff(staffMember.id);
+      setSelectedStaffDetails(staffMember);
     }
   };
 
@@ -68,7 +73,7 @@ const StaffSelectionPage: React.FC = () => {
         selectedServices,
         totalPrice,
         totalDuration,
-        selectedStaff: selectedStaff === 'any' ? null : selectedStaff,
+        selectedStaff: selectedStaff || null,
         selectedStaffDetails
       }
     });
@@ -76,92 +81,149 @@ const StaffSelectionPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="pb-24 bg-white min-h-screen">
-      <div className="bg-booqit-primary text-white p-4 sticky top-0 z-10">
-        <div className="relative flex items-center justify-center">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="absolute left-0 text-white hover:bg-white/20"
-            onClick={() => navigate(-1)}
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </Button>
-          <h1 className="text-xl font-medium">Choose Stylist</h1>
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 pb-32">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white sticky top-0 z-10 shadow-lg">
+        <div className="max-w-lg mx-auto px-4 py-4">
+          <div className="relative flex items-center justify-center">
+            <Button 
+              variant="ghost" 
+              size="icon"
+              className="absolute left-0 text-white hover:bg-white/20 rounded-full"
+              onClick={() => navigate(-1)}
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <h1 className="text-xl font-medium font-righteous">Choose Stylist</h1>
+          </div>
         </div>
       </div>
 
-      <div className="p-4">
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-2">Select Your Preferred Stylist</h2>
-          <p className="text-gray-500 text-sm">Choose any available stylist or let us assign one for you</p>
-        </div>
+      <div className="max-w-lg mx-auto px-4 py-6">
+        {/* Selection Summary */}
+        <Card className="mb-6 border-purple-200 bg-gradient-to-r from-purple-50 to-purple-100 shadow-lg">
+          <CardContent className="p-5">
+            <h3 className="font-semibold mb-3 font-righteous text-purple-800">Booking Summary</h3>
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between bg-white p-3 rounded-lg shadow-sm">
+                <span className="font-poppins text-gray-600">Services:</span>
+                <span className="font-medium">{selectedServices?.length || 0} selected</span>
+              </div>
+              <div className="flex justify-between bg-white p-3 rounded-lg shadow-sm">
+                <span className="font-poppins text-gray-600">Total Duration:</span>
+                <span className="font-medium">{totalDuration} minutes</span>
+              </div>
+              <div className="flex justify-between font-semibold text-base bg-white p-3 rounded-lg shadow-sm border-t-2 border-purple-200">
+                <span className="font-poppins text-purple-800">Total Price:</span>
+                <span className="text-purple-600 text-lg">₹{totalPrice}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-        <RadioGroup value={selectedStaff} onValueChange={handleStaffChange} className="space-y-3">
-          {/* Any Stylist Option */}
-          <Card className={`border transition-all overflow-hidden ${selectedStaff === 'any' ? 'border-booqit-primary' : 'border-gray-200'}`}>
-            <CardContent className="p-0">
-              <label htmlFor="any" className="flex items-center p-4 cursor-pointer">
-                <RadioGroupItem value="any" id="any" className="mr-4" />
-                <div className="bg-blue-100 rounded-full p-3 mr-4">
-                  <Users className="h-6 w-6 text-blue-500" />
-                </div>
-                <div>
-                  <div className="font-semibold">Any Available Stylist</div>
-                  <div className="text-gray-500 text-sm">We'll assign the next available stylist for you</div>
-                </div>
-              </label>
-            </CardContent>
-          </Card>
+        {/* Staff Selection */}
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-xl font-semibold mb-2 font-righteous text-gray-800">Select Your Preferred Stylist</h3>
+            <p className="text-gray-600 text-sm font-poppins mb-4">
+              Choose a specific stylist or let us assign any available stylist
+            </p>
+          </div>
 
-          {/* Individual Staff Options */}
-          {staff.map((stylist) => (
+          <div className="space-y-4">
+            {/* Any Available Stylist Option */}
             <Card 
-              key={stylist.id}
-              className={`border transition-all overflow-hidden ${selectedStaff === stylist.id ? 'border-booqit-primary' : 'border-gray-200'}`}
+              className={`cursor-pointer transition-all duration-300 ${
+                !selectedStaff 
+                  ? 'border-purple-500 bg-gradient-to-r from-purple-50 to-purple-100 shadow-lg ring-2 ring-purple-200' 
+                  : 'hover:shadow-lg border-gray-200 hover:border-purple-300 bg-white'
+              }`}
+              onClick={() => handleStaffSelect(null)}
             >
-              <CardContent className="p-0">
-                <label htmlFor={stylist.id} className="flex items-center p-4 cursor-pointer">
-                  <RadioGroupItem value={stylist.id} id={stylist.id} className="mr-4" />
-                  <Avatar className="h-12 w-12 mr-4">
-                    <AvatarFallback className="bg-gray-200 text-gray-700">
-                      {stylist.name.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <div className="font-semibold">{stylist.name}</div>
-                    <div className="text-gray-500 text-sm">Hair Specialist</div>
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-gradient-to-br from-purple-100 to-purple-200 rounded-full flex items-center justify-center shadow-lg">
+                      <Users className="h-7 w-7 text-purple-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold font-righteous text-lg text-gray-800">Any Available Stylist</h4>
+                      <p className="text-sm text-gray-600 font-poppins">We'll assign the best available stylist</p>
+                    </div>
                   </div>
-                </label>
+                  {!selectedStaff && (
+                    <Check className="h-6 w-6 text-purple-600" />
+                  )}
+                </div>
               </CardContent>
             </Card>
-          ))}
-        </RadioGroup>
 
-        {staff.length === 0 && (
-          <div className="text-center py-8 bg-gray-50 rounded-lg mt-4">
-            <User className="h-12 w-12 mx-auto text-gray-400 mb-2" />
-            <p className="text-gray-500">No stylists available</p>
-            <p className="text-gray-400 text-sm">You can still proceed with your booking</p>
+            {/* Individual Staff Members */}
+            {staff.map((staffMember) => (
+              <Card 
+                key={staffMember.id}
+                className={`cursor-pointer transition-all duration-300 ${
+                  selectedStaff === staffMember.id 
+                    ? 'border-purple-500 bg-gradient-to-r from-purple-50 to-purple-100 shadow-lg ring-2 ring-purple-200' 
+                    : 'hover:shadow-lg border-gray-200 hover:border-purple-300 bg-white'
+                }`}
+                onClick={() => handleStaffSelect(staffMember)}
+              >
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <Avatar className="h-14 w-14 shadow-lg">
+                        <AvatarFallback className="bg-gradient-to-br from-gray-100 to-gray-200 text-gray-700 text-lg font-semibold">
+                          {staffMember.name.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <h4 className="font-semibold font-righteous text-lg text-gray-800">{staffMember.name}</h4>
+                        <p className="text-sm text-gray-600 font-poppins">Professional Stylist</p>
+                      </div>
+                    </div>
+                    {selectedStaff === staffMember.id && (
+                      <Check className="h-6 w-6 text-purple-600" />
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
-        )}
+
+          {staff.length === 0 && (
+            <Card className="shadow-lg">
+              <CardContent className="p-8 text-center">
+                <User className="h-12 w-12 mx-auto text-gray-400 mb-3" />
+                <p className="text-gray-500 font-poppins mb-2">No stylists available</p>
+                <p className="text-gray-400 text-sm font-poppins">You can still proceed with your booking</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
-        <Button 
-          className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6"
-          size="lg"
-          onClick={handleContinue}
-        >
-          Continue
-        </Button>
+      {/* Fixed Bottom Bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-2xl">
+        <div className="max-w-lg mx-auto p-4">
+          <Button 
+            className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white text-lg py-6 font-poppins font-medium shadow-lg"
+            size="lg"
+            onClick={handleContinue}
+          >
+            <div className="flex items-center justify-between w-full">
+              <span>Continue to Date & Time</span>
+              <ChevronRight className="h-5 w-5" />
+            </div>
+          </Button>
+        </div>
       </div>
     </div>
   );

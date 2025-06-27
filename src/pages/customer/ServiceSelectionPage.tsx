@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, Clock } from 'lucide-react';
+import { ArrowLeft, Clock, Check, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { Service, Merchant } from '@/types';
 import { toast } from 'sonner';
@@ -14,7 +15,6 @@ const ServiceSelectionPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   
-  // Safely extract state with fallbacks
   const { merchant: initialMerchant, services: initialServices } = location.state || {};
 
   const [merchant, setMerchant] = useState<Merchant | null>(initialMerchant || null);
@@ -23,7 +23,6 @@ const ServiceSelectionPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // If we don't have merchant or services data, fetch them
     if (!merchant || !services.length) {
       fetchMerchantAndServices();
     }
@@ -40,7 +39,6 @@ const ServiceSelectionPage: React.FC = () => {
 
       console.log('BOOKING_FLOW: Fetching merchant and services for:', merchantId);
 
-      // Fetch merchant details
       const { data: merchantData, error: merchantError } = await supabase
         .from('merchants')
         .select('*')
@@ -54,7 +52,6 @@ const ServiceSelectionPage: React.FC = () => {
         return;
       }
 
-      // Fetch services
       const { data: servicesData, error: servicesError } = await supabase
         .from('services')
         .select('*')
@@ -82,17 +79,22 @@ const ServiceSelectionPage: React.FC = () => {
     }
   };
 
-  const selectService = (service: Service) => {
-    const isSelected = selectedServices.some(s => s.id === service.id);
-    
-    if (isSelected) {
-      setSelectedServices(prev => prev.filter(s => s.id !== service.id));
-    } else {
-      setSelectedServices(prev => [...prev, service]);
-    }
+  const handleServiceToggle = (service: Service) => {
+    console.log('SERVICE TOGGLE:', service.name);
+    setSelectedServices(prev => {
+      const isSelected = prev.some(s => s.id === service.id);
+      if (isSelected) {
+        const updated = prev.filter(s => s.id !== service.id);
+        console.log('Service removed, updated selection:', updated.map(s => s.name));
+        return updated;
+      } else {
+        const updated = [...prev, service];
+        console.log('Service added, updated selection:', updated.map(s => s.name));
+        return updated;
+      }
+    });
   };
 
-  // Calculate total price and duration for all selected services
   const totalPrice = selectedServices.reduce((sum, service) => sum + service.price, 0);
   const totalDuration = selectedServices.reduce((sum, service) => sum + service.duration, 0);
 
@@ -124,120 +126,164 @@ const ServiceSelectionPage: React.FC = () => {
     });
   };
 
-  // Show loading state
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
       </div>
     );
   }
 
-  // Show error state if no merchant data
   if (!merchant) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center p-4">
-        <p className="text-gray-500 mb-4">Unable to load merchant information</p>
-        <Button onClick={() => navigate('/home')}>Go to Home</Button>
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto px-4">
+          <h1 className="text-2xl font-bold text-gray-800 mb-2 font-righteous">Unable to Load</h1>
+          <p className="text-gray-600 font-poppins mb-4">Merchant information is missing</p>
+          <Button onClick={() => navigate('/home')} className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800">
+            Go to Home
+          </Button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="pb-24 bg-white min-h-screen">
-      <div className="bg-booqit-primary text-white p-4 sticky top-0 z-10">
-        <div className="relative flex items-center justify-center">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="absolute left-0 text-white hover:bg-white/20"
-            onClick={() => navigate(-1)}
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </Button>
-          <h1 className="text-xl font-medium">Select Services</h1>
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 pb-32">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white sticky top-0 z-10 shadow-lg">
+        <div className="max-w-lg mx-auto px-4 py-4">
+          <div className="relative flex items-center justify-center">
+            <Button 
+              variant="ghost" 
+              size="icon"
+              className="absolute left-0 text-white hover:bg-white/20 rounded-full"
+              onClick={() => navigate(-1)}
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <h1 className="text-xl font-medium font-righteous">Select Services</h1>
+          </div>
         </div>
       </div>
 
-      <div className="p-4">
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-2">Choose Your Services</h2>
-          <p className="text-gray-500 text-sm">Select one or more services you'd like to book</p>
-        </div>
-
-        {services.length > 0 ? (
-          <div className="space-y-4 mb-6">
-            {services.map(service => {
-              const isSelected = selectedServices.some(s => s.id === service.id);
-
-              return (
-                <Card 
-                  key={service.id} 
-                  className={`overflow-hidden cursor-pointer transition-all ${
-                    isSelected ? 'border-booqit-primary bg-booqit-primary/5' : 'border-gray-200'
-                  }`}
-                  onClick={() => selectService(service)}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <h3 className="font-medium">{service.name}</h3>
-                      <span className="font-medium">₹{service.price}</span>
-                    </div>
-                    
-                    <p className="text-sm text-gray-500 mb-3">{service.description}</p>
-                    
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center text-gray-500 text-sm">
-                        <Clock className="h-3 w-3 mr-1" />
-                        <span>{service.duration} mins</span>
-                      </div>
-                      
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                        isSelected ? 'bg-booqit-primary border-booqit-primary' : 'border-gray-300'
-                      }`}>
-                        {isSelected && <div className="w-2 h-2 bg-white rounded-full"></div>}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="text-center py-8 bg-gray-50 rounded-lg">
-            <p className="text-gray-500">No services available</p>
-          </div>
-        )}
-
+      <div className="max-w-lg mx-auto px-4 py-6">
+        {/* Selection Summary */}
         {selectedServices.length > 0 && (
-          <Card className="mb-6">
-            <CardContent className="p-4">
-              <h3 className="font-semibold mb-3">Selected Services</h3>
-              {selectedServices.map((service, index) => (
-                <div key={service.id} className="flex justify-between text-sm mb-2">
-                  <span>{service.name}</span>
-                  <span>₹{service.price} ({service.duration} mins)</span>
+          <Card className="mb-6 border-purple-200 bg-gradient-to-r from-purple-50 to-purple-100 shadow-lg">
+            <CardContent className="p-5">
+              <h3 className="font-semibold mb-3 font-righteous text-purple-800">Selected Services</h3>
+              <div className="space-y-3">
+                {selectedServices.map((service) => (
+                  <div key={service.id} className="flex justify-between items-center text-sm bg-white p-3 rounded-lg shadow-sm">
+                    <span className="font-poppins font-medium">{service.name}</span>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="font-poppins text-xs">
+                        {service.duration}min
+                      </Badge>
+                      <span className="font-semibold text-purple-600">₹{service.price}</span>
+                    </div>
+                  </div>
+                ))}
+                <div className="border-t pt-3 flex justify-between items-center font-semibold text-purple-800">
+                  <span className="font-poppins">Total: {totalDuration} min</span>
+                  <span className="text-lg">₹{totalPrice}</span>
                 </div>
-              ))}
-              <Separator className="my-3" />
-              <div className="flex justify-between font-semibold">
-                <span>Total ({totalDuration} mins)</span>
-                <span>₹{totalPrice}</span>
               </div>
             </CardContent>
           </Card>
         )}
+
+        {/* Services */}
+        <div className="space-y-4">
+          <h3 className="text-xl font-semibold font-righteous text-gray-800">Choose Services</h3>
+          {services.length === 0 ? (
+            <Card className="shadow-lg">
+              <CardContent className="p-8 text-center">
+                <p className="text-gray-500 font-poppins">No services available at the moment</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {services.map((service) => {
+                const isSelected = selectedServices.some(s => s.id === service.id);
+                
+                return (
+                  <Card 
+                    key={service.id}
+                    className={`cursor-pointer transition-all duration-300 ${
+                      isSelected 
+                        ? 'border-purple-500 bg-gradient-to-r from-purple-50 to-purple-100 shadow-lg ring-2 ring-purple-200' 
+                        : 'hover:shadow-lg border-gray-200 hover:border-purple-300 bg-white'
+                    }`}
+                    onClick={() => handleServiceToggle(service)}
+                  >
+                    <CardContent className="p-5">
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-start gap-4 flex-1">
+                          <div className="mt-1">
+                            <Checkbox 
+                              checked={isSelected}
+                              onChange={() => {}}
+                              className="data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600 w-5 h-5"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-lg mb-2 font-righteous text-gray-800">{service.name}</h4>
+                            {service.description && (
+                              <p className="text-gray-600 text-sm mb-3 font-poppins leading-relaxed">{service.description}</p>
+                            )}
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1 text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                                <Clock className="h-4 w-4" />
+                                <span className="font-poppins">{service.duration} min</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right ml-4">
+                          <div className="text-2xl font-bold text-purple-600 mb-1">
+                            ₹{service.price}
+                          </div>
+                          {isSelected && (
+                            <div className="flex items-center justify-end">
+                              <Check className="h-5 w-5 text-purple-600" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
-        <Button 
-          className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6"
-          size="lg"
-          onClick={handleContinue}
-          disabled={selectedServices.length === 0}
-        >
-          Continue to Stylist Selection
-        </Button>
+      {/* Fixed Bottom Bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-2xl">
+        <div className="max-w-lg mx-auto p-4">
+          <Button 
+            className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white text-lg py-6 font-poppins font-medium shadow-lg"
+            size="lg"
+            onClick={handleContinue}
+            disabled={selectedServices.length === 0}
+          >
+            {selectedServices.length > 0 
+              ? (
+                <div className="flex items-center justify-between w-full">
+                  <span>Continue with {selectedServices.length} service{selectedServices.length > 1 ? 's' : ''}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold">₹{totalPrice}</span>
+                    <ChevronRight className="h-5 w-5" />
+                  </div>
+                </div>
+              )
+              : 'Select at least one service'
+            }
+          </Button>
+        </div>
       </div>
     </div>
   );

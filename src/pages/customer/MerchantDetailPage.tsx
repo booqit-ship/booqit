@@ -127,90 +127,110 @@ const MerchantDetailPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
       </div>
     );
   }
 
   if (!merchant) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center p-4">
-        <p className="text-gray-500 mb-4">Merchant not found</p>
-        <Button onClick={() => navigate(-1)}>Go Back</Button>
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto px-4">
+          <h1 className="text-2xl font-bold text-gray-800 mb-2 font-righteous">Shop Not Found</h1>
+          <p className="text-gray-600 font-poppins mb-4">Unable to load shop information</p>
+          <Button onClick={() => navigate(-1)} className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800">
+            Go Back
+          </Button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="pb-20">
-      <div className="relative h-64 bg-gray-200">
-        <img 
-          src={imageError ? 'https://images.unsplash.com/photo-1582562124811-c09040d0a901' : getMerchantImage(merchant)} 
-          alt={merchant.shop_name} 
-          className="w-full h-full object-cover" 
-          onError={handleImageError} 
-        />
-        <Button 
-          variant="outline" 
-          size="icon" 
-          className="absolute top-4 left-4 bg-white/80 hover:bg-white"
-          onClick={() => navigate(-1)}
-        >
-          <ChevronLeft className="h-5 w-5" />
-        </Button>
-      </div>
-      
-      <div className="p-4 -mt-6 rounded-t-xl bg-white relative">
-        <div className="flex justify-between items-start mb-3">
-          <h1 className="text-2xl font-light">{merchant.shop_name}</h1>
-          {merchant.rating && (
-            <div className="flex items-center text-yellow-500">
-              <Star className="fill-yellow-500 stroke-yellow-500 h-4 w-4 mr-1" />
-              <span>{merchant.rating}</span>
-            </div>
-          )}
-        </div>
-        
-        <p className="text-gray-500 mb-4">{formatCategory(merchant.category)}</p>
-        
-        <div className="flex items-center text-gray-500 mb-2">
-          <MapPin className="h-4 w-4 mr-2" />
-          <p className="font-normal text-sm">{merchant.address}</p>
-        </div>
-        
-        <div className="flex items-center text-gray-500 mb-4">
-          <Clock className="h-4 w-4 mr-2" />
-          <p>{getFormattedTime(merchant.open_time)} - {getFormattedTime(merchant.close_time)}</p>
-        </div>
-
-        {/* Gender Specification */}
-        <div className="mb-3 bg-white px-[20px]">
-          <Badge variant="outline" className="text-sm mx-0 bg-white rounded-md py-[5px] my-0 px-[35px]">
-            {getGenderSpecification(merchant)}
-          </Badge>
-        </div>
-
-        {/* Staff Section */}
-        {staff.length > 0 && (
-          <div className="mb-4">
-            <h3 className="font-medium mb-2">Available Stylists</h3>
-            <div className="flex items-center">
-              <User className="h-4 w-4 mr-2 text-gray-500" />
-              <span className="text-gray-700 text-sm">{formatStylistDisplay(staff)}</span>
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 pb-32">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white sticky top-0 z-10 shadow-lg">
+        <div className="max-w-lg mx-auto px-4 py-4">
+          <div className="relative flex items-center justify-center">
+            <Button 
+              variant="ghost" 
+              size="icon"
+              className="absolute left-0 text-white hover:bg-white/20 rounded-full"
+              onClick={() => navigate(-1)}
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <h1 className="text-xl font-medium font-righteous">{merchant.shop_name}</h1>
           </div>
-        )}
-        
-        <Separator className="mb-6" />
+        </div>
+      </div>
+
+      <div className="max-w-lg mx-auto px-4 py-6">
+        {/* Shop Info Card */}
+        <Card className="mb-6 shadow-lg border-purple-200">
+          <CardContent className="p-5">
+            <div className="flex items-start gap-4">
+              <img 
+                src={imageError ? 'https://images.unsplash.com/photo-1582562124811-c09040d0a901' : getMerchantImage(merchant)} 
+                alt={merchant.shop_name} 
+                className="w-20 h-20 rounded-lg object-cover shadow-lg"
+                onError={handleImageError}
+              />
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <h2 className="text-xl font-bold font-righteous text-gray-800">{merchant.shop_name}</h2>
+                  {merchant.rating && (
+                    <div className="flex items-center gap-1">
+                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                      <span className="text-sm font-medium">{merchant.rating}</span>
+                    </div>
+                  )}
+                </div>
+                <Badge variant="secondary" className="mb-3 font-poppins">
+                  {formatCategory(merchant.category)}
+                </Badge>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <MapPin className="h-4 w-4 flex-shrink-0" />
+                    <span className="font-poppins">{merchant.address}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <Clock className="h-4 w-4 flex-shrink-0" />
+                    <span className="font-poppins">{getFormattedTime(merchant.open_time)} - {getFormattedTime(merchant.close_time)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Gender Specification */}
+            <div className="mt-4">
+              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                {getGenderSpecification(merchant)}
+              </Badge>
+            </div>
+
+            {/* Staff Section */}
+            {staff.length > 0 && (
+              <div className="mt-4 p-3 bg-gradient-to-r from-purple-50 to-purple-100 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-purple-600" />
+                  <span className="text-sm font-medium text-purple-800 font-poppins">
+                    Available Stylists: {formatStylistDisplay(staff)}
+                  </span>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Book Services Button */}
         {services.length > 0 && (
           <div className="mb-6">
             <Button 
-              size="lg" 
               onClick={handleBookServices} 
-              className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-base font-medium"
+              className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white text-lg py-6 font-poppins font-medium shadow-lg"
+              size="lg"
             >
               Book Services
             </Button>
@@ -219,36 +239,38 @@ const MerchantDetailPage: React.FC = () => {
         
         {/* Services and Reviews Tabs */}
         <Tabs defaultValue="services" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="services">Services</TabsTrigger>
-            <TabsTrigger value="reviews">Reviews</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 bg-white shadow-lg">
+            <TabsTrigger value="services" className="font-poppins">Services</TabsTrigger>
+            <TabsTrigger value="reviews" className="font-poppins">Reviews</TabsTrigger>
           </TabsList>
           
           <TabsContent value="services" className="mt-6">
             {services.length > 0 ? (
               <div className="space-y-4">
                 {services.map(service => (
-                  <Card key={service.id} className="overflow-hidden">
-                    <CardContent className="p-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="font-medium">{service.name}</h3>
-                        <span className="font-medium">₹{service.price}</span>
+                  <Card key={service.id} className="shadow-lg border-gray-200 hover:shadow-xl transition-shadow">
+                    <CardContent className="p-5">
+                      <div className="flex justify-between items-start mb-3">
+                        <h3 className="font-semibold text-lg font-righteous text-gray-800">{service.name}</h3>
+                        <span className="text-2xl font-bold text-purple-600">₹{service.price}</span>
                       </div>
                       
-                      <p className="text-sm text-gray-500 mb-3">{service.description}</p>
+                      <p className="text-sm text-gray-600 mb-3 font-poppins leading-relaxed">{service.description}</p>
                       
-                      <div className="flex items-center text-gray-500 text-sm">
-                        <Clock className="h-3 w-3 mr-1" />
-                        <span>{service.duration} mins</span>
+                      <div className="flex items-center text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full w-fit">
+                        <Clock className="h-4 w-4 mr-1" />
+                        <span className="font-poppins">{service.duration} mins</span>
                       </div>
                     </CardContent>
                   </Card>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8 bg-gray-50 rounded-lg">
-                <p className="text-gray-500">No services available</p>
-              </div>
+              <Card className="shadow-lg">
+                <CardContent className="p-8 text-center">
+                  <p className="text-gray-500 font-poppins">No services available</p>
+                </CardContent>
+              </Card>
             )}
           </TabsContent>
           
