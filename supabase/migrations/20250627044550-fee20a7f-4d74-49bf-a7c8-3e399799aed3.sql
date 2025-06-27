@@ -141,12 +141,12 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$;
 
--- Function to get guest booking history
+-- Function to get guest booking history with text date format
 CREATE OR REPLACE FUNCTION public.get_guest_booking_history(
   p_phone_number TEXT
 ) RETURNS TABLE(
   booking_id TEXT,
-  booking_date DATE,
+  booking_date TEXT,
   booking_time TEXT,
   customer_name TEXT,
   customer_phone TEXT,
@@ -169,7 +169,7 @@ BEGIN
   RETURN QUERY
   SELECT 
     b.id::text as booking_id,
-    b.date as booking_date,
+    b.date::text as booking_date,
     b.time_slot as booking_time,
     COALESCE(b.customer_name, gu.name, 'Guest') as customer_name,
     COALESCE(b.customer_phone, gu.phone, '') as customer_phone,
@@ -193,13 +193,13 @@ BEGIN
 END;
 $$;
 
--- Function to get guest bookings for cancellation
+-- Function to get guest bookings for cancellation with text date format
 CREATE OR REPLACE FUNCTION public.get_guest_bookings_for_cancellation(
   p_booking_id UUID DEFAULT NULL,
   p_phone_number TEXT DEFAULT NULL
 ) RETURNS TABLE(
   booking_id TEXT,
-  booking_date DATE,
+  booking_date TEXT,
   booking_time TEXT,
   customer_name TEXT,
   customer_phone TEXT,
@@ -220,7 +220,7 @@ BEGIN
   RETURN QUERY
   SELECT 
     b.id::text as booking_id,
-    b.date as booking_date,
+    b.date::text as booking_date,
     b.time_slot as booking_time,
     COALESCE(b.customer_name, gu.name, 'Guest') as customer_name,
     COALESCE(b.customer_phone, gu.phone, '') as customer_phone,

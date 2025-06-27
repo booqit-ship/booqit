@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -59,9 +58,20 @@ const GuestBookingCancellationPage: React.FC = () => {
 
       if (error) {
         console.error('Error searching bookings:', error);
+        
+        // Extract meaningful error message
+        let errorMessage = "Failed to search for bookings";
+        if (error.message) {
+          errorMessage = error.message;
+        } else if (error.details) {
+          errorMessage = error.details;
+        } else if (typeof error === 'string') {
+          errorMessage = error;
+        }
+        
         toast({
           title: "Search Error",
-          description: "Failed to search for bookings",
+          description: errorMessage,
           variant: "destructive",
         });
         return;
@@ -77,9 +87,18 @@ const GuestBookingCancellationPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error searching bookings:', error);
+      
+      // Extract meaningful error message from catch block
+      let errorMessage = "An unexpected error occurred";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
       toast({
         title: "Search Error",
-        description: "An unexpected error occurred",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -103,9 +122,18 @@ const GuestBookingCancellationPage: React.FC = () => {
 
       if (error) {
         console.error('Cancellation error:', error);
+        
+        // Extract meaningful error message
+        let errorMessage = "Failed to cancel booking. Please try again.";
+        if (error.message) {
+          errorMessage = error.message;
+        } else if (error.details) {
+          errorMessage = error.details;
+        }
+        
         toast({
           title: "Cancellation Failed",
-          description: "Failed to cancel booking. Please try again.",
+          description: errorMessage,
           variant: "destructive",
         });
         return;
@@ -134,9 +162,18 @@ const GuestBookingCancellationPage: React.FC = () => {
       setSelectedBooking(null);
     } catch (error) {
       console.error('Error cancelling booking:', error);
+      
+      // Extract meaningful error message from catch block
+      let errorMessage = "An unexpected error occurred";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
       toast({
         title: "Cancellation Error",
-        description: "An unexpected error occurred",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
