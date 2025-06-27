@@ -106,7 +106,7 @@ BEGIN
 END;
 $$;
 
--- Also recreate the cancel function to ensure it works properly
+-- Fixed cancel function - removed the non-existent updated_at column
 CREATE OR REPLACE FUNCTION public.cancel_guest_booking_safe(p_booking_id uuid)
 RETURNS json
 LANGUAGE plpgsql
@@ -128,10 +128,9 @@ BEGIN
     );
   END IF;
   
-  -- Update booking status to cancelled
+  -- Update booking status to cancelled (removed updated_at since column doesn't exist)
   UPDATE public.bookings
-  SET status = 'cancelled',
-      updated_at = now()
+  SET status = 'cancelled'
   WHERE id = p_booking_id;
   
   RETURN json_build_object(
