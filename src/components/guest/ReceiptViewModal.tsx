@@ -104,49 +104,50 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-[95vw] max-w-2xl h-[90vh] max-h-[90vh] overflow-hidden p-0 sm:p-6">
-        <DialogHeader className="flex flex-row items-center justify-between p-3 sm:p-0 border-b sm:border-none shrink-0">
-          <DialogTitle className="font-righteous text-base sm:text-lg md:text-xl text-gray-800">
-            Booking Receipt
-          </DialogTitle>
-          <div className="flex gap-2">
-            <Button
-              onClick={handleDownload}
-              disabled={!receiptData || isDownloading}
-              size="sm"
-              className="bg-green-600 hover:bg-green-700 touch-manipulation min-h-[44px] text-xs sm:text-sm px-3 sm:px-4"
-            >
-              {isDownloading ? (
-                <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 mr-1 animate-spin" />
-              ) : (
-                <Download className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-              )}
-              Download
-            </Button>
+      <DialogContent className="w-[96vw] max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl h-[95vh] max-h-[95vh] overflow-hidden p-2 sm:p-4 md:p-6">
+        <DialogHeader className="flex flex-col gap-2 p-2 sm:p-3 border-b shrink-0">
+          <div className="flex items-center justify-between">
+            <DialogTitle className="font-righteous text-sm sm:text-base md:text-lg text-gray-800">
+              Booking Receipt
+            </DialogTitle>
             <Button
               onClick={onClose}
               variant="ghost"
               size="sm"
-              className="touch-manipulation min-h-[44px] px-2 sm:px-3"
+              className="h-8 w-8 p-0 sm:h-9 sm:w-9"
             >
               <X className="w-4 h-4" />
             </Button>
           </div>
+          
+          <Button
+            onClick={handleDownload}
+            disabled={!receiptData || isDownloading}
+            size="sm"
+            className="bg-green-600 hover:bg-green-700 w-full h-9 sm:h-10 text-xs sm:text-sm"
+          >
+            {isDownloading ? (
+              <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+            )}
+            {isDownloading ? 'Downloading...' : 'Download Receipt'}
+          </Button>
         </DialogHeader>
         
-        <div className="overflow-y-auto flex-1 p-3 sm:p-0">
+        <div className="overflow-y-auto flex-1 p-1 sm:p-2">
           {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-              <span className="ml-3 text-gray-600 font-poppins text-sm">Loading receipt...</span>
+            <div className="flex items-center justify-center py-8 sm:py-12">
+              <div className="animate-spin rounded-full h-6 w-6 sm:h-8 sm:w-8 border-b-2 border-purple-600"></div>
+              <span className="ml-2 sm:ml-3 text-gray-600 font-poppins text-xs sm:text-sm">Loading...</span>
             </div>
           ) : receiptData ? (
-            <div id={`receipt-modal-${bookingId}`} className="bg-white">
-              <ReceiptTemplate data={receiptData} />
+            <div id={`receipt-modal-${bookingId}`} className="bg-white scale-75 sm:scale-90 md:scale-100 origin-top">
+              <ReceiptTemplate data={receiptData} forMobile={true} />
             </div>
           ) : (
-            <div className="text-center py-12">
-              <p className="text-gray-600 font-poppins text-sm sm:text-base">Receipt data not available</p>
+            <div className="text-center py-8 sm:py-12">
+              <p className="text-gray-600 font-poppins text-xs sm:text-sm">Receipt not available</p>
             </div>
           )}
         </div>
