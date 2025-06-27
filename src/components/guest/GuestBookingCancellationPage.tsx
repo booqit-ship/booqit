@@ -164,8 +164,8 @@ const GuestBookingCancellationPage: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50">
       {/* Header */}
       <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white">
-        <div className="max-w-4xl mx-auto px-4 py-4 sm:py-6">
-          <div className="flex items-center gap-4 mb-4">
+        <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
+          <div className="flex items-center gap-3 sm:gap-4 mb-4">
             <Button
               onClick={() => navigate(-1)}
               variant="ghost"
@@ -177,25 +177,25 @@ const GuestBookingCancellationPage: React.FC = () => {
             </Button>
           </div>
           <div className="text-center">
-            <h1 className="text-2xl sm:text-3xl font-bold text-white font-righteous mb-2">Cancel Booking</h1>
-            <p className="text-purple-100 font-poppins text-sm sm:text-base">Search and cancel your confirmed bookings</p>
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white font-righteous mb-2">Cancel Booking</h1>
+            <p className="text-purple-100 font-poppins text-xs sm:text-sm md:text-base">Search and cancel your confirmed bookings</p>
           </div>
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-4 sm:py-6">
+      <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
         {/* Search Section */}
         <Card className="shadow-xl border-0 bg-white mb-6">
           <CardHeader className="pb-4">
-            <CardTitle className="font-righteous text-lg sm:text-xl text-gray-800">Find Your Booking</CardTitle>
-            <p className="text-gray-600 font-poppins text-sm">
+            <CardTitle className="font-righteous text-base sm:text-lg md:text-xl text-gray-800">Find Your Booking</CardTitle>
+            <p className="text-gray-600 font-poppins text-xs sm:text-sm">
               Enter your booking ID or phone number to find bookings that can be cancelled
             </p>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col gap-4 sm:flex-row">
+            <div className="flex flex-col gap-3 sm:gap-4 sm:flex-row">
               <div className="flex-1">
-                <Label htmlFor="search" className="text-sm font-medium text-gray-700 font-poppins">
+                <Label htmlFor="search" className="text-xs sm:text-sm font-medium text-gray-700 font-poppins">
                   Booking ID or Phone Number
                 </Label>
                 <Input
@@ -204,14 +204,14 @@ const GuestBookingCancellationPage: React.FC = () => {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Enter booking ID or phone number"
-                  className="h-12 font-poppins border-gray-200 focus:border-purple-500 focus:ring-purple-500 touch-manipulation"
+                  className="h-10 sm:h-12 font-poppins border-gray-200 focus:border-purple-500 focus:ring-purple-500 touch-manipulation text-sm sm:text-base"
                   onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                 />
               </div>
               <Button
                 onClick={handleSearch}
                 disabled={isSearching}
-                className="h-12 sm:mt-6 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 touch-manipulation min-h-[48px]"
+                className="h-10 sm:h-12 sm:mt-6 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 touch-manipulation min-h-[44px] text-sm sm:text-base px-4 sm:px-6"
               >
                 {isSearching ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -226,29 +226,29 @@ const GuestBookingCancellationPage: React.FC = () => {
 
         {/* Bookings Results */}
         {bookings.length > 0 && (
-          <div className="space-y-4">
-            <h2 className="text-lg sm:text-xl font-righteous text-gray-800 mb-4">
+          <div className="space-y-3 sm:space-y-4">
+            <h2 className="text-base sm:text-lg md:text-xl font-righteous text-gray-800 mb-4">
               Found {bookings.length} booking{bookings.length > 1 ? 's' : ''} available for cancellation
             </h2>
             
             {bookings.map((booking) => (
               <Card key={booking.booking_id} className="shadow-lg border-0 bg-white">
-                <CardContent className="p-4 sm:p-6">
-                  <div className="flex flex-col gap-4 mb-4">
-                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
-                      <div className="flex-1">
-                        <h3 className="font-righteous text-lg text-gray-800 mb-2">
+                <CardContent className="p-3 sm:p-4 md:p-6">
+                  <div className="flex flex-col gap-3 sm:gap-4 mb-4">
+                    <div className="flex flex-col gap-3">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-righteous text-base sm:text-lg text-gray-800 mb-2 break-words">
                           {booking.shop_name}
                         </h3>
                         <div className="flex items-start text-gray-600 mb-3">
-                          <MapPin className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
-                          <span className="text-sm font-poppins break-words">{booking.shop_address}</span>
+                          <MapPin className="w-3 h-3 sm:w-4 sm:h-4 mr-2 mt-0.5 flex-shrink-0" />
+                          <span className="text-xs sm:text-sm font-poppins break-words leading-tight">{booking.shop_address}</span>
                         </div>
                       </div>
                       <Button
                         onClick={() => handleCancelBooking(booking)}
                         variant="destructive"
-                        className="bg-red-600 hover:bg-red-700 w-full sm:w-auto touch-manipulation min-h-[44px]"
+                        className="bg-red-600 hover:bg-red-700 w-full sm:w-auto touch-manipulation min-h-[44px] text-sm sm:text-base"
                         disabled={isCancelling}
                       >
                         {isCancelling ? (
@@ -261,30 +261,32 @@ const GuestBookingCancellationPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                  {/* Booking Details Grid */}
+                  <div className="grid grid-cols-1 gap-3 sm:gap-4 mb-4">
                     <div className="flex items-center">
-                      <Calendar className="w-5 h-5 text-purple-600 mr-3 flex-shrink-0" />
-                      <div>
+                      <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 mr-3 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
                         <p className="font-medium text-gray-800 text-sm sm:text-base break-words">{formatDate(booking.booking_date)}</p>
-                        <p className="text-sm text-gray-600">{formatTime(booking.booking_time)}</p>
+                        <p className="text-xs sm:text-sm text-gray-600">{formatTime(booking.booking_time)}</p>
                       </div>
                     </div>
 
                     <div className="flex items-center">
-                      <User className="w-5 h-5 text-purple-600 mr-3 flex-shrink-0" />
-                      <div>
+                      <User className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 mr-3 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
                         <p className="font-medium text-gray-800 text-sm sm:text-base break-words">{booking.customer_name}</p>
-                        <p className="text-sm text-gray-600 break-all">{booking.customer_phone}</p>
+                        <p className="text-xs sm:text-sm text-gray-600 break-all">{booking.customer_phone}</p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="bg-purple-50 rounded-lg p-4">
-                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-                      <div className="flex-1">
-                        <p className="font-medium text-purple-800 break-words">{booking.service_name}</p>
-                        <div className="flex flex-wrap items-center text-purple-600 text-sm gap-1">
-                          <Clock className="w-4 h-4" />
+                  {/* Service Details */}
+                  <div className="bg-purple-50 rounded-lg p-3 sm:p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-purple-800 text-sm sm:text-base break-words">{booking.service_name}</p>
+                        <div className="flex flex-wrap items-center text-purple-600 text-xs sm:text-sm gap-1 mt-1">
+                          <Clock className="w-3 h-3 sm:w-4 sm:h-4" />
                           <span>{booking.service_duration} minutes</span>
                           {booking.stylist_name && (
                             <>
@@ -295,12 +297,13 @@ const GuestBookingCancellationPage: React.FC = () => {
                         </div>
                       </div>
                       <div className="text-left sm:text-right">
-                        <p className="text-xl sm:text-2xl font-bold text-purple-600">₹{booking.service_price}</p>
+                        <p className="text-lg sm:text-xl md:text-2xl font-bold text-purple-600">₹{booking.service_price}</p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="mt-4 pt-4 border-t border-gray-200">
+                  {/* Booking ID */}
+                  <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-200">
                     <p className="text-xs text-gray-500 font-poppins break-all">
                       Booking ID: {booking.booking_id}
                     </p>
@@ -316,7 +319,7 @@ const GuestBookingCancellationPage: React.FC = () => {
           <Card className="shadow-lg border-0 bg-white text-center py-8 sm:py-12">
             <CardContent>
               <Calendar className="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg sm:text-xl font-righteous text-gray-800 mb-2">No Bookings Found</h3>
+              <h3 className="text-base sm:text-lg md:text-xl font-righteous text-gray-800 mb-2">No Bookings Found</h3>
               <p className="text-gray-600 font-poppins text-sm sm:text-base px-4">
                 No confirmed bookings were found for the provided information.
                 <br />
