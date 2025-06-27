@@ -111,8 +111,8 @@ const GuestBookingCancellationPage: React.FC = () => {
         return;
       }
 
-      // Handle the response properly - data is already parsed
-      const result = data as { success: boolean; error?: string; message?: string };
+      // Handle the response with proper error checking
+      const result = data as { success: boolean; error?: string; message?: string } | null;
 
       if (!result || !result.success) {
         toast({

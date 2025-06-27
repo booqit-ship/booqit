@@ -124,8 +124,8 @@ const GuestBookingHistoryPage: React.FC = () => {
         return;
       }
 
-      // Handle the response properly - data is already parsed
-      const result = data as { success: boolean; data?: any; error?: string };
+      // Handle the response with improved error checking
+      const result = data as { success: boolean; data?: any; error?: string } | null;
       
       if (!result || !result.success || !result.data) {
         toast({
@@ -137,41 +137,10 @@ const GuestBookingHistoryPage: React.FC = () => {
       }
 
       // Import the receipt download utility dynamically
-      const { downloadReceiptImage } = await import('@/utils/receiptDownload');
-      
-      // Create a temporary receipt element
-      const receiptContainer = document.createElement('div');
-      receiptContainer.id = `receipt-download-${bookingId}`;
-      receiptContainer.style.position = 'absolute';
-      receiptContainer.style.left = '-9999px';
-      receiptContainer.style.top = '-9999px';
-      receiptContainer.style.width = '800px';
-      receiptContainer.style.backgroundColor = 'white';
-      receiptContainer.style.padding = '32px';
-      
-      // Import and render ReceiptTemplate
-      const { default: ReceiptTemplate } = await import('@/components/receipt/ReceiptTemplate');
-      const React = await import('react');
-      const ReactDOM = await import('react-dom/client');
-      
-      document.body.appendChild(receiptContainer);
-      const root = ReactDOM.createRoot(receiptContainer);
-      
-      // Render the receipt
-      root.render(React.createElement(ReceiptTemplate, { 
-        data: result.data, 
-        forImage: true 
-      }));
-      
-      // Wait for render to complete
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const { triggerAutoDownload } = await import('@/utils/receiptDownload');
       
       // Generate and download receipt
-      await downloadReceiptImage(result.data, receiptContainer.id);
-      
-      // Clean up
-      root.unmount();
-      document.body.removeChild(receiptContainer);
+      await triggerAutoDownload(result.data, `receipt-download-${bookingId}`, 1000);
       
       toast({
         title: "Receipt Downloaded",

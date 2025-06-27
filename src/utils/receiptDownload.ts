@@ -1,7 +1,10 @@
 
 import html2canvas from 'html2canvas';
+import ReceiptTemplate from '@/components/receipt/ReceiptTemplate';
+import React from 'react';
+import { createRoot } from 'react-dom/client';
 
-export interface ReceiptData {
+interface ReceiptData {
   bookingId: string;
   merchant: {
     shop_name: string;
@@ -26,71 +29,78 @@ export interface ReceiptData {
   } | null;
 }
 
-export const generateReceiptImage = async (elementId: string): Promise<Blob> => {
-  const element = document.getElementById(elementId);
-  if (!element) {
-    throw new Error('Receipt element not found');
-  }
+export const downloadReceiptImage = async (data: ReceiptData, elementId: string): Promise<void> => {
+  try {
+    // Get the element that contains the receipt
+    const element = document.getElementById(elementId);
+    if (!element) {
+      throw new Error('Receipt element not found');
+    }
 
-  // Wait a bit for the element to be fully rendered
-  await new Promise(resolve => setTimeout(resolve, 500));
+    // Wait for any images to load
+    await new Promise(resolve => setTimeout(resolve, 500));
 
-  const canvas = await html2canvas(element, {
-    backgroundColor: '#ffffff',
-    scale: 2, // Higher quality
-    useCORS: true,
-    allowTaint: true,
-    width: element.scrollWidth || 800,
-    height: element.scrollHeight,
-    scrollX: 0,
-    scrollY: 0,
-    logging: false, // Disable logging for cleaner console
-  });
+    // Generate canvas from the element
+    const canvas = await html2canvas(element, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff',
+      width: element.offsetWidth,
+      height: element.offsetHeight,
+    });
 
-  return new Promise((resolve, reject) => {
+    // Convert to blob and download
     canvas.toBlob((blob) => {
       if (blob) {
-        resolve(blob);
-      } else {
-        reject(new Error('Failed to generate image'));
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `receipt-${data.bookingId}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
       }
-    }, 'image/png', 1.0);
-  });
-};
-
-export const downloadReceiptImage = async (
-  receiptData: ReceiptData,
-  elementId: string
-): Promise<void> => {
-  try {
-    const blob = await generateReceiptImage(elementId);
-    const url = URL.createObjectURL(blob);
-    
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `booqit-receipt-${receiptData.bookingId}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    // Clean up the object URL
-    URL.revokeObjectURL(url);
+    }, 'image/png');
   } catch (error) {
-    console.error('Error downloading receipt:', error);
+    console.error('Error generating receipt image:', error);
     throw error;
   }
 };
 
-export const triggerAutoDownload = async (
-  receiptData: ReceiptData,
-  elementId: string,
-  delay: number = 2000
-): Promise<void> => {
-  setTimeout(async () => {
-    try {
-      await downloadReceiptImage(receiptData, elementId);
-    } catch (error) {
-      console.error('Auto-download failed:', error);
-    }
-  }, delay);
+export const triggerAutoDownload = async (data: ReceiptData, containerId: string, delay: number = 1000): Promise<void> => {
+  try {
+    // Create a container for the receipt
+    const container = document.createElement('div');
+    container.id = containerId;
+    container.style.position = 'absolute';
+    container.style.left = '-9999px';
+    container.style.top = '-9999px';
+    container.style.width = '800px';
+    container.style.backgroundColor = 'white';
+    container.style.padding = '32px';
+    
+    document.body.appendChild(container);
+    
+    // Create a root and render the receipt component
+    const root = createRoot(container);
+    root.render(React.createElement(ReceiptTemplate, { 
+      data: data, 
+      forImage: true 
+    }));
+    
+    // Wait for render to complete
+    await new Promise(resolve => setTimeout(resolve, delay));
+    
+    // Generate and download the image
+    await downloadReceiptImage(data, containerId);
+    
+    // Clean up
+    root.unmount();
+    document.body.removeChild(container);
+  } catch (error) {
+    console.error('Error in auto download:', error);
+    throw error;
+  }
 };
