@@ -39,6 +39,31 @@ const GuestBookingHistoryPage: React.FC = () => {
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
 
+  const extractErrorMessage = (error: any): string => {
+    if (typeof error === 'string') {
+      return error;
+    }
+    
+    if (error?.message) {
+      return error.message;
+    }
+    
+    if (error?.details) {
+      return error.details;
+    }
+    
+    if (error?.hint) {
+      return error.hint;
+    }
+    
+    // Handle PostgreSQL errors
+    if (error?.code) {
+      return `Database error (${error.code}): ${error.message || 'Unknown error'}`;
+    }
+    
+    return 'An unexpected error occurred while searching for bookings';
+  };
+
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
       toast({
@@ -49,24 +74,19 @@ const GuestBookingHistoryPage: React.FC = () => {
       return;
     }
 
+    console.log('Searching for bookings with phone:', searchQuery);
     setIsSearching(true);
+    
     try {
       const { data, error } = await supabase.rpc('get_guest_booking_history', {
-        p_phone_number: searchQuery
+        p_phone_number: searchQuery.trim()
       });
 
+      console.log('RPC Response:', { data, error });
+
       if (error) {
-        console.error('Error fetching booking history:', error);
-        
-        // Extract meaningful error message
-        let errorMessage = "Failed to fetch booking history";
-        if (error.message) {
-          errorMessage = error.message;
-        } else if (error.details) {
-          errorMessage = error.details;
-        } else if (typeof error === 'string') {
-          errorMessage = error;
-        }
+        console.error('Supabase RPC Error:', error);
+        const errorMessage = extractErrorMessage(error);
         
         toast({
           title: "Search Error",
@@ -76,24 +96,28 @@ const GuestBookingHistoryPage: React.FC = () => {
         return;
       }
 
-      setBookings(data || []);
+      if (!data) {
+        console.log('No data returned from RPC');
+        setBookings([]);
+        toast({
+          title: "No Bookings Found",
+          description: "No booking history found for this phone number",
+        });
+        return;
+      }
+
+      console.log('Setting bookings:', data);
+      setBookings(data);
       
-      if (!data || data.length === 0) {
+      if (data.length === 0) {
         toast({
           title: "No Bookings Found",
           description: "No booking history found for this phone number",
         });
       }
     } catch (error) {
-      console.error('Error fetching booking history:', error);
-      
-      // Extract meaningful error message from catch block
-      let errorMessage = "An unexpected error occurred";
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      } else if (typeof error === 'string') {
-        errorMessage = error;
-      }
+      console.error('Catch block error:', error);
+      const errorMessage = extractErrorMessage(error);
       
       toast({
         title: "Search Error",
