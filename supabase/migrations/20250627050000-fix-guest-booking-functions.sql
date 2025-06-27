@@ -1,5 +1,4 @@
 
-
 -- Fix get_guest_booking_history function to return proper text types
 CREATE OR REPLACE FUNCTION public.get_guest_booking_history(
   p_phone_number TEXT
@@ -22,7 +21,7 @@ CREATE OR REPLACE FUNCTION public.get_guest_booking_history(
   merchant_id TEXT
 )
 LANGUAGE plpgsql
-SECURITY DEFINER
+SECURITY DEFINER  
 AS $$
 BEGIN
   RETURN QUERY
@@ -104,4 +103,3 @@ BEGIN
   ORDER BY b.date ASC, b.time_slot ASC;
 END;
 $$;
-
