@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -37,31 +38,6 @@ const GuestBookingCancellationPage: React.FC = () => {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
-  const extractErrorMessage = (error: any): string => {
-    if (typeof error === 'string') {
-      return error;
-    }
-    
-    if (error?.message) {
-      return error.message;
-    }
-    
-    if (error?.details) {
-      return error.details;
-    }
-    
-    if (error?.hint) {
-      return error.hint;
-    }
-    
-    // Handle PostgreSQL errors
-    if (error?.code) {
-      return `Database error (${error.code}): ${error.message || 'Unknown error'}`;
-    }
-    
-    return 'An unexpected error occurred while searching for bookings';
-  };
-
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
       toast({
@@ -72,57 +48,38 @@ const GuestBookingCancellationPage: React.FC = () => {
       return;
     }
 
-    console.log('Searching for bookings with query:', searchQuery);
     setIsSearching(true);
-    
     try {
       const isBookingId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(searchQuery);
       
       const { data, error } = await supabase.rpc('get_guest_bookings_for_cancellation', {
         p_booking_id: isBookingId ? searchQuery : null,
-        p_phone_number: !isBookingId ? searchQuery.trim() : null
+        p_phone_number: !isBookingId ? searchQuery : null
       });
 
-      console.log('RPC Response:', { data, error, isBookingId });
-
       if (error) {
-        console.error('Supabase RPC Error:', error);
-        const errorMessage = extractErrorMessage(error);
-        
+        console.error('Error searching bookings:', error);
         toast({
           title: "Search Error",
-          description: errorMessage,
+          description: "Failed to search for bookings",
           variant: "destructive",
         });
         return;
       }
 
-      if (!data) {
-        console.log('No data returned from RPC');
-        setBookings([]);
-        toast({
-          title: "No Bookings Found",
-          description: "No confirmed bookings found for the provided information",
-        });
-        return;
-      }
-
-      console.log('Setting bookings:', data);
-      setBookings(data);
+      setBookings(data || []);
       
-      if (data.length === 0) {
+      if (!data || data.length === 0) {
         toast({
           title: "No Bookings Found",
           description: "No confirmed bookings found for the provided information",
         });
       }
     } catch (error) {
-      console.error('Catch block error:', error);
-      const errorMessage = extractErrorMessage(error);
-      
+      console.error('Error searching bookings:', error);
       toast({
         title: "Search Error",
-        description: errorMessage,
+        description: "An unexpected error occurred",
         variant: "destructive",
       });
     } finally {
@@ -146,18 +103,16 @@ const GuestBookingCancellationPage: React.FC = () => {
 
       if (error) {
         console.error('Cancellation error:', error);
-        const errorMessage = extractErrorMessage(error);
-        
         toast({
           title: "Cancellation Failed",
-          description: errorMessage,
+          description: "Failed to cancel booking. Please try again.",
           variant: "destructive",
         });
         return;
       }
 
-      // Handle the response with proper error checking
-      const result = data as { success: boolean; error?: string; message?: string } | null;
+      // Handle the response properly - data is already parsed
+      const result = data as { success: boolean; error?: string; message?: string };
 
       if (!result || !result.success) {
         toast({
@@ -179,11 +134,9 @@ const GuestBookingCancellationPage: React.FC = () => {
       setSelectedBooking(null);
     } catch (error) {
       console.error('Error cancelling booking:', error);
-      const errorMessage = extractErrorMessage(error);
-      
       toast({
         title: "Cancellation Error",
-        description: errorMessage,
+        description: "An unexpected error occurred",
         variant: "destructive",
       });
     } finally {

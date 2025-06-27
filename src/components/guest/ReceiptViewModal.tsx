@@ -53,8 +53,8 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
         return;
       }
 
-      // Handle the response with proper error checking
-      const result = data as { success: boolean; data?: any; error?: string } | null;
+      // Handle the response properly - data is already parsed
+      const result = data as { success: boolean; data?: any; error?: string };
 
       if (!result || !result.success) {
         toast({

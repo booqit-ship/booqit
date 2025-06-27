@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -7,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Search, ArrowLeft, Calendar, MapPin, User, Clock, FileText, Download, Eye, Loader2, CheckCircle, X, Receipt } from 'lucide-react';
+import { Search, ArrowLeft, Calendar, MapPin, User, Clock, FileText, Download, Eye, Loader2 } from 'lucide-react';
 import { ReceiptViewModal } from '@/components/guest/ReceiptViewModal';
 
 interface GuestBookingHistory {
@@ -33,95 +34,52 @@ const GuestBookingHistoryPage: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   
-  const [searchQuery, setSearchQuery] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [bookings, setBookings] = useState<GuestBookingHistory[]>([]);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
-
-  const extractErrorMessage = (error: any): string => {
-    if (typeof error === 'string') {
-      return error;
-    }
-    
-    if (error?.message) {
-      return error.message;
-    }
-    
-    if (error?.details) {
-      return error.details;
-    }
-    
-    if (error?.hint) {
-      return error.hint;
-    }
-    
-    // Handle PostgreSQL errors
-    if (error?.code) {
-      return `Database error (${error.code}): ${error.message || 'Unknown error'}`;
-    }
-    
-    return 'An unexpected error occurred while searching for bookings';
-  };
+  const [isDownloading, setIsDownloading] = useState<string | null>(null);
 
   const handleSearch = async () => {
-    if (!searchQuery.trim()) {
+    if (!phoneNumber.trim()) {
       toast({
         title: "Phone Number Required",
-        description: "Please enter your phone number to view booking history",
+        description: "Please enter your phone number",
         variant: "destructive",
       });
       return;
     }
 
-    console.log('Searching for bookings with phone:', searchQuery);
     setIsSearching(true);
-    
     try {
       const { data, error } = await supabase.rpc('get_guest_booking_history', {
-        p_phone_number: searchQuery.trim()
+        p_phone_number: phoneNumber.trim()
       });
 
-      console.log('RPC Response:', { data, error });
-
       if (error) {
-        console.error('Supabase RPC Error:', error);
-        const errorMessage = extractErrorMessage(error);
-        
+        console.error('Error fetching booking history:', error);
         toast({
           title: "Search Error",
-          description: errorMessage,
+          description: "Failed to fetch booking history",
           variant: "destructive",
         });
         return;
       }
 
-      if (!data) {
-        console.log('No data returned from RPC');
-        setBookings([]);
-        toast({
-          title: "No Bookings Found",
-          description: "No booking history found for this phone number",
-        });
-        return;
-      }
-
-      console.log('Setting bookings:', data);
-      setBookings(data);
+      setBookings(data || []);
       
-      if (data.length === 0) {
+      if (!data || data.length === 0) {
         toast({
           title: "No Bookings Found",
           description: "No booking history found for this phone number",
         });
       }
     } catch (error) {
-      console.error('Catch block error:', error);
-      const errorMessage = extractErrorMessage(error);
-      
+      console.error('Error fetching booking history:', error);
       toast({
         title: "Search Error",
-        description: errorMessage,
+        description: "An unexpected error occurred",
         variant: "destructive",
       });
     } finally {
@@ -130,38 +88,105 @@ const GuestBookingHistoryPage: React.FC = () => {
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case 'confirmed':
-        return 'text-green-600 bg-green-50';
-      case 'pending':
-        return 'text-yellow-600 bg-yellow-50';
+        return 'bg-green-100 text-green-800 border-green-200';
       case 'completed':
-        return 'text-blue-600 bg-blue-50';
+        return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'cancelled':
-        return 'text-red-600 bg-red-50';
-      default:
-        return 'text-gray-600 bg-gray-50';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'confirmed':
-        return <CheckCircle className="w-4 h-4" />;
+        return 'bg-red-100 text-red-800 border-red-200';
       case 'pending':
-        return <Clock className="w-4 h-4" />;
-      case 'completed':
-        return <CheckCircle className="w-4 h-4" />;
-      case 'cancelled':
-        return <X className="w-4 h-4" />;
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       default:
-        return <Clock className="w-4 h-4" />;
+        return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
   const handleViewReceipt = (bookingId: string) => {
     setSelectedBookingId(bookingId);
     setShowReceiptModal(true);
+  };
+
+  const handleDownloadReceipt = async (bookingId: string) => {
+    setIsDownloading(bookingId);
+    try {
+      const { data, error } = await supabase.rpc('get_guest_booking_receipt_data', {
+        p_booking_id: bookingId
+      });
+
+      if (error) {
+        console.error('Receipt fetch error:', error);
+        toast({
+          title: "Receipt Error",
+          description: "Failed to generate receipt data",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Handle the response properly - data is already parsed
+      const result = data as { success: boolean; data?: any; error?: string };
+      
+      if (!result || !result.success || !result.data) {
+        toast({
+          title: "Receipt Error",
+          description: result?.error || "Receipt data not available",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Import the receipt download utility dynamically
+      const { downloadReceiptImage } = await import('@/utils/receiptDownload');
+      
+      // Create a temporary receipt element
+      const receiptContainer = document.createElement('div');
+      receiptContainer.id = `receipt-download-${bookingId}`;
+      receiptContainer.style.position = 'absolute';
+      receiptContainer.style.left = '-9999px';
+      receiptContainer.style.top = '-9999px';
+      receiptContainer.style.width = '800px';
+      receiptContainer.style.backgroundColor = 'white';
+      receiptContainer.style.padding = '32px';
+      
+      // Import and render ReceiptTemplate
+      const { default: ReceiptTemplate } = await import('@/components/receipt/ReceiptTemplate');
+      const React = await import('react');
+      const ReactDOM = await import('react-dom/client');
+      
+      document.body.appendChild(receiptContainer);
+      const root = ReactDOM.createRoot(receiptContainer);
+      
+      // Render the receipt
+      root.render(React.createElement(ReceiptTemplate, { 
+        data: result.data, 
+        forImage: true 
+      }));
+      
+      // Wait for render to complete
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Generate and download receipt
+      await downloadReceiptImage(result.data, receiptContainer.id);
+      
+      // Clean up
+      root.unmount();
+      document.body.removeChild(receiptContainer);
+      
+      toast({
+        title: "Receipt Downloaded",
+        description: "Receipt has been downloaded successfully",
+      });
+    } catch (error) {
+      console.error('Error downloading receipt:', error);
+      toast({
+        title: "Download Error",
+        description: "Failed to download receipt",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDownloading(null);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -178,6 +203,14 @@ const GuestBookingHistoryPage: React.FC = () => {
       hour: 'numeric',
       minute: '2-digit',
       hour12: true
+    });
+  };
+
+  const formatCreatedDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
     });
   };
 
@@ -199,7 +232,7 @@ const GuestBookingHistoryPage: React.FC = () => {
           </div>
           <div className="text-center">
             <h1 className="text-2xl sm:text-3xl font-bold text-white font-righteous mb-2">Booking History</h1>
-            <p className="text-purple-100 font-poppins text-sm sm:text-base">View your past bookings and receipts</p>
+            <p className="text-purple-100 font-poppins text-sm sm:text-base">View all your past bookings and download receipts</p>
           </div>
         </div>
       </div>
@@ -208,9 +241,9 @@ const GuestBookingHistoryPage: React.FC = () => {
         {/* Search Section */}
         <Card className="shadow-xl border-0 bg-white mb-6">
           <CardHeader className="pb-4">
-            <CardTitle className="font-righteous text-lg sm:text-xl text-gray-800">Find Your Bookings</CardTitle>
+            <CardTitle className="font-righteous text-lg sm:text-xl text-gray-800">Find Your Booking History</CardTitle>
             <p className="text-gray-600 font-poppins text-sm">
-              Enter your phone number to view your booking history
+              Enter your phone number to view all your booking history
             </p>
           </CardHeader>
           <CardContent>
@@ -222,8 +255,8 @@ const GuestBookingHistoryPage: React.FC = () => {
                 <Input
                   id="phone"
                   type="tel"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
                   placeholder="Enter your phone number"
                   className="h-10 sm:h-12 font-poppins border-gray-200 focus:border-purple-500 focus:ring-purple-500"
                   onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
@@ -249,7 +282,7 @@ const GuestBookingHistoryPage: React.FC = () => {
         {bookings.length > 0 && (
           <div className="space-y-4">
             <h2 className="text-lg sm:text-xl font-righteous text-gray-800 mb-4">
-              Found {bookings.length} booking{bookings.length > 1 ? 's' : ''}
+              Found {bookings.length} booking{bookings.length > 1 ? 's' : ''} in your history
             </h2>
             
             {bookings.map((booking) => (
@@ -257,29 +290,47 @@ const GuestBookingHistoryPage: React.FC = () => {
                 <CardContent className="p-4 sm:p-6">
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-4">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
                         <h3 className="font-righteous text-lg text-gray-800">
                           {booking.shop_name}
                         </h3>
-                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(booking.booking_status)}`}>
-                          {getStatusIcon(booking.booking_status)}
+                        <Badge className={getStatusColor(booking.booking_status)}>
                           {booking.booking_status.charAt(0).toUpperCase() + booking.booking_status.slice(1)}
-                        </span>
+                        </Badge>
                       </div>
-                      <div className="flex items-start text-gray-600 mb-3">
+                      <div className="flex items-start text-gray-600 mb-2">
                         <MapPin className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
                         <span className="text-sm font-poppins">{booking.shop_address}</span>
                       </div>
+                      <p className="text-xs text-gray-500 font-poppins">
+                        Booked on {formatCreatedDate(booking.created_at)}
+                      </p>
                     </div>
-                    <Button
-                      onClick={() => handleViewReceipt(booking.booking_id)}
-                      variant="outline"
-                      size="sm"
-                      className="border-purple-200 text-purple-600 hover:bg-purple-50 w-full sm:w-auto"
-                    >
-                      <Receipt className="w-4 h-4 mr-2" />
-                      View Receipt
-                    </Button>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Button
+                        onClick={() => handleViewReceipt(booking.booking_id)}
+                        variant="outline"
+                        size="sm"
+                        className="border-purple-200 text-purple-600 hover:bg-purple-50 w-full sm:w-auto"
+                      >
+                        <Eye className="w-4 h-4 mr-1" />
+                        View Receipt
+                      </Button>
+                      <Button
+                        onClick={() => handleDownloadReceipt(booking.booking_id)}
+                        variant="outline"
+                        size="sm"
+                        className="border-green-200 text-green-600 hover:bg-green-50 w-full sm:w-auto"
+                        disabled={isDownloading === booking.booking_id}
+                      >
+                        {isDownloading === booking.booking_id ? (
+                          <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                        ) : (
+                          <Download className="w-4 h-4 mr-1" />
+                        )}
+                        Download
+                      </Button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
@@ -319,14 +370,9 @@ const GuestBookingHistoryPage: React.FC = () => {
                   </div>
 
                   <div className="mt-4 pt-4 border-t border-gray-200">
-                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-                      <p className="text-xs text-gray-500 font-poppins break-all">
-                        Booking ID: {booking.booking_id}
-                      </p>
-                      <p className="text-xs text-gray-500 font-poppins">
-                        Booked on {new Date(booking.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
+                    <p className="text-xs text-gray-500 font-poppins break-all">
+                      Booking ID: {booking.booking_id}
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -335,22 +381,22 @@ const GuestBookingHistoryPage: React.FC = () => {
         )}
 
         {/* No bookings message when searched but nothing found */}
-        {searchQuery && !isSearching && bookings.length === 0 && (
+        {phoneNumber && !isSearching && bookings.length === 0 && (
           <Card className="shadow-lg border-0 bg-white text-center py-8 sm:py-12">
             <CardContent>
-              <Calendar className="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg sm:text-xl font-righteous text-gray-800 mb-2">No Bookings Found</h3>
+              <FileText className="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg sm:text-xl font-righteous text-gray-800 mb-2">No Booking History</h3>
               <p className="text-gray-600 font-poppins text-sm sm:text-base">
-                No booking history found for this phone number.
+                No bookings were found for this phone number.
                 <br />
-                Please check your phone number and try again.
+                Please check the phone number and try again.
               </p>
             </CardContent>
           </Card>
         )}
       </div>
 
-      {/* Receipt Modal */}
+      {/* Receipt View Modal */}
       <ReceiptViewModal
         isOpen={showReceiptModal}
         onClose={() => setShowReceiptModal(false)}
