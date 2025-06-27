@@ -4,7 +4,7 @@ import ReceiptTemplate from '@/components/receipt/ReceiptTemplate';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 
-interface ReceiptData {
+export interface ReceiptData {
   bookingId: string;
   merchant: {
     shop_name: string;
