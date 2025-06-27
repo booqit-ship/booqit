@@ -1,4 +1,5 @@
 
+
 -- Fix get_guest_booking_history function to return proper text types
 CREATE OR REPLACE FUNCTION public.get_guest_booking_history(
   p_phone_number TEXT
@@ -13,7 +14,7 @@ CREATE OR REPLACE FUNCTION public.get_guest_booking_history(
   shop_address TEXT,
   service_name TEXT,
   service_duration INTEGER,
-  service_price NUMERIC,
+  service_price DOUBLE PRECISION,
   stylist_name TEXT,
   booking_status TEXT,
   total_duration INTEGER,
@@ -66,7 +67,7 @@ CREATE OR REPLACE FUNCTION public.get_guest_bookings_for_cancellation(
   shop_address TEXT,
   service_name TEXT,
   service_duration INTEGER,
-  service_price NUMERIC,
+  service_price DOUBLE PRECISION,
   stylist_name TEXT,
   booking_status TEXT,
   total_duration INTEGER
@@ -103,3 +104,4 @@ BEGIN
   ORDER BY b.date ASC, b.time_slot ASC;
 END;
 $$;
+
