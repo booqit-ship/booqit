@@ -25,6 +25,9 @@ export const AnimatedButton: React.FC<AnimatedButtonProps> = ({
   className = '',
   gradient = false
 }) => {
+  // Map our size prop to Button component's accepted sizes
+  const buttonSize = size === 'md' ? 'default' : size;
+  
   const baseClasses = gradient 
     ? 'bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white border-0'
     : '';
@@ -39,7 +42,7 @@ export const AnimatedButton: React.FC<AnimatedButtonProps> = ({
         onClick={onClick}
         disabled={disabled || loading}
         variant={variant}
-        size={size}
+        size={buttonSize}
         className={`
           ${baseClasses}
           ${size === 'lg' ? 'py-6 text-lg' : ''}
