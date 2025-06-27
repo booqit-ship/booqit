@@ -59,41 +59,43 @@ export const CancellationConfirmDialog: React.FC<CancellationConfirmDialogProps>
 
   return (
     <AlertDialog open={isOpen} onOpenChange={onClose}>
-      <AlertDialogContent className="max-w-md">
+      <AlertDialogContent className="max-w-md mx-4 sm:mx-auto">
         <AlertDialogHeader>
-          <AlertDialogTitle className="font-righteous text-xl text-red-600">
+          <AlertDialogTitle className="font-righteous text-lg sm:text-xl text-red-600">
             Cancel Booking?
           </AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-4">
-              <p className="text-gray-600 font-poppins">
+              <p className="text-gray-600 font-poppins text-sm sm:text-base">
                 Are you sure you want to cancel this booking? This action cannot be undone.
               </p>
               
               <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                <div className="flex items-center">
-                  <MapPin className="w-5 h-5 text-gray-500 mr-3" />
-                  <div>
-                    <p className="font-medium text-gray-800">{booking.shop_name}</p>
-                    <p className="text-sm text-gray-600">{booking.shop_address}</p>
+                <div className="flex items-start">
+                  <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 mr-3 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-800 text-sm sm:text-base break-words">{booking.shop_name}</p>
+                    <p className="text-xs sm:text-sm text-gray-600 break-words">{booking.shop_address}</p>
                   </div>
                 </div>
                 
-                <div className="flex items-center">
-                  <Calendar className="w-5 h-5 text-gray-500 mr-3" />
-                  <div>
-                    <p className="font-medium text-gray-800">{formatDate(booking.booking_date)}</p>
-                    <p className="text-sm text-gray-600">{formatTime(booking.booking_time)}</p>
+                <div className="flex items-start">
+                  <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 mr-3 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-800 text-sm sm:text-base">{formatDate(booking.booking_date)}</p>
+                    <p className="text-xs sm:text-sm text-gray-600">{formatTime(booking.booking_time)}</p>
                   </div>
                 </div>
                 
-                <div className="flex items-center">
-                  <Clock className="w-5 h-5 text-gray-500 mr-3" />
-                  <div>
-                    <p className="font-medium text-gray-800">{booking.service_name}</p>
-                    <p className="text-sm text-gray-600">
+                <div className="flex items-start">
+                  <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 mr-3 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-800 text-sm sm:text-base break-words">{booking.service_name}</p>
+                    <p className="text-xs sm:text-sm text-gray-600">
                       {booking.service_duration} minutes • ₹{booking.service_price}
-                      {booking.stylist_name && ` • with ${booking.stylist_name}`}
+                      {booking.stylist_name && (
+                        <span className="break-words"> • with {booking.stylist_name}</span>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -101,11 +103,13 @@ export const CancellationConfirmDialog: React.FC<CancellationConfirmDialogProps>
             </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel className="font-poppins">Keep Booking</AlertDialogCancel>
+        <AlertDialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
+          <AlertDialogCancel className="font-poppins w-full sm:w-auto touch-manipulation min-h-[44px]">
+            Keep Booking
+          </AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
-            className="bg-red-600 hover:bg-red-700 font-poppins"
+            className="bg-red-600 hover:bg-red-700 font-poppins w-full sm:w-auto touch-manipulation min-h-[44px]"
           >
             Yes, Cancel Booking
           </AlertDialogAction>

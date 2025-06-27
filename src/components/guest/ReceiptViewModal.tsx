@@ -53,7 +53,6 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
         return;
       }
 
-      // Handle the response properly - data is already parsed
       const result = data as { success: boolean; data?: any; error?: string };
 
       if (!result || !result.success) {
@@ -83,10 +82,8 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
 
     setIsDownloading(true);
     try {
-      // Import the receipt download utility dynamically
       const { downloadReceiptImage } = await import('@/utils/receiptDownload');
       
-      // Generate and download receipt
       await downloadReceiptImage(receiptData, `receipt-modal-${bookingId}`);
       
       toast({
@@ -107,9 +104,9 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden">
-        <DialogHeader className="flex flex-row items-center justify-between">
-          <DialogTitle className="font-righteous text-xl text-gray-800">
+      <DialogContent className="max-w-full sm:max-w-2xl h-[90vh] sm:h-auto max-h-[90vh] overflow-hidden p-0 sm:p-6">
+        <DialogHeader className="flex flex-row items-center justify-between p-4 sm:p-0 border-b sm:border-none">
+          <DialogTitle className="font-righteous text-lg sm:text-xl text-gray-800">
             Booking Receipt
           </DialogTitle>
           <div className="flex gap-2">
@@ -117,7 +114,7 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
               onClick={handleDownload}
               disabled={!receiptData || isDownloading}
               size="sm"
-              className="bg-green-600 hover:bg-green-700"
+              className="bg-green-600 hover:bg-green-700 touch-manipulation min-h-[44px]"
             >
               {isDownloading ? (
                 <Loader2 className="w-4 h-4 mr-1 animate-spin" />
@@ -130,20 +127,21 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
               onClick={onClose}
               variant="ghost"
               size="sm"
+              className="touch-manipulation min-h-[44px]"
             >
               <X className="w-4 h-4" />
             </Button>
           </div>
         </DialogHeader>
         
-        <div className="overflow-y-auto max-h-[calc(90vh-8rem)]">
+        <div className="overflow-y-auto flex-1 p-4 sm:p-0">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
               <span className="ml-3 text-gray-600 font-poppins">Loading receipt...</span>
             </div>
           ) : receiptData ? (
-            <div id={`receipt-modal-${bookingId}`}>
+            <div id={`receipt-modal-${bookingId}`} className="bg-white">
               <ReceiptTemplate data={receiptData} />
             </div>
           ) : (
