@@ -1,14 +1,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, User, Users } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Users, Star, Crown, Calendar } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Staff } from '@/types';
 import { toast } from 'sonner';
+import { PageHeader } from '@/components/booking/PageHeader';
+import { AnimatedCard } from '@/components/booking/AnimatedCard';
+import { AnimatedButton } from '@/components/booking/AnimatedButton';
+import { FloatingBottomBar } from '@/components/booking/FloatingBottomBar';
 
 const StaffSelectionPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
@@ -26,8 +27,6 @@ const StaffSelectionPage: React.FC = () => {
       try {
         if (!merchantId) return;
 
-        console.log('Fetching staff for merchant:', merchantId);
-        
         const { data, error } = await supabase
           .from('staff')
           .select('*')
@@ -38,7 +37,6 @@ const StaffSelectionPage: React.FC = () => {
           throw error;
         }
         
-        console.log('Fetched staff data:', data);
         setStaff(data || []);
       } catch (error) {
         console.error('Error fetching staff:', error);
@@ -76,93 +74,222 @@ const StaffSelectionPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
+      <div className="h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-white">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          className="h-8 w-8 border-4 border-purple-600 border-t-transparent rounded-full"
+        />
       </div>
     );
   }
 
   return (
-    <div className="pb-24 bg-white min-h-screen">
-      <div className="bg-booqit-primary text-white p-4 sticky top-0 z-10">
-        <div className="relative flex items-center justify-center">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="absolute left-0 text-white hover:bg-white/20"
-            onClick={() => navigate(-1)}
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </Button>
-          <h1 className="text-xl font-medium">Choose Stylist</h1>
-        </div>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 pb-24">
+      <PageHeader
+        title="Choose Stylist"
+        subtitle="Select your preferred stylist"
+        onBack={() => navigate(-1)}
+        progress={50}
+      />
 
       <div className="p-4">
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-2">Select Your Preferred Stylist</h2>
-          <p className="text-gray-500 text-sm">Choose any available stylist or let us assign one for you</p>
-        </div>
+        {/* Selected Services Summary */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="mb-6"
+        >
+          <AnimatedCard className="bg-gradient-to-r from-purple-100 to-purple-200 shadow-xl">
+            <div className="p-4">
+              <h3 className="font-righteous text-lg font-bold text-purple-800 mb-2">
+                Your Services ({selectedServices?.length})
+              </h3>
+              <div className="flex justify-between items-center">
+                <div className="space-y-1">
+                  {selectedServices?.slice(0, 2).map((service: any) => (
+                    <p key={service.id} className="font-poppins text-sm text-purple-700">
+                      {service.name}
+                    </p>
+                  ))}
+                  {selectedServices?.length > 2 && (
+                    <p className="font-poppins text-sm text-purple-600">
+                      +{selectedServices.length - 2} more services
+                    </p>
+                  )}
+                </div>
+                <div className="text-right">
+                  <p className="font-righteous text-xl font-bold text-purple-700">₹{totalPrice}</p>
+                  <p className="font-poppins text-sm text-purple-600">{totalDuration} minutes</p>
+                </div>
+              </div>
+            </div>
+          </AnimatedCard>
+        </motion.div>
 
-        <RadioGroup value={selectedStaff} onValueChange={handleStaffChange} className="space-y-3">
+        {/* Stylist Selection */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3, duration: 0.8 }}
+          className="space-y-4"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-righteous text-xl font-bold text-gray-800">Select Stylist</h3>
+            <div className="bg-gradient-to-r from-blue-100 to-blue-200 px-3 py-1 rounded-full">
+              <span className="text-blue-700 font-poppins text-sm font-medium">
+                {staff.length + 1} options
+              </span>
+            </div>
+          </div>
+
           {/* Any Stylist Option */}
-          <Card className={`border transition-all overflow-hidden ${selectedStaff === 'any' ? 'border-booqit-primary' : 'border-gray-200'}`}>
-            <CardContent className="p-0">
-              <label htmlFor="any" className="flex items-center p-4 cursor-pointer">
-                <RadioGroupItem value="any" id="any" className="mr-4" />
-                <div className="bg-blue-100 rounded-full p-3 mr-4">
-                  <Users className="h-6 w-6 text-blue-500" />
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <AnimatedCard
+              selected={selectedStaff === 'any'}
+              onClick={() => handleStaffChange('any')}
+              className="bg-white shadow-lg hover:shadow-xl"
+            >
+              <div className="p-4">
+                <div className="flex items-center">
+                  <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mr-4">
+                    <Users className="h-8 w-8 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center mb-1">
+                      <h4 className="font-righteous text-lg font-bold text-gray-800">
+                        Any Available Stylist
+                      </h4>
+                      <Crown className="h-5 w-5 text-yellow-500 ml-2" />
+                    </div>
+                    <p className="text-gray-600 font-poppins text-sm">
+                      We'll assign the best available stylist for you
+                    </p>
+                    <div className="flex items-center mt-2">
+                      <div className="flex items-center bg-green-100 px-2 py-1 rounded-full">
+                        <div className="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
+                        <span className="text-green-700 font-poppins text-xs font-medium">
+                          Fastest booking
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: selectedStaff === 'any' ? 1 : 0.8 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                    className={`w-6 h-6 rounded-full border-2 ${
+                      selectedStaff === 'any' 
+                        ? 'bg-gradient-to-r from-purple-500 to-purple-600 border-purple-500' 
+                        : 'border-gray-300'
+                    }`}
+                  >
+                    {selectedStaff === 'any' && (
+                      <div className="w-2 h-2 bg-white rounded-full mx-auto mt-1"></div>
+                    )}
+                  </motion.div>
                 </div>
-                <div>
-                  <div className="font-semibold">Any Available Stylist</div>
-                  <div className="text-gray-500 text-sm">We'll assign the next available stylist for you</div>
-                </div>
-              </label>
-            </CardContent>
-          </Card>
+              </div>
+            </AnimatedCard>
+          </motion.div>
 
           {/* Individual Staff Options */}
-          {staff.map((stylist) => (
-            <Card 
+          {staff.map((stylist, index) => (
+            <motion.div
               key={stylist.id}
-              className={`border transition-all overflow-hidden ${selectedStaff === stylist.id ? 'border-booqit-primary' : 'border-gray-200'}`}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: (index + 1) * 0.1, duration: 0.5 }}
             >
-              <CardContent className="p-0">
-                <label htmlFor={stylist.id} className="flex items-center p-4 cursor-pointer">
-                  <RadioGroupItem value={stylist.id} id={stylist.id} className="mr-4" />
-                  <Avatar className="h-12 w-12 mr-4">
-                    <AvatarFallback className="bg-gray-200 text-gray-700">
-                      {stylist.name.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <div className="font-semibold">{stylist.name}</div>
-                    <div className="text-gray-500 text-sm">Hair Specialist</div>
+              <AnimatedCard
+                selected={selectedStaff === stylist.id}
+                onClick={() => handleStaffChange(stylist.id)}
+                className="bg-white shadow-lg hover:shadow-xl"
+              >
+                <div className="p-4">
+                  <div className="flex items-center">
+                    <div className="relative">
+                      <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center mr-4">
+                        <span className="text-white font-righteous text-2xl">
+                          {stylist.name.charAt(0)}
+                        </span>
+                      </div>
+                      <div className="absolute -top-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-white flex items-center justify-center">
+                        <div className="w-2 h-2 bg-white rounded-full"></div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex-1">
+                      <h4 className="font-righteous text-lg font-bold text-gray-800 mb-1">
+                        {stylist.name}
+                      </h4>
+                      <p className="text-gray-600 font-poppins text-sm mb-2">
+                        Hair Specialist
+                      </p>
+                      <div className="flex items-center space-x-2">
+                        <div className="flex items-center">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              className="h-4 w-4 fill-yellow-400 text-yellow-400"
+                            />
+                          ))}
+                        </div>
+                        <span className="text-gray-500 font-poppins text-sm">5.0</span>
+                      </div>
+                    </div>
+                    
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: selectedStaff === stylist.id ? 1 : 0.8 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                      className={`w-6 h-6 rounded-full border-2 ${
+                        selectedStaff === stylist.id 
+                          ? 'bg-gradient-to-r from-purple-500 to-purple-600 border-purple-500' 
+                          : 'border-gray-300'
+                      }`}
+                    >
+                      {selectedStaff === stylist.id && (
+                        <div className="w-2 h-2 bg-white rounded-full mx-auto mt-1"></div>
+                      )}
+                    </motion.div>
                   </div>
-                </label>
-              </CardContent>
-            </Card>
+                </div>
+              </AnimatedCard>
+            </motion.div>
           ))}
-        </RadioGroup>
 
-        {staff.length === 0 && (
-          <div className="text-center py-8 bg-gray-50 rounded-lg mt-4">
-            <User className="h-12 w-12 mx-auto text-gray-400 mb-2" />
-            <p className="text-gray-500">No stylists available</p>
-            <p className="text-gray-400 text-sm">You can still proceed with your booking</p>
-          </div>
-        )}
+          {staff.length === 0 && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-center py-16 bg-gray-50 rounded-xl"
+            >
+              <Users className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+              <p className="text-gray-500 font-poppins text-lg mb-2">No stylists available</p>
+              <p className="text-gray-400 font-poppins text-sm">You can still proceed with your booking</p>
+            </motion.div>
+          )}
+        </motion.div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
-        <Button 
-          className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6"
-          size="lg"
+      <FloatingBottomBar>
+        <AnimatedButton
           onClick={handleContinue}
+          size="lg"
+          gradient
+          className="w-full"
         >
-          Continue
-        </Button>
-      </div>
+          <Calendar className="w-5 h-5 mr-2" />
+          Continue to Date & Time
+        </AnimatedButton>
+      </FloatingBottomBar>
     </div>
   );
 };

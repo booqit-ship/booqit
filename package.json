@@ -57,7 +57,7 @@
     "dayjs": "^1.11.13",
     "embla-carousel-react": "^8.3.0",
     "firebase": "^10.14.1",
-    "framer-motion": "^12.12.1",
+    "framer-motion": "^12.19.2",
     "html2canvas": "^1.4.1",
     "input-otp": "^1.2.4",
     "lucide-react": "^0.462.0",
