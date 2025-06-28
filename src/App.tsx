@@ -16,19 +16,19 @@ const Index = LazyRoute(() => import("./pages/Index"));
 const AuthPage = LazyRoute(() => import("./pages/AuthPage"));
 const PhoneAuthPage = LazyRoute(() => import("./pages/PhoneAuthPage"));
 const MerchantDashboard = LazyRoute(() => import("./pages/merchant/DashboardPage"));
-const MerchantProfilePage = LazyRoute(() => import("./pages/merchant/MerchantProfilePage"));
-const MerchantOnboardingPage = LazyRoute(() => import("./pages/merchant/MerchantOnboardingPage"));
-const CustomerHomePage = LazyRoute(() => import("./pages/customer/CustomerHomePage"));
-const CustomerProfilePage = LazyRoute(() => import("./pages/customer/CustomerProfilePage"));
+const MerchantProfilePage = LazyRoute(() => import("./pages/merchant/ProfilePage"));
+const MerchantOnboardingPage = LazyRoute(() => import("./pages/merchant/OnboardingPage"));
+const CustomerHomePage = LazyRoute(() => import("./pages/customer/HomePage"));
+const CustomerProfilePage = LazyRoute(() => import("./pages/customer/ProfilePage"));
 const MerchantDetailPage = LazyRoute(() => import("./pages/customer/MerchantDetailPage"));
 const ServiceSelectionPage = LazyRoute(() => import("./pages/customer/ServiceSelectionPage"));
 const StaffSelectionPage = LazyRoute(() => import("./pages/customer/StaffSelectionPage"));
 const DateTimeSelectionPage = LazyRoute(() => import("./pages/customer/DateTimeSelectionPage"));
-const BookingConfirmationPage = LazyRoute(() => import("./pages/customer/BookingConfirmationPage"));
-const BookingSuccessPage = LazyRoute(() => import("./pages/customer/BookingSuccessPage"));
+const BookingConfirmationPage = LazyRoute(() => import("./pages/customer/BookingSummaryPage"));
+const BookingSuccessPage = LazyRoute(() => import("./pages/guest/GuestBookingSuccessPage"));
 const BookingDetailsPage = LazyRoute(() => import("./pages/customer/BookingDetailsPage"));
-const PrivacyPolicyPage = LazyRoute(() => import("./pages/PrivacyPolicyPage"));
-const TermsAndConditionsPage = LazyRoute(() => import("./pages/TermsAndConditionsPage"));
+const PrivacyPolicyPage = LazyRoute(() => import("./pages/PrivacyPolicy"));
+const TermsAndConditionsPage = LazyRoute(() => import("./pages/TermsAndConditions"));
 const ForgotPasswordPage = LazyRoute(() => import("./pages/ForgotPasswordPage"));
 const ResetPasswordPage = LazyRoute(() => import("./pages/ResetPasswordPage"));
 
@@ -63,20 +63,20 @@ function App() {
                 <Route path="/phone-auth" element={<PhoneAuthPage />} />
 
                 {/* Merchant Routes */}
-                <Route path="/merchant" element={<ProtectedRoute roles={['merchant']}><MerchantDashboard /></ProtectedRoute>} />
-                <Route path="/merchant/profile" element={<ProtectedRoute roles={['merchant']}><MerchantProfilePage /></ProtectedRoute>} />
-                <Route path="/merchant/onboarding" element={<ProtectedRoute roles={['merchant']}><MerchantOnboardingPage /></ProtectedRoute>} />
+                <Route path="/merchant" element={<ProtectedRoute requiredRole="merchant"><MerchantDashboard /></ProtectedRoute>} />
+                <Route path="/merchant/profile" element={<ProtectedRoute requiredRole="merchant"><MerchantProfilePage /></ProtectedRoute>} />
+                <Route path="/merchant/onboarding" element={<ProtectedRoute requiredRole="merchant"><MerchantOnboardingPage /></ProtectedRoute>} />
 
                 {/* Customer Routes */}
-                <Route path="/home" element={<ProtectedRoute roles={['customer']}><CustomerHomePage /></ProtectedRoute>} />
-                <Route path="/customer/profile" element={<ProtectedRoute roles={['customer']}><CustomerProfilePage /></ProtectedRoute>} />
-                <Route path="/merchant/:merchantId" element={<ProtectedRoute roles={['customer']}><MerchantDetailPage /></ProtectedRoute>} />
-                <Route path="/booking/:merchantId/services" element={<ProtectedRoute roles={['customer']}><ServiceSelectionPage /></ProtectedRoute>} />
-                <Route path="/booking/:merchantId/staff" element={<ProtectedRoute roles={['customer']}><StaffSelectionPage /></ProtectedRoute>} />
-                <Route path="/booking/:merchantId/datetime" element={<ProtectedRoute roles={['customer']}><DateTimeSelectionPage /></ProtectedRoute>} />
-                <Route path="/booking/:merchantId/confirmation" element={<ProtectedRoute roles={['customer']}><BookingConfirmationPage /></ProtectedRoute>} />
-                <Route path="/booking/success" element={<ProtectedRoute roles={['customer']}><BookingSuccessPage /></ProtectedRoute>} />
-                <Route path="/booking/:bookingId/details" element={<ProtectedRoute roles={['customer', 'merchant']}><BookingDetailsPage /></ProtectedRoute>} />
+                <Route path="/home" element={<ProtectedRoute requiredRole="customer"><CustomerHomePage /></ProtectedRoute>} />
+                <Route path="/customer/profile" element={<ProtectedRoute requiredRole="customer"><CustomerProfilePage /></ProtectedRoute>} />
+                <Route path="/merchant/:merchantId" element={<ProtectedRoute requiredRole="customer"><MerchantDetailPage /></ProtectedRoute>} />
+                <Route path="/booking/:merchantId/services" element={<ProtectedRoute requiredRole="customer"><ServiceSelectionPage /></ProtectedRoute>} />
+                <Route path="/booking/:merchantId/staff" element={<ProtectedRoute requiredRole="customer"><StaffSelectionPage /></ProtectedRoute>} />
+                <Route path="/booking/:merchantId/datetime" element={<ProtectedRoute requiredRole="customer"><DateTimeSelectionPage /></ProtectedRoute>} />
+                <Route path="/booking/:merchantId/confirmation" element={<ProtectedRoute requiredRole="customer"><BookingConfirmationPage /></ProtectedRoute>} />
+                <Route path="/booking/success" element={<ProtectedRoute requiredRole="customer"><BookingSuccessPage /></ProtectedRoute>} />
+                <Route path="/booking/:bookingId/details" element={<ProtectedRoute><BookingDetailsPage /></ProtectedRoute>} />
 
                 {/* Auth Routes */}
                 <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
