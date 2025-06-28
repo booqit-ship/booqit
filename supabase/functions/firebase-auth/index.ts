@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -192,7 +191,6 @@ serve(async (req) => {
     }
 
     console.log('🔍 Processing Firebase authentication for phone:', userData.phone);
-    console.log('👤 User provided name:', userData.name);
 
     // Verify Firebase ID token
     const firebaseData = await verifyFirebaseToken(idToken);
@@ -231,79 +229,45 @@ serve(async (req) => {
       console.log('✅ Existing profile found:', existingProfile.name);
       isExistingUser = true;
       
-      // **CRITICAL FIX**: Update existing profile with the provided name if it's different
-      let updatedProfile = existingProfile;
-      if (userData.name && userData.name.trim() !== '' && userData.name.trim() !== existingProfile.name) {
-        console.log('🔄 Updating existing profile name from', existingProfile.name, 'to', userData.name);
-        
-        const { data: nameUpdateResult, error: nameUpdateError } = await supabase
-          .from('profiles')
-          .update({ 
-            name: userData.name.trim(),
-            updated_at: new Date().toISOString()
-          })
-          .eq('phone', userData.phone)
-          .select()
-          .single();
-
-        if (nameUpdateError) {
-          console.warn('⚠️ Could not update profile name:', nameUpdateError.message);
-        } else {
-          updatedProfile = nameUpdateResult;
-          console.log('✅ Profile name updated successfully to:', userData.name);
-        }
-      }
-      
       // Resolve or create the corresponding Supabase user
-      supabaseUser = await resolveOrCreateSupabaseUser(supabase, updatedProfile, firebaseData, userData);
+      supabaseUser = await resolveOrCreateSupabaseUser(supabase, existingProfile, firebaseData, userData);
       
       // Update firebase_uid if column exists and user resolved successfully
       if (firebaseUidExists && supabaseUser) {
         try {
-          const updateData: any = { 
-            firebase_uid: firebaseData.uid,
-            id: supabaseUser.id // Ensure profile ID matches Supabase user ID
-          };
-          
-          // Include name update if provided
-          if (userData.name && userData.name.trim() !== '' && userData.name.trim() !== updatedProfile.name) {
-            updateData.name = userData.name.trim();
-          }
-
-          const { data: finalProfile, error: updateError } = await supabase
+          const { data: updatedProfile, error: updateError } = await supabase
             .from('profiles')
-            .update(updateData)
+            .update({ 
+              firebase_uid: firebaseData.uid,
+              id: supabaseUser.id // Ensure profile ID matches Supabase user ID
+            })
             .eq('phone', userData.phone)
             .select()
             .single();
 
           if (updateError) {
             console.warn('⚠️ Could not update firebase_uid:', updateError.message);
-            profileData = { ...updatedProfile, id: supabaseUser.id };
+            profileData = { ...existingProfile, id: supabaseUser.id };
           } else {
-            profileData = finalProfile;
+            profileData = updatedProfile;
             console.log('✅ Updated profile with firebase_uid and correct ID');
           }
         } catch (updateError) {
           console.warn('⚠️ Firebase UID update failed, using existing profile:', updateError);
-          profileData = { ...updatedProfile, id: supabaseUser?.id || updatedProfile.id };
+          profileData = { ...existingProfile, id: supabaseUser.id };
         }
       } else {
-        profileData = { ...updatedProfile, id: supabaseUser?.id || updatedProfile.id };
+        profileData = { ...existingProfile, id: supabaseUser?.id || existingProfile.id };
       }
     } else {
       console.log('✅ New user, creating Supabase user first');
-      
-      // **CRITICAL FIX**: Ensure the provided name is used for new users
-      const finalUserName = (userData.name && userData.name.trim() !== '') ? userData.name.trim() : 'Customer';
-      console.log('👤 Creating new user with name:', finalUserName);
       
       // Create Supabase user first
       const { data: createUserData, error: createUserError } = await supabase.auth.admin.createUser({
         phone: userData.phone,
         phone_confirmed: true,
         user_metadata: {
-          name: finalUserName,
+          name: userData.name || 'Customer',
           phone: userData.phone,
           firebase_uid: firebaseData.uid
         }
@@ -328,31 +292,13 @@ serve(async (req) => {
         .single();
 
       if (existingProfileWithId) {
-        console.log('✅ Profile already exists for this user ID, updating with correct name');
-        
-        // Update existing profile with the correct name
-        const { data: updatedExistingProfile, error: updateExistingError } = await supabase
-          .from('profiles')
-          .update({ 
-            name: finalUserName,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', supabaseUser.id)
-          .select()
-          .single();
-
-        if (updateExistingError) {
-          console.warn('⚠️ Could not update existing profile name:', updateExistingError.message);
-          profileData = existingProfileWithId;
-        } else {
-          profileData = updatedExistingProfile;
-          console.log('✅ Updated existing profile with correct name:', finalUserName);
-        }
+        console.log('✅ Profile already exists for this user ID, using existing profile');
+        profileData = existingProfileWithId;
       } else {
-        // Create new profile using the Supabase user ID and the provided name
+        // Create new profile using the Supabase user ID
         const newProfileData: any = {
           id: supabaseUser.id, // Use the Supabase user ID
-          name: finalUserName, // **CRITICAL**: Use the user-provided name
+          name: userData.name || 'Customer',
           phone: userData.phone,
           email: userData.email || firebaseData.email || '',
           role: 'customer'
@@ -401,7 +347,7 @@ serve(async (req) => {
           }
         } else {
           profileData = newProfile;
-          console.log('✅ Created new profile successfully with name:', profileData.name);
+          console.log('✅ Created new profile successfully');
         }
       }
     }
@@ -449,7 +395,6 @@ serve(async (req) => {
     }
 
     console.log('✅ Authentication successful for:', isExistingUser ? 'existing user' : 'new user');
-    console.log('✅ Final profile name:', profileData.name);
 
     return new Response(
       JSON.stringify({

@@ -45,13 +45,7 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
     
     if (profileError) {
       console.error('❌ Error fetching profile:', profileError);
-      
-      // Don't throw error for missing profile, try to create one instead
-      if (profileError.code === 'PGRST116') {
-        console.log('📝 Profile not found, creating new profile');
-      } else {
-        throw new Error(`Failed to fetch profile: ${profileError.message}`);
-      }
+      throw new Error(`Failed to fetch profile: ${profileError.message}`);
     }
     
     if (profileData) {
@@ -78,16 +72,7 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
     
     if (createError) {
       console.error('❌ Error creating profile:', createError);
-      
-      // If profile creation fails, return a fallback profile to prevent crashes
-      console.log('⚠️ Using fallback profile data');
-      return {
-        id: userId,
-        name: user_metadata?.name || email?.split('@')[0] || 'Customer',
-        email: email || '',
-        phone: user_metadata?.phone || null,
-        role: 'customer'
-      };
+      throw new Error(`Failed to create profile: ${createError.message}`);
     }
     
     console.log('✅ New profile created');
@@ -95,16 +80,7 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
     
   } catch (error) {
     console.error('❌ Exception in fetchProfile:', error);
-    
-    // Return fallback profile instead of throwing to prevent app crashes
-    console.log('⚠️ Using fallback profile data due to error');
-    return {
-      id: userId || '',
-      name: user_metadata?.name || email?.split('@')[0] || 'Customer',
-      email: email || '',
-      phone: user_metadata?.phone || null,
-      role: 'customer'
-    };
+    throw error;
   }
 };
 
@@ -171,8 +147,7 @@ const ProfilePage: React.FC = () => {
     queryFn: () => fetchProfile(user?.id ?? null, user?.email ?? null, user?.user_metadata ?? {}),
     enabled: !!user?.id,
     staleTime: 1 * 60 * 1000,
-    retry: 1, // Reduced retry count to prevent excessive retries
-    retryDelay: 2000
+    retry: 2
   });
 
   const {
@@ -217,51 +192,26 @@ const ProfilePage: React.FC = () => {
     return <ProfileSkeleton />;
   }
 
-  // Enhanced error state - show error but don't crash the app
-  if (errorProfile && !profile) {
-    console.error('ProfilePage error state:', errorProfile);
+  // Error state - but don't automatically logout
+  if (errorProfile) {
     return (
       <div className="h-screen bg-gray-50 flex flex-col items-center justify-center overflow-hidden">
-        <div className="bg-white p-6 rounded-lg shadow-md max-w-md w-full text-center mx-4">
-          <div className="mb-4">
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3">
-              <span className="text-red-600 text-2xl">⚠️</span>
-            </div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">
-              Profile Loading Issue
-            </h2>
-            <p className="text-sm text-gray-600 mb-4">
-              We're having trouble loading your profile. This might be a temporary issue.
-            </p>
-          </div>
-          
-          <div className="flex flex-col gap-2">
+        <div className="bg-white p-6 rounded shadow-md max-w-md w-full text-center">
+          <p className="text-lg font-semibold text-red-600 mb-4">
+            {errorProfile?.message || "Failed to load profile."}
+          </p>
+          <div className="flex gap-2 justify-center">
             <button 
-              className="bg-booqit-primary rounded-lg px-4 py-2 text-white font-medium hover:bg-booqit-primary/90 transition-colors" 
-              onClick={() => {
-                console.log('🔄 Refreshing page...');
-                window.location.reload();
-              }}
+              className="bg-booqit-primary rounded px-4 py-2 text-white font-medium" 
+              onClick={() => window.location.reload()}
             >
-              Try Again
+              Refresh Page
             </button>
             <button 
-              className="bg-gray-100 rounded-lg px-4 py-2 text-gray-700 font-medium hover:bg-gray-200 transition-colors" 
-              onClick={() => {
-                console.log('🏠 Navigating to home...');
-                window.location.href = '/home';
-              }}
+              className="bg-gray-500 rounded px-4 py-2 text-white font-medium" 
+              onClick={() => window.location.href = '/home'}
             >
               Go to Home
-            </button>
-            <button 
-              className="text-red-600 text-sm hover:text-red-700 transition-colors mt-2" 
-              onClick={() => {
-                console.log('🚪 Logging out due to profile error...');
-                logout();
-              }}
-            >
-              Sign Out
             </button>
           </div>
         </div>
@@ -271,19 +221,9 @@ const ProfilePage: React.FC = () => {
 
   // If no user, redirect to auth
   if (!user) {
-    console.log('🚫 No user found, redirecting to auth');
     window.location.href = '/auth';
     return null;
   }
-
-  // Use fallback values to prevent crashes
-  const safeProfile = profile || {
-    id: user.id,
-    name: user.email?.split('@')[0] || 'Customer',
-    email: user.email || '',
-    phone: user.user_metadata?.phone || null,
-    role: 'customer'
-  };
 
   return (
     <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
@@ -294,16 +234,16 @@ const ProfilePage: React.FC = () => {
             <Avatar className="w-24 h-24 shadow-lg border-4 border-white bg-white/30">
               <AvatarImage src="" />
               <AvatarFallback className="bg-booqit-primary/80 text-white text-xl font-semibold">
-                {getInitials(safeProfile.name || user?.email || 'User')}
+                {getInitials(profile?.name || user?.email || 'User')}
               </AvatarFallback>
             </Avatar>
           </div>
           <div className="mt-4 mb-2">
             <h1 className="text-3xl font-righteous tracking-wide font-bold text-white drop-shadow-sm text-center">
-              {(safeProfile.name || user?.email?.split('@')[0] || 'Customer').toUpperCase()}
+              {(profile?.name || user?.email?.split('@')[0] || 'Customer').toUpperCase()}
             </h1>
             <p className="text-sm text-white/70 font-medium mt-1 text-center">
-              {safeProfile.email || user?.email}
+              {profile?.email || user?.email}
             </p>
           </div>
         </div>
