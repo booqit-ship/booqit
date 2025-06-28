@@ -242,7 +242,8 @@ const AppContent: React.FC = () => {
         <Route path="/reviews" element={<LazyRoute><ProtectedRoute><CustomerLayout><ReviewsPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
         <Route path="/settings" element={<LazyRoute><ProtectedRoute><CustomerLayout><SettingsPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
 
-        <Route path="/settings/account" element={<LazyRoute><ProtectedRoute><CustomerLayout><AccountPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        {/* Fixed Account Information Route */}
+        <Route path="/settings/account" element={<LazyRoute><ProtectedRoute><CustomerLayout><AccountInformationPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
         <Route path="/settings/privacy-policy" element={<LazyRoute><ProtectedRoute><CustomerLayout><PrivacyPolicy /></CustomerLayout></ProtectedRoute></LazyRoute>} />
         <Route path="/settings/terms-conditions" element={<LazyRoute><ProtectedRoute><CustomerLayout><TermsAndConditions /></CustomerLayout></ProtectedRoute></LazyRoute>} />
         <Route path="/settings/contact" element={<LazyRoute><ProtectedRoute><CustomerLayout><ContactPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />

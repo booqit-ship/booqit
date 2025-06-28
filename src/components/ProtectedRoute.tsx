@@ -30,9 +30,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const hasPermanentSession = permanentData.isLoggedIn;
   const permanentRole = permanentData.userRole as UserRole;
 
-  // Show loading only briefly - if we have permanent session, proceed immediately
+  // Show loading with shorter duration - if we have permanent session, proceed quickly
   if (loading && !hasPermanentSession) {
-    console.log('⏳ ProtectedRoute: Showing loading');
+    console.log('⏳ ProtectedRoute: Showing loading (no permanent session)');
     return (
       <div className="min-h-screen bg-gradient-to-br from-booqit-primary/10 to-white flex items-center justify-center">
         <div className="text-center">
@@ -51,11 +51,13 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     effectiveAuth, 
     effectiveRole, 
     isAuthenticated, 
-    hasPermanentSession 
+    hasPermanentSession,
+    permanentRole,
+    actualRole: userRole
   });
 
   if (!effectiveAuth) {
-    console.log('🚫 ProtectedRoute: User not authenticated, redirecting to /');
+    console.log('🚫 ProtectedRoute: User not authenticated, redirecting to home');
     return <Navigate to="/" replace />;
   }
 
@@ -67,11 +69,24 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return children ? <>{children}</> : <Outlet />;
   }
   
-  // Only redirect on role mismatch if we have a specific required role
+  // Only redirect on role mismatch if we have a specific required role AND a definitive role
   if (requiredRole && effectiveRole && effectiveRole !== requiredRole) {
     console.log('🚫 ProtectedRoute: Role mismatch, redirecting based on role:', effectiveRole);
     const redirectPath = effectiveRole === 'merchant' ? '/merchant' : '/home';
     return <Navigate to={redirectPath} replace />;
+  }
+
+  // If we have a required role but no effective role, wait a bit longer for role to load
+  if (requiredRole && !effectiveRole && loading) {
+    console.log('⏳ ProtectedRoute: Waiting for role to load...');
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-booqit-primary/10 to-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin h-8 w-8 border-2 border-booqit-primary border-t-transparent rounded-full mx-auto mb-2"></div>
+          <p className="text-sm text-gray-600 font-poppins">Verifying access...</p>
+        </div>
+      </div>
+    );
   }
 
   console.log('✅ ProtectedRoute: Access granted');

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import ProfileImageUpload from '@/components/customer/ProfileImageUpload';
 
 interface Profile {
@@ -40,7 +41,7 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
   console.log('🔍 Fetching profile for user:', userId);
   
   try {
-    // First try to get existing profile
+    // Get profile data with no fallback creation
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
       .select('id, name, email, phone, role, avatar_url')
@@ -49,8 +50,7 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
     
     if (profileError) {
       console.error('❌ Profile fetch error:', profileError);
-      // Don't throw on database errors, return fallback data
-      console.log('🔄 Using fallback profile data due to fetch error');
+      throw profileError;
     }
     
     if (profileData) {
@@ -58,9 +58,9 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
       return profileData;
     }
     
-    // If no profile exists, create fallback data (don't try to insert)
-    console.log('📝 No profile found, using fallback data');
-    const fallbackProfile = {
+    // If no profile exists, create one
+    console.log('📝 Creating new profile for user');
+    const newProfile = {
       id: userId,
       name: user_metadata?.name || email?.split('@')[0] || 'Customer',
       email: email || '',
@@ -69,19 +69,22 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
       avatar_url: null
     };
     
-    return fallbackProfile;
+    const { error: insertError } = await supabase
+      .from('profiles')
+      .insert(newProfile);
+    
+    if (insertError) {
+      console.error('❌ Profile creation error:', insertError);
+      // Return the profile data anyway
+      return newProfile;
+    }
+    
+    console.log('✅ Profile created successfully');
+    return newProfile;
     
   } catch (error) {
     console.error('❌ Exception in fetchProfile:', error);
-    // Return fallback data instead of throwing
-    return {
-      id: userId,
-      name: user_metadata?.name || email?.split('@')[0] || 'Customer',
-      email: email || '',
-      phone: user_metadata?.phone || null,
-      role: 'customer',
-      avatar_url: null
-    };
+    throw error;
   }
 };
 
@@ -152,7 +155,7 @@ const ProfilePage: React.FC = () => {
     userId: user?.id 
   });
 
-  // Fetch profile with improved error handling - NO auto-logout on errors
+  // Fetch profile with improved error handling
   const {
     data: profile,
     isLoading: loadingProfile,
@@ -162,7 +165,7 @@ const ProfilePage: React.FC = () => {
     queryKey: ['profile', user?.id],
     queryFn: () => fetchProfile(user?.id ?? null, user?.email ?? null, user?.user_metadata ?? {}),
     enabled: !!user?.id && isAuthenticated && !loading,
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 30 * 1000, // 30 seconds - shorter for more frequent updates
     retry: (failureCount, error) => {
       // Don't retry on auth errors to prevent loops
       if (error instanceof Error && (
@@ -248,13 +251,25 @@ const ProfilePage: React.FC = () => {
     }
   };
 
+  const handleRefreshProfile = async () => {
+    console.log('🔄 Manually refreshing profile data...');
+    setShowError(false);
+    try {
+      await refetchProfile();
+      toast.success('Profile refreshed successfully');
+    } catch (error) {
+      console.error('❌ Manual refresh failed:', error);
+      toast.error('Failed to refresh profile');
+    }
+  };
+
   // Show loading state
   if (loading || (loadingProfile && !profileData)) {
     console.log('⏳ Showing loading state');
     return <ProfileSkeleton />;
   }
 
-  // Show error state with recovery options - NO auto-logout
+  // Show error state with recovery options
   if (showError && !profileData) {
     console.log('❌ Showing error state');
     
@@ -272,11 +287,7 @@ const ProfilePage: React.FC = () => {
           </div>
           <div className="flex flex-col gap-2">
             <Button 
-              onClick={() => {
-                console.log('🔄 Retrying profile fetch...');
-                setShowError(false);
-                refetchProfile();
-              }}
+              onClick={handleRefreshProfile}
               className="w-full"
             >
               <RefreshCw className="w-4 h-4 mr-2" />
@@ -306,9 +317,6 @@ const ProfilePage: React.FC = () => {
     );
   }
 
-  // REMOVED: Aggressive auth check that was causing redirects
-  // The auth check should be handled by ProtectedRoute, not here
-
   // Use profile data with fallbacks
   const displayProfile = profile || profileData;
   const displayName = displayProfile?.name || user?.email?.split('@')[0] || 'Customer';
@@ -336,6 +344,13 @@ const ProfilePage: React.FC = () => {
             <p className="text-sm text-white/70 font-medium mt-1">
               {displayEmail}
             </p>
+            {/* Add refresh button for debugging */}
+            <button 
+              onClick={handleRefreshProfile}
+              className="text-xs text-white/60 hover:text-white/80 mt-1 underline"
+            >
+              Refresh Profile
+            </button>
           </div>
         </div>
       </div>
