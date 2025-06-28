@@ -179,12 +179,12 @@ const HomePage: React.FC = () => {
         {/* Categories Section */}
         <div>
           <h2 className="mb-4 font-normal text-xl">Categories</h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             {featuredCategories.map(category => (
               <Button
                 key={category.id}
                 variant="outline"
-                className={`h-32 flex flex-col items-center justify-center p-4 border transition-all duration-200 relative overflow-hidden
+                className={`h-24 flex items-center justify-between p-0 border transition-all duration-200 overflow-hidden
                   ${activeCategory === category.name 
                     ? 'border-booqit-primary bg-booqit-primary/10 shadow-md' 
                     : 'border-gray-200 shadow-sm hover:shadow-md hover:border-booqit-primary'
@@ -196,16 +196,16 @@ const HomePage: React.FC = () => {
                 }}
                 onClick={() => handleCategoryClick(category.name)}
               >
-                <div className="absolute inset-0 flex items-center justify-center">
+                <div className="flex-1 flex items-center justify-start p-6">
+                  <span className="text-lg font-medium text-gray-800">{category.name}</span>
+                </div>
+                <div className="w-24 h-24 flex items-center justify-center">
                   <img
                     src={category.image}
                     alt={category.name}
                     className="w-full h-full object-cover"
                     loading="lazy"
                   />
-                </div>
-                <div className="relative z-10 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-1 mt-auto mb-2">
-                  <span className="text-sm font-medium text-gray-800">{category.name}</span>
                 </div>
               </Button>
             ))}
