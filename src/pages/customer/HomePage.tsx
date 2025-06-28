@@ -31,11 +31,13 @@ const HomePage: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [locationLoading, setLocationLoading] = useState(true);
   const navigate = useNavigate();
-  const { userId } = useAuth();
+  const { isAuthenticated } = useAuth();
 
   // Use optimized hooks
   const { userName, userAvatar } = useOptimizedUserProfile();
   const { merchants, isLoading } = useOptimizedMerchants(userLocation);
+
+  console.log('HomePage render - Auth status:', isAuthenticated, 'User:', userName, 'Merchants:', merchants.length);
 
   // Filter merchants by category
   const filteredMerchants = useMemo(() => {
@@ -53,7 +55,7 @@ const HomePage: React.FC = () => {
     );
   }, [merchants, activeCategory]);
 
-  // Get user location with better caching
+  // Get user location
   useEffect(() => {
     const getLocationFromCache = () => {
       try {
@@ -61,6 +63,7 @@ const HomePage: React.FC = () => {
         if (cached) {
           const data = JSON.parse(cached);
           if (Date.now() - data.timestamp < 10 * 60 * 1000) { // 10 minutes
+            console.log('Using cached location');
             setUserLocation(data.location);
             setLocationName(data.locationName || "Your area");
             setLocationLoading(false);
@@ -75,6 +78,7 @@ const HomePage: React.FC = () => {
 
     if (getLocationFromCache()) return;
 
+    console.log('Fetching fresh location');
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         async (position) => {
@@ -82,6 +86,7 @@ const HomePage: React.FC = () => {
             lat: position.coords.latitude,
             lng: position.coords.longitude
           };
+          console.log('Location obtained:', userLoc);
           setUserLocation(userLoc);
 
           try {
@@ -124,6 +129,7 @@ const HomePage: React.FC = () => {
         }
       );
     } else {
+      console.log('Geolocation not supported, using default');
       setLocationName("Bengaluru");
       setUserLocation({ lat: 12.9716, lng: 77.5946 });
       setLocationLoading(false);

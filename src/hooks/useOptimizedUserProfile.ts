@@ -16,44 +16,29 @@ interface CachedProfile {
 export const useOptimizedUserProfile = () => {
   const [userName, setUserName] = useState('there');
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const { userId } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
+  const { userId, isAuthenticated } = useAuth();
   const fetchingRef = useRef(false);
   const mountedRef = useRef(true);
-  const cacheCheckedRef = useRef(false);
-
-  // Check cache immediately
-  useEffect(() => {
-    if (!cacheCheckedRef.current && userId) {
-      try {
-        const cached = localStorage.getItem(PROFILE_CACHE_KEY);
-        if (cached) {
-          const data: CachedProfile = JSON.parse(cached);
-          if (Date.now() - data.timestamp < CACHE_DURATION && data.userId === userId) {
-            setUserName(data.name.split(' ')[0]);
-            setUserAvatar(data.avatar_url);
-            cacheCheckedRef.current = true;
-            return;
-          }
-        }
-      } catch (error) {
-        console.warn('Failed to read cached profile:', error);
-      }
-      cacheCheckedRef.current = true;
-    }
-  }, [userId]);
 
   useEffect(() => {
     const fetchUserProfile = async () => {
-      if (!userId || fetchingRef.current || !mountedRef.current) return;
+      if (!userId || !isAuthenticated || fetchingRef.current || !mountedRef.current) {
+        setIsLoading(false);
+        return;
+      }
 
-      // Check if we already have cached data
+      // Check cache first
       try {
         const cached = localStorage.getItem(PROFILE_CACHE_KEY);
         if (cached) {
           const data: CachedProfile = JSON.parse(cached);
           if (Date.now() - data.timestamp < CACHE_DURATION && data.userId === userId) {
-            return; // Already have fresh data
+            console.log('Using cached profile data');
+            setUserName(data.name.split(' ')[0] || 'there');
+            setUserAvatar(data.avatar_url);
+            setIsLoading(false);
+            return;
           }
         }
       } catch (error) {
@@ -64,15 +49,23 @@ export const useOptimizedUserProfile = () => {
         fetchingRef.current = true;
         setIsLoading(true);
 
+        console.log('Fetching profile for user:', userId);
         const { data, error } = await supabase
           .from('profiles')
           .select('name, avatar_url')
           .eq('id', userId)
           .single();
 
-        if (error) throw error;
-
-        if (data && mountedRef.current) {
+        if (error) {
+          console.error('Profile fetch error:', error);
+          // If no profile exists, use fallback
+          if (error.code === 'PGRST116') {
+            console.log('No profile found, using fallback');
+            setUserName('there');
+            setUserAvatar(null);
+          }
+        } else if (data && mountedRef.current) {
+          console.log('Profile data fetched:', data);
           const firstName = data.name?.split(' ')[0] || 'there';
           setUserName(firstName);
           setUserAvatar(data.avatar_url);
@@ -88,6 +81,8 @@ export const useOptimizedUserProfile = () => {
         }
       } catch (error) {
         console.error('Error fetching user profile:', error);
+        setUserName('there');
+        setUserAvatar(null);
       } finally {
         if (mountedRef.current) {
           setIsLoading(false);
@@ -97,7 +92,7 @@ export const useOptimizedUserProfile = () => {
     };
 
     fetchUserProfile();
-  }, [userId]);
+  }, [userId, isAuthenticated]);
 
   useEffect(() => {
     return () => {
