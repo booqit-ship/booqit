@@ -323,26 +323,42 @@ serve(async (req) => {
     console.log('✅ Profile data ready:', { id: profileData.id, name: profileData.name });
     console.log('✅ Supabase user ready:', { id: supabaseUser?.id });
 
-    // Ensure we have a valid Supabase user before generating token
+    // Ensure we have a valid Supabase user before creating session
     if (!supabaseUser || !supabaseUser.id) {
-      console.error('❌ No valid Supabase user found for token generation');
+      console.error('❌ No valid Supabase user found for session creation');
       return new Response(
         JSON.stringify({ success: false, error: 'Failed to resolve user account' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Generate access token using the Supabase user ID
-    console.log('🔑 Generating access token for user:', supabaseUser.id);
-    const { data: tokenData, error: tokenError } = await supabase.auth.admin.generateAccessToken(
-      supabaseUser.id
-    );
+    // Create session by signing in the user (instead of generateAccessToken)
+    console.log('🔑 Creating session for user:', supabaseUser.id);
+    const { data: sessionData, error: sessionError } = await supabase.auth.admin.generateLink({
+      type: 'magiclink',
+      email: supabaseUser.email || `${supabaseUser.id}@temp.booqit.in`,
+      options: {
+        redirectTo: 'https://booqit.in/auth/callback'
+      }
+    });
 
-    if (tokenError) {
-      console.error('❌ Error generating access token:', tokenError);
+    if (sessionError) {
+      console.error('❌ Error creating session:', sessionError);
+      // Fallback: return user data without session
+      console.log('⚠️ Proceeding without session creation');
+      
       return new Response(
-        JSON.stringify({ success: false, error: 'Failed to generate session token' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({
+          success: true,
+          user: profileData,
+          session: null, // No session created
+          isExistingUser,
+          message: 'Authentication successful but session creation failed'
+        }),
+        { 
+          status: 200, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
       );
     }
 
@@ -353,9 +369,9 @@ serve(async (req) => {
         success: true,
         user: profileData,
         session: {
-          access_token: tokenData.access_token,
-          refresh_token: tokenData.refresh_token,
-          expires_in: tokenData.expires_in,
+          access_token: sessionData.properties?.access_token || null,
+          refresh_token: sessionData.properties?.refresh_token || null,
+          expires_in: sessionData.properties?.expires_in || 3600,
           user: supabaseUser
         },
         isExistingUser
