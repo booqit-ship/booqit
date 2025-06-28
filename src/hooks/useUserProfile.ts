@@ -7,11 +7,13 @@ interface UserProfile {
   id: string;
   name: string;
   email: string;
-  phone: string;
+  phone: string | null;
   role: string;
   avatar_url: string | null;
   created_at: string;
-  updated_at: string;
+  fcm_token: string | null;
+  notification_enabled: boolean | null;
+  last_notification_sent: string | null;
 }
 
 export const useUserProfile = () => {
