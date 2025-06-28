@@ -38,7 +38,7 @@ export const useUserProfile = () => {
         return existingProfile as UserProfile;
       }
 
-      // If profile doesn't exist, create it
+      // If profile doesn't exist, create it using the function
       console.log('📝 Creating new profile for user');
       const { data: newProfile, error: createError } = await supabase
         .rpc('get_or_create_user_profile', { p_user_id: user.id });
@@ -50,7 +50,20 @@ export const useUserProfile = () => {
 
       if (newProfile && newProfile.length > 0) {
         console.log('✅ Profile created successfully');
-        return newProfile[0] as UserProfile;
+        // Convert the function result to match UserProfile interface
+        const profileData = newProfile[0];
+        return {
+          id: profileData.id,
+          name: profileData.name,
+          email: profileData.email,
+          phone: profileData.phone,
+          role: profileData.role,
+          avatar_url: profileData.avatar_url,
+          created_at: profileData.created_at,
+          fcm_token: null,
+          notification_enabled: true,
+          last_notification_sent: null
+        } as UserProfile;
       }
 
       throw new Error('Failed to fetch or create user profile');
