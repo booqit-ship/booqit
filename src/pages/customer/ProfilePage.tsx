@@ -1,5 +1,6 @@
+
 import React, { Suspense } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Settings, User, Calendar, Star, ChevronRight, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -134,7 +135,8 @@ const ProfileSkeleton = () => (
 );
 
 const ProfilePage: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
 
   // Fetch profile and bookings
   const {
@@ -144,7 +146,7 @@ const ProfilePage: React.FC = () => {
   } = useQuery({
     queryKey: ['profile', user?.id],
     queryFn: () => fetchProfile(user?.id ?? null, user?.email ?? null, user?.user_metadata ?? {}),
-    enabled: !!user?.id,
+    enabled: !!user?.id && isAuthenticated,
     staleTime: 1 * 60 * 1000,
     retry: 2
   });
@@ -155,7 +157,7 @@ const ProfilePage: React.FC = () => {
   } = useQuery({
     queryKey: ['recentBookings', user?.id],
     queryFn: () => fetchRecentBookings(user?.id ?? null),
-    enabled: !!user?.id,
+    enabled: !!user?.id && isAuthenticated,
     staleTime: 2 * 60 * 1000,
     retry: 1
   });
@@ -186,6 +188,14 @@ const ProfilePage: React.FC = () => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
+  // Handle authentication redirect safely
+  React.useEffect(() => {
+    if (!isAuthenticated && !user) {
+      console.log('User not authenticated, navigating to auth');
+      navigate('/auth', { replace: true });
+    }
+  }, [isAuthenticated, user, navigate]);
+
   // Loading state
   if (loadingProfile || loadingBookings) {
     return <ProfileSkeleton />;
@@ -208,7 +218,7 @@ const ProfilePage: React.FC = () => {
             </button>
             <button 
               className="bg-gray-500 rounded px-4 py-2 text-white font-medium" 
-              onClick={() => window.location.href = '/auth'}
+              onClick={() => navigate('/auth', { replace: true })}
             >
               Go to Login
             </button>
@@ -218,9 +228,8 @@ const ProfilePage: React.FC = () => {
     );
   }
 
-  // If no user, redirect to auth
-  if (!user) {
-    window.location.href = '/auth';
+  // Don't render anything if not authenticated (will redirect)
+  if (!isAuthenticated || !user) {
     return null;
   }
 

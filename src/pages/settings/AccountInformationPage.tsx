@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { ArrowLeft } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -72,7 +72,8 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
 };
 
 const AccountInformationPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
 
   const {
     data: profile,
@@ -82,7 +83,7 @@ const AccountInformationPage: React.FC = () => {
   } = useQuery({
     queryKey: ['profile', user?.id],
     queryFn: () => fetchProfile(user?.id ?? null, user?.email ?? null, user?.user_metadata ?? {}),
-    enabled: !!user?.id,
+    enabled: !!user?.id && isAuthenticated,
     staleTime: 1 * 60 * 1000,
     retry: 2
   });
@@ -91,6 +92,19 @@ const AccountInformationPage: React.FC = () => {
     // Trigger a refetch to update the profile data
     refetch();
   };
+
+  // Handle authentication redirect safely
+  React.useEffect(() => {
+    if (!isAuthenticated && !user) {
+      console.log('User not authenticated, navigating to auth');
+      navigate('/auth', { replace: true });
+    }
+  }, [isAuthenticated, user, navigate]);
+
+  // Don't render anything if not authenticated (will redirect)
+  if (!isAuthenticated || !user) {
+    return null;
+  }
 
   if (isLoading) {
     return (
