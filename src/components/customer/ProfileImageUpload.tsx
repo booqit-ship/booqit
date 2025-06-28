@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Camera, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -53,23 +54,44 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
         return;
       }
 
-      // Check authentication
+      // Check authentication - ensure we have a valid session
       const { data: { session }, error: authError } = await supabase.auth.getSession();
-      if (authError || !session) {
+      if (authError) {
         console.error('Authentication error:', authError);
-        toast.error('Please log in again to upload images');
+        toast.error('Authentication failed. Please log in again.');
+        return;
+      }
+
+      if (!session?.user) {
+        console.error('No active session found');
+        toast.error('Please log in to upload images');
         return;
       }
 
       console.log('User authenticated:', session.user.id);
 
-      // Create simple filename without folders
+      // Delete existing avatar if it exists
+      if (currentImageUrl) {
+        const existingFileName = currentImageUrl.split('/').pop();
+        if (existingFileName) {
+          console.log('Deleting existing avatar:', existingFileName);
+          const { error: deleteError } = await supabase.storage
+            .from('user_avatars')
+            .remove([existingFileName]);
+          
+          if (deleteError) {
+            console.warn('Failed to delete existing avatar:', deleteError);
+          }
+        }
+      }
+
+      // Create simple filename
       const fileExt = file.name.split('.').pop()?.toLowerCase();
-      const fileName = `avatar_${userId}_${Date.now()}.${fileExt}`;
+      const fileName = `${userId}_${Date.now()}.${fileExt}`;
       
       console.log('Generated filename:', fileName);
 
-      // Upload to Supabase storage with detailed logging
+      // Upload to Supabase storage
       console.log('Uploading to user_avatars bucket...');
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('user_avatars')
@@ -79,19 +101,8 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
         });
 
       if (uploadError) {
-        console.error('Upload error details:', {
-          message: uploadError.message,
-          error: uploadError
-        });
-        
-        // Provide specific error messages
-        if (uploadError.message.includes('not found')) {
-          toast.error('Storage bucket not found. Please contact support.');
-        } else if (uploadError.message.includes('policy')) {
-          toast.error('Permission denied. Please try logging in again.');
-        } else {
-          toast.error(`Upload failed: ${uploadError.message}`);
-        }
+        console.error('Upload error:', uploadError);
+        toast.error(`Upload failed: ${uploadError.message}`);
         return;
       }
 
@@ -103,14 +114,6 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
         .getPublicUrl(fileName);
 
       console.log('Public URL generated:', publicUrl);
-
-      // Test if the URL is accessible
-      try {
-        const response = await fetch(publicUrl, { method: 'HEAD' });
-        console.log('URL accessibility test:', response.status);
-      } catch (e) {
-        console.warn('URL test failed:', e);
-      }
 
       // Update user profile with new avatar URL
       console.log('Updating profile with avatar URL...');
@@ -143,6 +146,22 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
       setUploading(true);
 
       console.log('Removing profile image...');
+      
+      // Delete from storage if exists
+      if (currentImageUrl) {
+        const fileName = currentImageUrl.split('/').pop();
+        if (fileName) {
+          const { error: deleteError } = await supabase.storage
+            .from('user_avatars')
+            .remove([fileName]);
+          
+          if (deleteError) {
+            console.warn('Failed to delete from storage:', deleteError);
+          }
+        }
+      }
+
+      // Update profile to remove avatar URL
       const { error } = await supabase
         .from('profiles')
         .update({ avatar_url: null })
