@@ -51,6 +51,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const ensureUserProfile = async (user: User) => {
+    try {
+      console.log('🔍 Ensuring profile exists for user:', user.id);
+      
+      // Check if profile exists
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (existingProfile) {
+        console.log('✅ Profile already exists');
+        return existingProfile.role || 'customer';
+      }
+
+      // Create profile if it doesn't exist
+      console.log('🔧 Creating new profile');
+      const profileData = {
+        id: user.id,
+        name: user.user_metadata?.name || user.email?.split('@')[0] || 'Customer',
+        email: user.email || '',
+        phone: user.user_metadata?.phone || '',
+        role: user.user_metadata?.role || 'customer',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      const { data: newProfile, error } = await supabase
+        .from('profiles')
+        .insert(profileData)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ Profile creation failed:', error);
+        return 'customer'; // fallback
+      }
+
+      console.log('✅ Profile created successfully');
+      return newProfile.role || 'customer';
+    } catch (error) {
+      console.error('❌ Profile ensure failed:', error);
+      return 'customer'; // fallback
+    }
+  };
+
   useEffect(() => {
     let mounted = true;
     
@@ -83,22 +130,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUserId(session.user.id);
           setIsAuthenticated(true);
 
-          // Get or create user profile
-          try {
-            const { data: profileData } = await supabase
-              .rpc('get_or_create_user_profile', { p_user_id: session.user.id });
-
-            if (profileData && profileData[0] && mounted) {
-              const role = profileData[0].role || 'customer';
-              setUserRole(role);
-              PermanentSession.saveSession(session, role, session.user.id);
-              console.log('✅ AUTH: User role updated to:', role);
-            }
-          } catch (roleError) {
-            console.warn('⚠️ AUTH: Could not fetch/create profile, using default:', roleError);
-            const defaultRole = 'customer';
-            setUserRole(defaultRole);
-            PermanentSession.saveSession(session, defaultRole, session.user.id);
+          // Ensure profile exists and get role
+          const role = await ensureUserProfile(session.user);
+          if (mounted) {
+            setUserRole(role);
+            PermanentSession.saveSession(session, role, session.user.id);
+            console.log('✅ AUTH: User role updated to:', role);
           }
         } else {
           console.log('ℹ️ AUTH: No valid session');
@@ -143,26 +180,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUserId(session.user.id);
           setIsAuthenticated(true);
           
-          // Get profile asynchronously
-          setTimeout(async () => {
-            if (!mounted) return;
-            try {
-              const { data: profileData } = await supabase
-                .rpc('get_or_create_user_profile', { p_user_id: session.user.id });
-              
-              if (profileData && profileData[0] && mounted) {
-                const role = profileData[0].role || 'customer';
-                setUserRole(role);
-                PermanentSession.saveSession(session, role, session.user.id);
-              }
-            } catch (error) {
-              console.warn('⚠️ AUTH: Profile fetch after sign in failed:', error);
-              if (mounted) {
-                setUserRole('customer');
-                PermanentSession.saveSession(session, 'customer', session.user.id);
-              }
-            }
-          }, 100);
+          // Ensure profile exists and get role
+          const role = await ensureUserProfile(session.user);
+          if (mounted) {
+            setUserRole(role);
+            PermanentSession.saveSession(session, role, session.user.id);
+          }
         } else if (event === 'SIGNED_OUT') {
           console.log('🚪 AUTH: User signed out');
           PermanentSession.clearSession();

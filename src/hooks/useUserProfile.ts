@@ -28,24 +28,54 @@ export const useUserProfile = () => {
     queryFn: async () => {
       if (!userId) throw new Error('No user ID');
       
-      console.log('🔍 Fetching profile using function for user:', userId);
+      console.log('🔍 Fetching profile for user:', userId);
       
-      // Use the database function to get or create profile
-      const { data, error } = await supabase
-        .rpc('get_or_create_user_profile', { p_user_id: userId });
+      // First try to get existing profile
+      const { data: existingProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
       
-      if (error) {
-        console.error('❌ Profile fetch error:', error);
-        throw error;
+      if (existingProfile && !profileError) {
+        console.log('✅ Profile found:', existingProfile.name);
+        return existingProfile as UserProfile;
       }
       
-      const profileData = data?.[0];
-      if (!profileData) {
-        throw new Error('No profile data returned');
+      console.log('🔧 Profile not found, creating new profile...');
+      
+      // Get user data from auth.users to create profile
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error('User not authenticated');
       }
       
-      console.log('✅ Profile fetched:', profileData.name);
-      return profileData as UserProfile;
+      // Create new profile
+      const newProfile = {
+        id: userId,
+        name: user.user_metadata?.name || user.email?.split('@')[0] || 'Customer',
+        email: user.email || '',
+        phone: user.user_metadata?.phone || '',
+        role: user.user_metadata?.role || 'customer',
+        avatar_url: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
+      const { data: createdProfile, error: createError } = await supabase
+        .from('profiles')
+        .insert(newProfile)
+        .select()
+        .single();
+      
+      if (createError) {
+        console.error('❌ Profile creation error:', createError);
+        throw createError;
+      }
+      
+      console.log('✅ Profile created:', createdProfile.name);
+      return createdProfile as UserProfile;
     },
     enabled: !!userId && isAuthenticated,
     staleTime: 1000 * 60 * 5, // 5 minutes
