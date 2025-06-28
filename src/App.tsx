@@ -1,3 +1,4 @@
+
 import { useState, useEffect, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -14,7 +15,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 const Index = LazyRoute(() => import("./pages/Index"));
 const AuthPage = LazyRoute(() => import("./pages/AuthPage"));
 const PhoneAuthPage = LazyRoute(() => import("./pages/PhoneAuthPage"));
-const MerchantDashboard = LazyRoute(() => import("./pages/merchant/MerchantDashboard"));
+const MerchantDashboard = LazyRoute(() => import("./pages/merchant/DashboardPage"));
 const MerchantProfilePage = LazyRoute(() => import("./pages/merchant/MerchantProfilePage"));
 const MerchantOnboardingPage = LazyRoute(() => import("./pages/merchant/MerchantOnboardingPage"));
 const CustomerHomePage = LazyRoute(() => import("./pages/customer/CustomerHomePage"));
