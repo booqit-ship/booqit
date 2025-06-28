@@ -506,8 +506,8 @@ async function sendNotificationToToken(token: string, title: string, body: strin
 
     const fcmUrl = `https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`;
     
-    // Use absolute URLs for icons in the preview environment
-    const baseUrl = 'https://preview--booqit.lovable.app';
+    // Use app.booqit.in domain consistently
+    const baseUrl = 'https://app.booqit.in';
     
     const message = {
       message: {

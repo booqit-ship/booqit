@@ -33,12 +33,9 @@ const getDeviceInfo = () => {
   return { isMobile: false, isAndroid: false, isiOS: false, isChrome: false };
 };
 
-// Get current domain with fallback
+// Use consistent domain
 const getCurrentDomain = () => {
-  if (typeof location !== 'undefined') {
-    return location.origin;
-  }
-  return 'https://preview--booqit.lovable.app';
+  return 'https://app.booqit.in';
 };
 
 console.log('🔄 SW: Firebase messaging service worker initialized with web config');
@@ -123,7 +120,7 @@ self.addEventListener('notificationclick', (event) => {
       
       // Try to focus existing window first
       for (const client of clientList) {
-        if (client.url.includes(new URL(currentDomain).hostname) && 'focus' in client) {
+        if (client.url.includes('booqit.in') && 'focus' in client) {
           console.log('🔔 SW: Focusing existing client');
           return client.focus();
         }
