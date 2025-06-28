@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 
 interface ShopResolverProps {
@@ -38,7 +38,7 @@ const RESERVED_ROUTES = [
   'booking', 'payment', 'profile', 'calendar', 'services', 'staff', 'reviews',
   'about', 'contact', 'privacy', 'terms', 'onboarding', 'dashboard', 'analytics',
   'earnings', 'notifications', 'admin', 'api', 'login', 'signup', 'verify',
-  'reset-password', 'forgot-password', 'guest-info', 'guest-booking'
+  'reset-password', 'forgot-password', 'guest-info', 'guest-booking', 'nearby-shops'
 ];
 
 const isValidShopSlug = (slug: string): boolean => {
@@ -62,8 +62,13 @@ const isValidShopSlug = (slug: string): boolean => {
 };
 
 const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
-  const { shopSlug } = useParams();
+  const params = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
+  
+  // Extract shopSlug more robustly
+  const shopSlug = params.shopSlug || location.pathname.split('/')[1] || '';
+  
   const [isResolving, setIsResolving] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<any>(null);
@@ -77,17 +82,18 @@ const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
       console.log('=== SHOP RESOLVER DEBUG START ===');
       console.log('Current URL:', currentUrl);
       console.log('Pathname:', pathname);
-      console.log('useParams shopSlug:', shopSlug);
+      console.log('useParams result:', params);
+      console.log('Extracted shopSlug:', shopSlug);
       console.log('Type of shopSlug:', typeof shopSlug);
       
-      if (!shopSlug) {
+      if (!shopSlug || shopSlug.trim() === '') {
         console.log('❌ No shop slug provided in URL parameters');
         setError('No shop slug found in URL');
         setIsResolving(false);
         return;
       }
 
-      // Check if this is a reserved route
+      // Check if this is a reserved route or invalid format
       if (!isValidShopSlug(shopSlug)) {
         console.log('❌ Invalid shop slug format or reserved route:', shopSlug);
         setError(`Invalid shop slug format: "${shopSlug}"`);
@@ -179,7 +185,7 @@ const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
     };
 
     resolveShop();
-  }, [shopSlug, navigate]);
+  }, [shopSlug, navigate, params, location.pathname]);
 
   if (isResolving) {
     return (
