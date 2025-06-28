@@ -39,7 +39,6 @@ const featuredCategories = [{
 featuredCategories.forEach(category => {
   preloadImage(category.image);
 });
-
 const HomePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [nearbyShops, setNearbyShops] = useState<Merchant[]>([]);
@@ -146,7 +145,6 @@ const HomePage: React.FC = () => {
   useEffect(() => {
     setDisplayedShops(filteredShops.slice(0, 6));
   }, [filteredShops]);
-
   const fetchLocationName = async (lat: number, lng: number) => {
     try {
       const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=AIzaSyB28nWHDBaEoMGIEoqfWDh6L2VRkM5AMwc`);
@@ -284,13 +282,11 @@ const HomePage: React.FC = () => {
   const handleBookNow = (merchantId: string) => {
     navigate(`/merchant/${merchantId}`);
   };
-
   const handleViewMore = () => {
     // Navigate to a dedicated page showing all nearby shops
     const categoryParam = activeCategory ? `?category=${encodeURIComponent(activeCategory)}` : '';
     navigate(`/nearby-shops${categoryParam}`);
   };
-
   return <div className="pb-20"> {/* Add padding to account for bottom navigation */}
       {/* Header Section */}
       <motion.div className="bg-gradient-to-r from-booqit-primary to-purple-700 text-white p-6 rounded-b-3xl shadow-lg" initial={{
@@ -339,18 +335,11 @@ const HomePage: React.FC = () => {
               backgroundColor: activeCategory === category.name ? `${category.color}20` : `${category.color}10`
             }} onClick={() => handleCategoryClick(category.name)}>
                   <div className="w-16 h-16 mb-1 flex items-center justify-center">
-                    <img 
-                      src={category.image} 
-                      alt={category.name}
-                      className="w-full h-full object-contain"
-                      loading="eager"
-                      decoding="sync"
-                      onError={(e) => {
-                        console.error(`Failed to load image for ${category.name}`);
-                        // Fallback to a simple colored div if image fails to load
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
+                    <img src={category.image} alt={category.name} className="w-full h-full object-contain" loading="eager" decoding="sync" onError={e => {
+                  console.error(`Failed to load image for ${category.name}`);
+                  // Fallback to a simple colored div if image fails to load
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }} />
                   </div>
                   <span className="text-sm font-medium">{category.name}</span>
                 </Button>)}
@@ -403,17 +392,9 @@ const HomePage: React.FC = () => {
                     </CardContent>
                   </Card>)}
                 
-                {filteredShops.length > 6 && (
-                  <div className="flex justify-center mt-4">
-                    <Button 
-                      variant="outline" 
-                      onClick={handleViewMore}
-                      className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary hover:text-white"
-                    >
-                      View More ({filteredShops.length - 6} more shops)
-                    </Button>
-                  </div>
-                )}
+                {filteredShops.length > 6 && <div className="flex justify-center mt-4">
+                    
+                  </div>}
               </div> : <div className="text-center py-8 bg-gray-50 rounded-lg">
                 <p className="text-gray-500">
                   {activeCategory ? `No ${activeCategory} shops found within 5km` : "No shops found within 5km"}
