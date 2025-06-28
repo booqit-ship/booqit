@@ -1,24 +1,26 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { useShopUrl } from '@/hooks/useShopUrl';
 import { Copy, ExternalLink, QrCode, Share2 } from 'lucide-react';
 import { toast } from 'sonner';
-
 interface BookingUrlManagerProps {
   merchantId: string;
   shopName: string;
 }
-
 const BookingUrlManager: React.FC<BookingUrlManagerProps> = ({
   merchantId,
   shopName
 }) => {
-  // Since we removed shop URL functionality, show a simple booking link
-  const bookingUrl = `${window.location.origin}/book/${merchantId}`;
-
+  const {
+    shopUrl,
+    isLoading,
+    generateShortUrl
+  } = useShopUrl(merchantId);
+  const [showQR, setShowQR] = useState(false);
+  const bookingUrl = generateShortUrl();
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -27,8 +29,8 @@ const BookingUrlManager: React.FC<BookingUrlManagerProps> = ({
       toast.error('Failed to copy URL');
     }
   };
-
   const shareUrl = async () => {
+    if (!bookingUrl) return;
     if (navigator.share) {
       try {
         await navigator.share({
@@ -43,9 +45,22 @@ const BookingUrlManager: React.FC<BookingUrlManagerProps> = ({
       copyToClipboard(bookingUrl);
     }
   };
-
-  return (
-    <Card>
+  if (isLoading) {
+    return <Card>
+        <CardContent className="p-6 text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-booqit-primary mx-auto mb-2"></div>
+          <p className="text-sm text-gray-600">Loading booking URL...</p>
+        </CardContent>
+      </Card>;
+  }
+  if (!shopUrl || !bookingUrl) {
+    return <Card>
+        <CardContent className="p-6 text-center">
+          <p className="text-sm text-gray-600">Booking URL not available</p>
+        </CardContent>
+      </Card>;
+  }
+  return <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 font-righteous font-thin">
           <ExternalLink className="h-5 w-5" />
@@ -66,9 +81,12 @@ const BookingUrlManager: React.FC<BookingUrlManagerProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-green-600 border-green-600 font-poppins">
-            Active
+          <Badge variant="secondary" className="font-poppins">
+            Slug: {shopUrl.shop_slug}
           </Badge>
+          {shopUrl.is_active && <Badge variant="outline" className="text-green-600 border-green-600 font-poppins">
+              Active
+            </Badge>}
         </div>
 
         <div className="flex gap-2">
@@ -83,11 +101,9 @@ const BookingUrlManager: React.FC<BookingUrlManagerProps> = ({
         </div>
 
         <div className="text-xs text-gray-500 font-poppins">
-          Customers can book directly using this URL without needing to register or login.
+          Customers can book directly using this short URL without needing to register or login.
         </div>
       </CardContent>
-    </Card>
-  );
+    </Card>;
 };
-
 export default BookingUrlManager;
