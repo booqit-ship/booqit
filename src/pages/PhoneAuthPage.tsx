@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, Phone, MessageSquare, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { sendOTP, verifyOTP, syncWithSupabase } from '@/firebase';
+import { sendOTP, verifyOTP, checkPhoneExists, authenticateWithCustomJWT } from '@/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { ConfirmationResult } from 'firebase/auth';
 
@@ -21,6 +21,7 @@ const PhoneAuthPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   const [userCredential, setUserCredential] = useState<any>(null);
+  const [isExistingUser, setIsExistingUser] = useState(false);
   
   const navigate = useNavigate();
   const { setAuth } = useAuth();
@@ -31,6 +32,15 @@ const PhoneAuthPage: React.FC = () => {
     }
 
     setLoading(true);
+    
+    // First check if phone exists
+    const phoneCheck = await checkPhoneExists(phoneNumber);
+    setIsExistingUser(phoneCheck.exists);
+    
+    if (phoneCheck.exists) {
+      console.log('📞 Existing user detected:', phoneCheck.user?.name);
+    }
+
     const result = await sendOTP(phoneNumber);
     if (result) {
       setConfirmationResult(result);
@@ -48,9 +58,30 @@ const PhoneAuthPage: React.FC = () => {
     const result = await verifyOTP(confirmationResult, otpCode);
     if (result) {
       setUserCredential(result);
-      setStep('name');
+      
+      // If existing user, authenticate directly
+      if (isExistingUser) {
+        await handleAuthenticateExistingUser(result);
+      } else {
+        // New user, go to name step
+        setStep('name');
+      }
     }
     setLoading(false);
+  };
+
+  const handleAuthenticateExistingUser = async (credential: any) => {
+    const idToken = await credential.user.getIdToken();
+    const authResult = await authenticateWithCustomJWT(idToken, {
+      name: '', // Will be filled from existing profile
+      phone: phoneNumber,
+      email: credential.user.email || ''
+    });
+    
+    if (authResult.success) {
+      setAuth(true, 'customer', authResult.user.id);
+      navigate('/home');
+    }
   };
 
   const handleComplete = async () => {
@@ -60,10 +91,14 @@ const PhoneAuthPage: React.FC = () => {
 
     setLoading(true);
     const idToken = await userCredential.user.getIdToken();
-    const success = await syncWithSupabase(idToken, { name: name.trim(), phone: phoneNumber });
+    const authResult = await authenticateWithCustomJWT(idToken, {
+      name: name.trim(),
+      phone: phoneNumber,
+      email: userCredential.user.email || ''
+    });
     
-    if (success) {
-      setAuth(true, 'customer', userCredential.user.uid);
+    if (authResult.success) {
+      setAuth(true, 'customer', authResult.user.id);
       navigate('/home');
     }
     setLoading(false);
@@ -104,7 +139,14 @@ const PhoneAuthPage: React.FC = () => {
       <div className="text-center">
         <MessageSquare className="h-12 w-12 text-booqit-primary mx-auto mb-4" />
         <h2 className="text-2xl font-righteous mb-2">Enter Verification Code</h2>
-        <p className="text-gray-600 font-poppins">We sent a 6-digit code to {phoneNumber}</p>
+        <p className="text-gray-600 font-poppins">
+          We sent a 6-digit code to {phoneNumber}
+          {isExistingUser && (
+            <span className="block text-sm text-booqit-primary mt-1">
+              Welcome back! We'll log you in automatically.
+            </span>
+          )}
+        </p>
       </div>
       
       <div className="space-y-2">
@@ -125,7 +167,7 @@ const PhoneAuthPage: React.FC = () => {
         disabled={otpCode.length !== 6 || loading}
         className="w-full"
       >
-        {loading ? 'Verifying...' : 'Verify Code'}
+        {loading ? 'Verifying...' : isExistingUser ? 'Verify & Login' : 'Verify Code'}
       </Button>
 
       <Button 

@@ -261,52 +261,71 @@ export const verifyOTP = async (confirmationResult: ConfirmationResult, otpCode:
   }
 };
 
-export const syncWithSupabase = async (idToken: string, userData: { name: string; phone: string }): Promise<boolean> => {
+export const checkPhoneExists = async (phoneNumber: string): Promise<{ exists: boolean; user?: any }> => {
   try {
-    console.log('🔄 Syncing with Supabase');
+    console.log('🔍 Checking if phone exists:', phoneNumber);
     
-    // Sign in to Supabase with Firebase ID token
-    const { data, error } = await supabase.auth.signInWithIdToken({
-      provider: 'firebase',
-      token: idToken,
+    const { data, error } = await supabase.rpc('check_phone_exists', {
+      p_phone: phoneNumber
     });
 
     if (error) {
-      console.error('❌ Supabase auth error:', error);
-      toast.error('Authentication failed');
-      return false;
+      console.error('❌ Error checking phone:', error);
+      return { exists: false };
     }
 
-    if (data.user) {
-      console.log('✅ Supabase session created');
-      
-      // Update profile with name and phone
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .upsert({
-          id: data.user.id,
-          name: userData.name,
-          phone: userData.phone,
-          role: 'customer'
-        });
-
-      if (profileError) {
-        console.error('❌ Profile update error:', profileError);
-        // Don't fail the auth process for profile errors
-      } else {
-        console.log('✅ Profile updated successfully');
-      }
-
-      toast.success('Welcome to BooqIt!');
-      return true;
-    }
-
-    return false;
+    console.log('✅ Phone check result:', data);
+    return data;
   } catch (error) {
-    console.error('❌ Error syncing with Supabase:', error);
-    toast.error('Authentication failed');
-    return false;
+    console.error('❌ Error in checkPhoneExists:', error);
+    return { exists: false };
   }
 };
 
-export { app };
+export const authenticateWithCustomJWT = async (idToken: string, userData: { name: string; phone: string; email?: string }): Promise<{ success: boolean; isExistingUser: boolean; user?: any; session?: any }> => {
+  try {
+    console.log('🔄 Authenticating with custom JWT');
+    
+    const { data, error } = await supabase.functions.invoke('firebase-auth', {
+      body: {
+        idToken,
+        userData
+      }
+    });
+
+    if (error) {
+      console.error('❌ Custom JWT auth error:', error);
+      toast.error('Authentication failed');
+      return { success: false, isExistingUser: false };
+    }
+
+    if (data.success) {
+      console.log('✅ Custom JWT authentication successful');
+      
+      // Set Supabase session
+      if (data.session) {
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token
+        });
+
+        if (sessionError) {
+          console.error('❌ Error setting Supabase session:', sessionError);
+        }
+      }
+
+      return {
+        success: true,
+        isExistingUser: data.isExistingUser,
+        user: data.user,
+        session: data.session
+      };
+    }
+
+    return { success: false, isExistingUser: false };
+  } catch (error) {
+    console.error('❌ Error in custom JWT authentication:', error);
+    toast.error('Authentication failed');
+    return { success: false, isExistingUser: false };
+  }
+};
