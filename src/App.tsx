@@ -97,6 +97,11 @@ const LoadingSpinner = () => (
 );
 
 function App() {
+  const handleRoleSelect = (role: string) => {
+    // Navigate to auth page with selected role
+    window.location.href = `/auth?role=${role}`;
+  };
+
   return (
     <QueryClientProvider client={queryClient}>
       <Router>
@@ -109,7 +114,7 @@ function App() {
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/verify" element={<VerifyPage />} />
-                <Route path="/role-selection" element={<RoleSelection />} />
+                <Route path="/role-selection" element={<RoleSelection onRoleSelect={handleRoleSelect} />} />
 
                 {/* Static pages */}
                 <Route path="/privacy-policy" element={<PrivacyPolicy />} />
