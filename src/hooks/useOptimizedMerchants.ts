@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Merchant } from '@/types';
 import { useToast } from '@/hooks/use-toast';
@@ -15,8 +15,10 @@ interface CachedData {
 
 export const useOptimizedMerchants = (userLocation: { lat: number; lng: number } | null) => {
   const [merchants, setMerchants] = useState<Merchant[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const fetchingRef = useRef(false);
+  const lastLocationRef = useRef<string>('');
 
   const getCachedData = useCallback((): CachedData | null => {
     try {
@@ -34,7 +36,7 @@ export const useOptimizedMerchants = (userLocation: { lat: number; lng: number }
           userLocation.lat, userLocation.lng,
           data.location.lat, data.location.lng
         );
-        if (distance > 1) return null; // Location changed significantly
+        if (distance > 1) return null;
       }
       
       return data;
@@ -70,18 +72,24 @@ export const useOptimizedMerchants = (userLocation: { lat: number; lng: number }
   const deg2rad = (deg: number) => deg * (Math.PI / 180);
 
   const fetchMerchants = useCallback(async (location: { lat: number; lng: number }) => {
+    // Prevent duplicate calls
+    const locationKey = `${location.lat},${location.lng}`;
+    if (fetchingRef.current || lastLocationRef.current === locationKey) {
+      return;
+    }
+
     try {
       // Check cache first
       const cached = getCachedData();
       if (cached) {
         setMerchants(cached.merchants);
-        setIsLoading(false);
         return;
       }
 
+      fetchingRef.current = true;
+      lastLocationRef.current = locationKey;
       setIsLoading(true);
 
-      // Optimized query - limit to 20 closest merchants
       const { data, error } = await supabase
         .from('merchants')
         .select('*')
@@ -91,7 +99,6 @@ export const useOptimizedMerchants = (userLocation: { lat: number; lng: number }
       if (error) throw error;
 
       if (data) {
-        // Calculate distances and filter
         const merchantsWithDistance = data
           .map(merchant => {
             const distance = calculateDistance(
@@ -106,7 +113,7 @@ export const useOptimizedMerchants = (userLocation: { lat: number; lng: number }
           })
           .filter(merchant => (merchant.distanceValue || 0) <= 5)
           .sort((a, b) => (a.distanceValue || 0) - (b.distanceValue || 0))
-          .slice(0, 12); // Limit to 12 for performance
+          .slice(0, 12);
 
         setMerchants(merchantsWithDistance);
         setCachedData(merchantsWithDistance, location);
@@ -120,6 +127,7 @@ export const useOptimizedMerchants = (userLocation: { lat: number; lng: number }
       });
     } finally {
       setIsLoading(false);
+      fetchingRef.current = false;
     }
   }, [getCachedData, setCachedData, toast]);
 
@@ -127,7 +135,16 @@ export const useOptimizedMerchants = (userLocation: { lat: number; lng: number }
     if (userLocation) {
       fetchMerchants(userLocation);
     }
-  }, [userLocation, fetchMerchants]);
+  }, [userLocation?.lat, userLocation?.lng, fetchMerchants]);
 
-  return { merchants, isLoading, refetch: () => userLocation && fetchMerchants(userLocation) };
+  return { 
+    merchants, 
+    isLoading, 
+    refetch: () => {
+      if (userLocation) {
+        lastLocationRef.current = '';
+        fetchMerchants(userLocation);
+      }
+    }
+  };
 };

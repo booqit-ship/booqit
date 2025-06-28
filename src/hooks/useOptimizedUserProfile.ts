@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -15,13 +15,14 @@ interface CachedProfile {
 export const useOptimizedUserProfile = () => {
   const [userName, setUserName] = useState('there');
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const { userId } = useAuth();
+  const fetchingRef = useRef(false);
+  const lastUserIdRef = useRef('');
 
   useEffect(() => {
     const fetchUserProfile = async () => {
-      if (!userId) {
-        setIsLoading(false);
+      if (!userId || fetchingRef.current || lastUserIdRef.current === userId) {
         return;
       }
 
@@ -33,10 +34,13 @@ export const useOptimizedUserProfile = () => {
           if (Date.now() - data.timestamp < CACHE_DURATION) {
             setUserName(data.name.split(' ')[0]);
             setUserAvatar(data.avatar_url);
-            setIsLoading(false);
             return;
           }
         }
+
+        fetchingRef.current = true;
+        lastUserIdRef.current = userId;
+        setIsLoading(true);
 
         const { data, error } = await supabase
           .from('profiles')
@@ -63,6 +67,7 @@ export const useOptimizedUserProfile = () => {
         console.error('Error fetching user profile:', error);
       } finally {
         setIsLoading(false);
+        fetchingRef.current = false;
       }
     };
 

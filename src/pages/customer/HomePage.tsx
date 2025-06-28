@@ -12,15 +12,6 @@ import OptimizedShopsList from '@/components/customer/OptimizedShopsList';
 import { useOptimizedMerchants } from '@/hooks/useOptimizedMerchants';
 import { useOptimizedUserProfile } from '@/hooks/useOptimizedUserProfile';
 
-// Preload critical images
-const preloadImage = (src: string) => {
-  const link = document.createElement('link');
-  link.rel = 'preload';
-  link.as = 'image';
-  link.href = src;
-  document.head.appendChild(link);
-};
-
 const featuredCategories = [{
   id: 1,
   name: 'Salon',
@@ -32,11 +23,6 @@ const featuredCategories = [{
   image: '/lovable-uploads/e8017a81-26c0-495a-af95-e68ca23ba46c.png',
   color: '#FF6B6B'
 }];
-
-// Preload images on module load
-featuredCategories.forEach(category => {
-  preloadImage(category.image);
-});
 
 const HomePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -66,14 +52,14 @@ const HomePage: React.FC = () => {
     );
   }, [merchants, activeCategory]);
 
-  // Get user location - optimized version
+  // Get user location - simplified and cached
   useEffect(() => {
     const getLocationFromCache = () => {
       try {
         const cached = sessionStorage.getItem('user_location');
         if (cached) {
           const data = JSON.parse(cached);
-          if (Date.now() - data.timestamp < 5 * 60 * 1000) { // 5 minutes
+          if (Date.now() - data.timestamp < 5 * 60 * 1000) {
             setUserLocation(data.location);
             setLocationName(data.locationName || "Your area");
             return true;
@@ -96,7 +82,6 @@ const HomePage: React.FC = () => {
           };
           setUserLocation(userLoc);
 
-          // Fetch location name
           try {
             const response = await fetch(
               `https://maps.googleapis.com/maps/api/geocode/json?latlng=${userLoc.lat},${userLoc.lng}&key=AIzaSyB28nWHDBaEoMGIEoqfWDh6L2VRkM5AMwc`
@@ -116,7 +101,6 @@ const HomePage: React.FC = () => {
               const name = neighborhood?.long_name || cityComponent?.long_name || "Your area";
               setLocationName(name);
 
-              // Cache location data
               sessionStorage.setItem('user_location', JSON.stringify({
                 location: userLoc,
                 locationName: name,
@@ -153,7 +137,7 @@ const HomePage: React.FC = () => {
 
   return (
     <div className="pb-20">
-      {/* Header Section - No animations for performance */}
+      {/* Header Section */}
       <div className="bg-gradient-to-r from-booqit-primary to-purple-700 text-white p-6 rounded-b-3xl shadow-lg">
         <div className="flex justify-between items-center mb-6">
           <div>
@@ -219,8 +203,7 @@ const HomePage: React.FC = () => {
                     src={category.image}
                     alt={category.name}
                     className="w-full h-full object-contain"
-                    loading="eager"
-                    decoding="sync"
+                    loading="lazy"
                   />
                 </div>
                 <span className="text-sm font-medium">{category.name}</span>
@@ -229,7 +212,7 @@ const HomePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Near You Section - Optimized */}
+        {/* Near You Section */}
         <OptimizedShopsList
           shops={filteredMerchants}
           isLoading={isLoading}
@@ -244,4 +227,4 @@ const HomePage: React.FC = () => {
   );
 };
 
-export default HomePage;
+export default React.memo(HomePage);
