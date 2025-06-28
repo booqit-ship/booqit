@@ -265,17 +265,25 @@ export const checkPhoneExists = async (phoneNumber: string): Promise<{ exists: b
   try {
     console.log('🔍 Checking if phone exists:', phoneNumber);
     
-    const { data, error } = await supabase.rpc('check_phone_exists', {
-      p_phone: phoneNumber
-    });
+    // Direct query to profiles table instead of using RPC
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, name, phone, email, role')
+      .eq('phone', phoneNumber)
+      .single();
 
-    if (error) {
+    if (error && error.code !== 'PGRST116') { // PGRST116 is "not found" error
       console.error('❌ Error checking phone:', error);
       return { exists: false };
     }
 
-    console.log('✅ Phone check result:', data);
-    return data;
+    if (data) {
+      console.log('✅ Phone exists, user found:', data);
+      return { exists: true, user: data };
+    } else {
+      console.log('✅ Phone does not exist');
+      return { exists: false };
+    }
   } catch (error) {
     console.error('❌ Error in checkPhoneExists:', error);
     return { exists: false };
