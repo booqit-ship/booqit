@@ -57,12 +57,23 @@ export const useSimpleNotifications = () => {
     if (!isAuthenticated || !userId) return false;
 
     try {
-      const validTokenCount = await EnhancedTokenCleanupService.validateAndCleanupUserTokens(userId);
-      const hasValidTokens = validTokenCount > 0;
+      // Simply check if user has active tokens
+      const { data: tokens, error } = await supabase
+        .from('device_tokens')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('is_active', true);
+
+      if (error) {
+        console.error('❌ Error checking registration:', error);
+        return false;
+      }
+
+      const hasValidTokens = tokens && tokens.length > 0;
       
       console.log('🔍 SIMPLE NOTIFICATIONS: Registration check:', { 
         hasValidTokens, 
-        validTokenCount 
+        tokenCount: tokens?.length || 0
       });
       
       return hasValidTokens;
@@ -143,10 +154,10 @@ export const useSimpleNotifications = () => {
       console.log('🔔 SIMPLE NOTIFICATIONS: Starting registration for device:', deviceInfo);
       console.log('🔄 SIMPLE NOTIFICATIONS: Retry attempt:', retryAttempts.current + 1);
 
-      // Clean up any stale tokens first
+      // Clean up any stale tokens first if needed
       if (shouldRefreshToken()) {
         console.log('🧹 SIMPLE NOTIFICATIONS: Cleaning up stale tokens');
-        await EnhancedTokenCleanupService.validateAndCleanupUserTokens(userId);
+        await EnhancedTokenCleanupService.forceRefreshUserTokens(userId);
         lastTokenRefresh.current = Date.now();
       }
 
