@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -179,12 +178,12 @@ const HomePage: React.FC = () => {
         {/* Categories Section */}
         <div>
           <h2 className="mb-4 font-normal text-xl">Categories</h2>
-          <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             {featuredCategories.map(category => (
               <Button
                 key={category.id}
                 variant="outline"
-                className={`h-24 flex items-center justify-between p-0 border transition-all duration-200 overflow-hidden
+                className={`h-20 flex items-center justify-between p-0 border transition-all duration-200 overflow-hidden
                   ${activeCategory === category.name 
                     ? 'border-booqit-primary bg-booqit-primary/10 shadow-md' 
                     : 'border-gray-200 shadow-sm hover:shadow-md hover:border-booqit-primary'
@@ -196,10 +195,10 @@ const HomePage: React.FC = () => {
                 }}
                 onClick={() => handleCategoryClick(category.name)}
               >
-                <div className="flex-1 flex items-center justify-start p-6">
-                  <span className="text-lg font-medium text-gray-800">{category.name}</span>
+                <div className="flex-1 flex items-center justify-start p-4">
+                  <span className="text-sm font-medium text-gray-800">{category.name}</span>
                 </div>
-                <div className="w-24 h-24 flex items-center justify-center">
+                <div className="w-20 h-20 flex items-center justify-center">
                   <img
                     src={category.image}
                     alt={category.name}
