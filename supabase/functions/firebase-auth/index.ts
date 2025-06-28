@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -261,7 +260,7 @@ serve(async (req) => {
         profileData = { ...existingProfile, id: supabaseUser?.id || existingProfile.id };
       }
     } else {
-      console.log('✅ New user, creating Supabase user and profile');
+      console.log('✅ New user, creating Supabase user first');
       
       // Create Supabase user first
       const { data: createUserData, error: createUserError } = await supabase.auth.admin.createUser({
@@ -285,39 +284,72 @@ serve(async (req) => {
       supabaseUser = createUserData.user;
       console.log('✅ Supabase user created with ID:', supabaseUser.id);
       
-      // Create new profile using the Supabase user ID
-      const newProfileData: any = {
-        id: supabaseUser.id, // Use the Supabase user ID
-        name: userData.name || 'Customer',
-        phone: userData.phone,
-        email: userData.email || firebaseData.email || '',
-        role: 'customer'
-      };
-
-      // Add firebase_uid only if column exists
-      if (firebaseUidExists) {
-        newProfileData.firebase_uid = firebaseData.uid;
-        console.log('✅ Including firebase_uid in new profile');
-      } else {
-        console.log('⚠️ Skipping firebase_uid in new profile - column does not exist');
-      }
-
-      const { data: newProfile, error: insertError } = await supabase
+      // Check if profile already exists with this user ID (race condition protection)
+      const { data: existingProfileWithId } = await supabase
         .from('profiles')
-        .insert([newProfileData])
-        .select()
+        .select('*')
+        .eq('id', supabaseUser.id)
         .single();
 
-      if (insertError) {
-        console.error('❌ Error creating new profile:', insertError);
-        return new Response(
-          JSON.stringify({ success: false, error: 'Failed to create profile' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+      if (existingProfileWithId) {
+        console.log('✅ Profile already exists for this user ID, using existing profile');
+        profileData = existingProfileWithId;
+      } else {
+        // Create new profile using the Supabase user ID
+        const newProfileData: any = {
+          id: supabaseUser.id, // Use the Supabase user ID
+          name: userData.name || 'Customer',
+          phone: userData.phone,
+          email: userData.email || firebaseData.email || '',
+          role: 'customer'
+        };
 
-      profileData = newProfile;
-      console.log('✅ Created new profile successfully');
+        // Add firebase_uid only if column exists
+        if (firebaseUidExists) {
+          newProfileData.firebase_uid = firebaseData.uid;
+          console.log('✅ Including firebase_uid in new profile');
+        } else {
+          console.log('⚠️ Skipping firebase_uid in new profile - column does not exist');
+        }
+
+        const { data: newProfile, error: insertError } = await supabase
+          .from('profiles')
+          .insert([newProfileData])
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error('❌ Error creating new profile:', insertError);
+          
+          // If profile already exists (race condition), fetch the existing one
+          if (insertError.code === '23505') {
+            console.log('⚠️ Profile already exists, fetching existing profile');
+            const { data: existingProfileData } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', supabaseUser.id)
+              .single();
+            
+            if (existingProfileData) {
+              profileData = existingProfileData;
+              console.log('✅ Using existing profile after duplicate error');
+            } else {
+              return new Response(
+                JSON.stringify({ success: false, error: 'Failed to create or fetch profile' }),
+                { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            }
+          } else {
+            return new Response(
+              JSON.stringify({ success: false, error: 'Failed to create profile' }),
+              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+        } else {
+          profileData = newProfile;
+          console.log('✅ Created new profile successfully');
+        }
+      }
     }
 
     console.log('✅ Profile data ready:', { id: profileData.id, name: profileData.name });
