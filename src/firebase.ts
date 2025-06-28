@@ -263,27 +263,11 @@ export const verifyOTP = async (confirmationResult: ConfirmationResult, otpCode:
 
 export const checkPhoneExists = async (phoneNumber: string): Promise<{ exists: boolean; user?: any }> => {
   try {
-    console.log('🔍 Checking if phone exists:', phoneNumber);
+    console.log('🔍 Phone existence will be checked by edge function');
     
-    // Direct query to profiles table instead of using RPC
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, name, phone, email, role')
-      .eq('phone', phoneNumber)
-      .single();
-
-    if (error && error.code !== 'PGRST116') { // PGRST116 is "not found" error
-      console.error('❌ Error checking phone:', error);
-      return { exists: false };
-    }
-
-    if (data) {
-      console.log('✅ Phone exists, user found:', data);
-      return { exists: true, user: data };
-    } else {
-      console.log('✅ Phone does not exist');
-      return { exists: false };
-    }
+    // For now, return false to let the edge function handle the check
+    // This simplifies the flow and avoids RLS issues
+    return { exists: false };
   } catch (error) {
     console.error('❌ Error in checkPhoneExists:', error);
     return { exists: false };
@@ -292,7 +276,7 @@ export const checkPhoneExists = async (phoneNumber: string): Promise<{ exists: b
 
 export const authenticateWithCustomJWT = async (idToken: string, userData: { name: string; phone: string; email?: string }): Promise<{ success: boolean; isExistingUser: boolean; user?: any; session?: any }> => {
   try {
-    console.log('🔄 Authenticating with custom JWT');
+    console.log('🔄 Authenticating with custom JWT for phone:', userData.phone);
     
     const { data, error } = await supabase.functions.invoke('firebase-auth', {
       body: {
@@ -307,8 +291,8 @@ export const authenticateWithCustomJWT = async (idToken: string, userData: { nam
       return { success: false, isExistingUser: false };
     }
 
-    if (data.success) {
-      console.log('✅ Custom JWT authentication successful');
+    if (data?.success) {
+      console.log('✅ Custom JWT authentication successful:', data.isExistingUser ? 'existing user' : 'new user');
       
       // Set Supabase session
       if (data.session) {
@@ -319,6 +303,8 @@ export const authenticateWithCustomJWT = async (idToken: string, userData: { nam
 
         if (sessionError) {
           console.error('❌ Error setting Supabase session:', sessionError);
+        } else {
+          console.log('✅ Supabase session set successfully');
         }
       }
 

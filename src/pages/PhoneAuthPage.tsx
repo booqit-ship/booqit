@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
@@ -21,7 +20,6 @@ const PhoneAuthPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   const [userCredential, setUserCredential] = useState<any>(null);
-  const [isExistingUser, setIsExistingUser] = useState(false);
   
   const navigate = useNavigate();
   const { setAuth } = useAuth();
@@ -33,14 +31,7 @@ const PhoneAuthPage: React.FC = () => {
 
     setLoading(true);
     
-    // First check if phone exists
-    const phoneCheck = await checkPhoneExists(phoneNumber);
-    setIsExistingUser(phoneCheck.exists);
-    
-    if (phoneCheck.exists) {
-      console.log('📞 Existing user detected:', phoneCheck.user?.name);
-    }
-
+    console.log('📞 Sending OTP to:', phoneNumber);
     const result = await sendOTP(phoneNumber);
     if (result) {
       setConfirmationResult(result);
@@ -59,28 +50,35 @@ const PhoneAuthPage: React.FC = () => {
     if (result) {
       setUserCredential(result);
       
-      // If existing user, authenticate directly
-      if (isExistingUser) {
-        await handleAuthenticateExistingUser(result);
-      } else {
-        // New user, go to name step
-        setStep('name');
-      }
+      // Directly attempt authentication with minimal user data
+      // The edge function will determine if user exists and handle accordingly
+      await handleAuthentication(result, '');
     }
     setLoading(false);
   };
 
-  const handleAuthenticateExistingUser = async (credential: any) => {
-    const idToken = await credential.user.getIdToken();
-    const authResult = await authenticateWithCustomJWT(idToken, {
-      name: '', // Will be filled from existing profile
-      phone: phoneNumber,
-      email: credential.user.email || ''
-    });
-    
-    if (authResult.success) {
-      setAuth(true, 'customer', authResult.user.id);
-      navigate('/home');
+  const handleAuthentication = async (credential: any, userName: string = '') => {
+    try {
+      const idToken = await credential.user.getIdToken();
+      const authResult = await authenticateWithCustomJWT(idToken, {
+        name: userName || 'Customer',
+        phone: phoneNumber,
+        email: credential.user.email || ''
+      });
+      
+      if (authResult.success) {
+        if (authResult.isExistingUser) {
+          console.log('✅ Existing user logged in');
+          setAuth(true, 'customer', authResult.user.id);
+          navigate('/home');
+        } else {
+          console.log('✅ New user, requesting name');
+          setStep('name');
+        }
+      }
+    } catch (error) {
+      console.error('❌ Authentication error:', error);
+      setLoading(false);
     }
   };
 
@@ -90,17 +88,7 @@ const PhoneAuthPage: React.FC = () => {
     }
 
     setLoading(true);
-    const idToken = await userCredential.user.getIdToken();
-    const authResult = await authenticateWithCustomJWT(idToken, {
-      name: name.trim(),
-      phone: phoneNumber,
-      email: userCredential.user.email || ''
-    });
-    
-    if (authResult.success) {
-      setAuth(true, 'customer', authResult.user.id);
-      navigate('/home');
-    }
+    await handleAuthentication(userCredential, name.trim());
     setLoading(false);
   };
 
@@ -141,11 +129,6 @@ const PhoneAuthPage: React.FC = () => {
         <h2 className="text-2xl font-righteous mb-2">Enter Verification Code</h2>
         <p className="text-gray-600 font-poppins">
           We sent a 6-digit code to {phoneNumber}
-          {isExistingUser && (
-            <span className="block text-sm text-booqit-primary mt-1">
-              Welcome back! We'll log you in automatically.
-            </span>
-          )}
         </p>
       </div>
       
@@ -167,7 +150,7 @@ const PhoneAuthPage: React.FC = () => {
         disabled={otpCode.length !== 6 || loading}
         className="w-full"
       >
-        {loading ? 'Verifying...' : isExistingUser ? 'Verify & Login' : 'Verify Code'}
+        {loading ? 'Verifying...' : 'Verify Code'}
       </Button>
 
       <Button 
