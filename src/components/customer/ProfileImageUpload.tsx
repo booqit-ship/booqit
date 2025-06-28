@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Camera, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -82,8 +81,7 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
       if (uploadError) {
         console.error('Upload error details:', {
           message: uploadError.message,
-          error: uploadError,
-          cause: uploadError.cause
+          error: uploadError
         });
         
         // Provide specific error messages
