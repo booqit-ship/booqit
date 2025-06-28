@@ -183,7 +183,7 @@ const HomePage: React.FC = () => {
               <Button
                 key={category.id}
                 variant="outline"
-                className={`h-20 flex items-center justify-between p-0 border transition-all duration-200 overflow-hidden
+                className={`h-16 flex items-center justify-between p-0 border transition-all duration-200 overflow-hidden
                   ${activeCategory === category.name 
                     ? 'border-booqit-primary bg-booqit-primary/10 shadow-md' 
                     : 'border-gray-200 shadow-sm hover:shadow-md hover:border-booqit-primary'
@@ -195,14 +195,21 @@ const HomePage: React.FC = () => {
                 }}
                 onClick={() => handleCategoryClick(category.name)}
               >
-                <div className="flex-1 flex items-center justify-start p-4">
-                  <span className="text-sm font-medium text-gray-800">{category.name}</span>
+                <div className="flex-1 flex items-center justify-start p-2">
+                  {category.name === 'Beauty Parlour' ? (
+                    <div className="text-xs font-medium text-gray-800 leading-tight">
+                      <div>Beauty</div>
+                      <div>Parlour</div>
+                    </div>
+                  ) : (
+                    <span className="text-xs font-medium text-gray-800">{category.name}</span>
+                  )}
                 </div>
-                <div className="w-20 h-20 flex items-center justify-center">
+                <div className="w-16 h-16 flex items-center justify-center overflow-hidden">
                   <img
                     src={category.image}
                     alt={category.name}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain"
                     loading="lazy"
                   />
                 </div>
