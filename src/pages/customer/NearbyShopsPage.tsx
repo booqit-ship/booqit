@@ -36,6 +36,7 @@ const NearbyShopsPage: React.FC = () => {
     const category = searchParams.get('category');
     if (category) {
       setActiveCategory(category);
+      console.log('🔍 Category from URL:', category);
     }
   }, [searchParams]);
 
@@ -48,19 +49,22 @@ const NearbyShopsPage: React.FC = () => {
             lat: position.coords.latitude,
             lng: position.coords.longitude
           };
+          console.log('📍 User location obtained:', userLoc);
           setUserLocation(userLoc);
           fetchNearbyShops(userLoc);
         },
         (error) => {
-          console.error("Error getting location:", error);
+          console.error("❌ Error getting location:", error);
           // Use a default location (Bengaluru)
           const defaultLocation = { lat: 12.9716, lng: 77.5946 };
+          console.log('📍 Using default location (Bengaluru):', defaultLocation);
           setUserLocation(defaultLocation);
           fetchNearbyShops(defaultLocation);
         }
       );
     } else {
       const defaultLocation = { lat: 12.9716, lng: 77.5946 };
+      console.log('📍 Geolocation not supported, using default:', defaultLocation);
       setUserLocation(defaultLocation);
       fetchNearbyShops(defaultLocation);
     }
@@ -68,7 +72,11 @@ const NearbyShopsPage: React.FC = () => {
 
   // Filter shops whenever active category changes
   useEffect(() => {
+    console.log('🔄 Filtering shops. Active category:', activeCategory);
+    console.log('📊 Total nearby shops before filtering:', nearbyShops.length);
+    
     if (activeCategory) {
+      // Map the UI category names to database category values
       let dbCategory = activeCategory;
       if (activeCategory === "Salon") {
         dbCategory = "barber_shop";
@@ -76,11 +84,20 @@ const NearbyShopsPage: React.FC = () => {
         dbCategory = "beauty_parlour";
       }
       
-      const filtered = nearbyShops.filter(shop => 
-        shop.category.toLowerCase() === dbCategory.toLowerCase()
-      );
+      console.log('🔄 Mapped category for DB:', dbCategory);
+      
+      const filtered = nearbyShops.filter(shop => {
+        const matches = shop.category.toLowerCase() === dbCategory.toLowerCase();
+        if (!matches) {
+          console.log('❌ Shop category mismatch:', shop.shop_name, 'has category:', shop.category, 'looking for:', dbCategory);
+        }
+        return matches;
+      });
+      
+      console.log('✅ Shops after category filter:', filtered.length);
       setFilteredShops(filtered);
     } else {
+      console.log('✅ No category filter, showing all shops');
       setFilteredShops(nearbyShops);
     }
     setCurrentPage(1); // Reset to first page when filter changes
@@ -88,23 +105,45 @@ const NearbyShopsPage: React.FC = () => {
 
   const fetchNearbyShops = async (location: { lat: number; lng: number }) => {
     setIsLoading(true);
+    console.log('🔍 Fetching nearby shops for location:', location);
+    
     try {
       const { data: merchants, error } = await supabase
         .from('merchants')
         .select('*')
         .order('rating', { ascending: false });
         
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Supabase error:', error);
+        throw error;
+      }
+      
+      console.log('📦 Raw merchants from database:', merchants?.length || 0);
+      console.log('📋 Sample merchant data:', merchants?.[0]);
       
       if (merchants && merchants.length > 0) {
+        // Filter out merchants without coordinates first
+        const validMerchants = merchants.filter(merchant => {
+          if (merchant.lat == null || merchant.lng == null) {
+            console.log('⚠️ Merchant missing coordinates:', merchant.shop_name, 'lat:', merchant.lat, 'lng:', merchant.lng);
+            return false;
+          }
+          return true;
+        });
+        
+        console.log('✅ Valid merchants with coordinates:', validMerchants.length);
+        
         // Calculate distance for each merchant
-        const shopsWithDistance = merchants.map(merchant => {
+        const shopsWithDistance = validMerchants.map(merchant => {
           const distance = calculateDistance(
             location.lat, 
             location.lng, 
             merchant.lat, 
             merchant.lng
           );
+          
+          console.log('📏 Distance to', merchant.shop_name, ':', distance.toFixed(2), 'km');
+          
           return {
             ...merchant,
             distance: `${distance.toFixed(1)} km`,
@@ -114,14 +153,27 @@ const NearbyShopsPage: React.FC = () => {
 
         // Filter shops within 5km and sort by distance
         const nearbyFilteredShops = shopsWithDistance
-          .filter(shop => (shop.distanceValue || 0) <= 5)
+          .filter(shop => {
+            const isNearby = (shop.distanceValue || 0) <= 5;
+            if (!isNearby) {
+              console.log('❌ Shop too far:', shop.shop_name, shop.distanceValue?.toFixed(2), 'km');
+            }
+            return isNearby;
+          })
           .sort((a, b) => (a.distanceValue || 0) - (b.distanceValue || 0));
           
+        console.log('🎯 Final nearby shops (within 5km):', nearbyFilteredShops.length);
+        console.log('📍 Nearby shops:', nearbyFilteredShops.map(s => `${s.shop_name} (${s.distance})`));
+        
         setNearbyShops(nearbyFilteredShops);
         setFilteredShops(nearbyFilteredShops);
+      } else {
+        console.log('⚠️ No merchants found in database');
+        setNearbyShops([]);
+        setFilteredShops([]);
       }
     } catch (error) {
-      console.error("Error fetching merchants:", error);
+      console.error("❌ Error fetching merchants:", error);
       toast({
         title: "Error",
         description: "Failed to load nearby shops. Please try again.",
@@ -174,6 +226,12 @@ const NearbyShopsPage: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const clearCategoryFilter = () => {
+    setActiveCategory(null);
+    // Update URL to remove category parameter
+    navigate('/nearby-shops', { replace: true });
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
       {/* Header */}
@@ -188,12 +246,26 @@ const NearbyShopsPage: React.FC = () => {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="flex-1">
-            <h1 className="text-xl font-semibold">
-              {activeCategory ? `${activeCategory} Near You` : "Nearby Shops"}
-            </h1>
-            <p className="text-sm text-gray-500">
-              {filteredShops.length} shops within 5km
-            </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-xl font-semibold">
+                  {activeCategory ? `${activeCategory} Near You` : "Nearby Shops"}
+                </h1>
+                <p className="text-sm text-gray-500">
+                  {filteredShops.length} shops within 5km
+                </p>
+              </div>
+              {activeCategory && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={clearCategoryFilter}
+                  className="text-xs"
+                >
+                  Show All
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -309,9 +381,29 @@ const NearbyShopsPage: React.FC = () => {
                   : "No shops found within 5km of your location."
                 }
               </p>
-              <Button variant="outline" onClick={() => navigate('/map')}>
-                Browse on Map
-              </Button>
+              <div className="space-y-2">
+                {activeCategory && (
+                  <Button 
+                    variant="outline" 
+                    onClick={clearCategoryFilter}
+                    className="mr-2"
+                  >
+                    View All Nearby Shops
+                  </Button>
+                )}
+                <Button 
+                  variant="outline" 
+                  onClick={() => navigate('/map')}
+                >
+                  Browse on Map
+                </Button>
+                <Button 
+                  variant="link" 
+                  onClick={() => navigate('/')}
+                >
+                  Back to Home
+                </Button>
+              </div>
             </div>
           </div>
         )}
