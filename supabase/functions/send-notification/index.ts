@@ -67,6 +67,20 @@ serve(async (req) => {
       );
     }
 
+    // Skip validation notifications - don't send them
+    if (data?.type === 'validation' || data?.silent === 'true' || title === 'Token Validation') {
+      console.log('🔕 Skipping validation notification');
+      return new Response(
+        JSON.stringify({ 
+          success: true,
+          message: 'Validation notification skipped'
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
     let deviceTokens: any[] = [];
     let userSettings = null;
 
