@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import LazyRoute from '@/components/LazyRoute';
 import AppInit from '@/components/AppInit';
+import ShopResolver from '@/components/ShopResolver';
 import Index from '@/pages/Index';
 import HomePage from '@/pages/customer/HomePage';
 import SearchPage from '@/pages/customer/SearchPage';
@@ -25,7 +26,6 @@ import AccountPage from '@/pages/customer/AccountPage';
 import ReviewsPage from '@/pages/customer/ReviewsPage';
 import SettingsPage from '@/pages/customer/SettingsPage';
 import BookingsHistoryPage from '@/pages/customer/BookingsHistoryPage';
-import NearbyShopsPage from '@/pages/customer/NearbyShopsPage';
 import Auth from '@/pages/AuthPage';
 import ForgotPasswordPage from '@/pages/ForgotPasswordPage';
 import ResetPasswordPage from '@/pages/ResetPasswordPage';
@@ -226,7 +226,6 @@ const AppContent: React.FC = () => {
         <Route path="/home" element={<LazyRoute><ProtectedRoute><CustomerLayout><HomePage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
         <Route path="/search" element={<LazyRoute><ProtectedRoute><CustomerLayout><SearchPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
         <Route path="/map" element={<LazyRoute><ProtectedRoute><CustomerLayout><MapPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
-        <Route path="/nearby-shops" element={<LazyRoute><ProtectedRoute><CustomerLayout><NearbyShopsPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
         <Route path="/merchant/:merchantId" element={<LazyRoute><ProtectedRoute><CustomerLayout><MerchantDetailPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
 
         <Route path="/booking/:merchantId/services" element={<LazyRoute><ProtectedRoute><CustomerLayout><ServiceSelectionPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
@@ -248,6 +247,18 @@ const AppContent: React.FC = () => {
         <Route path="/settings/contact" element={<LazyRoute><ProtectedRoute><CustomerLayout><ContactPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
         <Route path="/settings/about" element={<LazyRoute><ProtectedRoute><CustomerLayout><AboutPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
         <Route path="/settings/delete-account" element={<LazyRoute><ProtectedRoute><CustomerLayout><DeleteAccountPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        
+        {/* Custom Shop URL Route - Must be last to avoid conflicts */}
+        <Route 
+          path="/:shopSlug" 
+          element={
+            <LazyRoute>
+              <ShopResolver>
+                <div />
+              </ShopResolver>
+            </LazyRoute>
+          } 
+        />
         
         {/* Catch-all route for 404 */}
         <Route path="*" element={<LazyRoute><NotFound /></LazyRoute>} />
