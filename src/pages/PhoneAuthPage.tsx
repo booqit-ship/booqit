@@ -20,6 +20,7 @@ const PhoneAuthPage: React.FC = () => {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
+  const [userCredential, setUserCredential] = useState<any>(null);
   
   const navigate = useNavigate();
   const { setAuth } = useAuth();
@@ -44,24 +45,25 @@ const PhoneAuthPage: React.FC = () => {
     }
 
     setLoading(true);
-    const idToken = await verifyOTP(confirmationResult, otpCode);
-    if (idToken) {
+    const result = await verifyOTP(confirmationResult, otpCode);
+    if (result) {
+      setUserCredential(result);
       setStep('name');
     }
     setLoading(false);
   };
 
   const handleComplete = async () => {
-    if (!name.trim() || !confirmationResult) {
+    if (!name.trim() || !userCredential) {
       return;
     }
 
     setLoading(true);
-    const idToken = await confirmationResult.user.getIdToken();
+    const idToken = await userCredential.user.getIdToken();
     const success = await syncWithSupabase(idToken, { name: name.trim(), phone: phoneNumber });
     
     if (success) {
-      setAuth(true, 'customer', confirmationResult.user.uid);
+      setAuth(true, 'customer', userCredential.user.uid);
       navigate('/home');
     }
     setLoading(false);

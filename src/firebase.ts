@@ -248,13 +248,12 @@ export const sendOTP = async (phoneNumber: string): Promise<ConfirmationResult |
   }
 };
 
-export const verifyOTP = async (confirmationResult: ConfirmationResult, otpCode: string): Promise<string | null> => {
+export const verifyOTP = async (confirmationResult: ConfirmationResult, otpCode: string): Promise<any | null> => {
   try {
     console.log('🔍 Verifying OTP code');
     const result = await confirmationResult.confirm(otpCode);
-    const idToken = await result.user.getIdToken();
     console.log('✅ OTP verified successfully');
-    return idToken;
+    return result; // Return the full UserCredential object
   } catch (error) {
     console.error('❌ Error verifying OTP:', error);
     toast.error('Invalid OTP code. Please try again.');
