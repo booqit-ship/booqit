@@ -6,6 +6,20 @@ ADD COLUMN IF NOT EXISTS firebase_uid TEXT;
 -- Create index for faster lookups by Firebase UID
 CREATE INDEX IF NOT EXISTS idx_profiles_firebase_uid ON public.profiles(firebase_uid);
 
+-- Update RLS policies to allow Firebase UID operations
+DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can insert own profile" ON public.profiles;
+
+CREATE POLICY "Users can view own profile" ON public.profiles
+FOR SELECT USING (auth.uid() = id OR firebase_uid IS NOT NULL);
+
+CREATE POLICY "Users can update own profile" ON public.profiles
+FOR UPDATE USING (auth.uid() = id OR firebase_uid IS NOT NULL);
+
+CREATE POLICY "Users can insert own profile" ON public.profiles
+FOR INSERT WITH CHECK (auth.uid() = id OR firebase_uid IS NOT NULL);
+
 -- Add function to check if phone exists
 CREATE OR REPLACE FUNCTION public.check_phone_exists(p_phone TEXT)
 RETURNS json
@@ -27,7 +41,8 @@ BEGIN
       'name', name,
       'phone', phone,
       'email', email,
-      'role', role
+      'role', role,
+      'firebase_uid', firebase_uid
     ) INTO user_data
     FROM public.profiles 
     WHERE phone = p_phone
@@ -45,3 +60,7 @@ BEGIN
   END IF;
 END;
 $$;
+
+-- Grant necessary permissions
+GRANT EXECUTE ON FUNCTION public.check_phone_exists(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.check_phone_exists(TEXT) TO anon;
