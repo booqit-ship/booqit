@@ -286,12 +286,13 @@ const HomePage: React.FC = () => {
   };
 
   const handleViewMore = () => {
-    // Navigate to a dedicated page showing all nearby shops
+    // Navigate to nearby shops page with proper category parameter
     const categoryParam = activeCategory ? `?category=${encodeURIComponent(activeCategory)}` : '';
     navigate(`/nearby-shops${categoryParam}`);
   };
 
-  return <div className="pb-20"> {/* Add padding to account for bottom navigation */}
+  return (
+    <div className="pb-20">
       {/* Header Section */}
       <motion.div className="bg-gradient-to-r from-booqit-primary to-purple-700 text-white p-6 rounded-b-3xl shadow-lg" initial={{
       y: -20,
@@ -359,16 +360,29 @@ const HomePage: React.FC = () => {
 
           {/* Near You Section */}
           <motion.div variants={itemVariants} className="mb-8">
-            <h2 className="mb-4 font-normal text-xl">
-              {activeCategory ? `${activeCategory} Near You` : "Near You"}
-              {activeCategory && <Button variant="link" className="ml-2 p-0 h-auto text-sm text-booqit-primary" onClick={() => setActiveCategory(null)}>
-                  (Clear filter)
-                </Button>}
-            </h2>
-            {isLoading ? <div className="flex justify-center py-8">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="font-normal text-xl">
+                {activeCategory ? `${activeCategory} Near You` : "Near You"}
+              </h2>
+              {activeCategory && (
+                <Button 
+                  variant="link" 
+                  className="p-0 h-auto text-sm text-booqit-primary" 
+                  onClick={() => setActiveCategory(null)}
+                >
+                  Clear filter
+                </Button>
+              )}
+            </div>
+            
+            {isLoading ? (
+              <div className="flex justify-center py-8">
                 <div className="animate-spin h-8 w-8 border-4 border-booqit-primary border-t-transparent rounded-full"></div>
-              </div> : displayedShops.length > 0 ? <div className="space-y-4">
-                {displayedShops.map(shop => <Card key={shop.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow">
+              </div>
+            ) : displayedShops.length > 0 ? (
+              <div className="space-y-4">
+                {displayedShops.map(shop => (
+                  <Card key={shop.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow">
                     <CardContent className="p-0">
                       <div className="flex">
                         <div className="w-24 h-24 bg-gray-200 flex-shrink-0">
@@ -401,27 +415,47 @@ const HomePage: React.FC = () => {
                         </div>
                       </div>
                     </CardContent>
-                  </Card>)}
+                  </Card>
+                ))}
                 
+                {/* Enhanced View More Button */}
                 {filteredShops.length > 6 && (
-                  <div className="flex justify-center mt-4">
+                  <div className="flex justify-center mt-6">
                     <Button 
                       variant="outline" 
                       onClick={handleViewMore}
-                      className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary hover:text-white"
+                      className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary hover:text-white px-6 py-2"
                     >
-                      View More ({filteredShops.length - 6} more shops)
+                      View All {filteredShops.length} {activeCategory || 'Nearby'} Shops
                     </Button>
                   </div>
                 )}
-              </div> : <div className="text-center py-8 bg-gray-50 rounded-lg">
-                <p className="text-gray-500">
-                  {activeCategory ? `No ${activeCategory} shops found within 5km` : "No shops found within 5km"}
+              </div>
+            ) : (
+              <div className="text-center py-8 bg-gray-50 rounded-lg">
+                <p className="text-gray-500 mb-3">
+                  {activeCategory 
+                    ? `No ${activeCategory} shops found within 5km` 
+                    : "No shops found within 5km"
+                  }
                 </p>
-                <Button variant="link" className="mt-2" onClick={() => navigate('/map')}>
-                  Browse on Map
-                </Button>
-              </div>}
+                <div className="space-y-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => navigate('/nearby-shops')}
+                    className="mr-2"
+                  >
+                    Browse All Shops
+                  </Button>
+                  <Button 
+                    variant="link" 
+                    onClick={() => navigate('/map')}
+                  >
+                    View on Map
+                  </Button>
+                </div>
+              </div>
+            )}
           </motion.div>
 
           {/* Explore Map Section */}
@@ -450,6 +484,8 @@ const HomePage: React.FC = () => {
           </motion.div>
         </motion.div>
       </div>
-    </div>;
+    </div>
+  );
 };
+
 export default HomePage;

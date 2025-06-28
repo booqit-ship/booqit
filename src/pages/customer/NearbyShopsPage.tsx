@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Filter } from 'lucide-react';
@@ -174,6 +173,12 @@ const NearbyShopsPage: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const clearCategoryFilter = () => {
+    setActiveCategory(null);
+    // Update URL to remove category parameter
+    navigate('/nearby-shops', { replace: true });
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
       {/* Header */}
@@ -188,12 +193,26 @@ const NearbyShopsPage: React.FC = () => {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="flex-1">
-            <h1 className="text-xl font-semibold">
-              {activeCategory ? `${activeCategory} Near You` : "Nearby Shops"}
-            </h1>
-            <p className="text-sm text-gray-500">
-              {filteredShops.length} shops within 5km
-            </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-xl font-semibold">
+                  {activeCategory ? `${activeCategory} Near You` : "Nearby Shops"}
+                </h1>
+                <p className="text-sm text-gray-500">
+                  {filteredShops.length} shops within 5km
+                </p>
+              </div>
+              {activeCategory && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={clearCategoryFilter}
+                  className="text-xs"
+                >
+                  Show All
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -309,9 +328,29 @@ const NearbyShopsPage: React.FC = () => {
                   : "No shops found within 5km of your location."
                 }
               </p>
-              <Button variant="outline" onClick={() => navigate('/map')}>
-                Browse on Map
-              </Button>
+              <div className="space-y-2">
+                {activeCategory && (
+                  <Button 
+                    variant="outline" 
+                    onClick={clearCategoryFilter}
+                    className="mr-2"
+                  >
+                    View All Nearby Shops
+                  </Button>
+                )}
+                <Button 
+                  variant="outline" 
+                  onClick={() => navigate('/map')}
+                >
+                  Browse on Map
+                </Button>
+                <Button 
+                  variant="link" 
+                  onClick={() => navigate('/')}
+                >
+                  Back to Home
+                </Button>
+              </div>
             </div>
           </div>
         )}
