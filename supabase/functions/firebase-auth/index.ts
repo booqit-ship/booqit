@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -86,6 +87,85 @@ const checkFirebaseUidColumnExists = async (supabase: any) => {
   }
 };
 
+// Enhanced user resolution with proper error handling
+const resolveOrCreateSupabaseUser = async (supabase: any, profileData: any, firebaseData: any, userData: any) => {
+  try {
+    console.log('🔍 Resolving Supabase user for profile:', profileData.id);
+    
+    // First, try to get existing Supabase user by profile ID
+    const { data: existingUserData, error: getUserError } = await supabase.auth.admin.getUserById(profileData.id);
+    
+    if (existingUserData?.user && !getUserError) {
+      console.log('✅ Found existing Supabase user:', existingUserData.user.id);
+      return existingUserData.user;
+    }
+    
+    console.log('⚠️ No Supabase user found for profile, checking auth.users by phone');
+    
+    // Try to find user by phone in auth.users
+    const { data: usersList, error: listError } = await supabase.auth.admin.listUsers();
+    
+    if (!listError && usersList?.users) {
+      const userByPhone = usersList.users.find((user: any) => 
+        user.phone === userData.phone || 
+        user.user_metadata?.phone === userData.phone
+      );
+      
+      if (userByPhone) {
+        console.log('✅ Found existing Supabase user by phone:', userByPhone.id);
+        
+        // Update profile ID to match the found user
+        await supabase
+          .from('profiles')
+          .update({ id: userByPhone.id })
+          .eq('phone', userData.phone);
+        
+        console.log('✅ Updated profile ID to match existing user');
+        return userByPhone;
+      }
+    }
+    
+    console.log('🆕 Creating new Supabase user');
+    
+    // Create new Supabase user with specific ID
+    const { data: newUserData, error: createUserError } = await supabase.auth.admin.createUser({
+      user_id: profileData.id,
+      phone: userData.phone,
+      phone_confirmed: true,
+      user_metadata: {
+        name: userData.name || 'Customer',
+        phone: userData.phone,
+        firebase_uid: firebaseData.uid
+      }
+    });
+
+    if (createUserError) {
+      console.error('❌ Error creating Supabase user:', createUserError);
+      
+      // If user already exists with different ID, try to find and use it
+      if (createUserError.message?.includes('already been registered')) {
+        console.log('🔄 User already registered, attempting to find by phone');
+        const { data: usersList2 } = await supabase.auth.admin.listUsers();
+        const existingUser = usersList2?.users?.find((user: any) => user.phone === userData.phone);
+        
+        if (existingUser) {
+          console.log('✅ Found existing user after registration error:', existingUser.id);
+          return existingUser;
+        }
+      }
+      
+      throw createUserError;
+    }
+
+    console.log('✅ Created new Supabase user:', newUserData.user.id);
+    return newUserData.user;
+    
+  } catch (error) {
+    console.error('❌ Error in resolveOrCreateSupabaseUser:', error);
+    throw error;
+  }
+};
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -147,37 +227,38 @@ serve(async (req) => {
     let isExistingUser = false;
 
     if (existingProfile) {
-      console.log('✅ Existing user found:', existingProfile.name);
+      console.log('✅ Existing profile found:', existingProfile.name);
       isExistingUser = true;
       
-      // Try to get existing Supabase user
-      const { data: existingUserData } = await supabase.auth.admin.getUserById(existingProfile.id);
-      supabaseUser = existingUserData.user;
+      // Resolve or create the corresponding Supabase user
+      supabaseUser = await resolveOrCreateSupabaseUser(supabase, existingProfile, firebaseData, userData);
       
-      // Try to update Firebase UID only if column exists
-      if (firebaseUidExists) {
+      // Update firebase_uid if column exists and user resolved successfully
+      if (firebaseUidExists && supabaseUser) {
         try {
           const { data: updatedProfile, error: updateError } = await supabase
             .from('profiles')
-            .update({ firebase_uid: firebaseData.uid })
-            .eq('id', existingProfile.id)
+            .update({ 
+              firebase_uid: firebaseData.uid,
+              id: supabaseUser.id // Ensure profile ID matches Supabase user ID
+            })
+            .eq('phone', userData.phone)
             .select()
             .single();
 
           if (updateError) {
             console.warn('⚠️ Could not update firebase_uid:', updateError.message);
-            profileData = existingProfile;
+            profileData = { ...existingProfile, id: supabaseUser.id };
           } else {
             profileData = updatedProfile;
-            console.log('✅ Updated profile with firebase_uid');
+            console.log('✅ Updated profile with firebase_uid and correct ID');
           }
         } catch (updateError) {
           console.warn('⚠️ Firebase UID update failed, using existing profile:', updateError);
-          profileData = existingProfile;
+          profileData = { ...existingProfile, id: supabaseUser.id };
         }
       } else {
-        console.log('⚠️ Skipping firebase_uid update - column does not exist');
-        profileData = existingProfile;
+        profileData = { ...existingProfile, id: supabaseUser?.id || existingProfile.id };
       }
     } else {
       console.log('✅ New user, creating Supabase user and profile');
@@ -240,37 +321,21 @@ serve(async (req) => {
     }
 
     console.log('✅ Profile data ready:', { id: profileData.id, name: profileData.name });
+    console.log('✅ Supabase user ready:', { id: supabaseUser?.id });
 
-    // If we don't have a supabaseUser yet (existing user case), try to get it
-    if (!supabaseUser) {
-      try {
-        const { data: existingUserData } = await supabase.auth.admin.getUserById(profileData.id);
-        supabaseUser = existingUserData.user;
-      } catch (error) {
-        console.log('⚠️ Could not fetch existing Supabase user, will try to create one');
-        
-        // Try to create the user if it doesn't exist
-        const { data: createUserData, error: createUserError } = await supabase.auth.admin.createUser({
-          user_id: profileData.id,
-          phone: userData.phone,
-          phone_confirmed: true,
-          user_metadata: {
-            name: profileData.name,
-            phone: profileData.phone,
-            firebase_uid: firebaseData.uid
-          }
-        });
-
-        if (!createUserError) {
-          supabaseUser = createUserData.user;
-        }
-      }
+    // Ensure we have a valid Supabase user before generating token
+    if (!supabaseUser || !supabaseUser.id) {
+      console.error('❌ No valid Supabase user found for token generation');
+      return new Response(
+        JSON.stringify({ success: false, error: 'Failed to resolve user account' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    // Generate access token
-    console.log('🔑 Generating access token for user:', profileData.id);
+    // Generate access token using the Supabase user ID
+    console.log('🔑 Generating access token for user:', supabaseUser.id);
     const { data: tokenData, error: tokenError } = await supabase.auth.admin.generateAccessToken(
-      profileData.id
+      supabaseUser.id
     );
 
     if (tokenError) {
