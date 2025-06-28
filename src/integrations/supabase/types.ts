@@ -480,6 +480,7 @@ export type Database = {
           created_at: string
           email: string | null
           fcm_token: string | null
+          firebase_uid: string | null
           id: string
           last_notification_sent: string | null
           name: string
@@ -492,6 +493,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           fcm_token?: string | null
+          firebase_uid?: string | null
           id: string
           last_notification_sent?: string | null
           name: string
@@ -504,6 +506,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           fcm_token?: string | null
+          firebase_uid?: string | null
           id?: string
           last_notification_sent?: string | null
           name?: string
