@@ -24,7 +24,6 @@ const NearbyShopsPage: React.FC = () => {
   const [filteredShops, setFilteredShops] = useState<Merchant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   
   const navigate = useNavigate();
@@ -40,30 +39,7 @@ const NearbyShopsPage: React.FC = () => {
   }, [searchParams]);
 
   useEffect(() => {
-    // Get user location
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const userLoc = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          };
-          setUserLocation(userLoc);
-          fetchNearbyShops(userLoc);
-        },
-        (error) => {
-          console.error("Error getting location:", error);
-          // Use a default location (Bengaluru)
-          const defaultLocation = { lat: 12.9716, lng: 77.5946 };
-          setUserLocation(defaultLocation);
-          fetchNearbyShops(defaultLocation);
-        }
-      );
-    } else {
-      const defaultLocation = { lat: 12.9716, lng: 77.5946 };
-      setUserLocation(defaultLocation);
-      fetchNearbyShops(defaultLocation);
-    }
+    fetchNearbyShops();
   }, []);
 
   // Filter shops whenever active category changes
@@ -86,9 +62,10 @@ const NearbyShopsPage: React.FC = () => {
     setCurrentPage(1); // Reset to first page when filter changes
   }, [activeCategory, nearbyShops]);
 
-  const fetchNearbyShops = async (location: { lat: number; lng: number }) => {
+  const fetchNearbyShops = async () => {
     setIsLoading(true);
     try {
+      // Fetch all merchants for now, can be filtered by address later
       const { data: merchants, error } = await supabase
         .from('merchants')
         .select('*')
@@ -97,28 +74,15 @@ const NearbyShopsPage: React.FC = () => {
       if (error) throw error;
       
       if (merchants && merchants.length > 0) {
-        // Calculate distance for each merchant
-        const shopsWithDistance = merchants.map(merchant => {
-          const distance = calculateDistance(
-            location.lat, 
-            location.lng, 
-            merchant.lat, 
-            merchant.lng
-          );
-          return {
-            ...merchant,
-            distance: `${distance.toFixed(1)} km`,
-            distanceValue: distance
-          } as Merchant;
-        });
+        // Add distance as a placeholder for now
+        const shopsWithDistance = merchants.map(merchant => ({
+          ...merchant,
+          distance: `${(Math.random() * 5 + 0.5).toFixed(1)} km`, // Random distance for demo
+          distanceValue: Math.random() * 5 + 0.5
+        })) as Merchant[];
 
-        // Filter shops within 5km and sort by distance
-        const nearbyFilteredShops = shopsWithDistance
-          .filter(shop => (shop.distanceValue || 0) <= 5)
-          .sort((a, b) => (a.distanceValue || 0) - (b.distanceValue || 0));
-          
-        setNearbyShops(nearbyFilteredShops);
-        setFilteredShops(nearbyFilteredShops);
+        setNearbyShops(shopsWithDistance);
+        setFilteredShops(shopsWithDistance);
       }
     } catch (error) {
       console.error("Error fetching merchants:", error);
@@ -132,23 +96,6 @@ const NearbyShopsPage: React.FC = () => {
     }
   };
 
-  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371; // Radius of the earth in km
-    const dLat = deg2rad(lat2 - lat1);
-    const dLon = deg2rad(lon2 - lon1);
-    const a = 
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) + 
-      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const d = R * c;
-    return d;
-  };
-
-  const deg2rad = (deg: number) => {
-    return deg * (Math.PI / 180);
-  };
-
   const getShopImage = (merchant: Merchant) => {
     if (merchant.image_url && merchant.image_url.trim() !== '') {
       if (merchant.image_url.startsWith('http')) {
@@ -160,6 +107,7 @@ const NearbyShopsPage: React.FC = () => {
   };
 
   const handleBookNow = (merchantId: string) => {
+    // Navigate to merchant detail page which shows services and allows booking
     navigate(`/merchant/${merchantId}`);
   };
 
@@ -192,7 +140,7 @@ const NearbyShopsPage: React.FC = () => {
               {activeCategory ? `${activeCategory} Near You` : "Nearby Shops"}
             </h1>
             <p className="text-sm text-gray-500">
-              {filteredShops.length} shops within 5km
+              {filteredShops.length} shops found
             </p>
           </div>
         </div>
@@ -248,7 +196,7 @@ const NearbyShopsPage: React.FC = () => {
                                 <path d="M12 13.5C13.933 13.5 15.5 11.933 15.5 10C15.5 8.067 13.933 6.5 12 6.5C10.067 6.5 8.5 8.067 8.5 10C8.5 11.933 10.067 13.5 12 13.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                                 <path d="M12 21.5C17 17.5 22 14.0718 22 10C22 5.92819 17.5228 2.5 12 2.5C6.47715 2.5 2 5.92819 2 10C2 14.0718 7 17.5 12 21.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                               </svg>
-                              {shop.distance}
+                              {shop.distance || 'Unknown'}
                             </span>
                             <Button 
                               size="sm" 
@@ -305,8 +253,8 @@ const NearbyShopsPage: React.FC = () => {
               <h3 className="text-lg font-medium text-gray-900 mb-2">No shops found</h3>
               <p className="text-gray-500 mb-4">
                 {activeCategory 
-                  ? `No ${activeCategory} shops found within 5km of your location.`
-                  : "No shops found within 5km of your location."
+                  ? `No ${activeCategory} shops found.`
+                  : "No shops found in your area."
                 }
               </p>
               <Button variant="outline" onClick={() => navigate('/map')}>
