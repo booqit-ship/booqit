@@ -66,6 +66,27 @@ const verifyFirebaseToken = async (idToken: string) => {
   }
 };
 
+// Check if firebase_uid column exists
+const checkFirebaseUidColumnExists = async (supabase: any) => {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('firebase_uid')
+      .limit(1);
+    
+    if (error && error.code === 'PGRST204') {
+      console.log('⚠️ firebase_uid column does not exist yet');
+      return false;
+    }
+    
+    console.log('✅ firebase_uid column exists');
+    return true;
+  } catch (error) {
+    console.log('⚠️ Error checking firebase_uid column:', error);
+    return false;
+  }
+};
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -76,6 +97,7 @@ serve(async (req) => {
     const { idToken, userData } = await req.json();
     
     if (!idToken) {
+      console.error('❌ Missing ID token');
       return new Response(
         JSON.stringify({ success: false, error: 'ID token is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -83,6 +105,7 @@ serve(async (req) => {
     }
 
     if (!userData?.phone) {
+      console.error('❌ Missing phone number');
       return new Response(
         JSON.stringify({ success: false, error: 'Phone number is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -100,6 +123,9 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
+
+    // Check if firebase_uid column exists
+    const firebaseUidExists = await checkFirebaseUidColumnExists(supabase);
 
     // Check if user already exists in profiles table by phone
     console.log('🔍 Checking for existing profile with phone:', userData.phone);
@@ -124,42 +150,48 @@ serve(async (req) => {
       console.log('✅ Existing user found:', existingProfile.name);
       isExistingUser = true;
       
-      // Try to update Firebase UID - handle gracefully if column doesn't exist
-      try {
-        const { data: updatedProfile, error: updateError } = await supabase
-          .from('profiles')
-          .update({ firebase_uid: firebaseData.uid })
-          .eq('id', existingProfile.id)
-          .select()
-          .single();
+      // Try to update Firebase UID only if column exists
+      if (firebaseUidExists) {
+        try {
+          const { data: updatedProfile, error: updateError } = await supabase
+            .from('profiles')
+            .update({ firebase_uid: firebaseData.uid })
+            .eq('id', existingProfile.id)
+            .select()
+            .single();
 
-        if (updateError) {
-          console.warn('⚠️ Could not update firebase_uid (column may not exist yet):', updateError.message);
-          // Use existing profile data if update fails
+          if (updateError) {
+            console.warn('⚠️ Could not update firebase_uid:', updateError.message);
+            profileData = existingProfile;
+          } else {
+            profileData = updatedProfile;
+            console.log('✅ Updated profile with firebase_uid');
+          }
+        } catch (updateError) {
+          console.warn('⚠️ Firebase UID update failed, using existing profile:', updateError);
           profileData = existingProfile;
-        } else {
-          profileData = updatedProfile;
         }
-      } catch (updateError) {
-        console.warn('⚠️ Firebase UID update failed, continuing with existing profile:', updateError);
+      } else {
+        console.log('⚠️ Skipping firebase_uid update - column does not exist');
         profileData = existingProfile;
       }
     } else {
       console.log('✅ New user, creating profile');
       
-      // Create new profile - handle firebase_uid column gracefully
-      const newProfileData = {
+      // Create new profile
+      const newProfileData: any = {
         name: userData.name || 'Customer',
         phone: userData.phone,
         email: userData.email || firebaseData.email || '',
         role: 'customer'
       };
 
-      // Try to add firebase_uid if column exists
-      try {
-        (newProfileData as any).firebase_uid = firebaseData.uid;
-      } catch (e) {
-        console.warn('⚠️ Firebase UID column not available, creating profile without it');
+      // Add firebase_uid only if column exists
+      if (firebaseUidExists) {
+        newProfileData.firebase_uid = firebaseData.uid;
+        console.log('✅ Including firebase_uid in new profile');
+      } else {
+        console.log('⚠️ Skipping firebase_uid in new profile - column does not exist');
       }
 
       const { data: newProfile, error: insertError } = await supabase
@@ -177,6 +209,7 @@ serve(async (req) => {
       }
 
       profileData = newProfile;
+      console.log('✅ Created new profile successfully');
     }
 
     console.log('✅ Profile data ready:', { id: profileData.id, name: profileData.name });
