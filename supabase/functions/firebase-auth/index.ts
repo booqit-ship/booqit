@@ -178,8 +178,12 @@ serve(async (req) => {
     } else {
       console.log('✅ New user, creating profile');
       
+      // Generate a new UUID for the profile ID
+      const profileId = crypto.randomUUID();
+      
       // Create new profile
       const newProfileData: any = {
+        id: profileId, // Set the profile ID explicitly
         name: userData.name || 'Customer',
         phone: userData.phone,
         email: userData.email || firebaseData.email || '',
