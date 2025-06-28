@@ -1,5 +1,5 @@
 
-import React, { Suspense, useState, useEffect } from 'react';
+import React, { Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Settings, User, Calendar, Star, ChevronRight, LogOut, RefreshCw, AlertCircle } from 'lucide-react';
@@ -9,15 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import ProfileImageUpload from '@/components/customer/ProfileImageUpload';
-
-interface Profile {
-  id: string;
-  name: string | null;
-  email: string;
-  phone: string | null;
-  role: string;
-  avatar_url: string | null;
-}
+import { useUserProfile } from '@/hooks/useUserProfile';
 
 interface RecentBooking {
   id: string;
@@ -31,62 +23,6 @@ interface RecentBooking {
     name: string;
   };
 }
-
-const fetchProfile = async (userId: string | null, email: string | null, user_metadata: any) => {
-  if (!userId) {
-    console.log('🚫 No user ID provided for profile fetch');
-    throw new Error('User ID required');
-  }
-  
-  console.log('🔍 Fetching profile for user:', userId);
-  
-  try {
-    // Get profile data with no fallback creation
-    const { data: profileData, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, name, email, phone, role, avatar_url')
-      .eq('id', userId)
-      .maybeSingle();
-    
-    if (profileError) {
-      console.error('❌ Profile fetch error:', profileError);
-      throw profileError;
-    }
-    
-    if (profileData) {
-      console.log('✅ Profile found:', profileData.name);
-      return profileData;
-    }
-    
-    // If no profile exists, create one
-    console.log('📝 Creating new profile for user');
-    const newProfile = {
-      id: userId,
-      name: user_metadata?.name || email?.split('@')[0] || 'Customer',
-      email: email || '',
-      phone: user_metadata?.phone || null,
-      role: 'customer',
-      avatar_url: null
-    };
-    
-    const { error: insertError } = await supabase
-      .from('profiles')
-      .insert(newProfile);
-    
-    if (insertError) {
-      console.error('❌ Profile creation error:', insertError);
-      // Return the profile data anyway
-      return newProfile;
-    }
-    
-    console.log('✅ Profile created successfully');
-    return newProfile;
-    
-  } catch (error) {
-    console.error('❌ Exception in fetchProfile:', error);
-    throw error;
-  }
-};
 
 const fetchRecentBookings = async (userId: string | null) => {
   if (!userId) return [];
@@ -144,70 +80,26 @@ const ProfileSkeleton = () => (
 );
 
 const ProfilePage: React.FC = () => {
-  const { user, logout, isAuthenticated, loading } = useAuth();
-  const [profileData, setProfileData] = useState<Profile | null>(null);
-  const [showError, setShowError] = useState(false);
+  const { user, logout, isAuthenticated, loading, userId } = useAuth();
+  const { profile, isLoading: loadingProfile, error: errorProfile, refetch: refetchProfile } = useUserProfile();
 
   console.log('🏠 ProfilePage - Auth state:', { 
     isAuthenticated, 
     loading, 
     hasUser: !!user,
-    userId: user?.id 
-  });
-
-  // Fetch profile with improved error handling
-  const {
-    data: profile,
-    isLoading: loadingProfile,
-    error: errorProfile,
-    refetch: refetchProfile
-  } = useQuery({
-    queryKey: ['profile', user?.id],
-    queryFn: () => fetchProfile(user?.id ?? null, user?.email ?? null, user?.user_metadata ?? {}),
-    enabled: !!user?.id && isAuthenticated && !loading,
-    staleTime: 30 * 1000, // 30 seconds - shorter for more frequent updates
-    retry: (failureCount, error) => {
-      // Don't retry on auth errors to prevent loops
-      if (error instanceof Error && (
-        error.message.includes('JWT') ||
-        error.message.includes('auth') ||
-        error.message.includes('unauthorized')
-      )) {
-        console.log('🚫 Not retrying auth-related error:', error.message);
-        return false;
-      }
-      return failureCount < 2;
-    },
-    retryDelay: 2000
+    userId: userId 
   });
 
   const {
     data: recentBookings = [],
     isLoading: loadingBookings
   } = useQuery({
-    queryKey: ['recentBookings', user?.id],
-    queryFn: () => fetchRecentBookings(user?.id ?? null),
-    enabled: !!user?.id && isAuthenticated && !loading,
+    queryKey: ['recentBookings', userId],
+    queryFn: () => fetchRecentBookings(userId ?? null),
+    enabled: !!userId && isAuthenticated && !loading,
     staleTime: 2 * 60 * 1000,
     retry: 1
   });
-
-  // Handle successful profile fetch
-  useEffect(() => {
-    if (profile) {
-      console.log('✅ Profile data received:', profile.name);
-      setProfileData(profile);
-      setShowError(false);
-    }
-  }, [profile]);
-
-  // Handle profile errors - DON'T auto-logout
-  useEffect(() => {
-    if (errorProfile) {
-      console.error('❌ Profile error (not logging out):', errorProfile);
-      setShowError(true);
-    }
-  }, [errorProfile]);
 
   const profileItems = [
     {
@@ -230,15 +122,7 @@ const ProfilePage: React.FC = () => {
     }
   ];
 
-  const getInitials = (name: string) => {
-    if (!name) return 'U';
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-  };
-
   const handleImageUpdate = (newImageUrl: string | null) => {
-    if (profileData) {
-      setProfileData({ ...profileData, avatar_url: newImageUrl });
-    }
     refetchProfile();
   };
 
@@ -253,7 +137,6 @@ const ProfilePage: React.FC = () => {
 
   const handleRefreshProfile = async () => {
     console.log('🔄 Manually refreshing profile data...');
-    setShowError(false);
     try {
       await refetchProfile();
       toast.success('Profile refreshed successfully');
@@ -264,13 +147,13 @@ const ProfilePage: React.FC = () => {
   };
 
   // Show loading state
-  if (loading || (loadingProfile && !profileData)) {
+  if (loading || (loadingProfile && !profile)) {
     console.log('⏳ Showing loading state');
     return <ProfileSkeleton />;
   }
 
   // Show error state with recovery options
-  if (showError && !profileData) {
+  if (errorProfile && !profile) {
     console.log('❌ Showing error state');
     
     return (
@@ -318,9 +201,8 @@ const ProfilePage: React.FC = () => {
   }
 
   // Use profile data with fallbacks
-  const displayProfile = profile || profileData;
-  const displayName = displayProfile?.name || user?.email?.split('@')[0] || 'Customer';
-  const displayEmail = displayProfile?.email || user?.email || '';
+  const displayName = profile?.name || user?.email?.split('@')[0] || 'Customer';
+  const displayEmail = profile?.email || user?.email || '';
 
   console.log('✅ Rendering profile page for:', displayName);
 
@@ -331,9 +213,9 @@ const ProfilePage: React.FC = () => {
         <div className="flex flex-col items-center pt-8 pb-3">
           <div className="w-full max-w-sm px-4">
             <ProfileImageUpload
-              currentImageUrl={displayProfile?.avatar_url}
+              currentImageUrl={profile?.avatar_url}
               userName={displayName}
-              userId={user?.id || ''}
+              userId={userId || ''}
               onImageUpdate={handleImageUpdate}
             />
           </div>
@@ -344,13 +226,6 @@ const ProfilePage: React.FC = () => {
             <p className="text-sm text-white/70 font-medium mt-1">
               {displayEmail}
             </p>
-            {/* Add refresh button for debugging */}
-            <button 
-              onClick={handleRefreshProfile}
-              className="text-xs text-white/60 hover:text-white/80 mt-1 underline"
-            >
-              Refresh Profile
-            </button>
           </div>
         </div>
       </div>

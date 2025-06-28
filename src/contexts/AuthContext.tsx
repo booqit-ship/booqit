@@ -40,14 +40,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   console.log('🔧 AuthProvider state:', { isAuthenticated, userId, userRole, isLoading });
 
-  // Simplified setAuth method
   const setAuth = (authenticated: boolean, role: UserRole, userId: string) => {
     console.log('🔧 Setting auth state:', { authenticated, role, userId });
     setIsAuthenticated(authenticated);
     setUserRole(role);
     setUserId(userId);
     
-    // Update permanent session only if all data is valid
     if (authenticated && userId && role) {
       PermanentSession.saveSession(null, role, userId);
     }
@@ -60,7 +58,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         console.log('🔍 AUTH: Initializing authentication...');
         
-        // Check permanent session for immediate UI update (non-blocking)
+        // Check permanent session for immediate UI update
         const permanentSession = PermanentSession.getSession();
         if (permanentSession.isLoggedIn && permanentSession.userId && mounted) {
           console.log('📖 AUTH: Loading from permanent session');
@@ -69,20 +67,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setIsAuthenticated(true);
         }
 
-        // Get authoritative Supabase session - with error handling
-        let session = null;
-        try {
-          const { data: sessionData, error } = await supabase.auth.getSession();
-          if (error) {
-            console.error('⚠️ AUTH: Session fetch error:', error);
-            // Don't throw, continue with permanent session if available
-          } else {
-            session = sessionData.session;
-          }
-        } catch (sessionError) {
-          console.error('❌ AUTH: Exception getting session:', sessionError);
-          // Continue with permanent session if available
+        // Get Supabase session
+        const { data: sessionData, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('⚠️ AUTH: Session fetch error:', error);
         }
+
+        const session = sessionData?.session;
 
         if (!mounted) return;
 
@@ -92,45 +83,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUserId(session.user.id);
           setIsAuthenticated(true);
 
-          // Fetch user role only if we don't have it or it's different
-          if (!permanentSession.userRole || permanentSession.userId !== session.user.id) {
-            try {
-              const { data: profileData } = await supabase
-                .from('profiles')
-                .select('role, name')
-                .eq('id', session.user.id)
-                .single();
+          // Get or create user profile
+          try {
+            const { data: profileData } = await supabase
+              .rpc('get_or_create_user_profile', { p_user_id: session.user.id });
 
-              if (profileData && mounted) {
-                const role = profileData.role || 'customer';
-                setUserRole(role);
-                PermanentSession.saveSession(session, role, session.user.id);
-                console.log('✅ AUTH: User role updated to:', role);
-              }
-            } catch (roleError) {
-              console.warn('⚠️ AUTH: Could not fetch role, using default:', roleError);
-              const defaultRole = 'customer';
-              setUserRole(defaultRole);
-              PermanentSession.saveSession(session, defaultRole, session.user.id);
+            if (profileData && profileData[0] && mounted) {
+              const role = profileData[0].role || 'customer';
+              setUserRole(role);
+              PermanentSession.saveSession(session, role, session.user.id);
+              console.log('✅ AUTH: User role updated to:', role);
             }
+          } catch (roleError) {
+            console.warn('⚠️ AUTH: Could not fetch/create profile, using default:', roleError);
+            const defaultRole = 'customer';
+            setUserRole(defaultRole);
+            PermanentSession.saveSession(session, defaultRole, session.user.id);
           }
         } else {
           console.log('ℹ️ AUTH: No valid session');
-          // Only clear if we don't have permanent session
-          if (!permanentSession.isLoggedIn) {
+          if (!permanentSession.isLoggedIn && mounted) {
             console.log('🧹 AUTH: Clearing auth state');
             setIsAuthenticated(false);
             setUserId('');
             setUserRole('');
             setUser(null);
             PermanentSession.clearSession();
-          } else {
-            console.log('📖 AUTH: Keeping permanent session active');
           }
         }
       } catch (error) {
         console.error('❌ AUTH: Error initializing auth:', error);
-        // On critical errors, only clear if no permanent session
         const permanentSession = PermanentSession.getSession();
         if (!permanentSession.isLoggedIn && mounted) {
           setIsAuthenticated(false);
@@ -148,7 +130,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     initializeAuth();
 
-    // Simplified auth state listener - only handle major events
+    // Auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
@@ -161,23 +143,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUserId(session.user.id);
           setIsAuthenticated(true);
           
-          // Fetch role asynchronously without blocking
+          // Get profile asynchronously
           setTimeout(async () => {
             if (!mounted) return;
             try {
               const { data: profileData } = await supabase
-                .from('profiles')
-                .select('role')
-                .eq('id', session.user.id)
-                .single();
+                .rpc('get_or_create_user_profile', { p_user_id: session.user.id });
               
-              if (profileData && mounted) {
-                const role = profileData.role || 'customer';
+              if (profileData && profileData[0] && mounted) {
+                const role = profileData[0].role || 'customer';
                 setUserRole(role);
                 PermanentSession.saveSession(session, role, session.user.id);
               }
             } catch (error) {
-              console.warn('⚠️ AUTH: Role fetch after sign in failed:', error);
+              console.warn('⚠️ AUTH: Profile fetch after sign in failed:', error);
               if (mounted) {
                 setUserRole('customer');
                 PermanentSession.saveSession(session, 'customer', session.user.id);
@@ -234,16 +213,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('🚪 AUTH: Starting logout');
       
-      // Clean up tokens if needed
-      if (userId) {
-        try {
-          const { EnhancedTokenCleanupService } = await import('@/services/EnhancedTokenCleanupService');
-          await EnhancedTokenCleanupService.cleanupUserTokensOnLogout(userId);
-        } catch (cleanupError) {
-          console.error('❌ AUTH: Token cleanup failed:', cleanupError);
-        }
-      }
-
       // Clear permanent session first
       PermanentSession.clearSession();
       
@@ -253,19 +222,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUserRole('');
       setIsAuthenticated(false);
       
-      // Sign out from Supabase (this might fail but UI is already updated)
-      try {
-        const { error } = await supabase.auth.signOut();
-        if (error) {
-          console.error('❌ AUTH: Logout error:', error);
-          toast.error('Error during logout');
-        } else {
-          console.log('✅ AUTH: Logout successful');
-          toast.success('Logged out successfully');
-        }
-      } catch (signOutError) {
-        console.error('❌ AUTH: Supabase signout failed:', signOutError);
-        // UI already updated, don't show error to user
+      // Sign out from Supabase
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('❌ AUTH: Logout error:', error);
+        toast.error('Error during logout');
+      } else {
+        console.log('✅ AUTH: Logout successful');
+        toast.success('Logged out successfully');
       }
 
       // Clear cached data

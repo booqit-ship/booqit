@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { ArrowLeft, Save, User, Mail, Phone, Loader2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -7,76 +7,31 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-
-interface ProfileData {
-  id: string;
-  name: string | null;
-  email: string;
-  phone: string | null;
-  role: string;
-}
+import { useUserProfile } from '@/hooks/useUserProfile';
 
 const AccountInformationPage: React.FC = () => {
-  const { user, userId, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const { profile, isLoading, error, updateProfile } = useUserProfile();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: ''
+    name: profile?.name || '',
+    email: profile?.email || '',
+    phone: profile?.phone || ''
   });
-
-  console.log('🔍 AccountInformation - Auth state:', { isAuthenticated, userId, hasUser: !!user });
 
   // Redirect if not authenticated
-  useEffect(() => {
-    if (!isAuthenticated && !userId) {
-      console.log('🚫 Not authenticated, redirecting to home');
+  React.useEffect(() => {
+    if (!isAuthenticated) {
       navigate('/home', { replace: true });
     }
-  }, [isAuthenticated, userId, navigate]);
+  }, [isAuthenticated, navigate]);
 
-  // Fetch profile data
-  const {
-    data: profile,
-    isLoading,
-    error,
-    refetch
-  } = useQuery({
-    queryKey: ['profile', userId],
-    queryFn: async () => {
-      if (!userId) throw new Error('No user ID');
-      
-      console.log('📡 Fetching profile for user:', userId);
-      
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, name, email, phone, role')
-        .eq('id', userId)
-        .single();
-      
-      if (error) {
-        console.error('❌ Profile fetch error:', error);
-        throw error;
-      }
-      
-      console.log('✅ Profile fetched:', data);
-      return data as ProfileData;
-    },
-    enabled: !!userId && isAuthenticated,
-    retry: 2,
-    staleTime: 1000 * 60 * 2, // 2 minutes
-  });
-
-  // Update form data when profile loads
-  useEffect(() => {
+  // Update form when profile loads
+  React.useEffect(() => {
     if (profile) {
-      console.log('📝 Updating form with profile data:', profile);
       setFormData({
         name: profile.name || '',
         email: profile.email || '',
@@ -93,35 +48,14 @@ const AccountInformationPage: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (!userId) {
-      toast.error('User ID not found');
-      return;
-    }
-
     setIsSaving(true);
     
     try {
-      console.log('💾 Saving profile updates:', formData);
-      
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          name: formData.name.trim() || null,
-          email: formData.email.trim(),
-          phone: formData.phone.trim() || null
-        })
-        .eq('id', userId);
-
-      if (error) {
-        console.error('❌ Profile update error:', error);
-        throw error;
-      }
-
-      console.log('✅ Profile updated successfully');
-      
-      // Invalidate and refetch profile data
-      await queryClient.invalidateQueries({ queryKey: ['profile', userId] });
-      await refetch();
+      await updateProfile({
+        name: formData.name.trim() || null,
+        email: formData.email.trim(),
+        phone: formData.phone.trim() || null
+      });
       
       toast.success('Profile updated successfully');
       setIsEditing(false);
@@ -188,7 +122,7 @@ const AccountInformationPage: React.FC = () => {
           <Card>
             <CardContent className="p-6 text-center">
               <p className="text-red-600 mb-4">Failed to load profile information</p>
-              <Button onClick={() => refetch()}>Try Again</Button>
+              <Button onClick={() => window.location.reload()}>Try Again</Button>
             </CardContent>
           </Card>
         </div>
