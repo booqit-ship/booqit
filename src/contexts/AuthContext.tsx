@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,7 +17,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   updateUserRole: (newRole: string) => void;
-  setAuth: (authenticated: boolean, role: UserRole, userId: string) => void; // Added missing method
+  setAuth: (authenticated: boolean, role: UserRole, userId: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -37,212 +38,173 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Enhanced setAuth method for Firebase authentication
+  // Simplified setAuth method
   const setAuth = (authenticated: boolean, role: UserRole, userId: string) => {
     console.log('🔧 Setting auth state:', { authenticated, role, userId });
     setIsAuthenticated(authenticated);
     setUserRole(role);
     setUserId(userId);
     
-    // Update permanent session
+    // Update permanent session only if all data is valid
     if (authenticated && userId && role) {
       PermanentSession.saveSession(null, role, userId);
     }
   };
 
   useEffect(() => {
-    const loadSession = async () => {
+    let mounted = true;
+    
+    const initializeAuth = async () => {
       try {
-        console.log('🔍 AUTH: Loading session...');
+        console.log('🔍 AUTH: Initializing authentication...');
         
-        // Check permanent session first for immediate UI update
+        // Check permanent session for immediate UI update (non-blocking)
         const permanentSession = PermanentSession.getSession();
-        if (permanentSession.isLoggedIn && permanentSession.userId) {
-          console.log('🔍 AUTH: Found permanent session, setting initial state');
+        if (permanentSession.isLoggedIn && permanentSession.userId && mounted) {
+          console.log('📖 AUTH: Loading from permanent session');
           setUserId(permanentSession.userId);
           setUserRole(permanentSession.userRole);
           setIsAuthenticated(true);
         }
 
-        // Get current Supabase session (this is the authoritative source)
+        // Get authoritative Supabase session
         const { data: { session }, error } = await supabase.auth.getSession();
 
-        if (session && session.user) {
+        if (!mounted) return;
+
+        if (session && session.user && !error) {
           console.log('✅ AUTH: Valid Supabase session found');
           setUser(session.user);
           setUserId(session.user.id);
           setIsAuthenticated(true);
 
-          // Fetch or set user role
-          if (session.user.id && (!permanentSession.isLoggedIn || !permanentSession.userRole)) {
-            console.log('🔄 AUTH: Fetching user role from database');
+          // Fetch user role only if we don't have it or it's different
+          if (!permanentSession.userRole || permanentSession.userId !== session.user.id) {
             try {
-              const { data: profileData, error: profileError } = await supabase
+              const { data: profileData } = await supabase
                 .from('profiles')
                 .select('role, name')
                 .eq('id', session.user.id)
                 .single();
 
-              if (!profileError && profileData) {
+              if (profileData && mounted) {
                 const role = profileData.role || 'customer';
                 setUserRole(role);
                 PermanentSession.saveSession(session, role, session.user.id);
-                console.log('✅ AUTH: User role set to:', role);
-              } else {
-                console.warn('⚠️ AUTH: Could not fetch role, using default customer');
-                setUserRole('customer');
-                PermanentSession.saveSession(session, 'customer', session.user.id);
+                console.log('✅ AUTH: User role updated to:', role);
               }
             } catch (roleError) {
-              console.warn('⚠️ AUTH: Role fetch failed, using default:', roleError);
-              setUserRole('customer');
-              PermanentSession.saveSession(session, 'customer', session.user.id);
+              console.warn('⚠️ AUTH: Could not fetch role, using default:', roleError);
+              const defaultRole = 'customer';
+              setUserRole(defaultRole);
+              PermanentSession.saveSession(session, defaultRole, session.user.id);
             }
-          } else if (permanentSession.userRole) {
-            setUserRole(permanentSession.userRole);
-          }
-        } else if (error) {
-          console.error('❌ AUTH: Error loading session:', error);
-          // Clear permanent session if Supabase session is invalid
-          if (permanentSession.isLoggedIn) {
-            console.log('🧹 AUTH: Clearing invalid permanent session');
-            PermanentSession.clearSession();
-            setIsAuthenticated(false);
-            setUserId('');
-            setUserRole('');
           }
         } else {
-          console.log('ℹ️ AUTH: No existing session found');
-          // Clear any stale permanent session
+          console.log('ℹ️ AUTH: No valid session, clearing state');
           if (permanentSession.isLoggedIn) {
-            console.log('🧹 AUTH: Clearing stale permanent session');
             PermanentSession.clearSession();
-            setIsAuthenticated(false);
-            setUserId('');
-            setUserRole('');
           }
+          setIsAuthenticated(false);
+          setUserId('');
+          setUserRole('');
+          setUser(null);
         }
-      } catch (sessionError) {
-        console.error('❌ AUTH: Unexpected error loading session:', sessionError);
-        // Clear permanent session on unexpected errors
+      } catch (error) {
+        console.error('❌ AUTH: Error initializing auth:', error);
+        // On critical errors, clear everything
         PermanentSession.clearSession();
-        setIsAuthenticated(false);
-        setUserId('');
-        setUserRole('');
+        if (mounted) {
+          setIsAuthenticated(false);
+          setUserId('');
+          setUserRole('');
+          setUser(null);
+        }
       } finally {
-        setIsLoading(false);
+        if (mounted) {
+          setIsLoading(false);
+        }
       }
     };
 
-    loadSession();
+    initializeAuth();
 
-    // Set up auth state listener for real-time updates
+    // Simplified auth state listener - only handle major events
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('👂 AUTH: Auth state change event:', event);
+        if (!mounted) return;
+        
+        console.log('👂 AUTH: Auth state change:', event);
 
-        if (event === 'INITIAL_SESSION') {
-          // Already handled in loadSession above
-          return;
-        } else if (event === 'SIGNED_IN') {
+        if (event === 'SIGNED_IN' && session?.user) {
           console.log('✅ AUTH: User signed in');
-          if (session && session.user) {
-            setUser(session.user);
-            setUserId(session.user.id);
-            setIsAuthenticated(true);
-            
-            // Fetch role asynchronously after sign in
-            setTimeout(async () => {
-              try {
-                const { data: profileData } = await supabase
-                  .from('profiles')
-                  .select('role')
-                  .eq('id', session.user.id)
-                  .single();
-                
-                if (profileData) {
-                  const role = profileData.role || 'customer';
-                  setUserRole(role);
-                  PermanentSession.saveSession(session, role, session.user.id);
-                }
-              } catch (error) {
-                console.warn('⚠️ AUTH: Could not fetch role after sign in:', error);
+          setUser(session.user);
+          setUserId(session.user.id);
+          setIsAuthenticated(true);
+          
+          // Fetch role asynchronously without blocking
+          setTimeout(async () => {
+            if (!mounted) return;
+            try {
+              const { data: profileData } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('id', session.user.id)
+                .single();
+              
+              if (profileData && mounted) {
+                const role = profileData.role || 'customer';
+                setUserRole(role);
+                PermanentSession.saveSession(session, role, session.user.id);
+              }
+            } catch (error) {
+              console.warn('⚠️ AUTH: Role fetch after sign in failed:', error);
+              if (mounted) {
                 setUserRole('customer');
                 PermanentSession.saveSession(session, 'customer', session.user.id);
               }
-            }, 100);
-          }
+            }
+          }, 100);
         } else if (event === 'SIGNED_OUT') {
           console.log('🚪 AUTH: User signed out');
+          PermanentSession.clearSession();
           setUser(null);
           setUserId('');
           setUserRole('');
           setIsAuthenticated(false);
-          PermanentSession.clearSession();
-        } else if (event === 'TOKEN_REFRESHED') {
+        } else if (event === 'TOKEN_REFRESHED' && session?.user) {
           console.log('🔄 AUTH: Token refreshed');
-          if (session && session.user) {
-            setUser(session.user);
-            setUserId(session.user.id);
-            setIsAuthenticated(true);
-            // Refresh permanent session timestamp
-            PermanentSession.refreshLogin();
-          }
-        } else if (event === 'USER_UPDATED') {
-          console.log('👤 AUTH: User updated');
-          if (session && session.user) {
-            setUser(session.user);
-            setUserId(session.user.id);
-            setIsAuthenticated(true);
-          }
+          setUser(session.user);
+          PermanentSession.refreshLogin();
         }
       }
     );
 
     return () => {
-      console.log('🚪 AUTH: Removing auth state listener');
+      mounted = false;
       subscription?.unsubscribe();
     };
-  }, [navigate]);
+  }, []);
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      console.log('🔑 AUTH: Attempting login for:', email);
+      console.log('🔑 AUTH: Attempting login');
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: email,
-        password: password,
+        email,
+        password,
       });
 
       if (error) {
         console.error('❌ AUTH: Login error:', error);
         toast.error('Invalid credentials');
       } else if (data.user) {
-        console.log('✅ AUTH: Login successful for:', data.user.id);
-        setUser(data.user);
-        setUserId(data.user.id);
-        setIsAuthenticated(true);
-
-        // Fetch user role and save to permanent session
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', data.user.id)
-          .single();
-
-        if (profileError) {
-          console.error('❌ AUTH: Error fetching profile:', profileError);
-          toast.error('Error fetching user profile');
-        } else if (profileData) {
-          const role = profileData.role || 'customer';
-          setUserRole(role);
-          PermanentSession.saveSession(data.session, role, data.user.id);
-          toast.success('Logged in successfully');
-          navigate('/');
-        }
+        console.log('✅ AUTH: Login successful');
+        toast.success('Logged in successfully');
+        navigate('/');
       }
-    } catch (loginError) {
-      console.error('❌ AUTH: Unexpected login error:', loginError);
+    } catch (error) {
+      console.error('❌ AUTH: Unexpected login error:', error);
       toast.error('Unexpected error during login');
     } finally {
       setIsLoading(false);
@@ -251,30 +213,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
-      console.log('🚪 AUTH: Starting logout process');
+      console.log('🚪 AUTH: Starting logout');
       
-      // ✅ ENHANCED: Clean up user tokens before logout using the new service
+      // Clean up tokens if needed
       if (userId) {
-        console.log('🧹 AUTH: Cleaning up notification tokens');
         try {
           const { EnhancedTokenCleanupService } = await import('@/services/EnhancedTokenCleanupService');
           await EnhancedTokenCleanupService.cleanupUserTokensOnLogout(userId);
         } catch (cleanupError) {
           console.error('❌ AUTH: Token cleanup failed:', cleanupError);
-          // Don't block logout if cleanup fails
         }
       }
 
-      // Clear permanent session
-      console.log('🧹 AUTH: Clearing permanent session');
+      // Clear permanent session first
       PermanentSession.clearSession();
       
       // Sign out from Supabase
-      console.log('🚪 AUTH: Signing out from Supabase');
       const { error } = await supabase.auth.signOut();
       
       if (error) {
-        console.error('❌ AUTH: Error during logout:', error);
+        console.error('❌ AUTH: Logout error:', error);
         toast.error('Error during logout');
       } else {
         console.log('✅ AUTH: Logout successful');
@@ -286,35 +244,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUserId('');
       setUserRole('');
       setIsAuthenticated(false);
-      setIsLoading(false);
 
-      // Clear any cached data
+      // Clear cached data
       try {
         sessionStorage.clear();
         localStorage.removeItem('booking-draft');
         localStorage.removeItem('performance-metrics');
-      } catch (storageError) {
-        console.error('❌ AUTH: Error clearing storage:', storageError);
+      } catch (error) {
+        console.error('❌ AUTH: Error clearing storage:', error);
       }
 
-      // Redirect to login
       navigate('/auth');
-      
     } catch (error) {
-      console.error('❌ AUTH: Unexpected error during logout:', error);
+      console.error('❌ AUTH: Unexpected logout error:', error);
       toast.error('Unexpected error during logout');
     }
   };
 
-  const updateUserRole = async (newRole: string) => {
-    try {
-      console.log(`👤 AUTH: Updating user role to: ${newRole}`);
-      setUserRole(newRole);
-      PermanentSession.updateUserRole(newRole);
-    } catch (roleError) {
-      console.error('❌ AUTH: Error updating user role:', roleError);
-      toast.error('Error updating user role');
-    }
+  const updateUserRole = (newRole: string) => {
+    console.log(`👤 AUTH: Updating user role to: ${newRole}`);
+    setUserRole(newRole);
+    PermanentSession.updateUserRole(newRole);
   };
 
   const value = {
@@ -323,11 +273,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     userRole,
     isAuthenticated,
     isLoading,
-    loading: isLoading, // Added for backward compatibility
+    loading: isLoading,
     login,
     logout,
     updateUserRole,
-    setAuth, // Added missing method
+    setAuth,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

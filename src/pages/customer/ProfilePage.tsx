@@ -2,7 +2,7 @@
 import React, { Suspense, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Settings, User, Calendar, Star, ChevronRight, LogOut } from 'lucide-react';
+import { Settings, User, Calendar, Star, ChevronRight, LogOut, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
@@ -37,7 +37,6 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
   console.log('🔍 Fetching profile for user:', userId);
   
   try {
-    // Try to fetch the existing profile first
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
       .select('id, name, email, phone, role, avatar_url')
@@ -46,7 +45,7 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
     
     if (profileError) {
       console.error('❌ Error fetching profile:', profileError);
-      throw new Error(`Failed to fetch profile: ${profileError.message}`);
+      throw new Error(`Profile fetch failed: ${profileError.message}`);
     }
     
     if (profileData) {
@@ -54,9 +53,8 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
       return profileData;
     }
     
-    // Profile doesn't exist, create a new one
-    console.log('📝 Profile not found, creating new profile');
-    
+    // Create profile if it doesn't exist
+    console.log('📝 Creating new profile');
     const newProfile = {
       id: userId,
       name: user_metadata?.name || email?.split('@')[0] || 'Customer',
@@ -74,7 +72,7 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
     
     if (createError) {
       console.error('❌ Error creating profile:', createError);
-      throw new Error(`Failed to create profile: ${createError.message}`);
+      throw new Error(`Profile creation failed: ${createError.message}`);
     }
     
     console.log('✅ New profile created');
@@ -137,10 +135,10 @@ const ProfileSkeleton = () => (
 );
 
 const ProfilePage: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, isAuthenticated } = useAuth();
   const [profileData, setProfileData] = useState<Profile | null>(null);
 
-  // Fetch profile and bookings with better error handling
+  // Fetch profile with improved error handling
   const {
     data: profile,
     isLoading: loadingProfile,
@@ -149,9 +147,10 @@ const ProfilePage: React.FC = () => {
   } = useQuery({
     queryKey: ['profile', user?.id],
     queryFn: () => fetchProfile(user?.id ?? null, user?.email ?? null, user?.user_metadata ?? {}),
-    enabled: !!user?.id,
+    enabled: !!user?.id && isAuthenticated,
     staleTime: 1 * 60 * 1000,
-    retry: 2
+    retry: 1, // Reduced retry attempts
+    retryDelay: 2000
   });
 
   // Handle successful profile fetch
@@ -167,7 +166,7 @@ const ProfilePage: React.FC = () => {
   } = useQuery({
     queryKey: ['recentBookings', user?.id],
     queryFn: () => fetchRecentBookings(user?.id ?? null),
-    enabled: !!user?.id,
+    enabled: !!user?.id && isAuthenticated,
     staleTime: 2 * 60 * 1000,
     retry: 1
   });
@@ -202,7 +201,6 @@ const ProfilePage: React.FC = () => {
     if (profileData) {
       setProfileData({ ...profileData, avatar_url: newImageUrl });
     }
-    // Refetch profile to ensure consistency
     refetchProfile();
   };
 
@@ -211,25 +209,31 @@ const ProfilePage: React.FC = () => {
     return <ProfileSkeleton />;
   }
 
-  // Error state with better handling - don't auto-logout, give user options
+  // IMPROVED Error handling - don't auto-logout, give recovery options
   if (errorProfile) {
+    console.error('❌ Profile page error:', errorProfile);
+    
     return (
       <div className="h-screen bg-gray-50 flex flex-col items-center justify-center overflow-hidden">
-        <div className="bg-white p-6 rounded shadow-md max-w-md w-full mx-4 text-center">
+        <div className="bg-white p-6 rounded-lg shadow-md max-w-md w-full mx-4 text-center">
           <div className="text-red-500 mb-4">
             <User className="w-12 h-12 mx-auto mb-2" />
             <p className="text-lg font-semibold text-red-600 mb-2">
-              Profile Load Error
+              Profile Loading Issue
             </p>
             <p className="text-sm text-gray-600 mb-4">
-              {errorProfile?.message || "We couldn't load your profile information."}
+              We're having trouble loading your profile. This might be a temporary network issue.
             </p>
           </div>
           <div className="flex flex-col gap-2">
             <Button 
-              onClick={() => window.location.reload()}
+              onClick={() => {
+                console.log('🔄 Retrying profile fetch...');
+                refetchProfile();
+              }}
               className="w-full"
             >
+              <RefreshCw className="w-4 h-4 mr-2" />
               Try Again
             </Button>
             <Button 
@@ -240,10 +244,14 @@ const ProfilePage: React.FC = () => {
               Go to Home
             </Button>
             <Button 
-              onClick={logout}
+              onClick={() => {
+                console.log('🚪 User requested logout from error screen');
+                logout();
+              }}
               variant="ghost"
               className="w-full text-red-600"
             >
+              <LogOut className="w-4 h-4 mr-2" />
               Sign Out
             </Button>
           </div>
@@ -252,14 +260,17 @@ const ProfilePage: React.FC = () => {
     );
   }
 
-  // If no user, redirect to auth
-  if (!user) {
+  // Check authentication state
+  if (!isAuthenticated || !user) {
+    console.log('⚠️ User not authenticated in profile page, redirecting...');
     window.location.href = '/auth';
     return null;
   }
 
-  // Use either fetched profile or profileData state
+  // Use profile data with fallbacks
   const displayProfile = profile || profileData;
+  const displayName = displayProfile?.name || user?.email?.split('@')[0] || 'Customer';
+  const displayEmail = displayProfile?.email || user?.email || '';
 
   return (
     <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
@@ -269,17 +280,17 @@ const ProfilePage: React.FC = () => {
           <div className="w-full max-w-sm px-4">
             <ProfileImageUpload
               currentImageUrl={displayProfile?.avatar_url}
-              userName={displayProfile?.name || user?.email || 'User'}
+              userName={displayName}
               userId={user?.id || ''}
               onImageUpdate={handleImageUpdate}
             />
           </div>
           <div className="mt-2 mb-2 text-center">
             <h1 className="text-2xl font-righteous tracking-wide font-bold text-white drop-shadow-sm">
-              {(displayProfile?.name || user?.email?.split('@')[0] || 'Customer').toUpperCase()}
+              {displayName.toUpperCase()}
             </h1>
             <p className="text-sm text-white/70 font-medium mt-1">
-              {displayProfile?.email || user?.email}
+              {displayEmail}
             </p>
           </div>
         </div>
@@ -329,7 +340,14 @@ const ProfilePage: React.FC = () => {
         {/* Account Actions */}
         <Card className="flex-shrink-0">
           <CardContent className="space-y-3">
-            <Button variant="outline" onClick={logout} className="w-full justify-start py-[17px] my-[12px]">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                console.log('🚪 User clicked logout from profile page');
+                logout();
+              }} 
+              className="w-full justify-start py-[17px] my-[12px]"
+            >
               <LogOut className="h-4 w-4 mr-2" />
               Logout
             </Button>
