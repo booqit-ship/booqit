@@ -26,7 +26,6 @@ const StaffSelectionPage = LazyRoute(() => import("./pages/customer/StaffSelecti
 const DateTimeSelectionPage = LazyRoute(() => import("./pages/customer/DateTimeSelectionPage"));
 const BookingConfirmationPage = LazyRoute(() => import("./pages/customer/BookingSummaryPage"));
 const BookingSuccessPage = LazyRoute(() => import("./pages/guest/GuestBookingSuccessPage"));
-const BookingDetailsPage = LazyRoute(() => import("./pages/customer/BookingDetailsPage"));
 const PrivacyPolicyPage = LazyRoute(() => import("./pages/PrivacyPolicy"));
 const TermsAndConditionsPage = LazyRoute(() => import("./pages/TermsAndConditions"));
 const ForgotPasswordPage = LazyRoute(() => import("./pages/ForgotPasswordPage"));
@@ -76,7 +75,6 @@ function App() {
                 <Route path="/booking/:merchantId/datetime" element={<ProtectedRoute requiredRole="customer"><DateTimeSelectionPage /></ProtectedRoute>} />
                 <Route path="/booking/:merchantId/confirmation" element={<ProtectedRoute requiredRole="customer"><BookingConfirmationPage /></ProtectedRoute>} />
                 <Route path="/booking/success" element={<ProtectedRoute requiredRole="customer"><BookingSuccessPage /></ProtectedRoute>} />
-                <Route path="/booking/:bookingId/details" element={<ProtectedRoute><BookingDetailsPage /></ProtectedRoute>} />
 
                 {/* Auth Routes */}
                 <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
