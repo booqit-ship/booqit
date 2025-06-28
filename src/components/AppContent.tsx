@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import {
   Route,
@@ -44,6 +45,7 @@ import TermsAndConditions from '@/pages/TermsAndConditions';
 import DeleteAccountPage from '@/pages/settings/DeleteAccountPage';
 import ContactPage from '@/pages/settings/ContactPage';
 import AboutPage from '@/pages/settings/AboutPage';
+import AccountInformationPage from '@/pages/settings/AccountInformationPage';
 import MerchantBusinessInfoPage from '@/pages/merchant/settings/BusinessInformationPage';
 import MerchantBankingDetailsPage from '@/pages/merchant/settings/BankingDetailsPage';
 import MerchantContactPage from '@/pages/merchant/settings/ContactPage';
