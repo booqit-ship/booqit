@@ -25,10 +25,15 @@ const LazyGoogleMap: React.FC<LazyGoogleMapProps> = ({ center, merchants }) => {
           // Lazy load the map component
           import('@/components/common/GoogleMap').then((module) => {
             setMapComponent(() => module.default);
+          }).catch(() => {
+            console.log('Map component not available');
           });
         }
       },
-      { threshold: 0.1 }
+      { 
+        threshold: 0.1,
+        rootMargin: '50px' // Load before it becomes visible
+      }
     );
 
     if (mapRef.current) {
@@ -66,8 +71,11 @@ const LazyGoogleMap: React.FC<LazyGoogleMapProps> = ({ center, merchants }) => {
             </div>
           </div>
         )}
-        <div className="absolute inset-0 flex items-center justify-center bg-black/10">
-          <Button className="bg-booqit-primary" onClick={() => navigate('/map')}>
+        <div className="absolute inset-0 flex items-center justify-center bg-black/10 opacity-100 hover:opacity-0 transition-opacity duration-300">
+          <Button 
+            className="bg-booqit-primary hover:bg-booqit-primary/90" 
+            onClick={() => navigate('/map')}
+          >
             Open Map View
           </Button>
         </div>
@@ -76,4 +84,4 @@ const LazyGoogleMap: React.FC<LazyGoogleMapProps> = ({ center, merchants }) => {
   );
 };
 
-export default LazyGoogleMap;
+export default React.memo(LazyGoogleMap);

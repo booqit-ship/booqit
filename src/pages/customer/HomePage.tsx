@@ -36,7 +36,7 @@ const HomePage: React.FC = () => {
   const { userName, userAvatar } = useOptimizedUserProfile();
   const { merchants, isLoading } = useOptimizedMerchants(userLocation);
 
-  // Filter merchants by category
+  // Filter merchants by category - memoized to prevent unnecessary recalculations
   const filteredMerchants = useMemo(() => {
     if (!activeCategory) return merchants;
     
@@ -52,14 +52,14 @@ const HomePage: React.FC = () => {
     );
   }, [merchants, activeCategory]);
 
-  // Get user location - simplified and cached
+  // Get user location with better caching
   useEffect(() => {
     const getLocationFromCache = () => {
       try {
         const cached = sessionStorage.getItem('user_location');
         if (cached) {
           const data = JSON.parse(cached);
-          if (Date.now() - data.timestamp < 5 * 60 * 1000) {
+          if (Date.now() - data.timestamp < 10 * 60 * 1000) { // 10 minutes cache
             setUserLocation(data.location);
             setLocationName(data.locationName || "Your area");
             return true;
@@ -136,8 +136,8 @@ const HomePage: React.FC = () => {
   };
 
   return (
-    <div className="pb-20">
-      {/* Header Section */}
+    <div className="pb-20 min-h-screen">
+      {/* Header Section - optimized for smooth rendering */}
       <div className="bg-gradient-to-r from-booqit-primary to-purple-700 text-white p-6 rounded-b-3xl shadow-lg">
         <div className="flex justify-between items-center mb-6">
           <div>
@@ -172,21 +172,19 @@ const HomePage: React.FC = () => {
         </div>
       </div>
 
-      <div className="p-6">
+      <div className="p-6 space-y-8">
         {/* Upcoming Bookings Section */}
-        <div className="mb-8">
-          <UpcomingBookings />
-        </div>
+        <UpcomingBookings />
 
         {/* Categories Section */}
-        <div className="mb-8">
+        <div>
           <h2 className="mb-4 font-normal text-xl">Categories</h2>
           <div className="grid grid-cols-2 gap-3">
             {featuredCategories.map(category => (
               <Button
                 key={category.id}
                 variant="outline"
-                className={`h-auto flex flex-col items-center justify-center p-3 border transition-all
+                className={`h-auto flex flex-col items-center justify-center p-3 border transition-all duration-200
                   ${activeCategory === category.name 
                     ? 'border-booqit-primary bg-booqit-primary/10 shadow-md' 
                     : 'border-gray-200 shadow-sm hover:shadow-md hover:border-booqit-primary'
