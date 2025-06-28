@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -144,11 +143,16 @@ serve(async (req) => {
     }
 
     let profileData;
+    let supabaseUser;
     let isExistingUser = false;
 
     if (existingProfile) {
       console.log('✅ Existing user found:', existingProfile.name);
       isExistingUser = true;
+      
+      // Try to get existing Supabase user
+      const { data: existingUserData } = await supabase.auth.admin.getUserById(existingProfile.id);
+      supabaseUser = existingUserData.user;
       
       // Try to update Firebase UID only if column exists
       if (firebaseUidExists) {
@@ -176,14 +180,33 @@ serve(async (req) => {
         profileData = existingProfile;
       }
     } else {
-      console.log('✅ New user, creating profile');
+      console.log('✅ New user, creating Supabase user and profile');
       
-      // Generate a new UUID for the profile ID
-      const profileId = crypto.randomUUID();
+      // Create Supabase user first
+      const { data: createUserData, error: createUserError } = await supabase.auth.admin.createUser({
+        phone: userData.phone,
+        phone_confirmed: true,
+        user_metadata: {
+          name: userData.name || 'Customer',
+          phone: userData.phone,
+          firebase_uid: firebaseData.uid
+        }
+      });
+
+      if (createUserError) {
+        console.error('❌ Error creating Supabase user:', createUserError);
+        return new Response(
+          JSON.stringify({ success: false, error: 'Failed to create user account' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      supabaseUser = createUserData.user;
+      console.log('✅ Supabase user created with ID:', supabaseUser.id);
       
-      // Create new profile
+      // Create new profile using the Supabase user ID
       const newProfileData: any = {
-        id: profileId, // Set the profile ID explicitly
+        id: supabaseUser.id, // Use the Supabase user ID
         name: userData.name || 'Customer',
         phone: userData.phone,
         email: userData.email || firebaseData.email || '',
@@ -218,35 +241,30 @@ serve(async (req) => {
 
     console.log('✅ Profile data ready:', { id: profileData.id, name: profileData.name });
 
-    // Create or get Supabase user
-    let supabaseUser;
-    
-    try {
-      // Try to create the user first
-      const { data: createUserData, error: createUserError } = await supabase.auth.admin.createUser({
-        user_id: profileData.id,
-        phone: userData.phone,
-        phone_confirmed: true,
-        user_metadata: {
-          name: profileData.name,
-          phone: profileData.phone,
-          firebase_uid: firebaseData.uid
+    // If we don't have a supabaseUser yet (existing user case), try to get it
+    if (!supabaseUser) {
+      try {
+        const { data: existingUserData } = await supabase.auth.admin.getUserById(profileData.id);
+        supabaseUser = existingUserData.user;
+      } catch (error) {
+        console.log('⚠️ Could not fetch existing Supabase user, will try to create one');
+        
+        // Try to create the user if it doesn't exist
+        const { data: createUserData, error: createUserError } = await supabase.auth.admin.createUser({
+          user_id: profileData.id,
+          phone: userData.phone,
+          phone_confirmed: true,
+          user_metadata: {
+            name: profileData.name,
+            phone: profileData.phone,
+            firebase_uid: firebaseData.uid
+          }
+        });
+
+        if (!createUserError) {
+          supabaseUser = createUserData.user;
         }
-      });
-
-      if (createUserError && !createUserError.message?.includes('already been registered')) {
-        console.error('❌ Error creating Supabase user:', createUserError);
-        throw createUserError;
       }
-
-      supabaseUser = createUserData?.user;
-      console.log('✅ Supabase user created/found');
-    } catch (error) {
-      console.log('🔄 User might already exist, trying to get existing user');
-      
-      // If creation failed, try to get existing user
-      const { data: existingUser } = await supabase.auth.admin.getUserById(profileData.id);
-      supabaseUser = existingUser.user;
     }
 
     // Generate access token
