@@ -38,6 +38,10 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
     try {
       setUploading(true);
       
+      console.log('=== Starting image upload ===');
+      console.log('User ID:', userId);
+      console.log('File:', file.name, file.type, file.size);
+      
       // Validate file type
       if (!file.type.startsWith('image/')) {
         toast.error('Please select an image file');
@@ -50,37 +54,68 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
         return;
       }
 
-      // Create unique filename - simplified path structure
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${userId}_${Date.now()}.${fileExt}`;
-      const filePath = fileName; // Simplified - no subfolder
-
-      console.log('Uploading avatar to user_avatars bucket:', filePath);
-
-      // Upload to Supabase storage
-      const { data, error: uploadError } = await supabase.storage
-        .from('user_avatars')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: true // Allow overwriting existing files
-        });
-
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        toast.error(`Failed to upload image: ${uploadError.message}`);
+      // Check authentication
+      const { data: { session }, error: authError } = await supabase.auth.getSession();
+      if (authError || !session) {
+        console.error('Authentication error:', authError);
+        toast.error('Please log in again to upload images');
         return;
       }
 
-      console.log('Upload successful:', data);
+      console.log('User authenticated:', session.user.id);
+
+      // Create simple filename without folders
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
+      const fileName = `avatar_${userId}_${Date.now()}.${fileExt}`;
+      
+      console.log('Generated filename:', fileName);
+
+      // Upload to Supabase storage with detailed logging
+      console.log('Uploading to user_avatars bucket...');
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('user_avatars')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: true
+        });
+
+      if (uploadError) {
+        console.error('Upload error details:', {
+          message: uploadError.message,
+          error: uploadError,
+          cause: uploadError.cause
+        });
+        
+        // Provide specific error messages
+        if (uploadError.message.includes('not found')) {
+          toast.error('Storage bucket not found. Please contact support.');
+        } else if (uploadError.message.includes('policy')) {
+          toast.error('Permission denied. Please try logging in again.');
+        } else {
+          toast.error(`Upload failed: ${uploadError.message}`);
+        }
+        return;
+      }
+
+      console.log('Upload successful:', uploadData);
 
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('user_avatars')
-        .getPublicUrl(filePath);
+        .getPublicUrl(fileName);
 
-      console.log('Generated public URL:', publicUrl);
+      console.log('Public URL generated:', publicUrl);
 
-      // Update profile with new avatar URL
+      // Test if the URL is accessible
+      try {
+        const response = await fetch(publicUrl, { method: 'HEAD' });
+        console.log('URL accessibility test:', response.status);
+      } catch (e) {
+        console.warn('URL test failed:', e);
+      }
+
+      // Update user profile with new avatar URL
+      console.log('Updating profile with avatar URL...');
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ avatar_url: publicUrl })
@@ -92,12 +127,13 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
         return;
       }
 
+      console.log('Profile updated successfully');
       onImageUpdate(publicUrl);
-      toast.success('Profile picture updated successfully');
+      toast.success('Profile picture updated successfully!');
       setShowUploadOptions(false);
 
     } catch (error) {
-      console.error('Unexpected error:', error);
+      console.error('Unexpected error during upload:', error);
       toast.error('An unexpected error occurred');
     } finally {
       setUploading(false);
@@ -108,7 +144,7 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
     try {
       setUploading(true);
 
-      // Update profile to remove avatar URL
+      console.log('Removing profile image...');
       const { error } = await supabase
         .from('profiles')
         .update({ avatar_url: null })
@@ -135,6 +171,7 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      console.log('File selected:', file.name);
       uploadImage(file);
     }
     // Reset input value to allow selecting the same file again
