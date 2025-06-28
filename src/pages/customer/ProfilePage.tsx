@@ -1,21 +1,18 @@
-
-import React, { Suspense, useState, useEffect } from 'react';
+import React, { Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Settings, User, Calendar, Star, ChevronRight, LogOut, RefreshCw, AlertCircle } from 'lucide-react';
+import { Settings, User, Calendar, Star, ChevronRight, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import ProfileImageUpload from '@/components/customer/ProfileImageUpload';
 
 interface Profile {
   id: string;
   name: string | null;
   email: string;
   phone: string | null;
-  role: string;
   avatar_url: string | null;
 }
 
@@ -33,24 +30,21 @@ interface RecentBooking {
 }
 
 const fetchProfile = async (userId: string | null, email: string | null, user_metadata: any) => {
-  if (!userId) {
-    console.log('🚫 No user ID provided for profile fetch');
-    throw new Error('User ID required');
-  }
+  if (!userId) throw new Error('No user ID provided');
   
   console.log('🔍 Fetching profile for user:', userId);
   
   try {
-    // Get profile data with no fallback creation
+    // Try to fetch the existing profile first
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
-      .select('id, name, email, phone, role, avatar_url')
+      .select('*')
       .eq('id', userId)
       .maybeSingle();
     
     if (profileError) {
-      console.error('❌ Profile fetch error:', profileError);
-      throw profileError;
+      console.error('❌ Error fetching profile:', profileError);
+      throw new Error(`Failed to fetch profile: ${profileError.message}`);
     }
     
     if (profileData) {
@@ -58,29 +52,30 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
       return profileData;
     }
     
-    // If no profile exists, create one
-    console.log('📝 Creating new profile for user');
+    // Profile doesn't exist, create a new one
+    console.log('📝 Profile not found, creating new profile');
+    
     const newProfile = {
       id: userId,
       name: user_metadata?.name || email?.split('@')[0] || 'Customer',
       email: email || '',
       phone: user_metadata?.phone || null,
-      role: 'customer',
-      avatar_url: null
+      role: 'customer'
     };
     
-    const { error: insertError } = await supabase
+    const { data: createdProfile, error: createError } = await supabase
       .from('profiles')
-      .insert(newProfile);
+      .insert(newProfile)
+      .select('*')
+      .single();
     
-    if (insertError) {
-      console.error('❌ Profile creation error:', insertError);
-      // Return the profile data anyway
-      return newProfile;
+    if (createError) {
+      console.error('❌ Error creating profile:', createError);
+      throw new Error(`Failed to create profile: ${createError.message}`);
     }
     
-    console.log('✅ Profile created successfully');
-    return newProfile;
+    console.log('✅ New profile created');
+    return createdProfile;
     
   } catch (error) {
     console.error('❌ Exception in fetchProfile:', error);
@@ -91,32 +86,27 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
 const fetchRecentBookings = async (userId: string | null) => {
   if (!userId) return [];
   
-  try {
-    const { data: bookingsData, error: bookingsError } = await supabase
-      .from('bookings')
-      .select(`
-        id,
-        date,
-        time_slot,
-        status,
-        merchant:merchants!inner(shop_name),
-        service:services!inner(name)
-      `)
-      .eq('user_id', userId)
-      .order('date', { ascending: false })
-      .order('time_slot', { ascending: false })
-      .limit(3);
-    
-    if (bookingsError) {
-      console.error('❌ Error fetching bookings:', bookingsError);
-      return [];
-    }
-    
-    return bookingsData ?? [];
-  } catch (error) {
-    console.error('❌ Exception fetching bookings:', error);
+  const { data: bookingsData, error: bookingsError } = await supabase
+    .from('bookings')
+    .select(`
+      id,
+      date,
+      time_slot,
+      status,
+      merchant:merchants!inner(shop_name),
+      service:services!inner(name)
+    `)
+    .eq('user_id', userId)
+    .order('date', { ascending: false })
+    .order('time_slot', { ascending: false })
+    .limit(3);
+  
+  if (bookingsError) {
+    console.error('❌ Error fetching bookings:', bookingsError);
     return [];
   }
+  
+  return bookingsData ?? [];
 };
 
 const ProfileSkeleton = () => (
@@ -144,41 +134,19 @@ const ProfileSkeleton = () => (
 );
 
 const ProfilePage: React.FC = () => {
-  const { user, logout, isAuthenticated, loading } = useAuth();
-  const [profileData, setProfileData] = useState<Profile | null>(null);
-  const [showError, setShowError] = useState(false);
+  const { user, logout } = useAuth();
 
-  console.log('🏠 ProfilePage - Auth state:', { 
-    isAuthenticated, 
-    loading, 
-    hasUser: !!user,
-    userId: user?.id 
-  });
-
-  // Fetch profile with improved error handling
+  // Fetch profile and bookings
   const {
     data: profile,
     isLoading: loadingProfile,
-    error: errorProfile,
-    refetch: refetchProfile
+    error: errorProfile
   } = useQuery({
     queryKey: ['profile', user?.id],
     queryFn: () => fetchProfile(user?.id ?? null, user?.email ?? null, user?.user_metadata ?? {}),
-    enabled: !!user?.id && isAuthenticated && !loading,
-    staleTime: 30 * 1000, // 30 seconds - shorter for more frequent updates
-    retry: (failureCount, error) => {
-      // Don't retry on auth errors to prevent loops
-      if (error instanceof Error && (
-        error.message.includes('JWT') ||
-        error.message.includes('auth') ||
-        error.message.includes('unauthorized')
-      )) {
-        console.log('🚫 Not retrying auth-related error:', error.message);
-        return false;
-      }
-      return failureCount < 2;
-    },
-    retryDelay: 2000
+    enabled: !!user?.id,
+    staleTime: 1 * 60 * 1000,
+    retry: 2
   });
 
   const {
@@ -187,27 +155,10 @@ const ProfilePage: React.FC = () => {
   } = useQuery({
     queryKey: ['recentBookings', user?.id],
     queryFn: () => fetchRecentBookings(user?.id ?? null),
-    enabled: !!user?.id && isAuthenticated && !loading,
+    enabled: !!user?.id,
     staleTime: 2 * 60 * 1000,
     retry: 1
   });
-
-  // Handle successful profile fetch
-  useEffect(() => {
-    if (profile) {
-      console.log('✅ Profile data received:', profile.name);
-      setProfileData(profile);
-      setShowError(false);
-    }
-  }, [profile]);
-
-  // Handle profile errors - DON'T auto-logout
-  useEffect(() => {
-    if (errorProfile) {
-      console.error('❌ Profile error (not logging out):', errorProfile);
-      setShowError(true);
-    }
-  }, [errorProfile]);
 
   const profileItems = [
     {
@@ -235,122 +186,64 @@ const ProfilePage: React.FC = () => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  const handleImageUpdate = (newImageUrl: string | null) => {
-    if (profileData) {
-      setProfileData({ ...profileData, avatar_url: newImageUrl });
-    }
-    refetchProfile();
-  };
-
-  const handleLogout = async () => {
-    console.log('🚪 User clicked logout from profile page');
-    try {
-      await logout();
-    } catch (error) {
-      console.error('❌ Logout error:', error);
-    }
-  };
-
-  const handleRefreshProfile = async () => {
-    console.log('🔄 Manually refreshing profile data...');
-    setShowError(false);
-    try {
-      await refetchProfile();
-      toast.success('Profile refreshed successfully');
-    } catch (error) {
-      console.error('❌ Manual refresh failed:', error);
-      toast.error('Failed to refresh profile');
-    }
-  };
-
-  // Show loading state
-  if (loading || (loadingProfile && !profileData)) {
-    console.log('⏳ Showing loading state');
+  // Loading state
+  if (loadingProfile || loadingBookings) {
     return <ProfileSkeleton />;
   }
 
-  // Show error state with recovery options
-  if (showError && !profileData) {
-    console.log('❌ Showing error state');
-    
+  // Error state
+  if (errorProfile) {
     return (
       <div className="h-screen bg-gray-50 flex flex-col items-center justify-center overflow-hidden">
-        <div className="bg-white p-6 rounded-lg shadow-md max-w-md w-full mx-4 text-center">
-          <div className="text-red-500 mb-4">
-            <AlertCircle className="w-12 h-12 mx-auto mb-2" />
-            <p className="text-lg font-semibold text-red-600 mb-2">
-              Profile Loading Issue
-            </p>
-            <p className="text-sm text-gray-600 mb-4">
-              We're having trouble loading your profile. This might be a temporary issue.
-            </p>
-          </div>
-          <div className="flex flex-col gap-2">
-            <Button 
-              onClick={handleRefreshProfile}
-              className="w-full"
+        <div className="bg-white p-6 rounded shadow-md max-w-md w-full text-center">
+          <p className="text-lg font-semibold text-red-600 mb-4">
+            {errorProfile?.message || "Failed to load profile."}
+          </p>
+          <div className="flex gap-2 justify-center">
+            <button 
+              className="bg-booqit-primary rounded px-4 py-2 text-white font-medium" 
+              onClick={() => window.location.reload()}
             >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Try Again
-            </Button>
-            <Button 
-              onClick={() => {
-                console.log('🏠 Going to home page');
-                window.location.href = '/home';
-              }}
-              variant="outline"
-              className="w-full"
+              Refresh Page
+            </button>
+            <button 
+              className="bg-gray-500 rounded px-4 py-2 text-white font-medium" 
+              onClick={() => window.location.href = '/auth'}
             >
-              Go to Home
-            </Button>
-            <Button 
-              onClick={handleLogout}
-              variant="ghost"
-              className="w-full text-red-600"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Sign Out
-            </Button>
+              Go to Login
+            </button>
           </div>
         </div>
       </div>
     );
   }
 
-  // Use profile data with fallbacks
-  const displayProfile = profile || profileData;
-  const displayName = displayProfile?.name || user?.email?.split('@')[0] || 'Customer';
-  const displayEmail = displayProfile?.email || user?.email || '';
-
-  console.log('✅ Rendering profile page for:', displayName);
+  // If no user, redirect to auth
+  if (!user) {
+    window.location.href = '/auth';
+    return null;
+  }
 
   return (
     <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
-      {/* Header with Profile Image Upload */}
+      {/* Header */}
       <div className="relative overflow-visible bg-gradient-to-br from-booqit-primary to-booqit-primary/80 shadow-lg rounded-b-3xl flex-shrink-0">
-        <div className="flex flex-col items-center pt-8 pb-3">
-          <div className="w-full max-w-sm px-4">
-            <ProfileImageUpload
-              currentImageUrl={displayProfile?.avatar_url}
-              userName={displayName}
-              userId={user?.id || ''}
-              onImageUpdate={handleImageUpdate}
-            />
+        <div className="flex flex-col items-center pt-12 pb-3">
+          <div className="relative">
+            <Avatar className="w-24 h-24 shadow-lg border-4 border-white bg-white/30">
+              <AvatarImage src={profile?.avatar_url || ''} />
+              <AvatarFallback className="bg-booqit-primary/80 text-white text-xl font-semibold">
+                {getInitials(profile?.name || user?.email || 'User')}
+              </AvatarFallback>
+            </Avatar>
           </div>
-          <div className="mt-2 mb-2 text-center">
-            <h1 className="text-2xl font-righteous tracking-wide font-bold text-white drop-shadow-sm">
-              {displayName.toUpperCase()}
+          <div className="mt-4 mb-2">
+            <h1 className="text-3xl font-righteous tracking-wide font-bold text-white drop-shadow-sm text-center">
+              {(profile?.name || user?.email?.split('@')[0] || 'Customer').toUpperCase()}
             </h1>
-            <p className="text-sm text-white/70 font-medium mt-1">
-              {displayEmail}
+            <p className="text-sm text-white/70 font-medium mt-1 text-center">
+              {profile?.email || user?.email}
             </p>
-            {/* Add refresh button for debugging */}
-            <button 
-              onClick={handleRefreshProfile}
-              className="text-xs text-white/60 hover:text-white/80 mt-1 underline"
-            >
-              Refresh Profile
-            </button>
           </div>
         </div>
       </div>
@@ -399,11 +292,7 @@ const ProfilePage: React.FC = () => {
         {/* Account Actions */}
         <Card className="flex-shrink-0">
           <CardContent className="space-y-3">
-            <Button 
-              variant="outline" 
-              onClick={handleLogout}
-              className="w-full justify-start py-[17px] my-[12px]"
-            >
+            <Button variant="outline" onClick={logout} className="w-full justify-start py-[17px] my-[12px]">
               <LogOut className="h-4 w-4 mr-2" />
               Logout
             </Button>

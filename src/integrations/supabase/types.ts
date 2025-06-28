@@ -478,9 +478,8 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
-          email: string | null
+          email: string
           fcm_token: string | null
-          firebase_uid: string | null
           id: string
           last_notification_sent: string | null
           name: string
@@ -491,9 +490,8 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           created_at?: string
-          email?: string | null
+          email: string
           fcm_token?: string | null
-          firebase_uid?: string | null
           id: string
           last_notification_sent?: string | null
           name: string
@@ -504,9 +502,8 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           created_at?: string
-          email?: string | null
+          email?: string
           fcm_token?: string | null
-          firebase_uid?: string | null
           id?: string
           last_notification_sent?: string | null
           name?: string
@@ -1337,10 +1334,6 @@ export type Database = {
           p_blocked_ranges?: Json
           p_description?: string
         }
-        Returns: Json
-      }
-      merge_duplicate_profiles: {
-        Args: Record<PropertyKey, never>
         Returns: Json
       }
       register_device_token: {

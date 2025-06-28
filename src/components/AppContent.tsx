@@ -45,7 +45,6 @@ import TermsAndConditions from '@/pages/TermsAndConditions';
 import DeleteAccountPage from '@/pages/settings/DeleteAccountPage';
 import ContactPage from '@/pages/settings/ContactPage';
 import AboutPage from '@/pages/settings/AboutPage';
-import AccountInformationPage from '@/pages/settings/AccountInformationPage';
 import MerchantBusinessInfoPage from '@/pages/merchant/settings/BusinessInformationPage';
 import MerchantBankingDetailsPage from '@/pages/merchant/settings/BankingDetailsPage';
 import MerchantContactPage from '@/pages/merchant/settings/ContactPage';
@@ -64,7 +63,6 @@ import GuestBookingSuccessPage from '@/pages/guest/GuestBookingSuccessPage';
 import GuestBookingCancellationPage from '@/pages/guest/GuestBookingCancellationPage';
 import GuestBookingHistoryPage from '@/pages/guest/GuestBookingHistoryPage';
 import NotFound from '@/pages/NotFound';
-import PhoneAuthPage from '@/pages/PhoneAuthPage';
 
 const AppContent: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -95,7 +93,6 @@ const AppContent: React.FC = () => {
       <Routes>
         {/* Auth Routes */}
         <Route path="/auth" element={<LazyRoute><Auth /></LazyRoute>} />
-        <Route path="/phone-auth" element={<LazyRoute><PhoneAuthPage /></LazyRoute>} />
         <Route path="/forgot-password" element={<LazyRoute><ForgotPasswordPage /></LazyRoute>} />
         <Route path="/reset-password" element={<LazyRoute><ResetPasswordPage /></LazyRoute>} />
         <Route path="/verify" element={<LazyRoute><VerifyPage /></LazyRoute>} />
@@ -244,8 +241,7 @@ const AppContent: React.FC = () => {
         <Route path="/reviews" element={<LazyRoute><ProtectedRoute><CustomerLayout><ReviewsPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
         <Route path="/settings" element={<LazyRoute><ProtectedRoute><CustomerLayout><SettingsPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
 
-        {/* Fixed Account Information Route */}
-        <Route path="/settings/account" element={<LazyRoute><ProtectedRoute><CustomerLayout><AccountInformationPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/settings/account" element={<LazyRoute><ProtectedRoute><CustomerLayout><AccountPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
         <Route path="/settings/privacy-policy" element={<LazyRoute><ProtectedRoute><CustomerLayout><PrivacyPolicy /></CustomerLayout></ProtectedRoute></LazyRoute>} />
         <Route path="/settings/terms-conditions" element={<LazyRoute><ProtectedRoute><CustomerLayout><TermsAndConditions /></CustomerLayout></ProtectedRoute></LazyRoute>} />
         <Route path="/settings/contact" element={<LazyRoute><ProtectedRoute><CustomerLayout><ContactPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
