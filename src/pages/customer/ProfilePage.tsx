@@ -36,10 +36,10 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
   console.log('🔍 Fetching profile for user:', userId);
   
   try {
-    // Try to fetch the existing profile first - REMOVED avatar_url from query
+    // Try to fetch the existing profile first
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
-      .select('id, name, email, phone, role') // Only select existing columns
+      .select('id, name, email, phone, role')
       .eq('id', userId)
       .maybeSingle();
     
@@ -67,7 +67,7 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
     const { data: createdProfile, error: createError } = await supabase
       .from('profiles')
       .insert(newProfile)
-      .select('id, name, email, phone, role') // Only select existing columns
+      .select('id, name, email, phone, role')
       .single();
     
     if (createError) {
@@ -147,11 +147,7 @@ const ProfilePage: React.FC = () => {
     queryFn: () => fetchProfile(user?.id ?? null, user?.email ?? null, user?.user_metadata ?? {}),
     enabled: !!user?.id,
     staleTime: 1 * 60 * 1000,
-    retry: 2,
-    // Add error handling to prevent logout on profile fetch failure
-    onError: (error) => {
-      console.error('Profile fetch error (not logging out):', error);
-    }
+    retry: 2
   });
 
   const {
@@ -236,7 +232,7 @@ const ProfilePage: React.FC = () => {
         <div className="flex flex-col items-center pt-12 pb-3">
           <div className="relative">
             <Avatar className="w-24 h-24 shadow-lg border-4 border-white bg-white/30">
-              <AvatarImage src="" /> {/* Removed avatar_url reference */}
+              <AvatarImage src="" />
               <AvatarFallback className="bg-booqit-primary/80 text-white text-xl font-semibold">
                 {getInitials(profile?.name || user?.email || 'User')}
               </AvatarFallback>
