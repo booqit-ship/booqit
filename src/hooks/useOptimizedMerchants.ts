@@ -5,7 +5,7 @@ import { Merchant } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 
 const CACHE_KEY = 'nearby_merchants';
-const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 interface CachedData {
   merchants: Merchant[];
@@ -18,28 +18,25 @@ export const useOptimizedMerchants = (userLocation: { lat: number; lng: number }
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const fetchingRef = useRef(false);
-  const mountedRef = useRef(true);
+  const lastLocationRef = useRef<string>('');
 
   const getCachedData = useCallback((): CachedData | null => {
     try {
-      const cached = localStorage.getItem(CACHE_KEY);
+      const cached = sessionStorage.getItem(CACHE_KEY);
       if (!cached) return null;
       
       const data: CachedData = JSON.parse(cached);
       const now = Date.now();
       
-      if (now - data.timestamp > CACHE_DURATION) {
-        localStorage.removeItem(CACHE_KEY);
-        return null;
-      }
+      if (now - data.timestamp > CACHE_DURATION) return null;
       
-      // Check if location is similar (within 2km)
+      // Check if location is similar (within 1km)
       if (userLocation && data.location) {
         const distance = calculateDistance(
           userLocation.lat, userLocation.lng,
           data.location.lat, data.location.lng
         );
-        if (distance > 2) return null;
+        if (distance > 1) return null;
       }
       
       return data;
@@ -55,7 +52,7 @@ export const useOptimizedMerchants = (userLocation: { lat: number; lng: number }
         timestamp: Date.now(),
         location
       };
-      localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+      sessionStorage.setItem(CACHE_KEY, JSON.stringify(data));
     } catch (error) {
       console.warn('Failed to cache merchants data:', error);
     }
@@ -75,34 +72,33 @@ export const useOptimizedMerchants = (userLocation: { lat: number; lng: number }
   const deg2rad = (deg: number) => deg * (Math.PI / 180);
 
   const fetchMerchants = useCallback(async (location: { lat: number; lng: number }) => {
-    if (fetchingRef.current || !mountedRef.current) return;
-
-    // Check cache first
-    const cached = getCachedData();
-    if (cached) {
-      console.log('Using cached merchants data');
-      setMerchants(cached.merchants);
+    // Prevent duplicate calls
+    const locationKey = `${location.lat},${location.lng}`;
+    if (fetchingRef.current || lastLocationRef.current === locationKey) {
       return;
     }
 
     try {
+      // Check cache first
+      const cached = getCachedData();
+      if (cached) {
+        setMerchants(cached.merchants);
+        return;
+      }
+
       fetchingRef.current = true;
+      lastLocationRef.current = locationKey;
       setIsLoading(true);
 
-      console.log('Fetching merchants from database');
       const { data, error } = await supabase
         .from('merchants')
         .select('*')
         .order('rating', { ascending: false })
-        .limit(15);
+        .limit(20);
 
-      if (error) {
-        console.error('Merchants fetch error:', error);
-        throw error;
-      }
+      if (error) throw error;
 
-      if (data && mountedRef.current) {
-        console.log('Merchants data fetched:', data.length, 'merchants');
+      if (data) {
         const merchantsWithDistance = data
           .map(merchant => {
             const distance = calculateDistance(
@@ -117,25 +113,20 @@ export const useOptimizedMerchants = (userLocation: { lat: number; lng: number }
           })
           .filter(merchant => (merchant.distanceValue || 0) <= 5)
           .sort((a, b) => (a.distanceValue || 0) - (b.distanceValue || 0))
-          .slice(0, 10);
+          .slice(0, 12);
 
-        console.log('Processed merchants:', merchantsWithDistance.length);
         setMerchants(merchantsWithDistance);
         setCachedData(merchantsWithDistance, location);
       }
     } catch (error) {
       console.error('Error fetching merchants:', error);
-      if (mountedRef.current) {
-        toast({
-          title: "Error",
-          description: "Failed to load nearby shops",
-          variant: "destructive"
-        });
-      }
+      toast({
+        title: "Error",
+        description: "Failed to load nearby shops",
+        variant: "destructive"
+      });
     } finally {
-      if (mountedRef.current) {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
       fetchingRef.current = false;
     }
   }, [getCachedData, setCachedData, toast]);
@@ -144,21 +135,14 @@ export const useOptimizedMerchants = (userLocation: { lat: number; lng: number }
     if (userLocation) {
       fetchMerchants(userLocation);
     }
-  }, [userLocation, fetchMerchants]);
-
-  useEffect(() => {
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
+  }, [userLocation?.lat, userLocation?.lng, fetchMerchants]);
 
   return { 
     merchants, 
     isLoading, 
     refetch: () => {
       if (userLocation) {
-        // Clear cache and force refresh
-        localStorage.removeItem(CACHE_KEY);
+        lastLocationRef.current = '';
         fetchMerchants(userLocation);
       }
     }
