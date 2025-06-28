@@ -1,32 +1,86 @@
 
-import React, { useState } from 'react';
-import { ArrowLeft, Save, User, Mail, Phone, AlertCircle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, Save, User, Mail, Phone, Loader2 } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useUserProfile } from '@/hooks/useUserProfile';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+
+interface ProfileData {
+  id: string;
+  name: string | null;
+  email: string;
+  phone: string | null;
+  role: string;
+}
 
 const AccountInformationPage: React.FC = () => {
+  const { user, userId, isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  const { profile, isLoading, error, updateProfile } = useUserProfile();
-  
-  const [formData, setFormData] = useState({
-    name: profile?.name || '',
-    email: profile?.email || '',
-    phone: profile?.phone || '',
-  });
+  const queryClient = useQueryClient();
+  const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: ''
+  });
+
+  console.log('🔍 AccountInformation - Auth state:', { isAuthenticated, userId, hasUser: !!user });
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated && !userId) {
+      console.log('🚫 Not authenticated, redirecting to home');
+      navigate('/home', { replace: true });
+    }
+  }, [isAuthenticated, userId, navigate]);
+
+  // Fetch profile data
+  const {
+    data: profile,
+    isLoading,
+    error,
+    refetch
+  } = useQuery({
+    queryKey: ['profile', userId],
+    queryFn: async () => {
+      if (!userId) throw new Error('No user ID');
+      
+      console.log('📡 Fetching profile for user:', userId);
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, name, email, phone, role')
+        .eq('id', userId)
+        .single();
+      
+      if (error) {
+        console.error('❌ Profile fetch error:', error);
+        throw error;
+      }
+      
+      console.log('✅ Profile fetched:', data);
+      return data as ProfileData;
+    },
+    enabled: !!userId && isAuthenticated,
+    retry: 2,
+    staleTime: 1000 * 60 * 2, // 2 minutes
+  });
 
   // Update form data when profile loads
-  React.useEffect(() => {
+  useEffect(() => {
     if (profile) {
+      console.log('📝 Updating form with profile data:', profile);
       setFormData({
         name: profile.name || '',
         email: profile.email || '',
-        phone: profile.phone || '',
+        phone: profile.phone || ''
       });
     }
   }, [profile]);
@@ -39,93 +93,102 @@ const AccountInformationPage: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (!formData.name.trim()) {
-      toast.error('Name is required');
+    if (!userId) {
+      toast.error('User ID not found');
       return;
     }
 
     setIsSaving(true);
+    
     try {
-      await updateProfile({
-        name: formData.name.trim(),
-        phone: formData.phone.trim(),
-      });
-      toast.success('Account information updated successfully');
-      navigate('/settings');
+      console.log('💾 Saving profile updates:', formData);
+      
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          name: formData.name.trim() || null,
+          email: formData.email.trim(),
+          phone: formData.phone.trim() || null
+        })
+        .eq('id', userId);
+
+      if (error) {
+        console.error('❌ Profile update error:', error);
+        throw error;
+      }
+
+      console.log('✅ Profile updated successfully');
+      
+      // Invalidate and refetch profile data
+      await queryClient.invalidateQueries({ queryKey: ['profile', userId] });
+      await refetch();
+      
+      toast.success('Profile updated successfully');
+      setIsEditing(false);
     } catch (error) {
-      console.error('Failed to update profile:', error);
-      toast.error('Failed to update account information');
+      console.error('❌ Save error:', error);
+      toast.error('Failed to update profile');
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Loading state
+  const handleCancel = () => {
+    if (profile) {
+      setFormData({
+        name: profile.name || '',
+        email: profile.email || '',
+        phone: profile.phone || ''
+      });
+    }
+    setIsEditing(false);
+  };
+
+  // Show loading state
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate('/settings')}
-            className="mr-3"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <h1 className="text-lg font-semibold">Account Information</h1>
+        <div className="bg-white border-b sticky top-0 z-10">
+          <div className="flex items-center gap-3 p-4">
+            <Link to="/settings">
+              <Button variant="ghost" size="icon">
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-xl font-semibold">Account Information</h1>
+            </div>
+          </div>
         </div>
-        
-        <div className="p-4">
-          <Card>
-            <CardContent className="p-6">
-              <div className="space-y-4">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="space-y-2">
-                    <div className="h-4 bg-gray-200 rounded animate-pulse w-20"></div>
-                    <div className="h-10 bg-gray-200 rounded animate-pulse"></div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+        <div className="flex items-center justify-center p-8">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <span className="ml-2">Loading profile...</span>
         </div>
       </div>
     );
   }
 
-  // Error state
+  // Show error state
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate('/settings')}
-            className="mr-3"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <h1 className="text-lg font-semibold">Account Information</h1>
+        <div className="bg-white border-b sticky top-0 z-10">
+          <div className="flex items-center gap-3 p-4">
+            <Link to="/settings">
+              <Button variant="ghost" size="icon">
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-xl font-semibold">Account Information</h1>
+            </div>
+          </div>
         </div>
-        
-        <div className="p-4">
+        <div className="p-6">
           <Card>
             <CardContent className="p-6 text-center">
-              <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-3" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Unable to Load Account Information
-              </h3>
-              <p className="text-gray-600 mb-4">
-                We're having trouble loading your account details.
-              </p>
-              <Button
-                onClick={() => window.location.reload()}
-                variant="outline"
-              >
-                Try Again
-              </Button>
+              <p className="text-red-600 mb-4">Failed to load profile information</p>
+              <Button onClick={() => refetch()}>Try Again</Button>
             </CardContent>
           </Card>
         </div>
@@ -136,118 +199,121 @@ const AccountInformationPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate('/settings')}
-            className="mr-3"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <h1 className="text-lg font-semibold">Account Information</h1>
+      <div className="bg-white border-b sticky top-0 z-10">
+        <div className="flex items-center justify-between p-4">
+          <div className="flex items-center gap-3">
+            <Link to="/settings">
+              <Button variant="ghost" size="icon">
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-xl font-semibold">Account Information</h1>
+              <p className="text-sm text-gray-600">Manage your personal details</p>
+            </div>
+          </div>
+          {!isEditing ? (
+            <Button onClick={() => setIsEditing(true)}>
+              Edit
+            </Button>
+          ) : (
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleCancel} disabled={isSaving}>
+                Cancel
+              </Button>
+              <Button onClick={handleSave} disabled={isSaving}>
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    Save
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
         </div>
-        <Button
-          onClick={handleSave}
-          disabled={isSaving}
-          size="sm"
-          className="bg-booqit-primary"
-        >
-          <Save className="h-4 w-4 mr-1" />
-          {isSaving ? 'Saving...' : 'Save'}
-        </Button>
       </div>
 
       {/* Content */}
-      <div className="p-4">
+      <div className="p-6 space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <User className="h-5 w-5 mr-2" />
+            <CardTitle className="flex items-center gap-2">
+              <User className="h-5 w-5" />
               Personal Information
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-4">
             {/* Name Field */}
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
-              <Input
-                id="name"
-                type="text"
-                value={formData.name}
-                onChange={(e) => handleInputChange('name', e.target.value)}
-                placeholder="Enter your full name"
-                className="w-full"
-              />
+              {isEditing ? (
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => handleInputChange('name', e.target.value)}
+                  placeholder="Enter your full name"
+                />
+              ) : (
+                <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900">
+                  {profile?.name || 'Not provided'}
+                </div>
+              )}
             </div>
 
-            {/* Email Field (Read-only) */}
+            {/* Email Field */}
             <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Label htmlFor="email" className="flex items-center gap-2">
+                <Mail className="h-4 w-4" />
+                Email Address
+              </Label>
+              {isEditing ? (
                 <Input
                   id="email"
                   type="email"
                   value={formData.email}
-                  disabled
-                  className="w-full pl-10 bg-gray-50"
+                  onChange={(e) => handleInputChange('email', e.target.value)}
+                  placeholder="Enter your email address"
                 />
-              </div>
-              <p className="text-xs text-gray-500">
-                Email cannot be changed for security reasons
-              </p>
+              ) : (
+                <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900">
+                  {profile?.email || 'Not provided'}
+                </div>
+              )}
             </div>
 
             {/* Phone Field */}
             <div className="space-y-2">
-              <Label htmlFor="phone">Phone Number</Label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Label htmlFor="phone" className="flex items-center gap-2">
+                <Phone className="h-4 w-4" />
+                Phone Number
+              </Label>
+              {isEditing ? (
                 <Input
                   id="phone"
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => handleInputChange('phone', e.target.value)}
                   placeholder="Enter your phone number"
-                  className="w-full pl-10"
                 />
+              ) : (
+                <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900">
+                  {profile?.phone || 'Not provided'}
+                </div>
+              )}
+            </div>
+
+            {/* Role Field (Read-only) */}
+            <div className="space-y-2">
+              <Label>Account Type</Label>
+              <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900 capitalize">
+                {profile?.role || 'Customer'}
               </div>
-            </div>
-
-            {/* Save Button (Mobile) */}
-            <div className="pt-4">
-              <Button
-                onClick={handleSave}
-                disabled={isSaving}
-                className="w-full bg-booqit-primary"
-              >
-                <Save className="h-4 w-4 mr-2" />
-                {isSaving ? 'Saving Changes...' : 'Save Changes'}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Account Details Card */}
-        <Card className="mt-4">
-          <CardHeader>
-            <CardTitle>Account Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex justify-between items-center py-2">
-              <span className="text-gray-600">Account Type</span>
-              <span className="font-medium capitalize">{profile?.role || 'Customer'}</span>
-            </div>
-            <div className="flex justify-between items-center py-2">
-              <span className="text-gray-600">Member Since</span>
-              <span className="font-medium">
-                {profile?.created_at 
-                  ? new Date(profile.created_at).toLocaleDateString()
-                  : 'N/A'
-                }
-              </span>
             </div>
           </CardContent>
         </Card>
