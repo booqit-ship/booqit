@@ -29,6 +29,7 @@ const HomePage: React.FC = () => {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locationName, setLocationName] = useState("Loading location...");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [locationLoading, setLocationLoading] = useState(true);
   const navigate = useNavigate();
   const { userId } = useAuth();
 
@@ -52,16 +53,17 @@ const HomePage: React.FC = () => {
     );
   }, [merchants, activeCategory]);
 
-  // Get user location - simplified and cached
+  // Get user location with better caching
   useEffect(() => {
     const getLocationFromCache = () => {
       try {
-        const cached = sessionStorage.getItem('user_location');
+        const cached = localStorage.getItem('user_location');
         if (cached) {
           const data = JSON.parse(cached);
-          if (Date.now() - data.timestamp < 5 * 60 * 1000) {
+          if (Date.now() - data.timestamp < 10 * 60 * 1000) { // 10 minutes
             setUserLocation(data.location);
             setLocationName(data.locationName || "Your area");
+            setLocationLoading(false);
             return true;
           }
         }
@@ -101,7 +103,7 @@ const HomePage: React.FC = () => {
               const name = neighborhood?.long_name || cityComponent?.long_name || "Your area";
               setLocationName(name);
 
-              sessionStorage.setItem('user_location', JSON.stringify({
+              localStorage.setItem('user_location', JSON.stringify({
                 location: userLoc,
                 locationName: name,
                 timestamp: Date.now()
@@ -111,17 +113,20 @@ const HomePage: React.FC = () => {
             console.error("Error fetching location name:", error);
             setLocationName("Your area");
           }
+          setLocationLoading(false);
         },
         (error) => {
           console.error("Error getting location:", error);
           setLocationName("Location unavailable");
           const defaultLocation = { lat: 12.9716, lng: 77.5946 };
           setUserLocation(defaultLocation);
+          setLocationLoading(false);
         }
       );
     } else {
       setLocationName("Bengaluru");
       setUserLocation({ lat: 12.9716, lng: 77.5946 });
+      setLocationLoading(false);
     }
   }, []);
 
@@ -136,7 +141,7 @@ const HomePage: React.FC = () => {
   };
 
   return (
-    <div className="pb-20">
+    <div className="min-h-screen bg-gray-50">
       {/* Header Section */}
       <div className="bg-gradient-to-r from-booqit-primary to-purple-700 text-white p-6 rounded-b-3xl shadow-lg">
         <div className="flex justify-between items-center mb-6">
@@ -172,7 +177,7 @@ const HomePage: React.FC = () => {
         </div>
       </div>
 
-      <div className="p-6">
+      <div className="p-6 pb-24">
         {/* Upcoming Bookings Section */}
         <div className="mb-8">
           <UpcomingBookings />

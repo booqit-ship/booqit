@@ -5,7 +5,7 @@ import { Merchant } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 
 const CACHE_KEY = 'nearby_merchants';
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes for better persistence
 
 interface CachedData {
   merchants: Merchant[];
@@ -18,25 +18,43 @@ export const useOptimizedMerchants = (userLocation: { lat: number; lng: number }
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const fetchingRef = useRef(false);
-  const lastLocationRef = useRef<string>('');
+  const mountedRef = useRef(true);
+  const cacheCheckedRef = useRef(false);
+
+  // Check cache immediately on mount
+  useEffect(() => {
+    if (!cacheCheckedRef.current && userLocation) {
+      const cached = getCachedData();
+      if (cached) {
+        console.log('Using cached merchants data');
+        setMerchants(cached.merchants);
+        cacheCheckedRef.current = true;
+        return;
+      }
+      cacheCheckedRef.current = true;
+    }
+  }, [userLocation]);
 
   const getCachedData = useCallback((): CachedData | null => {
     try {
-      const cached = sessionStorage.getItem(CACHE_KEY);
+      const cached = localStorage.getItem(CACHE_KEY); // Use localStorage for better persistence
       if (!cached) return null;
       
       const data: CachedData = JSON.parse(cached);
       const now = Date.now();
       
-      if (now - data.timestamp > CACHE_DURATION) return null;
+      if (now - data.timestamp > CACHE_DURATION) {
+        localStorage.removeItem(CACHE_KEY);
+        return null;
+      }
       
-      // Check if location is similar (within 1km)
+      // Check if location is similar (within 2km for less frequent updates)
       if (userLocation && data.location) {
         const distance = calculateDistance(
           userLocation.lat, userLocation.lng,
           data.location.lat, data.location.lng
         );
-        if (distance > 1) return null;
+        if (distance > 2) return null;
       }
       
       return data;
@@ -52,7 +70,7 @@ export const useOptimizedMerchants = (userLocation: { lat: number; lng: number }
         timestamp: Date.now(),
         location
       };
-      sessionStorage.setItem(CACHE_KEY, JSON.stringify(data));
+      localStorage.setItem(CACHE_KEY, JSON.stringify(data));
     } catch (error) {
       console.warn('Failed to cache merchants data:', error);
     }
@@ -72,33 +90,21 @@ export const useOptimizedMerchants = (userLocation: { lat: number; lng: number }
   const deg2rad = (deg: number) => deg * (Math.PI / 180);
 
   const fetchMerchants = useCallback(async (location: { lat: number; lng: number }) => {
-    // Prevent duplicate calls
-    const locationKey = `${location.lat},${location.lng}`;
-    if (fetchingRef.current || lastLocationRef.current === locationKey) {
-      return;
-    }
+    if (fetchingRef.current || !mountedRef.current) return;
 
     try {
-      // Check cache first
-      const cached = getCachedData();
-      if (cached) {
-        setMerchants(cached.merchants);
-        return;
-      }
-
       fetchingRef.current = true;
-      lastLocationRef.current = locationKey;
       setIsLoading(true);
 
       const { data, error } = await supabase
         .from('merchants')
         .select('*')
         .order('rating', { ascending: false })
-        .limit(20);
+        .limit(15);
 
       if (error) throw error;
 
-      if (data) {
+      if (data && mountedRef.current) {
         const merchantsWithDistance = data
           .map(merchant => {
             const distance = calculateDistance(
@@ -113,36 +119,45 @@ export const useOptimizedMerchants = (userLocation: { lat: number; lng: number }
           })
           .filter(merchant => (merchant.distanceValue || 0) <= 5)
           .sort((a, b) => (a.distanceValue || 0) - (b.distanceValue || 0))
-          .slice(0, 12);
+          .slice(0, 10);
 
         setMerchants(merchantsWithDistance);
         setCachedData(merchantsWithDistance, location);
       }
     } catch (error) {
       console.error('Error fetching merchants:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load nearby shops",
-        variant: "destructive"
-      });
+      if (mountedRef.current) {
+        toast({
+          title: "Error",
+          description: "Failed to load nearby shops",
+          variant: "destructive"
+        });
+      }
     } finally {
-      setIsLoading(false);
+      if (mountedRef.current) {
+        setIsLoading(false);
+      }
       fetchingRef.current = false;
     }
-  }, [getCachedData, setCachedData, toast]);
+  }, [setCachedData, toast]);
 
   useEffect(() => {
-    if (userLocation) {
+    if (userLocation && !getCachedData()) {
       fetchMerchants(userLocation);
     }
-  }, [userLocation?.lat, userLocation?.lng, fetchMerchants]);
+  }, [userLocation, fetchMerchants, getCachedData]);
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   return { 
     merchants, 
     isLoading, 
     refetch: () => {
       if (userLocation) {
-        lastLocationRef.current = '';
         fetchMerchants(userLocation);
       }
     }

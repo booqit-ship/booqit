@@ -14,29 +14,39 @@ const LazyGoogleMap: React.FC<LazyGoogleMapProps> = ({ center, merchants }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [MapComponent, setMapComponent] = useState<React.ComponentType<any> | null>(null);
   const mapRef = useRef<HTMLDivElement>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
+    if (!mapRef.current) return;
+
+    observerRef.current = new IntersectionObserver(
       (entries) => {
         const [entry] = entries;
-        if (entry.isIntersecting && !isVisible) {
+        if (entry.isIntersecting && !isVisible && !MapComponent) {
           setIsVisible(true);
           // Lazy load the map component
           import('@/components/common/GoogleMap').then((module) => {
             setMapComponent(() => module.default);
+          }).catch((error) => {
+            console.error('Failed to load Google Map component:', error);
           });
         }
       },
-      { threshold: 0.1 }
+      { 
+        threshold: 0.1,
+        rootMargin: '50px'
+      }
     );
 
-    if (mapRef.current) {
-      observer.observe(mapRef.current);
-    }
+    observerRef.current.observe(mapRef.current);
 
-    return () => observer.disconnect();
-  }, [isVisible]);
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
+  }, [isVisible, MapComponent]);
 
   return (
     <div ref={mapRef}>
@@ -51,7 +61,7 @@ const LazyGoogleMap: React.FC<LazyGoogleMapProps> = ({ center, merchants }) => {
           <MapComponent
             center={center}
             zoom={12}
-            className="h-full"
+            className="h-full w-full"
             markers={merchants.slice(0, 6).map(shop => ({
               lat: shop.lat,
               lng: shop.lng,
@@ -59,15 +69,18 @@ const LazyGoogleMap: React.FC<LazyGoogleMapProps> = ({ center, merchants }) => {
             }))}
           />
         ) : (
-          <div className="h-full flex items-center justify-center bg-gray-200">
+          <div className="h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
             <div className="text-center">
               <div className="w-12 h-12 bg-gray-300 rounded-full mx-auto mb-2 animate-pulse"></div>
               <p className="text-sm text-gray-500">Loading map...</p>
             </div>
           </div>
         )}
-        <div className="absolute inset-0 flex items-center justify-center bg-black/10">
-          <Button className="bg-booqit-primary" onClick={() => navigate('/map')}>
+        <div className="absolute inset-0 flex items-center justify-center bg-black/5 hover:bg-black/10 transition-colors">
+          <Button 
+            className="bg-booqit-primary hover:bg-booqit-primary/90 shadow-lg" 
+            onClick={() => navigate('/map')}
+          >
             Open Map View
           </Button>
         </div>

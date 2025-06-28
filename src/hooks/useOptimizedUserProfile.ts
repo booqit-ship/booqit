@@ -4,12 +4,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
 const PROFILE_CACHE_KEY = 'user_profile';
-const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
+const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 
 interface CachedProfile {
   name: string;
   avatar_url: string | null;
   timestamp: number;
+  userId: string;
 }
 
 export const useOptimizedUserProfile = () => {
@@ -18,28 +19,49 @@ export const useOptimizedUserProfile = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { userId } = useAuth();
   const fetchingRef = useRef(false);
-  const lastUserIdRef = useRef('');
+  const mountedRef = useRef(true);
+  const cacheCheckedRef = useRef(false);
 
+  // Check cache immediately
   useEffect(() => {
-    const fetchUserProfile = async () => {
-      if (!userId || fetchingRef.current || lastUserIdRef.current === userId) {
-        return;
-      }
-
+    if (!cacheCheckedRef.current && userId) {
       try {
-        // Check cache first
         const cached = localStorage.getItem(PROFILE_CACHE_KEY);
         if (cached) {
           const data: CachedProfile = JSON.parse(cached);
-          if (Date.now() - data.timestamp < CACHE_DURATION) {
+          if (Date.now() - data.timestamp < CACHE_DURATION && data.userId === userId) {
             setUserName(data.name.split(' ')[0]);
             setUserAvatar(data.avatar_url);
+            cacheCheckedRef.current = true;
             return;
           }
         }
+      } catch (error) {
+        console.warn('Failed to read cached profile:', error);
+      }
+      cacheCheckedRef.current = true;
+    }
+  }, [userId]);
 
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (!userId || fetchingRef.current || !mountedRef.current) return;
+
+      // Check if we already have cached data
+      try {
+        const cached = localStorage.getItem(PROFILE_CACHE_KEY);
+        if (cached) {
+          const data: CachedProfile = JSON.parse(cached);
+          if (Date.now() - data.timestamp < CACHE_DURATION && data.userId === userId) {
+            return; // Already have fresh data
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to read cached profile:', error);
+      }
+
+      try {
         fetchingRef.current = true;
-        lastUserIdRef.current = userId;
         setIsLoading(true);
 
         const { data, error } = await supabase
@@ -50,7 +72,7 @@ export const useOptimizedUserProfile = () => {
 
         if (error) throw error;
 
-        if (data) {
+        if (data && mountedRef.current) {
           const firstName = data.name?.split(' ')[0] || 'there';
           setUserName(firstName);
           setUserAvatar(data.avatar_url);
@@ -59,20 +81,29 @@ export const useOptimizedUserProfile = () => {
           const cacheData: CachedProfile = {
             name: data.name || 'there',
             avatar_url: data.avatar_url,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            userId: userId
           };
           localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(cacheData));
         }
       } catch (error) {
         console.error('Error fetching user profile:', error);
       } finally {
-        setIsLoading(false);
+        if (mountedRef.current) {
+          setIsLoading(false);
+        }
         fetchingRef.current = false;
       }
     };
 
     fetchUserProfile();
   }, [userId]);
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   return { userName, userAvatar, isLoading };
 };
