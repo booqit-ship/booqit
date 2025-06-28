@@ -142,9 +142,9 @@ const HomePage: React.FC = () => {
     }
   }, [activeCategory, nearbyShops]);
 
-  // Limit displayed shops to 6 for homepage
+  // Limit displayed shops to 7 for homepage
   useEffect(() => {
-    setDisplayedShops(filteredShops.slice(0, 6));
+    setDisplayedShops(filteredShops.slice(0, 7));
   }, [filteredShops]);
 
   const fetchLocationName = async (lat: number, lng: number) => {
@@ -285,12 +285,6 @@ const HomePage: React.FC = () => {
     navigate(`/merchant/${merchantId}`);
   };
 
-  const handleViewMore = () => {
-    // Navigate to nearby shops page with proper category parameter
-    const categoryParam = activeCategory ? `?category=${encodeURIComponent(activeCategory)}` : '';
-    navigate(`/nearby-shops${categoryParam}`);
-  };
-
   return (
     <div className="pb-20">
       {/* Header Section */}
@@ -417,19 +411,6 @@ const HomePage: React.FC = () => {
                     </CardContent>
                   </Card>
                 ))}
-                
-                {/* Enhanced View More Button */}
-                {filteredShops.length > 6 && (
-                  <div className="flex justify-center mt-6">
-                    <Button 
-                      variant="outline" 
-                      onClick={handleViewMore}
-                      className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary hover:text-white px-6 py-2"
-                    >
-                      View All {filteredShops.length} {activeCategory || 'Nearby'} Shops
-                    </Button>
-                  </div>
-                )}
               </div>
             ) : (
               <div className="text-center py-8 bg-gray-50 rounded-lg">
@@ -442,13 +423,6 @@ const HomePage: React.FC = () => {
                 <div className="space-y-2">
                   <Button 
                     variant="outline" 
-                    onClick={() => navigate('/nearby-shops')}
-                    className="mr-2"
-                  >
-                    Browse All Shops
-                  </Button>
-                  <Button 
-                    variant="link" 
                     onClick={() => navigate('/map')}
                   >
                     View on Map
