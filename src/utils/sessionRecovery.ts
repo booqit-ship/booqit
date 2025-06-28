@@ -2,72 +2,68 @@
 import { PermanentSession } from './permanentSession';
 import { supabase } from '@/integrations/supabase/client';
 
-// Check if we have permanent session (no Supabase dependency)
 export const hasPermanentSession = (): boolean => {
   return PermanentSession.isLoggedIn();
 };
 
-// Clear only our session references (not Supabase)
 export const clearOwnSessionStorage = (): void => {
   try {
     PermanentSession.clearSession();
-    console.log('🧹 Cleared permanent session');
+    localStorage.removeItem('user_profile');
+    localStorage.removeItem('user_location');
+    sessionStorage.clear();
+    console.log('🧹 SESSION: Cleared all session storage');
   } catch (error) {
-    console.error('❌ Error clearing session storage:', error);
+    console.error('❌ SESSION: Error clearing session storage:', error);
   }
 };
 
-// Enhanced session validation with retry logic
 export const validateCurrentSession = async (): Promise<boolean> => {
-  console.log('🔍 Validating current session');
+  console.log('🔍 SESSION: Validating current session');
   
-  let attempts = 0;
-  const maxAttempts = 3;
-  
-  while (attempts < maxAttempts) {
-    try {
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  try {
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError) {
+      console.error('❌ SESSION: Session error:', sessionError);
       
-      if (sessionData?.session && !sessionError) {
-        console.log('✅ Current session is valid');
-        return true;
+      // Handle refresh token errors specifically
+      if (sessionError.message?.includes('refresh_token_not_found') || 
+          sessionError.message?.includes('Invalid Refresh Token')) {
+        console.log('❌ SESSION: Refresh token expired or invalid');
+        return false;
       }
       
-      // If session is invalid, try to refresh
-      if (attempts < maxAttempts - 1) {
-        console.log(`🔄 Session validation attempt ${attempts + 1} failed, retrying...`);
-        const { error: refreshError } = await supabase.auth.refreshSession();
-        
-        if (refreshError) {
-          console.log('❌ Session refresh failed:', refreshError.message);
-        } else {
-          console.log('✅ Session refreshed successfully');
-        }
-      }
-      
-    } catch (error) {
-      console.error(`❌ Session validation attempt ${attempts + 1} failed:`, error);
+      return false;
     }
     
-    attempts++;
-    
-    if (attempts < maxAttempts) {
-      // Wait before retry (exponential backoff)
-      await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempts) * 1000));
+    if (sessionData?.session?.user) {
+      console.log('✅ SESSION: Current session is valid');
+      return true;
     }
+    
+    console.log('❌ SESSION: No valid session found');
+    return false;
+    
+  } catch (error: any) {
+    console.error('❌ SESSION: Session validation failed:', error);
+    
+    // Handle network or other errors
+    if (error?.status === 400 || error?.status === 401) {
+      console.log('❌ SESSION: Authentication failed with status:', error.status);
+      return false;
+    }
+    
+    return false;
   }
-  
-  console.log('❌ All session validation attempts failed');
-  return false;
 };
 
-// Enhanced session recovery with better error handling
 export const attemptSessionRecovery = async (): Promise<{
   success: boolean;
   session: any | null;
   message: string;
 }> => {
-  console.log('🔄 Attempting enhanced session recovery');
+  console.log('🔄 SESSION: Attempting session recovery');
   
   const permanentData = PermanentSession.getSession();
   
@@ -80,87 +76,67 @@ export const attemptSessionRecovery = async (): Promise<{
   }
   
   try {
-    // First, try to get current session
-    const { data: { session }, error } = await supabase.auth.getSession();
+    // Check if current session is valid
+    const isValid = await validateCurrentSession();
     
-    if (session && !error) {
+    if (isValid) {
+      const { data: { session } } = await supabase.auth.getSession();
       return {
         success: true,
         session: session,
-        message: 'Recovery succeeded with current session'
+        message: 'Session recovery successful'
       };
     }
     
-    // If no current session, try to refresh
-    console.log('🔄 Attempting session refresh...');
-    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-    
-    if (refreshData.session && !refreshError) {
-      return {
-        success: true,
-        session: refreshData.session,
-        message: 'Recovery succeeded with refreshed session'
-      };
-    }
-    
-    // If refresh fails, clear permanent session
-    console.log('❌ Session refresh failed, clearing permanent session');
+    // Session is invalid, clear permanent session
+    console.log('⚠️ SESSION: Session invalid, clearing permanent session');
     PermanentSession.clearSession();
     
     return {
       success: false,
       session: null,
-      message: 'Session recovery failed - please log in again'
+      message: 'Session expired - please log in again'
     };
     
   } catch (error: any) {
-    console.error('❌ Session recovery error:', error);
+    console.error('❌ SESSION: Recovery failed:', error);
     
-    // Clear permanent session on critical errors
+    // Clear permanent session on any recovery failure
     PermanentSession.clearSession();
+    clearOwnSessionStorage();
     
     return {
       success: false,
       session: null,
-      message: `Session recovery failed: ${error.message}`
+      message: `Session recovery failed: ${error.message || 'Unknown error'}`
     };
   }
 };
 
-// Graceful session expiry handler with user notification
 export const handleSessionExpiry = async (showNotification?: (message: string) => void): Promise<void> => {
-  console.log('⚠️ Handling session expiry gracefully');
+  console.log('⚠️ SESSION: Handling session expiry gracefully');
   
   // Show user notification if callback provided
   if (showNotification) {
     showNotification('Your session has expired. Please log in again.');
   }
   
-  // Clear permanent session
-  PermanentSession.clearSession();
+  // Clear all session data
+  clearOwnSessionStorage();
   
   // Clear Supabase auth state
   try {
     await supabase.auth.signOut();
   } catch (error) {
-    console.error('❌ Error during signOut:', error);
+    console.error('❌ SESSION: Error during signOut:', error);
   }
   
-  // Clear any cached data
-  try {
-    sessionStorage.removeItem('performance-metrics');
-    localStorage.removeItem('booking-draft');
-  } catch (error) {
-    console.error('❌ Error clearing cached data:', error);
-  }
-  
-  // Redirect to login with delay for user to see message
+  // Redirect to login
   setTimeout(() => {
     window.location.href = '/auth';
-  }, 2000);
+  }, 1500);
 };
 
-// Health check for authentication system
 export const performAuthHealthCheck = async (): Promise<{
   isHealthy: boolean;
   issues: string[];
@@ -171,22 +147,27 @@ export const performAuthHealthCheck = async (): Promise<{
   
   try {
     // Check Supabase connection
-    const { error: connectionError } = await supabase.auth.getSession();
+    const { data: { session }, error: connectionError } = await supabase.auth.getSession();
+    
     if (connectionError) {
-      issues.push('Supabase connection error');
-      recommendations.push('Check internet connection and Supabase configuration');
+      if (connectionError.message?.includes('refresh_token_not_found')) {
+        issues.push('Refresh token expired');
+        recommendations.push('Clear session and re-authenticate');
+      } else {
+        issues.push('Supabase connection error');
+        recommendations.push('Check internet connection and Supabase configuration');
+      }
     }
     
     // Check permanent session consistency
     const permanentData = PermanentSession.getSession();
-    const { data: { session } } = await supabase.auth.getSession();
     
     if (permanentData.isLoggedIn && !session) {
-      issues.push('Permanent session inconsistency');
+      issues.push('Session inconsistency detected');
       recommendations.push('Clear permanent session and re-authenticate');
     }
     
-    // Check for expired tokens
+    // Check for token expiry
     if (session?.expires_at) {
       const expiresAt = new Date(session.expires_at * 1000);
       const now = new Date();
@@ -200,7 +181,7 @@ export const performAuthHealthCheck = async (): Promise<{
     
   } catch (error: any) {
     issues.push(`Health check failed: ${error.message}`);
-    recommendations.push('Contact support if issues persist');
+    recommendations.push('Clear session data and re-authenticate');
   }
   
   return {
