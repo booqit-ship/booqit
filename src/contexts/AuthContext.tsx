@@ -38,6 +38,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
+  console.log('🔧 AuthProvider state:', { isAuthenticated, userId, userRole, isLoading });
+
   // Simplified setAuth method
   const setAuth = (authenticated: boolean, role: UserRole, userId: string) => {
     console.log('🔧 Setting auth state:', { authenticated, role, userId });
@@ -67,12 +69,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setIsAuthenticated(true);
         }
 
-        // Get authoritative Supabase session
-        const { data: { session }, error } = await supabase.auth.getSession();
+        // Get authoritative Supabase session - with error handling
+        let session = null;
+        try {
+          const { data: sessionData, error } = await supabase.auth.getSession();
+          if (error) {
+            console.error('⚠️ AUTH: Session fetch error:', error);
+            // Don't throw, continue with permanent session if available
+          } else {
+            session = sessionData.session;
+          }
+        } catch (sessionError) {
+          console.error('❌ AUTH: Exception getting session:', sessionError);
+          // Continue with permanent session if available
+        }
 
         if (!mounted) return;
 
-        if (session && session.user && !error) {
+        if (session && session.user) {
           console.log('✅ AUTH: Valid Supabase session found');
           setUser(session.user);
           setUserId(session.user.id);
@@ -101,24 +115,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
         } else {
-          console.log('ℹ️ AUTH: No valid session, clearing state');
-          if (permanentSession.isLoggedIn) {
+          console.log('ℹ️ AUTH: No valid session');
+          // Only clear if we don't have permanent session
+          if (!permanentSession.isLoggedIn) {
+            console.log('🧹 AUTH: Clearing auth state');
+            setIsAuthenticated(false);
+            setUserId('');
+            setUserRole('');
+            setUser(null);
             PermanentSession.clearSession();
+          } else {
+            console.log('📖 AUTH: Keeping permanent session active');
           }
-          setIsAuthenticated(false);
-          setUserId('');
-          setUserRole('');
-          setUser(null);
         }
       } catch (error) {
         console.error('❌ AUTH: Error initializing auth:', error);
-        // On critical errors, clear everything
-        PermanentSession.clearSession();
-        if (mounted) {
+        // On critical errors, only clear if no permanent session
+        const permanentSession = PermanentSession.getSession();
+        if (!permanentSession.isLoggedIn && mounted) {
           setIsAuthenticated(false);
           setUserId('');
           setUserRole('');
           setUser(null);
+          PermanentSession.clearSession();
         }
       } finally {
         if (mounted) {
@@ -228,22 +247,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Clear permanent session first
       PermanentSession.clearSession();
       
-      // Sign out from Supabase
-      const { error } = await supabase.auth.signOut();
-      
-      if (error) {
-        console.error('❌ AUTH: Logout error:', error);
-        toast.error('Error during logout');
-      } else {
-        console.log('✅ AUTH: Logout successful');
-        toast.success('Logged out successfully');
-      }
-
-      // Clear local state
+      // Clear local state first to prevent UI flicker
       setUser(null);
       setUserId('');
       setUserRole('');
       setIsAuthenticated(false);
+      
+      // Sign out from Supabase (this might fail but UI is already updated)
+      try {
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+          console.error('❌ AUTH: Logout error:', error);
+          toast.error('Error during logout');
+        } else {
+          console.log('✅ AUTH: Logout successful');
+          toast.success('Logged out successfully');
+        }
+      } catch (signOutError) {
+        console.error('❌ AUTH: Supabase signout failed:', signOutError);
+        // UI already updated, don't show error to user
+      }
 
       // Clear cached data
       try {

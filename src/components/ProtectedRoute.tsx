@@ -17,13 +17,22 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const { isAuthenticated, userRole, loading } = useAuth();
   const location = useLocation();
 
+  console.log('🛡️ ProtectedRoute check:', { 
+    isAuthenticated, 
+    userRole, 
+    loading, 
+    requiredRole,
+    path: location.pathname 
+  });
+
   // Check permanent session for instant auth check
   const permanentData = PermanentSession.getSession();
   const hasPermanentSession = permanentData.isLoggedIn;
   const permanentRole = permanentData.userRole as UserRole;
 
-  // Show loading only briefly - if we have permanent session, show content immediately
+  // Show loading only briefly - if we have permanent session, proceed immediately
   if (loading && !hasPermanentSession) {
+    console.log('⏳ ProtectedRoute: Showing loading');
     return (
       <div className="min-h-screen bg-gradient-to-br from-booqit-primary/10 to-white flex items-center justify-center">
         <div className="text-center">
@@ -38,8 +47,15 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const effectiveAuth = isAuthenticated || hasPermanentSession;
   const effectiveRole = userRole || permanentRole;
 
+  console.log('🔍 ProtectedRoute effective state:', { 
+    effectiveAuth, 
+    effectiveRole, 
+    isAuthenticated, 
+    hasPermanentSession 
+  });
+
   if (!effectiveAuth) {
-    console.log('🚫 User not authenticated, redirecting to /');
+    console.log('🚫 ProtectedRoute: User not authenticated, redirecting to /');
     return <Navigate to="/" replace />;
   }
 
@@ -47,19 +63,18 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const isOnboardingPage = location.pathname === '/merchant/onboarding';
   
   if (isOnboardingPage) {
-    // For onboarding, just check if user is authenticated, not their role
-    console.log('✅ Allowing access to onboarding for authenticated user');
+    console.log('✅ ProtectedRoute: Allowing access to onboarding for authenticated user');
     return children ? <>{children}</> : <Outlet />;
   }
   
-  if (requiredRole && effectiveRole !== requiredRole) {
-    console.log('🚫 User role mismatch, redirecting based on role:', effectiveRole);
-    // Redirect to the appropriate dashboard based on role
-    return <Navigate to={effectiveRole === 'merchant' ? '/merchant' : '/'} replace />;
+  // Only redirect on role mismatch if we have a specific required role
+  if (requiredRole && effectiveRole && effectiveRole !== requiredRole) {
+    console.log('🚫 ProtectedRoute: Role mismatch, redirecting based on role:', effectiveRole);
+    const redirectPath = effectiveRole === 'merchant' ? '/merchant' : '/home';
+    return <Navigate to={redirectPath} replace />;
   }
 
-  // If children are provided, render them (for wrapper usage)
-  // If no children, render Outlet (for route element usage)
+  console.log('✅ ProtectedRoute: Access granted');
   return children ? <>{children}</> : <Outlet />;
 };
 

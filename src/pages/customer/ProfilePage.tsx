@@ -2,7 +2,7 @@
 import React, { Suspense, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Settings, User, Calendar, Star, ChevronRight, LogOut, RefreshCw } from 'lucide-react';
+import { Settings, User, Calendar, Star, ChevronRight, LogOut, RefreshCw, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
@@ -32,11 +32,15 @@ interface RecentBooking {
 }
 
 const fetchProfile = async (userId: string | null, email: string | null, user_metadata: any) => {
-  if (!userId) throw new Error('No user ID provided');
+  if (!userId) {
+    console.log('🚫 No user ID provided for profile fetch');
+    throw new Error('User ID required');
+  }
   
   console.log('🔍 Fetching profile for user:', userId);
   
   try {
+    // First try to get existing profile
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
       .select('id, name, email, phone, role, avatar_url')
@@ -44,8 +48,9 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
       .maybeSingle();
     
     if (profileError) {
-      console.error('❌ Error fetching profile:', profileError);
-      throw new Error(`Profile fetch failed: ${profileError.message}`);
+      console.error('❌ Profile fetch error:', profileError);
+      // Don't throw on database errors, return fallback data
+      console.log('🔄 Using fallback profile data due to fetch error');
     }
     
     if (profileData) {
@@ -53,9 +58,9 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
       return profileData;
     }
     
-    // Create profile if it doesn't exist
-    console.log('📝 Creating new profile');
-    const newProfile = {
+    // If no profile exists, create fallback data (don't try to insert)
+    console.log('📝 No profile found, using fallback data');
+    const fallbackProfile = {
       id: userId,
       name: user_metadata?.name || email?.split('@')[0] || 'Customer',
       email: email || '',
@@ -64,50 +69,51 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
       avatar_url: null
     };
     
-    const { data: createdProfile, error: createError } = await supabase
-      .from('profiles')
-      .insert(newProfile)
-      .select('id, name, email, phone, role, avatar_url')
-      .single();
-    
-    if (createError) {
-      console.error('❌ Error creating profile:', createError);
-      throw new Error(`Profile creation failed: ${createError.message}`);
-    }
-    
-    console.log('✅ New profile created');
-    return createdProfile;
+    return fallbackProfile;
     
   } catch (error) {
     console.error('❌ Exception in fetchProfile:', error);
-    throw error;
+    // Return fallback data instead of throwing
+    return {
+      id: userId,
+      name: user_metadata?.name || email?.split('@')[0] || 'Customer',
+      email: email || '',
+      phone: user_metadata?.phone || null,
+      role: 'customer',
+      avatar_url: null
+    };
   }
 };
 
 const fetchRecentBookings = async (userId: string | null) => {
   if (!userId) return [];
   
-  const { data: bookingsData, error: bookingsError } = await supabase
-    .from('bookings')
-    .select(`
-      id,
-      date,
-      time_slot,
-      status,
-      merchant:merchants!inner(shop_name),
-      service:services!inner(name)
-    `)
-    .eq('user_id', userId)
-    .order('date', { ascending: false })
-    .order('time_slot', { ascending: false })
-    .limit(3);
-  
-  if (bookingsError) {
-    console.error('❌ Error fetching bookings:', bookingsError);
+  try {
+    const { data: bookingsData, error: bookingsError } = await supabase
+      .from('bookings')
+      .select(`
+        id,
+        date,
+        time_slot,
+        status,
+        merchant:merchants!inner(shop_name),
+        service:services!inner(name)
+      `)
+      .eq('user_id', userId)
+      .order('date', { ascending: false })
+      .order('time_slot', { ascending: false })
+      .limit(3);
+    
+    if (bookingsError) {
+      console.error('❌ Error fetching bookings:', bookingsError);
+      return [];
+    }
+    
+    return bookingsData ?? [];
+  } catch (error) {
+    console.error('❌ Exception fetching bookings:', error);
     return [];
   }
-  
-  return bookingsData ?? [];
 };
 
 const ProfileSkeleton = () => (
@@ -135,10 +141,18 @@ const ProfileSkeleton = () => (
 );
 
 const ProfilePage: React.FC = () => {
-  const { user, logout, isAuthenticated } = useAuth();
+  const { user, logout, isAuthenticated, loading } = useAuth();
   const [profileData, setProfileData] = useState<Profile | null>(null);
+  const [showError, setShowError] = useState(false);
 
-  // Fetch profile with improved error handling
+  console.log('🏠 ProfilePage - Auth state:', { 
+    isAuthenticated, 
+    loading, 
+    hasUser: !!user,
+    userId: user?.id 
+  });
+
+  // Fetch profile with improved error handling - NO auto-logout on errors
   const {
     data: profile,
     isLoading: loadingProfile,
@@ -147,18 +161,22 @@ const ProfilePage: React.FC = () => {
   } = useQuery({
     queryKey: ['profile', user?.id],
     queryFn: () => fetchProfile(user?.id ?? null, user?.email ?? null, user?.user_metadata ?? {}),
-    enabled: !!user?.id && isAuthenticated,
-    staleTime: 1 * 60 * 1000,
-    retry: 1, // Reduced retry attempts
+    enabled: !!user?.id && isAuthenticated && !loading,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    retry: (failureCount, error) => {
+      // Don't retry on auth errors to prevent loops
+      if (error instanceof Error && (
+        error.message.includes('JWT') ||
+        error.message.includes('auth') ||
+        error.message.includes('unauthorized')
+      )) {
+        console.log('🚫 Not retrying auth-related error:', error.message);
+        return false;
+      }
+      return failureCount < 2;
+    },
     retryDelay: 2000
   });
-
-  // Handle successful profile fetch
-  useEffect(() => {
-    if (profile) {
-      setProfileData(profile);
-    }
-  }, [profile]);
 
   const {
     data: recentBookings = [],
@@ -166,10 +184,27 @@ const ProfilePage: React.FC = () => {
   } = useQuery({
     queryKey: ['recentBookings', user?.id],
     queryFn: () => fetchRecentBookings(user?.id ?? null),
-    enabled: !!user?.id && isAuthenticated,
+    enabled: !!user?.id && isAuthenticated && !loading,
     staleTime: 2 * 60 * 1000,
     retry: 1
   });
+
+  // Handle successful profile fetch
+  useEffect(() => {
+    if (profile) {
+      console.log('✅ Profile data received:', profile.name);
+      setProfileData(profile);
+      setShowError(false);
+    }
+  }, [profile]);
+
+  // Handle profile errors - DON'T auto-logout
+  useEffect(() => {
+    if (errorProfile) {
+      console.error('❌ Profile error (not logging out):', errorProfile);
+      setShowError(true);
+    }
+  }, [errorProfile]);
 
   const profileItems = [
     {
@@ -204,31 +239,42 @@ const ProfilePage: React.FC = () => {
     refetchProfile();
   };
 
-  // Loading state
-  if (loadingProfile || loadingBookings) {
+  const handleLogout = async () => {
+    console.log('🚪 User clicked logout from profile page');
+    try {
+      await logout();
+    } catch (error) {
+      console.error('❌ Logout error:', error);
+    }
+  };
+
+  // Show loading state
+  if (loading || (loadingProfile && !profileData)) {
+    console.log('⏳ Showing loading state');
     return <ProfileSkeleton />;
   }
 
-  // IMPROVED Error handling - don't auto-logout, give recovery options
-  if (errorProfile) {
-    console.error('❌ Profile page error:', errorProfile);
+  // Show error state with recovery options - NO auto-logout
+  if (showError && !profileData) {
+    console.log('❌ Showing error state');
     
     return (
       <div className="h-screen bg-gray-50 flex flex-col items-center justify-center overflow-hidden">
         <div className="bg-white p-6 rounded-lg shadow-md max-w-md w-full mx-4 text-center">
           <div className="text-red-500 mb-4">
-            <User className="w-12 h-12 mx-auto mb-2" />
+            <AlertCircle className="w-12 h-12 mx-auto mb-2" />
             <p className="text-lg font-semibold text-red-600 mb-2">
               Profile Loading Issue
             </p>
             <p className="text-sm text-gray-600 mb-4">
-              We're having trouble loading your profile. This might be a temporary network issue.
+              We're having trouble loading your profile. This might be a temporary issue.
             </p>
           </div>
           <div className="flex flex-col gap-2">
             <Button 
               onClick={() => {
                 console.log('🔄 Retrying profile fetch...');
+                setShowError(false);
                 refetchProfile();
               }}
               className="w-full"
@@ -237,17 +283,17 @@ const ProfilePage: React.FC = () => {
               Try Again
             </Button>
             <Button 
-              onClick={() => window.location.href = '/home'}
+              onClick={() => {
+                console.log('🏠 Going to home page');
+                window.location.href = '/home';
+              }}
               variant="outline"
               className="w-full"
             >
               Go to Home
             </Button>
             <Button 
-              onClick={() => {
-                console.log('🚪 User requested logout from error screen');
-                logout();
-              }}
+              onClick={handleLogout}
               variant="ghost"
               className="w-full text-red-600"
             >
@@ -260,17 +306,15 @@ const ProfilePage: React.FC = () => {
     );
   }
 
-  // Check authentication state
-  if (!isAuthenticated || !user) {
-    console.log('⚠️ User not authenticated in profile page, redirecting...');
-    window.location.href = '/auth';
-    return null;
-  }
+  // REMOVED: Aggressive auth check that was causing redirects
+  // The auth check should be handled by ProtectedRoute, not here
 
   // Use profile data with fallbacks
   const displayProfile = profile || profileData;
   const displayName = displayProfile?.name || user?.email?.split('@')[0] || 'Customer';
   const displayEmail = displayProfile?.email || user?.email || '';
+
+  console.log('✅ Rendering profile page for:', displayName);
 
   return (
     <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
@@ -342,10 +386,7 @@ const ProfilePage: React.FC = () => {
           <CardContent className="space-y-3">
             <Button 
               variant="outline" 
-              onClick={() => {
-                console.log('🚪 User clicked logout from profile page');
-                logout();
-              }} 
+              onClick={handleLogout}
               className="w-full justify-start py-[17px] my-[12px]"
             >
               <LogOut className="h-4 w-4 mr-2" />
