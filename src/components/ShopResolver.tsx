@@ -33,14 +33,6 @@ interface ResolveShopRpcResponse {
   description?: string;
 }
 
-// Reserved routes that should not be resolved as shop slugs
-const RESERVED_ROUTES = [
-  'nearby-shops', 'home', 'auth', 'forgot-password', 'reset-password', 'verify',
-  'privacy-policy', 'terms-and-conditions', 'search', 'map', 'bookings', 'settings',
-  'profile', 'account', 'reviews', 'calendar', 'merchant', 'booking', 'guest-info',
-  'guest', 'notification-test'
-];
-
 const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
   const { shopSlug } = useParams();
   const navigate = useNavigate();
@@ -53,13 +45,6 @@ const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
         console.log('SHOP RESOLVER: No shop slug provided');
         setError('No shop slug provided');
         setIsResolving(false);
-        return;
-      }
-
-      // Check if this is a reserved route
-      if (RESERVED_ROUTES.includes(shopSlug.toLowerCase())) {
-        console.log('SHOP RESOLVER: Reserved route detected, redirecting to 404');
-        navigate('/404', { replace: true });
         return;
       }
 
