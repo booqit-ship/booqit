@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Camera, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -49,12 +50,14 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
         return;
       }
 
-      // Create unique filename
+      // Create unique filename with user ID folder structure
       const fileExt = file.name.split('.').pop();
       const fileName = `${userId}-${Date.now()}.${fileExt}`;
       const filePath = `avatars/${fileName}`;
 
-      // Upload to Supabase storage - Fixed bucket name
+      console.log('Uploading avatar to:', filePath);
+
+      // Upload to Supabase storage - use correct bucket name 'user_avatars'
       const { error: uploadError } = await supabase.storage
         .from('user_avatars')
         .upload(filePath, file, {
@@ -64,7 +67,7 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
 
       if (uploadError) {
         console.error('Upload error:', uploadError);
-        toast.error('Failed to upload image');
+        toast.error(`Failed to upload image: ${uploadError.message}`);
         return;
       }
 
@@ -72,6 +75,8 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
       const { data: { publicUrl } } = supabase.storage
         .from('user_avatars')
         .getPublicUrl(filePath);
+
+      console.log('Image uploaded successfully, public URL:', publicUrl);
 
       // Update profile with new avatar URL
       const { error: updateError } = await supabase
@@ -130,6 +135,8 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
     if (file) {
       uploadImage(file);
     }
+    // Reset input value to allow selecting the same file again
+    event.target.value = '';
   };
 
   return (
@@ -181,15 +188,10 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
               </Button>
             </label>
             <input
-              id="avatar-upload"
+              id="avatar-upload"  
               type="file"
               accept="image/*"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) {
-                  uploadImage(file);
-                }
-              }}
+              onChange={handleFileSelect}
               className="hidden"
               disabled={uploading}
             />
