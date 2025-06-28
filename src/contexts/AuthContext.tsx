@@ -38,16 +38,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Add the missing setAuth method
+  // Enhanced setAuth method for Firebase authentication
   const setAuth = (authenticated: boolean, role: UserRole, userId: string) => {
+    console.log('🔧 Setting auth state:', { authenticated, role, userId });
     setIsAuthenticated(authenticated);
     setUserRole(role);
     setUserId(userId);
+    
+    // Update permanent session
+    if (authenticated && userId && role) {
+      PermanentSession.saveSession(null, role, userId);
+    }
   };
 
   useEffect(() => {
     const loadSession = async () => {
       try {
+        console.log('🔍 AUTH: Loading session...');
+        
         // Check permanent session first
         const permanentSession = PermanentSession.getSession();
         if (permanentSession.isLoggedIn && permanentSession.userId) {
@@ -61,7 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const { data: { session }, error } = await supabase.auth.getSession();
 
         if (session) {
-          console.log('✅ AUTH: Session loaded successfully');
+          console.log('✅ AUTH: Supabase session loaded successfully');
           setUser(session.user);
           setUserId(session.user.id);
           setIsAuthenticated(true);
@@ -69,28 +77,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Ensure user role is up-to-date
           if (session.user.id && (!permanentSession.isLoggedIn || permanentSession.userRole === '')) {
             console.log('🔄 AUTH: Fetching user role from database');
-            const { data: profileData, error: profileError } = await supabase
-              .from('profiles')
-              .select('role')
-              .eq('id', session.user.id)
-              .single();
+            try {
+              const { data: profileData, error: profileError } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('id', session.user.id)
+                .single();
 
-            if (profileError) {
-              console.error('❌ AUTH: Error fetching profile:', profileError);
-            } else if (profileData) {
-              const role = profileData.role || 'customer';
-              setUserRole(role);
-              PermanentSession.saveSession({
-                userId: session.user.id,
-                email: session.user.email || '',
-                userRole: role,
-                isLoggedIn: true,
-                session
-              });
+              if (!profileError && profileData) {
+                const role = profileData.role || 'customer';
+                setUserRole(role);
+                PermanentSession.saveSession(session, role, session.user.id);
+              } else {
+                console.warn('⚠️ AUTH: Could not fetch role, using default');
+                setUserRole('customer');
+              }
+            } catch (roleError) {
+              console.warn('⚠️ AUTH: Role fetch failed, using default:', roleError);
+              setUserRole('customer');
             }
           }
         } else if (error) {
           console.error('❌ AUTH: Error loading session:', error);
+        } else {
+          console.log('ℹ️ AUTH: No existing session found');
         }
       } catch (sessionError) {
         console.error('❌ AUTH: Unexpected error loading session:', sessionError);
@@ -119,6 +129,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUser(session.user);
             setUserId(session.user.id);
             setIsAuthenticated(true);
+            
+            // Fetch role asynchronously after sign in
+            setTimeout(async () => {
+              try {
+                const { data: profileData } = await supabase
+                  .from('profiles')
+                  .select('role')
+                  .eq('id', session.user.id)
+                  .single();
+                
+                if (profileData) {
+                  const role = profileData.role || 'customer';
+                  setUserRole(role);
+                  PermanentSession.saveSession(session, role, session.user.id);
+                }
+              } catch (error) {
+                console.warn('⚠️ AUTH: Could not fetch role after sign in:', error);
+                setUserRole('customer');
+              }
+            }, 100);
           }
         } else if (event === 'SIGNED_OUT') {
           console.log('🚪 AUTH: User signed out');
@@ -126,6 +156,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUserId('');
           setUserRole('');
           setIsAuthenticated(false);
+          PermanentSession.clearSession();
         } else if (event === 'TOKEN_REFRESHED') {
           console.log('🔄 AUTH: Token refreshed');
           if (session && session.user) {
@@ -181,13 +212,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } else if (profileData) {
           const role = profileData.role || 'customer';
           setUserRole(role);
-          PermanentSession.saveSession({
-            userId: data.user.id,
-            email: data.user.email || '',
-            userRole: role,
-            isLoggedIn: true,
-            session: data.session
-          });
+          PermanentSession.saveSession(data.session, role, data.user.id);
           toast.success('Logged in successfully');
           navigate('/');
         }

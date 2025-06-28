@@ -7,213 +7,121 @@ interface PermanentSessionData {
   userRole: string;
   isLoggedIn: boolean;
   session?: Session | null;
-  timestamp?: number;
-  version?: string;
+  lastLogin?: string;
 }
 
-const STORAGE_KEY = 'booqit_permanent_session';
-const SESSION_VERSION = '1.0';
-const SESSION_EXPIRY_HOURS = 24 * 7; // 7 days
-
 export class PermanentSession {
-  private static isStorageAvailable(): boolean {
+  private static readonly STORAGE_KEY = 'booqit_permanent_session';
+  private static readonly SESSION_TIMEOUT = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+  // Enhanced save method that works with both Firebase and Supabase sessions
+  static saveSession(session: Session | null, userRole: string, userId: string): void {
     try {
-      const test = '__storage_test__';
-      localStorage.setItem(test, test);
-      localStorage.removeItem(test);
-      return true;
-    } catch {
-      return false;
-    }
-  }
+      const sessionData: PermanentSessionData = {
+        userId,
+        email: session?.user?.email || '',
+        userRole,
+        isLoggedIn: true,
+        session,
+        lastLogin: new Date().toISOString()
+      };
 
-  private static isSessionExpired(timestamp: number): boolean {
-    const now = Date.now();
-    const expiryTime = SESSION_EXPIRY_HOURS * 60 * 60 * 1000;
-    return (now - timestamp) > expiryTime;
-  }
-
-  static saveSession(session: Session, userRole: string, userId: string): void;
-  static saveSession(data: Omit<PermanentSessionData, 'timestamp' | 'version'>): void;
-  static saveSession(
-    sessionOrData: Session | Omit<PermanentSessionData, 'timestamp' | 'version'>,
-    userRole?: string,
-    userId?: string
-  ): void {
-    if (!this.isStorageAvailable()) {
-      console.warn('localStorage not available, session will not persist');
-      return;
-    }
-
-    try {
-      let sessionData: PermanentSessionData;
-
-      // Handle overloaded call signatures more clearly
-      if ('user' in sessionOrData && userRole && userId) {
-        // Called with (session, userRole, userId)
-        const session = sessionOrData as Session;
-        sessionData = {
-          userId,
-          email: session.user?.email || '',
-          userRole,
-          isLoggedIn: true,
-          session,
-          timestamp: Date.now(),
-          version: SESSION_VERSION
-        };
-      } else {
-        // Called with data object
-        const data = sessionOrData as Omit<PermanentSessionData, 'timestamp' | 'version'>;
-        sessionData = {
-          ...data,
-          timestamp: Date.now(),
-          version: SESSION_VERSION
-        };
-      }
-
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(sessionData));
-      console.log('✅ Permanent session saved');
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(sessionData));
+      console.log('💾 Permanent session saved:', { userId, userRole, hasSession: !!session });
     } catch (error) {
-      console.error('❌ Failed to save permanent session:', error);
+      console.error('❌ Error saving permanent session:', error);
     }
   }
 
+  // Enhanced get method with validation
   static getSession(): PermanentSessionData {
-    const defaultSession: PermanentSessionData = {
-      userId: '',
-      email: '',
-      userRole: '',
-      isLoggedIn: false
-    };
-
-    if (!this.isStorageAvailable()) {
-      return defaultSession;
-    }
-
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(this.STORAGE_KEY);
       if (!stored) {
-        return defaultSession;
+        return this.getEmptySession();
       }
 
       const sessionData: PermanentSessionData = JSON.parse(stored);
-
-      // Check version compatibility
-      if (sessionData.version !== SESSION_VERSION) {
-        console.log('🔄 Session version mismatch, clearing old session');
+      
+      // Validate session data
+      if (!sessionData.userId || !sessionData.userRole) {
+        console.warn('⚠️ Invalid permanent session data, clearing');
         this.clearSession();
-        return defaultSession;
+        return this.getEmptySession();
       }
 
-      // Check if session is expired
-      if (sessionData.timestamp && this.isSessionExpired(sessionData.timestamp)) {
-        console.log('⏰ Permanent session expired, clearing');
-        this.clearSession();
-        return defaultSession;
+      // Check session timeout
+      if (sessionData.lastLogin) {
+        const lastLogin = new Date(sessionData.lastLogin);
+        const now = new Date();
+        if (now.getTime() - lastLogin.getTime() > this.SESSION_TIMEOUT) {
+          console.warn('⚠️ Permanent session expired, clearing');
+          this.clearSession();
+          return this.getEmptySession();
+        }
       }
 
-      // Validate required fields more thoroughly
-      if (!sessionData.userId || 
-          !sessionData.email || 
-          !sessionData.userRole ||
-          typeof sessionData.isLoggedIn !== 'boolean') {
-        console.log('⚠️ Invalid session data, clearing');
-        this.clearSession();
-        return defaultSession;
-      }
-
+      console.log('📖 Permanent session loaded:', { 
+        userId: sessionData.userId, 
+        userRole: sessionData.userRole,
+        isLoggedIn: sessionData.isLoggedIn 
+      });
+      
       return sessionData;
     } catch (error) {
-      console.error('❌ Failed to parse permanent session:', error);
+      console.error('❌ Error reading permanent session:', error);
       this.clearSession();
-      return defaultSession;
-    }
-  }
-
-  static isLoggedIn(): boolean {
-    try {
-      const session = this.getSession();
-      return session.isLoggedIn && !!session.userId;
-    } catch (error) {
-      console.error('❌ Error checking login status:', error);
-      return false;
+      return this.getEmptySession();
     }
   }
 
   static clearSession(): void {
-    if (!this.isStorageAvailable()) {
-      return;
-    }
-
     try {
-      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(this.STORAGE_KEY);
       console.log('🧹 Permanent session cleared');
     } catch (error) {
-      console.error('❌ Failed to clear permanent session:', error);
+      console.error('❌ Error clearing permanent session:', error);
     }
+  }
+
+  static isLoggedIn(): boolean {
+    const session = this.getSession();
+    return session.isLoggedIn && !!session.userId;
   }
 
   static updateUserRole(newRole: string): void {
     try {
       const currentSession = this.getSession();
       if (currentSession.isLoggedIn) {
-        this.saveSession({
-          ...currentSession,
-          userRole: newRole
-        });
+        currentSession.userRole = newRole;
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(currentSession));
+        console.log('👤 User role updated in permanent session:', newRole);
       }
     } catch (error) {
-      console.error('❌ Error updating user role:', error);
+      console.error('❌ Error updating user role in permanent session:', error);
     }
   }
 
-  static refreshTimestamp(): void {
+  private static getEmptySession(): PermanentSessionData {
+    return {
+      userId: '',
+      email: '',
+      userRole: '',
+      isLoggedIn: false,
+      session: null
+    };
+  }
+
+  // Helper method to refresh the last login timestamp
+  static refreshLogin(): void {
     try {
       const currentSession = this.getSession();
       if (currentSession.isLoggedIn) {
-        this.saveSession(currentSession);
+        currentSession.lastLogin = new Date().toISOString();
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(currentSession));
       }
     } catch (error) {
-      console.error('❌ Error refreshing timestamp:', error);
-    }
-  }
-
-  static getSessionInfo(): {
-    isValid: boolean;
-    timeToExpiry: number;
-    userId: string | null;
-    userRole: string | null;
-  } {
-    try {
-      const session = this.getSession();
-      
-      if (!session.isLoggedIn || !session.timestamp) {
-        return {
-          isValid: false,
-          timeToExpiry: 0,
-          userId: null,
-          userRole: null
-        };
-      }
-
-      const now = Date.now();
-      const expiryTime = SESSION_EXPIRY_HOURS * 60 * 60 * 1000;
-      const timeToExpiry = Math.max(0, expiryTime - (now - session.timestamp));
-
-      return {
-        isValid: !this.isSessionExpired(session.timestamp),
-        timeToExpiry,
-        userId: session.userId,
-        userRole: session.userRole
-      };
-    } catch (error) {
-      console.error('❌ Error getting session info:', error);
-      return {
-        isValid: false,
-        timeToExpiry: 0,
-        userId: null,
-        userRole: null
-      };
+      console.error('❌ Error refreshing login timestamp:', error);
     }
   }
 }

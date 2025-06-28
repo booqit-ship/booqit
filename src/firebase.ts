@@ -1,3 +1,4 @@
+
 import { initializeApp } from "firebase/app";
 import { getMessaging, getToken, onMessage, MessagePayload } from "firebase/messaging";
 import { getAuth, signInWithPhoneNumber, RecaptchaVerifier, ConfirmationResult } from "firebase/auth";
@@ -274,6 +275,7 @@ export const checkPhoneExists = async (phoneNumber: string): Promise<{ exists: b
   }
 };
 
+// Enhanced authentication function with better session handling
 export const authenticateWithCustomJWT = async (idToken: string, userData: { name: string; phone: string; email?: string }): Promise<{ success: boolean; isExistingUser: boolean; user?: any; session?: any }> => {
   try {
     console.log('🔄 Authenticating with custom JWT for phone:', userData.phone);
@@ -294,18 +296,36 @@ export const authenticateWithCustomJWT = async (idToken: string, userData: { nam
     if (data?.success) {
       console.log('✅ Custom JWT authentication successful:', data.isExistingUser ? 'existing user' : 'new user');
       
-      // Set Supabase session
-      if (data.session) {
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token
-        });
+      // Enhanced session handling
+      if (data.session && data.session.access_token) {
+        console.log('🔑 Setting Supabase session with tokens');
+        
+        try {
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token || data.session.access_token
+          });
 
-        if (sessionError) {
-          console.error('❌ Error setting Supabase session:', sessionError);
-        } else {
-          console.log('✅ Supabase session set successfully');
+          if (sessionError) {
+            console.error('❌ Error setting Supabase session:', sessionError);
+            
+            // Fallback: still return success but without session
+            console.log('⚠️ Proceeding with user data only (no session)');
+            return {
+              success: true,
+              isExistingUser: data.isExistingUser,
+              user: data.user,
+              session: null
+            };
+          } else {
+            console.log('✅ Supabase session set successfully');
+          }
+        } catch (sessionSetError) {
+          console.error('❌ Session setting failed:', sessionSetError);
+          // Still return success with user data
         }
+      } else {
+        console.log('⚠️ No session tokens returned, authentication will work but session may not persist');
       }
 
       return {

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
@@ -9,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { sendOTP, verifyOTP, checkPhoneExists, authenticateWithCustomJWT } from '@/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { ConfirmationResult } from 'firebase/auth';
+import { toast } from 'sonner';
 
 type Step = 'phone' | 'otp' | 'name';
 
@@ -26,6 +28,7 @@ const PhoneAuthPage: React.FC = () => {
 
   const handleSendOTP = async () => {
     if (!phoneNumber || phoneNumber.length < 10) {
+      toast.error('Please enter a valid phone number');
       return;
     }
 
@@ -36,12 +39,16 @@ const PhoneAuthPage: React.FC = () => {
     if (result) {
       setConfirmationResult(result);
       setStep('otp');
+      toast.success('OTP sent successfully!');
+    } else {
+      toast.error('Failed to send OTP. Please try again.');
     }
     setLoading(false);
   };
 
   const handleVerifyOTP = async () => {
     if (!confirmationResult || !otpCode || otpCode.length !== 6) {
+      toast.error('Please enter a valid 6-digit OTP');
       return;
     }
 
@@ -53,12 +60,17 @@ const PhoneAuthPage: React.FC = () => {
       // Directly attempt authentication with minimal user data
       // The edge function will determine if user exists and handle accordingly
       await handleAuthentication(result, '');
+    } else {
+      toast.error('Invalid OTP. Please try again.');
     }
     setLoading(false);
   };
 
   const handleAuthentication = async (credential: any, userName: string = '') => {
     try {
+      setLoading(true);
+      console.log('🔐 Starting authentication process...');
+      
       const idToken = await credential.user.getIdToken();
       const authResult = await authenticateWithCustomJWT(idToken, {
         name: userName || 'Customer',
@@ -67,29 +79,44 @@ const PhoneAuthPage: React.FC = () => {
       });
       
       if (authResult.success) {
+        console.log('✅ Authentication successful');
+        
+        // Set authentication state using the setAuth method
+        setAuth(true, 'customer', authResult.user.id);
+        
         if (authResult.isExistingUser) {
           console.log('✅ Existing user logged in');
-          setAuth(true, 'customer', authResult.user.id);
+          toast.success('Welcome back!');
           navigate('/home');
         } else {
           console.log('✅ New user, requesting name');
-          setStep('name');
+          if (!userName) {
+            setStep('name');
+          } else {
+            toast.success('Account created successfully!');
+            navigate('/home');
+          }
         }
+      } else {
+        console.error('❌ Authentication failed');
+        toast.error('Authentication failed. Please try again.');
       }
     } catch (error) {
       console.error('❌ Authentication error:', error);
+      toast.error('Authentication failed. Please try again.');
+    } finally {
       setLoading(false);
     }
   };
 
   const handleComplete = async () => {
     if (!name.trim() || !userCredential) {
+      toast.error('Please enter your name');
       return;
     }
 
     setLoading(true);
     await handleAuthentication(userCredential, name.trim());
-    setLoading(false);
   };
 
   const renderPhoneStep = () => (

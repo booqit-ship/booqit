@@ -1,3 +1,4 @@
+
 import React, { Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -13,7 +14,7 @@ interface Profile {
   name: string | null;
   email: string;
   phone: string | null;
-  avatar_url: string | null;
+  role: string;
 }
 
 interface RecentBooking {
@@ -35,10 +36,10 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
   console.log('🔍 Fetching profile for user:', userId);
   
   try {
-    // Try to fetch the existing profile first
+    // Try to fetch the existing profile first - REMOVED avatar_url from query
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, name, email, phone, role') // Only select existing columns
       .eq('id', userId)
       .maybeSingle();
     
@@ -66,7 +67,7 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
     const { data: createdProfile, error: createError } = await supabase
       .from('profiles')
       .insert(newProfile)
-      .select('*')
+      .select('id, name, email, phone, role') // Only select existing columns
       .single();
     
     if (createError) {
@@ -136,7 +137,7 @@ const ProfileSkeleton = () => (
 const ProfilePage: React.FC = () => {
   const { user, logout } = useAuth();
 
-  // Fetch profile and bookings
+  // Fetch profile and bookings with better error handling
   const {
     data: profile,
     isLoading: loadingProfile,
@@ -146,7 +147,11 @@ const ProfilePage: React.FC = () => {
     queryFn: () => fetchProfile(user?.id ?? null, user?.email ?? null, user?.user_metadata ?? {}),
     enabled: !!user?.id,
     staleTime: 1 * 60 * 1000,
-    retry: 2
+    retry: 2,
+    // Add error handling to prevent logout on profile fetch failure
+    onError: (error) => {
+      console.error('Profile fetch error (not logging out):', error);
+    }
   });
 
   const {
@@ -191,7 +196,7 @@ const ProfilePage: React.FC = () => {
     return <ProfileSkeleton />;
   }
 
-  // Error state
+  // Error state - but don't automatically logout
   if (errorProfile) {
     return (
       <div className="h-screen bg-gray-50 flex flex-col items-center justify-center overflow-hidden">
@@ -208,9 +213,9 @@ const ProfilePage: React.FC = () => {
             </button>
             <button 
               className="bg-gray-500 rounded px-4 py-2 text-white font-medium" 
-              onClick={() => window.location.href = '/auth'}
+              onClick={() => window.location.href = '/home'}
             >
-              Go to Login
+              Go to Home
             </button>
           </div>
         </div>
@@ -231,7 +236,7 @@ const ProfilePage: React.FC = () => {
         <div className="flex flex-col items-center pt-12 pb-3">
           <div className="relative">
             <Avatar className="w-24 h-24 shadow-lg border-4 border-white bg-white/30">
-              <AvatarImage src={profile?.avatar_url || ''} />
+              <AvatarImage src="" /> {/* Removed avatar_url reference */}
               <AvatarFallback className="bg-booqit-primary/80 text-white text-xl font-semibold">
                 {getInitials(profile?.name || user?.email || 'User')}
               </AvatarFallback>
