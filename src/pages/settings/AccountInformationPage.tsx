@@ -23,7 +23,7 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
   console.log('🔍 Fetching profile for user:', userId);
   
   try {
-    // Try to fetch the existing profile first
+    // Use maybeSingle() instead of single() to handle no results gracefully
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
       .select('*')
@@ -55,7 +55,7 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
       .from('profiles')
       .insert(newProfile)
       .select('*')
-      .single();
+      .maybeSingle();
     
     if (createError) {
       console.error('❌ Error creating profile:', createError);

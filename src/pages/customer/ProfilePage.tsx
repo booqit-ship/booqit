@@ -36,7 +36,7 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
   console.log('🔍 Fetching profile for user:', userId);
   
   try {
-    // Try to fetch the existing profile first
+    // Use maybeSingle() instead of single() to handle no results gracefully
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
       .select('*')
@@ -68,7 +68,7 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
       .from('profiles')
       .insert(newProfile)
       .select('*')
-      .single();
+      .maybeSingle();
     
     if (createError) {
       console.error('❌ Error creating profile:', createError);
@@ -157,7 +157,7 @@ const ProfilePage: React.FC = () => {
   } = useQuery({
     queryKey: ['recentBookings', user?.id],
     queryFn: () => fetchRecentBookings(user?.id ?? null),
-    enabled: !!user?.id && isAuthenticated,
+    enabled: !!user?.id && isAuthenticated && !!profile, // Only fetch bookings after profile is loaded
     staleTime: 2 * 60 * 1000,
     retry: 1
   });
@@ -197,7 +197,7 @@ const ProfilePage: React.FC = () => {
   }, [isAuthenticated, user, navigate]);
 
   // Loading state
-  if (loadingProfile || loadingBookings) {
+  if (loadingProfile) {
     return <ProfileSkeleton />;
   }
 
@@ -229,7 +229,7 @@ const ProfilePage: React.FC = () => {
   }
 
   // Don't render anything if not authenticated (will redirect)
-  if (!isAuthenticated || !user) {
+  if (!isAuthenticated || !user || !profile) {
     return null;
   }
 
