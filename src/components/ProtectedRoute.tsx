@@ -39,8 +39,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const effectiveRole = userRole || permanentRole;
 
   if (!effectiveAuth) {
-    console.log('🚫 User not authenticated, redirecting to auth');
-    return <Navigate to="/auth" replace />;
+    console.log('🚫 User not authenticated, redirecting to /');
+    return <Navigate to="/" replace />;
   }
 
   // Special handling for merchant onboarding - allow all authenticated users
@@ -55,7 +55,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   if (requiredRole && effectiveRole !== requiredRole) {
     console.log('🚫 User role mismatch, redirecting based on role:', effectiveRole);
     // Redirect to the appropriate dashboard based on role
-    return <Navigate to={effectiveRole === 'merchant' ? '/merchant' : '/home'} replace />;
+    return <Navigate to={effectiveRole === 'merchant' ? '/merchant' : '/'} replace />;
   }
 
   // If children are provided, render them (for wrapper usage)

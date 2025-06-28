@@ -1,6 +1,5 @@
-
 import React, { Suspense } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Settings, User, Calendar, Star, ChevronRight, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -36,7 +35,7 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
   console.log('🔍 Fetching profile for user:', userId);
   
   try {
-    // Use maybeSingle() instead of single() to handle no results gracefully
+    // Try to fetch the existing profile first
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
       .select('*')
@@ -68,7 +67,7 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
       .from('profiles')
       .insert(newProfile)
       .select('*')
-      .maybeSingle();
+      .single();
     
     if (createError) {
       console.error('❌ Error creating profile:', createError);
@@ -135,8 +134,7 @@ const ProfileSkeleton = () => (
 );
 
 const ProfilePage: React.FC = () => {
-  const { user, logout, isAuthenticated } = useAuth();
-  const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
   // Fetch profile and bookings
   const {
@@ -146,7 +144,7 @@ const ProfilePage: React.FC = () => {
   } = useQuery({
     queryKey: ['profile', user?.id],
     queryFn: () => fetchProfile(user?.id ?? null, user?.email ?? null, user?.user_metadata ?? {}),
-    enabled: !!user?.id && isAuthenticated,
+    enabled: !!user?.id,
     staleTime: 1 * 60 * 1000,
     retry: 2
   });
@@ -157,7 +155,7 @@ const ProfilePage: React.FC = () => {
   } = useQuery({
     queryKey: ['recentBookings', user?.id],
     queryFn: () => fetchRecentBookings(user?.id ?? null),
-    enabled: !!user?.id && isAuthenticated && !!profile, // Only fetch bookings after profile is loaded
+    enabled: !!user?.id,
     staleTime: 2 * 60 * 1000,
     retry: 1
   });
@@ -188,16 +186,8 @@ const ProfilePage: React.FC = () => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  // Handle authentication redirect safely
-  React.useEffect(() => {
-    if (!isAuthenticated && !user) {
-      console.log('User not authenticated, navigating to auth');
-      navigate('/auth', { replace: true });
-    }
-  }, [isAuthenticated, user, navigate]);
-
   // Loading state
-  if (loadingProfile) {
+  if (loadingProfile || loadingBookings) {
     return <ProfileSkeleton />;
   }
 
@@ -218,7 +208,7 @@ const ProfilePage: React.FC = () => {
             </button>
             <button 
               className="bg-gray-500 rounded px-4 py-2 text-white font-medium" 
-              onClick={() => navigate('/auth', { replace: true })}
+              onClick={() => window.location.href = '/auth'}
             >
               Go to Login
             </button>
@@ -228,8 +218,9 @@ const ProfilePage: React.FC = () => {
     );
   }
 
-  // Don't render anything if not authenticated (will redirect)
-  if (!isAuthenticated || !user || !profile) {
+  // If no user, redirect to auth
+  if (!user) {
+    window.location.href = '/auth';
     return null;
   }
 

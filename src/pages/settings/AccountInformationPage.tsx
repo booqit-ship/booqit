@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { ArrowLeft } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,7 +23,7 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
   console.log('🔍 Fetching profile for user:', userId);
   
   try {
-    // Use maybeSingle() instead of single() to handle no results gracefully
+    // Try to fetch the existing profile first
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
       .select('*')
@@ -55,7 +55,7 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
       .from('profiles')
       .insert(newProfile)
       .select('*')
-      .maybeSingle();
+      .single();
     
     if (createError) {
       console.error('❌ Error creating profile:', createError);
@@ -72,8 +72,7 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
 };
 
 const AccountInformationPage: React.FC = () => {
-  const { user, isAuthenticated } = useAuth();
-  const navigate = useNavigate();
+  const { user } = useAuth();
 
   const {
     data: profile,
@@ -83,7 +82,7 @@ const AccountInformationPage: React.FC = () => {
   } = useQuery({
     queryKey: ['profile', user?.id],
     queryFn: () => fetchProfile(user?.id ?? null, user?.email ?? null, user?.user_metadata ?? {}),
-    enabled: !!user?.id && isAuthenticated,
+    enabled: !!user?.id,
     staleTime: 1 * 60 * 1000,
     retry: 2
   });
@@ -92,19 +91,6 @@ const AccountInformationPage: React.FC = () => {
     // Trigger a refetch to update the profile data
     refetch();
   };
-
-  // Handle authentication redirect safely
-  React.useEffect(() => {
-    if (!isAuthenticated && !user) {
-      console.log('User not authenticated, navigating to auth');
-      navigate('/auth', { replace: true });
-    }
-  }, [isAuthenticated, user, navigate]);
-
-  // Don't render anything if not authenticated (will redirect)
-  if (!isAuthenticated || !user) {
-    return null;
-  }
 
   if (isLoading) {
     return (
