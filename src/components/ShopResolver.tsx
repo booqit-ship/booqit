@@ -34,7 +34,7 @@ interface ResolveShopRpcResponse {
 }
 
 const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
-  const { shopSlug } = useParams();
+  const { shopSlug } = useParams<{ shopSlug: string }>();
   const navigate = useNavigate();
   const [isResolving, setIsResolving] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +44,21 @@ const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
       if (!shopSlug) {
         console.log('SHOP RESOLVER: No shop slug provided');
         setError('No shop slug provided');
+        setIsResolving(false);
+        return;
+      }
+
+      // Check if this is actually a shop slug or a known route
+      const knownRoutes = [
+        'auth', 'customer', 'merchant', 'guest-info', 'guest-shop', 'guest-services', 
+        'guest-staff', 'guest-datetime', 'guest-payment', 'guest-success', 
+        'guest-history', 'guest-cancel', 'book', 'settings', 'privacy-policy', 
+        'terms-and-conditions', 'forgot-password', 'reset-password', 'verify'
+      ];
+
+      if (knownRoutes.includes(shopSlug)) {
+        console.log('SHOP RESOLVER: This is a known route, not a shop slug:', shopSlug);
+        setError('Not a shop slug');
         setIsResolving(false);
         return;
       }
