@@ -50,19 +50,19 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
         return;
       }
 
-      // Create unique filename with user ID folder structure
+      // Create unique filename - simplified path structure
       const fileExt = file.name.split('.').pop();
-      const fileName = `${userId}-${Date.now()}.${fileExt}`;
-      const filePath = `avatars/${fileName}`;
+      const fileName = `${userId}_${Date.now()}.${fileExt}`;
+      const filePath = fileName; // Simplified - no subfolder
 
-      console.log('Uploading avatar to:', filePath);
+      console.log('Uploading avatar to user_avatars bucket:', filePath);
 
-      // Upload to Supabase storage - use correct bucket name 'user_avatars'
-      const { error: uploadError } = await supabase.storage
+      // Upload to Supabase storage
+      const { data, error: uploadError } = await supabase.storage
         .from('user_avatars')
         .upload(filePath, file, {
           cacheControl: '3600',
-          upsert: false
+          upsert: true // Allow overwriting existing files
         });
 
       if (uploadError) {
@@ -71,12 +71,14 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
         return;
       }
 
+      console.log('Upload successful:', data);
+
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('user_avatars')
         .getPublicUrl(filePath);
 
-      console.log('Image uploaded successfully, public URL:', publicUrl);
+      console.log('Generated public URL:', publicUrl);
 
       // Update profile with new avatar URL
       const { error: updateError } = await supabase
