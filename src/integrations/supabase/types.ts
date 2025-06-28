@@ -1296,19 +1296,6 @@ export type Database = {
           last_used_at: string
         }[]
       }
-      get_or_create_user_profile: {
-        Args: { p_user_id: string }
-        Returns: {
-          id: string
-          name: string
-          email: string
-          phone: string
-          role: string
-          avatar_url: string
-          created_at: string
-          updated_at: string
-        }[]
-      }
       get_stylist_blocked_ranges: {
         Args: { p_staff_id: string; p_date: string }
         Returns: {
