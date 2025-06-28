@@ -1,6 +1,10 @@
 
-import React, { Suspense, lazy, ComponentType } from 'react';
+import React, { Suspense } from 'react';
 import ErrorBoundary from './ErrorBoundary';
+
+interface LazyRouteProps {
+  children: React.ReactNode;
+}
 
 const LoadingFallback = () => (
   <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-booqit-primary/10 to-white">
@@ -11,14 +15,11 @@ const LoadingFallback = () => (
   </div>
 );
 
-// Higher-order component for lazy loading
-const LazyRoute = (importFunc: () => Promise<{ default: ComponentType<any> }>) => {
-  const LazyComponent = lazy(importFunc);
-  
-  return (props: any) => (
+const LazyRoute: React.FC<LazyRouteProps> = ({ children }) => {
+  return (
     <ErrorBoundary>
       <Suspense fallback={<LoadingFallback />}>
-        <LazyComponent {...props} />
+        {children}
       </Suspense>
     </ErrorBoundary>
   );
