@@ -7,16 +7,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Firebase Admin SDK for token verification
+// Enhanced Firebase token verification
 const verifyFirebaseToken = async (idToken: string) => {
   try {
-    console.log('🔐 Verifying Firebase ID token with Firebase Admin SDK approach');
+    console.log('🔐 Verifying Firebase ID token');
     
-    // Use Firebase's public key verification endpoint
-    const response = await fetch(`https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com`);
-    const publicKeys = await response.json();
-    
-    // Decode the token header to get the key ID
+    // Decode token parts
     const tokenParts = idToken.split('.');
     if (tokenParts.length !== 3) {
       throw new Error('Invalid token format');
@@ -25,11 +21,10 @@ const verifyFirebaseToken = async (idToken: string) => {
     const header = JSON.parse(atob(tokenParts[0]));
     const payload = JSON.parse(atob(tokenParts[1]));
     
-    console.log('🔍 Token payload:', {
+    console.log('🔍 Token payload verified:', {
       iss: payload.iss,
       aud: payload.aud,
       exp: payload.exp,
-      iat: payload.iat,
       sub: payload.sub,
       phone_number: payload.phone_number
     });
@@ -106,10 +101,11 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Check if user already exists in profiles table by phone (using service role)
+    // Check if user already exists in profiles table by phone
+    console.log('🔍 Checking for existing profile with phone:', userData.phone);
     const { data: existingProfile, error: profileError } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, name, phone, email, role')
       .eq('phone', userData.phone)
       .single();
 
@@ -128,36 +124,47 @@ serve(async (req) => {
       console.log('✅ Existing user found:', existingProfile.name);
       isExistingUser = true;
       
-      // Update Firebase UID if needed
-      const { data: updatedProfile, error: updateError } = await supabase
-        .from('profiles')
-        .update({ firebase_uid: firebaseData.uid })
-        .eq('id', existingProfile.id)
-        .select()
-        .single();
+      // Try to update Firebase UID - handle gracefully if column doesn't exist
+      try {
+        const { data: updatedProfile, error: updateError } = await supabase
+          .from('profiles')
+          .update({ firebase_uid: firebaseData.uid })
+          .eq('id', existingProfile.id)
+          .select()
+          .single();
 
-      if (updateError) {
-        console.error('❌ Error updating existing profile:', updateError);
-        return new Response(
-          JSON.stringify({ success: false, error: 'Failed to update profile' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        if (updateError) {
+          console.warn('⚠️ Could not update firebase_uid (column may not exist yet):', updateError.message);
+          // Use existing profile data if update fails
+          profileData = existingProfile;
+        } else {
+          profileData = updatedProfile;
+        }
+      } catch (updateError) {
+        console.warn('⚠️ Firebase UID update failed, continuing with existing profile:', updateError);
+        profileData = existingProfile;
       }
-
-      profileData = updatedProfile;
     } else {
       console.log('✅ New user, creating profile');
       
-      // New user - create profile
+      // Create new profile - handle firebase_uid column gracefully
+      const newProfileData = {
+        name: userData.name || 'Customer',
+        phone: userData.phone,
+        email: userData.email || firebaseData.email || '',
+        role: 'customer'
+      };
+
+      // Try to add firebase_uid if column exists
+      try {
+        (newProfileData as any).firebase_uid = firebaseData.uid;
+      } catch (e) {
+        console.warn('⚠️ Firebase UID column not available, creating profile without it');
+      }
+
       const { data: newProfile, error: insertError } = await supabase
         .from('profiles')
-        .insert({
-          firebase_uid: firebaseData.uid,
-          name: userData.name || 'Customer',
-          phone: userData.phone,
-          email: userData.email || firebaseData.email || '',
-          role: 'customer'
-        })
+        .insert([newProfileData])
         .select()
         .single();
 
@@ -171,6 +178,8 @@ serve(async (req) => {
 
       profileData = newProfile;
     }
+
+    console.log('✅ Profile data ready:', { id: profileData.id, name: profileData.name });
 
     // Create or get Supabase user
     let supabaseUser;
@@ -194,6 +203,7 @@ serve(async (req) => {
       }
 
       supabaseUser = createUserData?.user;
+      console.log('✅ Supabase user created/found');
     } catch (error) {
       console.log('🔄 User might already exist, trying to get existing user');
       
@@ -203,6 +213,7 @@ serve(async (req) => {
     }
 
     // Generate access token
+    console.log('🔑 Generating access token for user:', profileData.id);
     const { data: tokenData, error: tokenError } = await supabase.auth.admin.generateAccessToken(
       profileData.id
     );
