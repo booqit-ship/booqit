@@ -1,7 +1,8 @@
-
 import { initializeApp } from "firebase/app";
 import { getMessaging, getToken, onMessage, MessagePayload } from "firebase/messaging";
+import { getAuth, signInWithPhoneNumber, RecaptchaVerifier, ConfirmationResult } from "firebase/auth";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 // Correct web Firebase configuration
 const firebaseConfig = {
@@ -213,6 +214,99 @@ export const setupNotifications = async (): Promise<string | null> => {
   } catch (error) {
     console.error('❌ Error in setupNotifications:', error);
     return null;
+  }
+};
+
+// Initialize Firebase Auth
+const auth = getAuth(app);
+
+// Phone Authentication Functions
+export const sendOTP = async (phoneNumber: string): Promise<ConfirmationResult | null> => {
+  try {
+    console.log('📱 Sending OTP to:', phoneNumber);
+    
+    // Create reCAPTCHA verifier
+    const recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+      'size': 'invisible',
+      'callback': () => {
+        console.log('✅ reCAPTCHA solved');
+      },
+      'expired-callback': () => {
+        console.log('❌ reCAPTCHA expired');
+      }
+    });
+
+    // Send verification code
+    const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier);
+    console.log('✅ OTP sent successfully');
+    toast.success('OTP sent to your phone');
+    return confirmationResult;
+  } catch (error) {
+    console.error('❌ Error sending OTP:', error);
+    toast.error('Failed to send OTP. Please try again.');
+    return null;
+  }
+};
+
+export const verifyOTP = async (confirmationResult: ConfirmationResult, otpCode: string): Promise<string | null> => {
+  try {
+    console.log('🔍 Verifying OTP code');
+    const result = await confirmationResult.confirm(otpCode);
+    const idToken = await result.user.getIdToken();
+    console.log('✅ OTP verified successfully');
+    return idToken;
+  } catch (error) {
+    console.error('❌ Error verifying OTP:', error);
+    toast.error('Invalid OTP code. Please try again.');
+    return null;
+  }
+};
+
+export const syncWithSupabase = async (idToken: string, userData: { name: string; phone: string }): Promise<boolean> => {
+  try {
+    console.log('🔄 Syncing with Supabase');
+    
+    // Sign in to Supabase with Firebase ID token
+    const { data, error } = await supabase.auth.signInWithIdToken({
+      provider: 'firebase',
+      token: idToken,
+    });
+
+    if (error) {
+      console.error('❌ Supabase auth error:', error);
+      toast.error('Authentication failed');
+      return false;
+    }
+
+    if (data.user) {
+      console.log('✅ Supabase session created');
+      
+      // Update profile with name and phone
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert({
+          id: data.user.id,
+          name: userData.name,
+          phone: userData.phone,
+          role: 'customer'
+        });
+
+      if (profileError) {
+        console.error('❌ Profile update error:', profileError);
+        // Don't fail the auth process for profile errors
+      } else {
+        console.log('✅ Profile updated successfully');
+      }
+
+      toast.success('Welcome to BooqIt!');
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    console.error('❌ Error syncing with Supabase:', error);
+    toast.error('Authentication failed');
+    return false;
   }
 };
 

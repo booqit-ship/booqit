@@ -4,17 +4,27 @@ import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Store, User } from 'lucide-react';
 import { UserRole } from '@/types';
+import { useNavigate } from 'react-router-dom';
 
 interface RoleSelectionProps {
   onRoleSelect: (role: UserRole) => void;
 }
 
 const RoleSelection: React.FC<RoleSelectionProps> = ({ onRoleSelect }) => {
-  // Prevent event bubbling and default behavior
-  const handleRoleClick = (role: UserRole, event: React.MouseEvent) => {
+  const navigate = useNavigate();
+
+  // Handle customer selection with phone auth
+  const handleCustomerClick = (event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
-    onRoleSelect(role);
+    navigate('/phone-auth');
+  };
+
+  // Handle merchant selection with existing email auth
+  const handleMerchantClick = (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onRoleSelect('merchant');
   };
 
   return (
@@ -50,7 +60,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({ onRoleSelect }) => {
           <Card className="cursor-pointer hover:shadow-lg transition-all duration-200 border-2 hover:border-booqit-primary/50">
             <CardContent 
               className="p-6" 
-              onClick={(e) => handleRoleClick('customer', e)}
+              onClick={handleCustomerClick}
             >
               <div className="flex items-center space-x-4">
                 <div className="p-3 bg-booqit-primary/10 rounded-full">
@@ -64,10 +74,10 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({ onRoleSelect }) => {
             </CardContent>
           </Card>
 
-          <Card className="cursor-pointer hover:shadow-lg transition-all duration-200 border-2 hover:border-booqit-primary/50">
+          <Card className="cursor-pointer hover:shadow-lg transition-all duration-200 border-2 hover:border-booqit-secondary/50">
             <CardContent 
               className="p-6" 
-              onClick={(e) => handleRoleClick('merchant', e)}
+              onClick={handleMerchantClick}
             >
               <div className="flex items-center space-x-4">
                 <div className="p-3 bg-booqit-secondary/10 rounded-full">

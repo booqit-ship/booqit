@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import {
   Route,
@@ -63,6 +62,7 @@ import GuestBookingSuccessPage from '@/pages/guest/GuestBookingSuccessPage';
 import GuestBookingCancellationPage from '@/pages/guest/GuestBookingCancellationPage';
 import GuestBookingHistoryPage from '@/pages/guest/GuestBookingHistoryPage';
 import NotFound from '@/pages/NotFound';
+import PhoneAuthPage from '@/pages/PhoneAuthPage';
 
 const AppContent: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -93,6 +93,7 @@ const AppContent: React.FC = () => {
       <Routes>
         {/* Auth Routes */}
         <Route path="/auth" element={<LazyRoute><Auth /></LazyRoute>} />
+        <Route path="/phone-auth" element={<LazyRoute><PhoneAuthPage /></LazyRoute>} />
         <Route path="/forgot-password" element={<LazyRoute><ForgotPasswordPage /></LazyRoute>} />
         <Route path="/reset-password" element={<LazyRoute><ResetPasswordPage /></LazyRoute>} />
         <Route path="/verify" element={<LazyRoute><VerifyPage /></LazyRoute>} />
