@@ -15,12 +15,12 @@ import { useOptimizedUserProfile } from '@/hooks/useOptimizedUserProfile';
 const featuredCategories = [{
   id: 1,
   name: 'Salon',
-  image: '/lovable-uploads/af83ca05-7d12-4bb4-9e5e-9d7e0421b721.png',
+  image: '/lovable-uploads/1d496057-4a0b-4339-89fb-5545663e72d2.png',
   color: '#7E57C2'
 }, {
   id: 2,
   name: 'Beauty Parlour',
-  image: '/lovable-uploads/e8017a81-26c0-495a-af95-e68ca23ba46c.png',
+  image: '/lovable-uploads/97bda84f-4d96-439c-8e76-204958874286.png',
   color: '#FF6B6B'
 }];
 
@@ -179,12 +179,12 @@ const HomePage: React.FC = () => {
         {/* Categories Section */}
         <div>
           <h2 className="mb-4 font-normal text-xl">Categories</h2>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-4">
             {featuredCategories.map(category => (
               <Button
                 key={category.id}
                 variant="outline"
-                className={`h-auto flex flex-col items-center justify-center p-3 border transition-all duration-200
+                className={`h-24 flex items-center justify-between p-4 border transition-all duration-200
                   ${activeCategory === category.name 
                     ? 'border-booqit-primary bg-booqit-primary/10 shadow-md' 
                     : 'border-gray-200 shadow-sm hover:shadow-md hover:border-booqit-primary'
@@ -196,15 +196,17 @@ const HomePage: React.FC = () => {
                 }}
                 onClick={() => handleCategoryClick(category.name)}
               >
-                <div className="w-16 h-16 mb-1 flex items-center justify-center">
+                <div className="flex-1 text-left">
+                  <span className="text-lg font-medium text-gray-800">{category.name}</span>
+                </div>
+                <div className="w-16 h-16 flex items-center justify-center">
                   <img
                     src={category.image}
                     alt={category.name}
-                    className="w-full h-full object-contain"
+                    className="w-full h-full object-cover rounded-lg"
                     loading="lazy"
                   />
                 </div>
-                <span className="text-sm font-medium">{category.name}</span>
               </Button>
             ))}
           </div>
