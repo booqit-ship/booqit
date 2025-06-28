@@ -19,7 +19,6 @@ interface MerchantData {
   description?: string;
 }
 
-// Type for the RPC response - updated to match the actual database function return
 interface ResolveShopRpcResponse {
   success: boolean;
   merchant_id: string;
@@ -33,53 +32,109 @@ interface ResolveShopRpcResponse {
   description?: string;
 }
 
+// Reserved routes that should not be treated as shop slugs
+const RESERVED_ROUTES = [
+  'auth', 'merchant', 'customer', 'guest', 'settings', 'home', 'search', 'map',
+  'booking', 'payment', 'profile', 'calendar', 'services', 'staff', 'reviews',
+  'about', 'contact', 'privacy', 'terms', 'onboarding', 'dashboard', 'analytics',
+  'earnings', 'notifications', 'admin', 'api', 'login', 'signup', 'verify',
+  'reset-password', 'forgot-password', 'guest-info', 'guest-booking'
+];
+
+const isValidShopSlug = (slug: string): boolean => {
+  // Check if it's a reserved route
+  if (RESERVED_ROUTES.includes(slug.toLowerCase())) {
+    return false;
+  }
+  
+  // Check basic slug format (letters, numbers, hyphens, underscores)
+  const slugPattern = /^[a-zA-Z0-9_-]+$/;
+  if (!slugPattern.test(slug)) {
+    return false;
+  }
+  
+  // Check length (reasonable limits)
+  if (slug.length < 2 || slug.length > 50) {
+    return false;
+  }
+  
+  return true;
+};
+
 const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
   const { shopSlug } = useParams();
   const navigate = useNavigate();
   const [isResolving, setIsResolving] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
 
   useEffect(() => {
     const resolveShop = async () => {
+      // Enhanced debugging
+      const currentUrl = window.location.href;
+      const pathname = window.location.pathname;
+      
+      console.log('=== SHOP RESOLVER DEBUG START ===');
+      console.log('Current URL:', currentUrl);
+      console.log('Pathname:', pathname);
+      console.log('useParams shopSlug:', shopSlug);
+      console.log('Type of shopSlug:', typeof shopSlug);
+      
       if (!shopSlug) {
-        console.log('SHOP RESOLVER: No shop slug provided');
-        setError('No shop slug provided');
+        console.log('❌ No shop slug provided in URL parameters');
+        setError('No shop slug found in URL');
         setIsResolving(false);
         return;
       }
 
-      console.log('SHOP RESOLVER: Resolving shop slug:', shopSlug);
-      console.log('SHOP RESOLVER: Current URL:', window.location.href);
+      // Check if this is a reserved route
+      if (!isValidShopSlug(shopSlug)) {
+        console.log('❌ Invalid shop slug format or reserved route:', shopSlug);
+        setError(`Invalid shop slug format: "${shopSlug}"`);
+        setIsResolving(false);
+        return;
+      }
+
+      console.log('✅ Valid shop slug format:', shopSlug);
+      console.log('📡 Attempting to resolve shop slug...');
 
       try {
-        // Use the resolve function that doesn't require auth
         const { data, error: rpcError } = await supabase
           .rpc('resolve_shop_slug', { p_shop_slug: shopSlug });
 
-        console.log('SHOP RESOLVER: RPC Response:', { data, error: rpcError });
+        console.log('🔄 Database response:', { data, error: rpcError });
 
         if (rpcError) {
-          console.error('SHOP RESOLVER: Database error:', rpcError);
+          console.error('❌ Database RPC error:', rpcError);
           setError(`Database error: ${rpcError.message}`);
+          setDebugInfo({ rpcError, shopSlug });
           return;
         }
 
-        // Check if we got valid data with proper type checking
         if (!data || !Array.isArray(data) || data.length === 0) {
-          console.log('SHOP RESOLVER: No data returned for slug:', shopSlug);
-          setError('Shop not found - no data returned');
+          console.log('❌ No shop found for slug:', shopSlug);
+          console.log('📊 Available debug info:', { 
+            dataType: typeof data, 
+            isArray: Array.isArray(data),
+            dataLength: data?.length,
+            shopSlug 
+          });
+          setError(`No shop found with slug: "${shopSlug}"`);
+          setDebugInfo({ noDataFound: true, shopSlug, data });
           return;
         }
 
         const result = data[0] as ResolveShopRpcResponse;
-        console.log('SHOP RESOLVER: Parsed result:', result);
+        console.log('📋 Shop resolution result:', result);
 
         if (!result || !result.success) {
-          console.log('SHOP RESOLVER: Shop resolution failed:', result);
-          setError('Shop not found - resolution failed');
+          console.log('❌ Shop resolution failed:', result);
+          setError(`Shop resolution failed for: "${shopSlug}"`);
+          setDebugInfo({ resolutionFailed: true, result, shopSlug });
           return;
         }
 
+        // Successfully resolved shop
         const merchantData: MerchantData = {
           id: result.merchant_id,
           shop_name: result.shop_name,
@@ -92,10 +147,16 @@ const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
           description: result.description
         };
 
-        console.log('SHOP RESOLVER: Shop resolved successfully:', merchantData.shop_name);
-        console.log('SHOP RESOLVER: Navigating to guest-info with merchant ID:', merchantData.id);
+        console.log('✅ Shop resolved successfully!');
+        console.log('🏪 Shop details:', {
+          name: merchantData.shop_name,
+          id: merchantData.id,
+          category: merchantData.category
+        });
         
-        // Navigate to guest info page with merchant data - using the correct route
+        console.log('🚀 Navigating to guest-info page...');
+        
+        // Navigate to guest info page
         navigate(`/guest-info/${merchantData.id}`, {
           state: { 
             merchant: merchantData,
@@ -105,9 +166,13 @@ const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
           replace: true
         });
 
+        console.log('=== SHOP RESOLVER DEBUG END (SUCCESS) ===');
+
       } catch (error) {
-        console.error('SHOP RESOLVER: Unexpected error:', error);
+        console.error('❌ Unexpected error in shop resolution:', error);
         setError(`Unexpected error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        setDebugInfo({ unexpectedError: true, error: error instanceof Error ? error.message : error, shopSlug });
+        console.log('=== SHOP RESOLVER DEBUG END (ERROR) ===');
       } finally {
         setIsResolving(false);
       }
@@ -121,8 +186,8 @@ const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-booqit-primary mx-auto mb-4"></div>
-          <p className="text-gray-600 font-poppins">Loading shop...</p>
-          <p className="text-sm text-gray-500 mt-2">Resolving: {shopSlug}</p>
+          <p className="text-gray-600 font-poppins">Resolving shop...</p>
+          <p className="text-sm text-gray-500 mt-2">Looking up: {shopSlug}</p>
         </div>
       </div>
     );
@@ -132,16 +197,35 @@ const ShopResolver: React.FC<ShopResolverProps> = ({ children }) => {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center max-w-md mx-auto p-6">
-          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <div className="text-red-500 text-6xl mb-4">🔍</div>
           <h1 className="text-2xl font-bold text-gray-800 mb-2 font-righteous">Shop Not Found</h1>
           <p className="text-gray-600 font-poppins mb-4">{error}</p>
-          <p className="text-sm text-gray-500 mb-4">Shop slug: {shopSlug}</p>
-          <button 
-            onClick={() => window.location.href = '/'}
-            className="bg-booqit-primary hover:bg-booqit-primary/90 text-white px-4 py-2 rounded font-poppins"
-          >
-            Go to Home
-          </button>
+          
+          <div className="bg-gray-100 p-4 rounded-lg mb-4 text-left">
+            <p className="text-sm text-gray-600 mb-2"><strong>Searched for:</strong> {shopSlug}</p>
+            <p className="text-sm text-gray-600 mb-2"><strong>URL:</strong> {window.location.pathname}</p>
+            {debugInfo && (
+              <details className="text-xs text-gray-500 mt-2">
+                <summary className="cursor-pointer">Debug Info</summary>
+                <pre className="mt-2 whitespace-pre-wrap">{JSON.stringify(debugInfo, null, 2)}</pre>
+              </details>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <button 
+              onClick={() => window.location.href = '/'}
+              className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-white px-4 py-2 rounded font-poppins"
+            >
+              Go to Home
+            </button>
+            <button 
+              onClick={() => window.location.href = '/search'}
+              className="w-full bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded font-poppins"
+            >
+              Search for Shops
+            </button>
+          </div>
         </div>
       </div>
     );
