@@ -17,7 +17,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   updateUserRole: (newRole: string) => void;
-  setAuth: (authenticated: boolean, role: UserRole, userId: string) => void; // Added missing method
+  setAuth: (authenticated: boolean, role: UserRole, userId: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -38,7 +38,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Add the missing setAuth method
   const setAuth = (authenticated: boolean, role: UserRole, userId: string) => {
     setIsAuthenticated(authenticated);
     setUserRole(role);
@@ -204,18 +203,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('🚪 AUTH: Starting logout process');
       
-      // ✅ ENHANCED: Clean up user tokens before logout using the new service
-      if (userId) {
-        console.log('🧹 AUTH: Cleaning up notification tokens');
-        try {
-          const { EnhancedTokenCleanupService } = await import('@/services/EnhancedTokenCleanupService');
-          await EnhancedTokenCleanupService.cleanupUserTokensOnLogout(userId);
-        } catch (cleanupError) {
-          console.error('❌ AUTH: Token cleanup failed:', cleanupError);
-          // Don't block logout if cleanup fails
-        }
-      }
-
       // Clear permanent session
       console.log('🧹 AUTH: Clearing permanent session');
       PermanentSession.clearSession();
@@ -274,11 +261,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     userRole,
     isAuthenticated,
     isLoading,
-    loading: isLoading, // Added for backward compatibility
+    loading: isLoading,
     login,
     logout,
     updateUserRole,
-    setAuth, // Added missing method
+    setAuth,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
