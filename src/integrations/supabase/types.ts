@@ -1339,6 +1339,10 @@ export type Database = {
         }
         Returns: Json
       }
+      merge_duplicate_profiles: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       register_device_token: {
         Args: {
           p_user_id: string

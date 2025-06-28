@@ -1,5 +1,5 @@
 
-import React, { Suspense, useState } from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Settings, User, Calendar, Star, ChevronRight, LogOut } from 'lucide-react';
@@ -151,11 +151,15 @@ const ProfilePage: React.FC = () => {
     queryFn: () => fetchProfile(user?.id ?? null, user?.email ?? null, user?.user_metadata ?? {}),
     enabled: !!user?.id,
     staleTime: 1 * 60 * 1000,
-    retry: 2,
-    onSuccess: (data) => {
-      setProfileData(data);
-    }
+    retry: 2
   });
+
+  // Handle successful profile fetch
+  useEffect(() => {
+    if (profile) {
+      setProfileData(profile);
+    }
+  }, [profile]);
 
   const {
     data: recentBookings = [],
