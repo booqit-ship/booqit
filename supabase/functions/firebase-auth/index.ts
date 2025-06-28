@@ -126,7 +126,7 @@ const resolveOrCreateSupabaseUser = async (supabase: any, profileData: any, fire
     
     console.log('🆕 Creating new Supabase user');
     
-    // Create new Supabase user with specific ID
+    // Create new Supabase user with specific ID and proper metadata
     const { data: newUserData, error: createUserError } = await supabase.auth.admin.createUser({
       user_id: profileData.id,
       phone: userData.phone,
@@ -191,6 +191,7 @@ serve(async (req) => {
     }
 
     console.log('🔍 Processing Firebase authentication for phone:', userData.phone);
+    console.log('👤 User data received:', { name: userData.name, phone: userData.phone, email: userData.email });
 
     // Verify Firebase ID token
     const firebaseData = await verifyFirebaseToken(idToken);
@@ -232,42 +233,55 @@ serve(async (req) => {
       // Resolve or create the corresponding Supabase user
       supabaseUser = await resolveOrCreateSupabaseUser(supabase, existingProfile, firebaseData, userData);
       
-      // Update firebase_uid if column exists and user resolved successfully
-      if (firebaseUidExists && supabaseUser) {
-        try {
-          const { data: updatedProfile, error: updateError } = await supabase
-            .from('profiles')
-            .update({ 
-              firebase_uid: firebaseData.uid,
-              id: supabaseUser.id // Ensure profile ID matches Supabase user ID
-            })
-            .eq('phone', userData.phone)
-            .select()
-            .single();
+      // Update profile with new name if provided and current name is default
+      const shouldUpdateName = userData.name && 
+                               userData.name.trim() !== '' && 
+                               userData.name !== 'Customer' && 
+                               (existingProfile.name === 'Customer' || existingProfile.name === '' || !existingProfile.name);
+      
+      const updateData: any = {
+        id: supabaseUser.id // Ensure profile ID matches Supabase user ID
+      };
+      
+      // Add firebase_uid if column exists
+      if (firebaseUidExists) {
+        updateData.firebase_uid = firebaseData.uid;
+      }
+      
+      // Update name if we have a better one
+      if (shouldUpdateName) {
+        updateData.name = userData.name.trim();
+        console.log('📝 Updating profile name from "' + existingProfile.name + '" to "' + userData.name + '"');
+      }
+      
+      try {
+        const { data: updatedProfile, error: updateError } = await supabase
+          .from('profiles')
+          .update(updateData)
+          .eq('phone', userData.phone)
+          .select()
+          .single();
 
-          if (updateError) {
-            console.warn('⚠️ Could not update firebase_uid:', updateError.message);
-            profileData = { ...existingProfile, id: supabaseUser.id };
-          } else {
-            profileData = updatedProfile;
-            console.log('✅ Updated profile with firebase_uid and correct ID');
-          }
-        } catch (updateError) {
-          console.warn('⚠️ Firebase UID update failed, using existing profile:', updateError);
+        if (updateError) {
+          console.warn('⚠️ Could not update profile:', updateError.message);
           profileData = { ...existingProfile, id: supabaseUser.id };
+        } else {
+          profileData = updatedProfile;
+          console.log('✅ Updated profile successfully');
         }
-      } else {
-        profileData = { ...existingProfile, id: supabaseUser?.id || existingProfile.id };
+      } catch (updateError) {
+        console.warn('⚠️ Profile update failed, using existing profile:', updateError);
+        profileData = { ...existingProfile, id: supabaseUser.id };
       }
     } else {
       console.log('✅ New user, creating Supabase user first');
       
-      // Create Supabase user first
+      // Create Supabase user first with proper user metadata
       const { data: createUserData, error: createUserError } = await supabase.auth.admin.createUser({
         phone: userData.phone,
         phone_confirmed: true,
         user_metadata: {
-          name: userData.name || 'Customer',
+          name: userData.name && userData.name.trim() !== '' ? userData.name.trim() : 'Customer',
           phone: userData.phone,
           firebase_uid: firebaseData.uid
         }
@@ -295,10 +309,12 @@ serve(async (req) => {
         console.log('✅ Profile already exists for this user ID, using existing profile');
         profileData = existingProfileWithId;
       } else {
-        // Create new profile using the Supabase user ID
+        // Create new profile using the Supabase user ID and proper name
+        const userName = userData.name && userData.name.trim() !== '' ? userData.name.trim() : 'Customer';
+        
         const newProfileData: any = {
           id: supabaseUser.id, // Use the Supabase user ID
-          name: userData.name || 'Customer',
+          name: userName,
           phone: userData.phone,
           email: userData.email || firebaseData.email || '',
           role: 'customer'
@@ -311,6 +327,8 @@ serve(async (req) => {
         } else {
           console.log('⚠️ Skipping firebase_uid in new profile - column does not exist');
         }
+
+        console.log('📝 Creating profile with name:', userName);
 
         const { data: newProfile, error: insertError } = await supabase
           .from('profiles')
@@ -347,7 +365,7 @@ serve(async (req) => {
           }
         } else {
           profileData = newProfile;
-          console.log('✅ Created new profile successfully');
+          console.log('✅ Created new profile successfully with name:', profileData.name);
         }
       }
     }

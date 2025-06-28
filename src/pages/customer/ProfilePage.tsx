@@ -1,13 +1,13 @@
 
-import React, { Suspense } from 'react';
+import React, { Suspense, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Settings, User, Calendar, Star, ChevronRight, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import ProfileImageUpload from '@/components/customer/ProfileImageUpload';
 
 interface Profile {
   id: string;
@@ -15,6 +15,7 @@ interface Profile {
   email: string;
   phone: string | null;
   role: string;
+  avatar_url: string | null;
 }
 
 interface RecentBooking {
@@ -39,7 +40,7 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
     // Try to fetch the existing profile first
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
-      .select('id, name, email, phone, role')
+      .select('id, name, email, phone, role, avatar_url')
       .eq('id', userId)
       .maybeSingle();
     
@@ -61,13 +62,14 @@ const fetchProfile = async (userId: string | null, email: string | null, user_me
       name: user_metadata?.name || email?.split('@')[0] || 'Customer',
       email: email || '',
       phone: user_metadata?.phone || null,
-      role: 'customer'
+      role: 'customer',
+      avatar_url: null
     };
     
     const { data: createdProfile, error: createError } = await supabase
       .from('profiles')
       .insert(newProfile)
-      .select('id, name, email, phone, role')
+      .select('id, name, email, phone, role, avatar_url')
       .single();
     
     if (createError) {
@@ -136,18 +138,23 @@ const ProfileSkeleton = () => (
 
 const ProfilePage: React.FC = () => {
   const { user, logout } = useAuth();
+  const [profileData, setProfileData] = useState<Profile | null>(null);
 
   // Fetch profile and bookings with better error handling
   const {
     data: profile,
     isLoading: loadingProfile,
-    error: errorProfile
+    error: errorProfile,
+    refetch: refetchProfile
   } = useQuery({
     queryKey: ['profile', user?.id],
     queryFn: () => fetchProfile(user?.id ?? null, user?.email ?? null, user?.user_metadata ?? {}),
     enabled: !!user?.id,
     staleTime: 1 * 60 * 1000,
-    retry: 2
+    retry: 2,
+    onSuccess: (data) => {
+      setProfileData(data);
+    }
   });
 
   const {
@@ -187,32 +194,54 @@ const ProfilePage: React.FC = () => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
+  const handleImageUpdate = (newImageUrl: string | null) => {
+    if (profileData) {
+      setProfileData({ ...profileData, avatar_url: newImageUrl });
+    }
+    // Refetch profile to ensure consistency
+    refetchProfile();
+  };
+
   // Loading state
   if (loadingProfile || loadingBookings) {
     return <ProfileSkeleton />;
   }
 
-  // Error state - but don't automatically logout
+  // Error state with better handling - don't auto-logout, give user options
   if (errorProfile) {
     return (
       <div className="h-screen bg-gray-50 flex flex-col items-center justify-center overflow-hidden">
-        <div className="bg-white p-6 rounded shadow-md max-w-md w-full text-center">
-          <p className="text-lg font-semibold text-red-600 mb-4">
-            {errorProfile?.message || "Failed to load profile."}
-          </p>
-          <div className="flex gap-2 justify-center">
-            <button 
-              className="bg-booqit-primary rounded px-4 py-2 text-white font-medium" 
+        <div className="bg-white p-6 rounded shadow-md max-w-md w-full mx-4 text-center">
+          <div className="text-red-500 mb-4">
+            <User className="w-12 h-12 mx-auto mb-2" />
+            <p className="text-lg font-semibold text-red-600 mb-2">
+              Profile Load Error
+            </p>
+            <p className="text-sm text-gray-600 mb-4">
+              {errorProfile?.message || "We couldn't load your profile information."}
+            </p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Button 
               onClick={() => window.location.reload()}
+              className="w-full"
             >
-              Refresh Page
-            </button>
-            <button 
-              className="bg-gray-500 rounded px-4 py-2 text-white font-medium" 
+              Try Again
+            </Button>
+            <Button 
               onClick={() => window.location.href = '/home'}
+              variant="outline"
+              className="w-full"
             >
               Go to Home
-            </button>
+            </Button>
+            <Button 
+              onClick={logout}
+              variant="ghost"
+              className="w-full text-red-600"
+            >
+              Sign Out
+            </Button>
           </div>
         </div>
       </div>
@@ -225,25 +254,28 @@ const ProfilePage: React.FC = () => {
     return null;
   }
 
+  // Use either fetched profile or profileData state
+  const displayProfile = profile || profileData;
+
   return (
     <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
-      {/* Header */}
+      {/* Header with Profile Image Upload */}
       <div className="relative overflow-visible bg-gradient-to-br from-booqit-primary to-booqit-primary/80 shadow-lg rounded-b-3xl flex-shrink-0">
-        <div className="flex flex-col items-center pt-12 pb-3">
-          <div className="relative">
-            <Avatar className="w-24 h-24 shadow-lg border-4 border-white bg-white/30">
-              <AvatarImage src="" />
-              <AvatarFallback className="bg-booqit-primary/80 text-white text-xl font-semibold">
-                {getInitials(profile?.name || user?.email || 'User')}
-              </AvatarFallback>
-            </Avatar>
+        <div className="flex flex-col items-center pt-8 pb-3">
+          <div className="w-full max-w-sm px-4">
+            <ProfileImageUpload
+              currentImageUrl={displayProfile?.avatar_url}
+              userName={displayProfile?.name || user?.email || 'User'}
+              userId={user?.id || ''}
+              onImageUpdate={handleImageUpdate}
+            />
           </div>
-          <div className="mt-4 mb-2">
-            <h1 className="text-3xl font-righteous tracking-wide font-bold text-white drop-shadow-sm text-center">
-              {(profile?.name || user?.email?.split('@')[0] || 'Customer').toUpperCase()}
+          <div className="mt-2 mb-2 text-center">
+            <h1 className="text-2xl font-righteous tracking-wide font-bold text-white drop-shadow-sm">
+              {(displayProfile?.name || user?.email?.split('@')[0] || 'Customer').toUpperCase()}
             </h1>
-            <p className="text-sm text-white/70 font-medium mt-1 text-center">
-              {profile?.email || user?.email}
+            <p className="text-sm text-white/70 font-medium mt-1">
+              {displayProfile?.email || user?.email}
             </p>
           </div>
         </div>

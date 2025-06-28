@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -56,31 +55,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         console.log('🔍 AUTH: Loading session...');
         
-        // Check permanent session first
+        // Check permanent session first for immediate UI update
         const permanentSession = PermanentSession.getSession();
         if (permanentSession.isLoggedIn && permanentSession.userId) {
-          console.log('🔍 AUTH: Found permanent session, attempting to recover');
+          console.log('🔍 AUTH: Found permanent session, setting initial state');
           setUserId(permanentSession.userId);
           setUserRole(permanentSession.userRole);
           setIsAuthenticated(true);
         }
 
-        // Get current Supabase session
+        // Get current Supabase session (this is the authoritative source)
         const { data: { session }, error } = await supabase.auth.getSession();
 
-        if (session) {
-          console.log('✅ AUTH: Supabase session loaded successfully');
+        if (session && session.user) {
+          console.log('✅ AUTH: Valid Supabase session found');
           setUser(session.user);
           setUserId(session.user.id);
           setIsAuthenticated(true);
 
-          // Ensure user role is up-to-date
-          if (session.user.id && (!permanentSession.isLoggedIn || permanentSession.userRole === '')) {
+          // Fetch or set user role
+          if (session.user.id && (!permanentSession.isLoggedIn || !permanentSession.userRole)) {
             console.log('🔄 AUTH: Fetching user role from database');
             try {
               const { data: profileData, error: profileError } = await supabase
                 .from('profiles')
-                .select('role')
+                .select('role, name')
                 .eq('id', session.user.id)
                 .single();
 
@@ -88,22 +87,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const role = profileData.role || 'customer';
                 setUserRole(role);
                 PermanentSession.saveSession(session, role, session.user.id);
+                console.log('✅ AUTH: User role set to:', role);
               } else {
-                console.warn('⚠️ AUTH: Could not fetch role, using default');
+                console.warn('⚠️ AUTH: Could not fetch role, using default customer');
                 setUserRole('customer');
+                PermanentSession.saveSession(session, 'customer', session.user.id);
               }
             } catch (roleError) {
               console.warn('⚠️ AUTH: Role fetch failed, using default:', roleError);
               setUserRole('customer');
+              PermanentSession.saveSession(session, 'customer', session.user.id);
             }
+          } else if (permanentSession.userRole) {
+            setUserRole(permanentSession.userRole);
           }
         } else if (error) {
           console.error('❌ AUTH: Error loading session:', error);
+          // Clear permanent session if Supabase session is invalid
+          if (permanentSession.isLoggedIn) {
+            console.log('🧹 AUTH: Clearing invalid permanent session');
+            PermanentSession.clearSession();
+            setIsAuthenticated(false);
+            setUserId('');
+            setUserRole('');
+          }
         } else {
           console.log('ℹ️ AUTH: No existing session found');
+          // Clear any stale permanent session
+          if (permanentSession.isLoggedIn) {
+            console.log('🧹 AUTH: Clearing stale permanent session');
+            PermanentSession.clearSession();
+            setIsAuthenticated(false);
+            setUserId('');
+            setUserRole('');
+          }
         }
       } catch (sessionError) {
         console.error('❌ AUTH: Unexpected error loading session:', sessionError);
+        // Clear permanent session on unexpected errors
+        PermanentSession.clearSession();
+        setIsAuthenticated(false);
+        setUserId('');
+        setUserRole('');
       } finally {
         setIsLoading(false);
       }
@@ -117,12 +142,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('👂 AUTH: Auth state change event:', event);
 
         if (event === 'INITIAL_SESSION') {
-          console.log('✅ AUTH: Initial session loaded');
-          if (session && session.user) {
-            setUser(session.user);
-            setUserId(session.user.id);
-            setIsAuthenticated(true);
-          }
+          // Already handled in loadSession above
+          return;
         } else if (event === 'SIGNED_IN') {
           console.log('✅ AUTH: User signed in');
           if (session && session.user) {
@@ -147,6 +168,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               } catch (error) {
                 console.warn('⚠️ AUTH: Could not fetch role after sign in:', error);
                 setUserRole('customer');
+                PermanentSession.saveSession(session, 'customer', session.user.id);
               }
             }, 100);
           }
@@ -163,6 +185,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUser(session.user);
             setUserId(session.user.id);
             setIsAuthenticated(true);
+            // Refresh permanent session timestamp
+            PermanentSession.refreshLogin();
           }
         } else if (event === 'USER_UPDATED') {
           console.log('👤 AUTH: User updated');
