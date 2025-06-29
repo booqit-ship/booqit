@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -163,7 +162,7 @@ const AuthPage: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Enhanced registration with proper profile creation
+  // Enhanced registration with better error handling and profile creation
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -190,7 +189,7 @@ const AuthPage: React.FC = () => {
         return;
       }
 
-      // Step 1: Create the user account
+      // Step 1: Create the user account with metadata
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password,
@@ -199,7 +198,8 @@ const AuthPage: React.FC = () => {
             name: name.trim(),
             phone: phone.trim(),
             role: selectedRole,
-          }
+          },
+          emailRedirectTo: `${window.location.origin}/auth`
         }
       });
 
@@ -227,57 +227,79 @@ const AuthPage: React.FC = () => {
 
       console.log('✅ User account created:', authData.user.id);
 
-      // Step 2: Create/update profile in profiles table
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .upsert({
-          id: authData.user.id,
-          name: name.trim(),
-          email: email.trim().toLowerCase(),
-          phone: phone.trim() || null,
-          role: selectedRole,
-        }, {
-          onConflict: 'id'
-        });
+      // Step 2: Wait a moment for the trigger to potentially create the profile
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      if (profileError) {
-        console.error('❌ Profile creation error:', profileError);
-        console.log('⚠️ Profile creation failed, but continuing (might be created by trigger)');
-      } else {
-        console.log('✅ Profile created successfully');
+      // Step 3: Ensure profile exists with proper error handling
+      try {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: authData.user.id,
+            name: name.trim(),
+            email: email.trim().toLowerCase(),
+            phone: phone.trim() || null,
+            role: selectedRole,
+          }, {
+            onConflict: 'id',
+            ignoreDuplicates: false
+          });
+
+        if (profileError) {
+          console.error('❌ Profile upsert error:', profileError);
+          // Don't fail registration for profile errors, log and continue
+          console.log('⚠️ Profile creation/update failed, but continuing with registration');
+        } else {
+          console.log('✅ Profile created/updated successfully');
+        }
+      } catch (profileError) {
+        console.error('❌ Profile operation failed:', profileError);
+        // Continue with registration even if profile fails
       }
 
-      // Step 3: If merchant role, create basic merchant record
+      // Step 4: If merchant role, create basic merchant record
       if (selectedRole === 'merchant') {
         console.log('🏪 Creating basic merchant record for onboarding...');
         
-        const { error: merchantError } = await supabase
-          .from('merchants')
-          .insert({
-            user_id: authData.user.id,
-            shop_name: `${name.trim()}'s Shop`,
-            address: '',
-            category: 'salon',
-            lat: 0,
-            lng: 0,
-            open_time: '09:00',
-            close_time: '18:00',
-            description: '',
-          });
+        try {
+          const { error: merchantError } = await supabase
+            .from('merchants')
+            .insert({
+              user_id: authData.user.id,
+              shop_name: `${name.trim()}'s Shop`,
+              address: '',
+              category: 'salon',
+              gender_focus: 'unisex',
+              lat: 0,
+              lng: 0,
+              open_time: '09:00',
+              close_time: '18:00',
+              description: '',
+            });
 
-        if (merchantError) {
-          console.error('❌ Basic merchant record creation error:', merchantError);
-          console.log('⚠️ Basic merchant record creation failed, onboarding will handle it');
-        } else {
-          console.log('✅ Basic merchant record created for onboarding');
+          if (merchantError) {
+            console.error('❌ Basic merchant record creation error:', merchantError);
+            console.log('⚠️ Basic merchant record creation failed, onboarding will handle it');
+          } else {
+            console.log('✅ Basic merchant record created for onboarding');
+          }
+        } catch (merchantError) {
+          console.error('❌ Merchant record creation failed:', merchantError);
+          // Continue even if merchant record fails
         }
       }
 
-      // Step 4: Handle session and navigation directly without relying on useEffect
+      // Step 5: Handle session and navigation
       if (authData.session && authData.user) {
         console.log('✅ Registration successful with session');
         
-        PermanentSession.saveSession(authData.session, selectedRole, authData.user.id);
+        PermanentSession.saveSession({
+          userId: authData.user.id,
+          email: authData.user.email || '',
+          userRole: selectedRole,
+          isLoggedIn: true,
+          session: authData.session
+        });
         setAuth(true, selectedRole, authData.user.id);
         
         console.log('🎯 Navigating after registration...');
@@ -299,11 +321,19 @@ const AuthPage: React.FC = () => {
           description: "Please check your email to confirm your account before logging in.",
         });
       } else {
-        setErrors({ general: 'Registration failed - no user created' });
+        setErrors({ general: 'Registration completed but session creation failed. Please try logging in.' });
       }
     } catch (error: any) {
       console.error('❌ Registration error:', error);
-      setErrors({ general: error.message || "Failed to create account. Please try again." });
+      
+      // Handle specific database errors
+      if (error.message?.includes('duplicate key') || error.message?.includes('already exists')) {
+        setErrors({ general: 'An account with this email already exists. Please try logging in instead.' });
+      } else if (error.message?.includes('invalid input')) {
+        setErrors({ general: 'Please check your input and try again.' });
+      } else {
+        setErrors({ general: 'Failed to create account. Please try again.' });
+      }
     } finally {
       setIsLoading(false);
     }
