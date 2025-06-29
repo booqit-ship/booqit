@@ -162,7 +162,7 @@ const AuthPage: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Enhanced registration with simplified profile creation
+  // Simplified registration with essential database operations only
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -189,7 +189,7 @@ const AuthPage: React.FC = () => {
         return;
       }
 
-      // Step 1: Create the user account with minimal metadata
+      // Step 1: Create the user account with essential metadata only
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password,
@@ -198,15 +198,14 @@ const AuthPage: React.FC = () => {
             name: name.trim(),
             phone: phone.trim() || null,
             role: selectedRole,
-          },
-          emailRedirectTo: `${window.location.origin}/auth`
+          }
         }
       });
 
       if (authError) {
         console.error('❌ Auth signup error:', authError);
         
-        if (authError.message?.includes('User already registered') || authError.message?.includes('already registered')) {
+        if (authError.message?.includes('User already registered')) {
           setErrors({ email: "An account with this email already exists. Please try logging in instead." });
         } else if (authError.message?.includes('Invalid email')) {
           setErrors({ email: "Please enter a valid email address." });
@@ -227,29 +226,35 @@ const AuthPage: React.FC = () => {
 
       console.log('✅ User account created:', authData.user.id);
 
-      // Step 2: Create profile record with basic required fields only
+      // Step 2: Create profile record with only essential fields
       const { error: profileError } = await supabase
         .from('profiles')
-        .insert({
+        .upsert({
           id: authData.user.id,
           name: name.trim(),
           email: email.trim().toLowerCase(),
           phone: phone.trim() || null,
           role: selectedRole,
-          notification_enabled: true
+          notification_enabled: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }, { 
+          onConflict: 'id',
+          ignoreDuplicates: false 
         });
 
       if (profileError) {
         console.error('❌ Profile creation error:', profileError);
-        // Don't fail registration for profile errors - user is already created
-        console.log('⚠️ Profile creation failed, but user account exists');
-      } else {
-        console.log('✅ Profile created successfully');
+        setErrors({ general: 'Failed to create user profile. Please try again.' });
+        setIsLoading(false);
+        return;
       }
 
-      // Step 3: If merchant role, create basic merchant record
+      console.log('✅ Profile created successfully');
+
+      // Step 3: Create merchant record if needed
       if (selectedRole === 'merchant') {
-        console.log('🏪 Creating basic merchant record...');
+        console.log('🏪 Creating merchant record...');
         
         const { error: merchantError } = await supabase
           .from('merchants')
@@ -268,13 +273,15 @@ const AuthPage: React.FC = () => {
 
         if (merchantError) {
           console.error('❌ Merchant record creation error:', merchantError);
+          // Don't fail registration for merchant setup errors
+          console.log('⚠️ Merchant setup can be completed later');
         } else {
-          console.log('✅ Basic merchant record created');
+          console.log('✅ Merchant record created');
         }
       }
 
-      // Step 4: Handle session and navigation
-      if (authData.session && authData.user) {
+      // Step 4: Handle successful registration
+      if (authData.session) {
         console.log('✅ Registration successful with session');
         
         PermanentSession.saveSession({
@@ -284,9 +291,9 @@ const AuthPage: React.FC = () => {
           isLoggedIn: true,
           session: authData.session
         });
+        
         setAuth(true, selectedRole, authData.user.id);
         
-        console.log('🎯 Navigating after registration...');
         redirectExecuted.current = true;
         if (selectedRole === 'merchant') {
           navigate('/merchant/onboarding', { replace: true });
@@ -298,14 +305,12 @@ const AuthPage: React.FC = () => {
           title: "Welcome to BooqIt!",
           description: "Your account has been created successfully.",
         });
-      } else if (authData.user && !authData.session) {
-        console.log('📧 Email confirmation required');
+      } else {
+        console.log('📧 Email confirmation may be required');
         toast({
           title: "Check your email",
           description: "Please check your email to confirm your account before logging in.",
         });
-      } else {
-        setErrors({ general: 'Registration completed but session creation failed. Please try logging in.' });
       }
     } catch (error: any) {
       console.error('❌ Registration error:', error);
