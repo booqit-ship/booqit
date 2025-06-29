@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -299,6 +298,66 @@ const OnboardingPage: React.FC = () => {
       
       if (merchantError) throw merchantError;
       merchantData = newMerchant;
+    }
+    
+    // Ensure shop URL exists for this merchant
+    if (merchantData) {
+      console.log('🔗 Ensuring shop URL exists...');
+      
+      const { data: existingShopUrl } = await supabase
+        .from('shop_urls')
+        .select('id')
+        .eq('merchant_id', merchantData.id)
+        .single();
+
+      if (!existingShopUrl) {
+        // Generate shop slug from shop name
+        const generateSlug = (name: string): string => {
+          return name
+            .toLowerCase()
+            .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
+            .replace(/\s+/g, '-') // Replace spaces with hyphens
+            .replace(/-+/g, '-') // Replace multiple hyphens with single
+            .trim()
+            .substring(0, 50); // Limit length
+        };
+
+        const baseSlug = generateSlug(shopInfo.name);
+        let shopSlug = baseSlug;
+        let counter = 1;
+
+        // Ensure unique slug
+        while (true) {
+          const { data: slugExists } = await supabase
+            .from('shop_urls')
+            .select('id')
+            .eq('shop_slug', shopSlug)
+            .single();
+
+          if (!slugExists) break;
+          
+          shopSlug = `${baseSlug}-${counter}`;
+          counter++;
+        }
+
+        const { error: shopUrlError } = await supabase
+          .from('shop_urls')
+          .insert({
+            merchant_id: merchantData.id,
+            shop_slug: shopSlug,
+            is_active: true
+          });
+
+        if (shopUrlError) {
+          console.error('❌ Shop URL creation error:', shopUrlError);
+          // Don't fail onboarding for shop URL errors
+          console.log('⚠️ Shop URL can be created later');
+        } else {
+          console.log('✅ Shop URL created:', shopSlug);
+        }
+      } else {
+        console.log('✅ Shop URL already exists');
+      }
     }
     
     // Handle bank details only if includeBankDetails is true

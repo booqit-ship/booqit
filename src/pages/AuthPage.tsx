@@ -252,11 +252,11 @@ const AuthPage: React.FC = () => {
 
       console.log('✅ Profile created successfully');
 
-      // Step 3: Create merchant record if needed
+      // Step 3: Create merchant record and shop URL if needed
       if (selectedRole === 'merchant') {
         console.log('🏪 Creating merchant record...');
         
-        const { error: merchantError } = await supabase
+        const { data: merchantData, error: merchantError } = await supabase
           .from('merchants')
           .insert({
             user_id: authData.user.id,
@@ -269,7 +269,9 @@ const AuthPage: React.FC = () => {
             open_time: '09:00',
             close_time: '18:00',
             description: '',
-          });
+          })
+          .select()
+          .single();
 
         if (merchantError) {
           console.error('❌ Merchant record creation error:', merchantError);
@@ -277,6 +279,54 @@ const AuthPage: React.FC = () => {
           console.log('⚠️ Merchant setup can be completed later');
         } else {
           console.log('✅ Merchant record created');
+          
+          // Step 3.1: Create shop URL for the merchant
+          console.log('🔗 Creating shop URL...');
+          
+          // Generate shop slug from shop name
+          const generateSlug = (name: string): string => {
+            return name
+              .toLowerCase()
+              .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
+              .replace(/\s+/g, '-') // Replace spaces with hyphens
+              .replace(/-+/g, '-') // Replace multiple hyphens with single
+              .trim()
+              .substring(0, 50); // Limit length
+          };
+
+          const baseSlug = generateSlug(`${name.trim()}'s Shop`);
+          let shopSlug = baseSlug;
+          let counter = 1;
+
+          // Ensure unique slug
+          while (true) {
+            const { data: existingSlug } = await supabase
+              .from('shop_urls')
+              .select('id')
+              .eq('shop_slug', shopSlug)
+              .single();
+
+            if (!existingSlug) break;
+            
+            shopSlug = `${baseSlug}-${counter}`;
+            counter++;
+          }
+
+          const { error: shopUrlError } = await supabase
+            .from('shop_urls')
+            .insert({
+              merchant_id: merchantData.id,
+              shop_slug: shopSlug,
+              is_active: true
+            });
+
+          if (shopUrlError) {
+            console.error('❌ Shop URL creation error:', shopUrlError);
+            // Don't fail registration for shop URL errors
+            console.log('⚠️ Shop URL can be created later');
+          } else {
+            console.log('✅ Shop URL created:', shopSlug);
+          }
         }
       }
 
