@@ -151,7 +151,7 @@ const SearchPage: React.FC = () => {
       console.log(`Fetched ${data?.length || 0} merchants from database`);
       
       if (data) {
-        // Calculate ratings for each merchant from reviews
+        // Calculate ratings and review counts for each merchant from reviews
         const merchantsWithRatings = await Promise.all(
           data.map(async (merchant) => {
             // Get all bookings for this merchant to find associated reviews
@@ -175,14 +175,16 @@ const SearchPage: React.FC = () => {
                 const averageRating = totalRating / reviews.length;
                 return {
                   ...merchant,
-                  rating: Math.round(averageRating * 10) / 10 // Round to 1 decimal place
+                  rating: Math.round(averageRating * 10) / 10, // Round to 1 decimal place
+                  reviewCount: reviews.length // Add review count
                 };
               }
             }
             
             return {
               ...merchant,
-              rating: null
+              rating: null,
+              reviewCount: 0 // No reviews
             };
           })
         );

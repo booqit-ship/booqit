@@ -22,7 +22,7 @@ interface SearchBottomSheetProps {
   userCity: string;
 }
 
-const StarRating: React.FC<{ rating: number | null }> = ({ rating }) => {
+const StarRating: React.FC<{ rating: number | null; reviewCount?: number }> = ({ rating, reviewCount }) => {
   const stars = [];
   const actualRating = rating || 0;
   
@@ -48,7 +48,7 @@ const StarRating: React.FC<{ rating: number | null }> = ({ rating }) => {
       <div className="flex">{stars}</div>
       {rating && rating > 0 && (
         <span className="text-xs text-gray-600 ml-1 font-poppins">
-          ({rating.toFixed(1)})
+          ({rating.toFixed(1)}) {reviewCount && reviewCount > 0 && `(${reviewCount})`}
         </span>
       )}
     </div>
@@ -246,7 +246,7 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
                         </h3>
                         
                         {/* Star Rating Display */}
-                        <StarRating rating={merchant.rating} />
+                        <StarRating rating={merchant.rating} reviewCount={merchant.reviewCount} />
                       </div>
 
                       {/* Services */}

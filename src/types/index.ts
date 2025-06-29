@@ -27,6 +27,7 @@ export interface Merchant {
   image_url?: string | null;
   created_at: string;
   rating?: number | null;
+  reviewCount?: number; // Added review count property
   distance?: string;
   distanceValue?: number; // Added this property for sorting and filtering
   services?: Service[]; // Added services property to support the search functionality
