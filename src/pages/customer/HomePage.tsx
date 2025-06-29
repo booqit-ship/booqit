@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -252,7 +251,7 @@ const HomePage: React.FC = () => {
   };
 
   const handleProfileClick = () => {
-    navigate('/settings/account-information');
+    navigate('/settings/account');
   };
 
   return (
@@ -375,7 +374,7 @@ const HomePage: React.FC = () => {
                         <span className="text-xs font-medium text-gray-800">{category.name}</span>
                       )}
                     </div>
-                    <div className="w-16 h-16 flex items-center justify-center overflow-hidden">
+                    <div className="w-12 h-12 flex items-center justify-center overflow-hidden">
                       <img
                         src={category.image}
                         alt={category.name}
