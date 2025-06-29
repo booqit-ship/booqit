@@ -162,7 +162,7 @@ const AuthPage: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Enhanced registration with better error handling and profile creation
+  // Enhanced registration with improved error handling and profile creation
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -189,7 +189,7 @@ const AuthPage: React.FC = () => {
         return;
       }
 
-      // Step 1: Create the user account with metadata
+      // Step 1: Create the user account with simplified metadata
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password,
@@ -198,20 +198,22 @@ const AuthPage: React.FC = () => {
             name: name.trim(),
             phone: phone.trim(),
             role: selectedRole,
-          },
-          emailRedirectTo: `${window.location.origin}/auth`
+          }
         }
       });
 
       if (authError) {
         console.error('❌ Auth signup error:', authError);
         
-        if (authError.message?.includes('User already registered')) {
+        if (authError.message?.includes('User already registered') || authError.message?.includes('already registered')) {
           setErrors({ email: "An account with this email already exists. Please try logging in instead." });
         } else if (authError.message?.includes('Invalid email')) {
           setErrors({ email: "Please enter a valid email address." });
         } else if (authError.message?.includes('Password')) {
           setErrors({ password: authError.message });
+        } else if (authError.message?.includes('Database error saving new user')) {
+          // Handle the specific database error
+          setErrors({ general: "There was an issue creating your account. Please try again in a moment." });
         } else {
           setErrors({ general: authError.message || "Failed to create account. Please try again." });
         }
@@ -227,30 +229,44 @@ const AuthPage: React.FC = () => {
 
       console.log('✅ User account created:', authData.user.id);
 
-      // Step 2: Wait a moment for the trigger to potentially create the profile
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Step 2: Wait for potential trigger completion
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Step 3: Ensure profile exists with proper error handling
+      // Step 3: Manually ensure profile exists with robust error handling
       try {
-        const { error: profileError } = await supabase
+        console.log('📝 Creating/updating profile...');
+        
+        // First, check if profile already exists
+        const { data: existingProfile } = await supabase
           .from('profiles')
-          .upsert({
-            id: authData.user.id,
-            name: name.trim(),
-            email: email.trim().toLowerCase(),
-            phone: phone.trim() || null,
-            role: selectedRole,
-          }, {
-            onConflict: 'id',
-            ignoreDuplicates: false
-          });
+          .select('id')
+          .eq('id', authData.user.id)
+          .single();
 
-        if (profileError) {
-          console.error('❌ Profile upsert error:', profileError);
-          // Don't fail registration for profile errors, log and continue
-          console.log('⚠️ Profile creation/update failed, but continuing with registration');
+        if (!existingProfile) {
+          // Profile doesn't exist, create it
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .insert({
+              id: authData.user.id,
+              name: name.trim(),
+              email: email.trim().toLowerCase(),
+              phone: phone.trim() || null,
+              role: selectedRole,
+              notification_enabled: true
+            });
+
+          if (profileError) {
+            console.error('❌ Profile creation error:', profileError);
+            // Don't fail registration for profile errors in some cases
+            if (!profileError.message?.includes('duplicate key')) {
+              console.log('⚠️ Profile creation failed, but continuing with registration');
+            }
+          } else {
+            console.log('✅ Profile created successfully');
+          }
         } else {
-          console.log('✅ Profile created/updated successfully');
+          console.log('✅ Profile already exists');
         }
       } catch (profileError) {
         console.error('❌ Profile operation failed:', profileError);
@@ -262,26 +278,35 @@ const AuthPage: React.FC = () => {
         console.log('🏪 Creating basic merchant record for onboarding...');
         
         try {
-          const { error: merchantError } = await supabase
+          // Check if merchant record already exists
+          const { data: existingMerchant } = await supabase
             .from('merchants')
-            .insert({
-              user_id: authData.user.id,
-              shop_name: `${name.trim()}'s Shop`,
-              address: '',
-              category: 'salon',
-              gender_focus: 'unisex',
-              lat: 0,
-              lng: 0,
-              open_time: '09:00',
-              close_time: '18:00',
-              description: '',
-            });
+            .select('id')
+            .eq('user_id', authData.user.id)
+            .single();
 
-          if (merchantError) {
-            console.error('❌ Basic merchant record creation error:', merchantError);
-            console.log('⚠️ Basic merchant record creation failed, onboarding will handle it');
-          } else {
-            console.log('✅ Basic merchant record created for onboarding');
+          if (!existingMerchant) {
+            const { error: merchantError } = await supabase
+              .from('merchants')
+              .insert({
+                user_id: authData.user.id,
+                shop_name: `${name.trim()}'s Shop`,
+                address: '',
+                category: 'salon',
+                gender_focus: 'unisex',
+                lat: 0,
+                lng: 0,
+                open_time: '09:00',
+                close_time: '18:00',
+                description: '',
+              });
+
+            if (merchantError) {
+              console.error('❌ Basic merchant record creation error:', merchantError);
+              console.log('⚠️ Basic merchant record creation failed, onboarding will handle it');
+            } else {
+              console.log('✅ Basic merchant record created for onboarding');
+            }
           }
         } catch (merchantError) {
           console.error('❌ Merchant record creation failed:', merchantError);
@@ -329,6 +354,8 @@ const AuthPage: React.FC = () => {
       // Handle specific database errors
       if (error.message?.includes('duplicate key') || error.message?.includes('already exists')) {
         setErrors({ general: 'An account with this email already exists. Please try logging in instead.' });
+      } else if (error.message?.includes('Database error saving new user') || error.message?.includes('unexpected_failure')) {
+        setErrors({ general: 'There was a temporary issue creating your account. Please try again in a moment.' });
       } else if (error.message?.includes('invalid input')) {
         setErrors({ general: 'Please check your input and try again.' });
       } else {
