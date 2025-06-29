@@ -1,11 +1,13 @@
+
 import React, { useState } from 'react';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ChevronUp, Filter, MapPin, Clock, Star } from 'lucide-react';
 import { Merchant } from '@/types';
-import { SlidersHorizontal, ChevronUp, ChevronDown, Star, MapPin, Clock, Search } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 interface SearchBottomSheetProps {
   merchants: Merchant[];
@@ -22,39 +24,6 @@ interface SearchBottomSheetProps {
   userCity: string;
 }
 
-const StarRating: React.FC<{ rating: number | null }> = ({ rating }) => {
-  const stars = [];
-  const actualRating = rating || 0;
-  
-  for (let i = 1; i <= 5; i++) {
-    const isFilled = i <= actualRating;
-    const isHalfFilled = i - 0.5 <= actualRating && i > actualRating;
-    
-    stars.push(
-      <Star
-        key={i}
-        className={cn(
-          "w-3 h-3",
-          isFilled || isHalfFilled
-            ? "fill-yellow-400 text-yellow-400"
-            : "fill-gray-200 text-gray-200"
-        )}
-      />
-    );
-  }
-  
-  return (
-    <div className="flex items-center gap-1">
-      <div className="flex">{stars}</div>
-      {rating && rating > 0 && (
-        <span className="text-xs text-gray-600 ml-1 font-poppins">
-          ({rating.toFixed(1)})
-        </span>
-      )}
-    </div>
-  );
-};
-
 const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
   merchants,
   filters,
@@ -63,229 +32,235 @@ const SearchBottomSheet: React.FC<SearchBottomSheetProps> = ({
   onMerchantSelect,
   userCity
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
 
-  const handleFilterChange = (key: string, value: string) => {
-    console.log(`Filter changed: ${key} = ${value}`);
-    onFiltersChange(prev => ({
-      ...prev,
-      [key]: value
-    }));
-  };
-
-  const resetFilters = () => {
-    console.log('Resetting all filters');
-    onFiltersChange({
-      sortBy: 'rating',
-      priceRange: 'all',
-      category: 'all',
-      rating: 'all',
-      genderFocus: 'all'
-    });
-  };
-
-  const formatPrice = (price: number) => {
-    return `₹${price}`;
-  };
-
-  const formatDuration = (duration: number) => {
-    const hours = Math.floor(duration / 60);
-    const minutes = duration % 60;
-    if (hours > 0) {
-      return minutes > 0 ? `${hours} hr, ${minutes} min` : `${hours} hr`;
+  const getShopImage = (merchant: Merchant) => {
+    if (merchant.image_url && merchant.image_url.trim() !== '') {
+      if (merchant.image_url.startsWith('http')) {
+        return merchant.image_url;
+      }
+      return `https://ggclvurfcykbwmhfftkn.supabase.co/storage/v1/object/public/merchant_images/${merchant.image_url}`;
     }
-    return `${minutes} min`;
+    return 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
   };
 
-  const handleExpandToggle = () => {
-    setIsExpanded(!isExpanded);
+  const getMinPrice = (merchant: Merchant) => {
+    if (!merchant.services || merchant.services.length === 0) return null;
+    const minPrice = Math.min(...merchant.services.map(s => s.price));
+    return minPrice;
   };
 
-  return <div className={cn("fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl transition-all duration-300 ease-out z-40 flex flex-col", isExpanded ? "h-[85vh]" : "h-44")}>
-      {/* Handle bar and header */}
-      <div className="flex flex-col items-center pt-3 pb-4 flex-shrink-0">
-        {/* Only the handle bar should be clickable for expanding */}
-        <div className="w-12 h-1.5 bg-gray-300 rounded-full mb-4 cursor-pointer" onClick={handleExpandToggle}></div>
-        
-        {/* Filter and Sort controls - Fixed, no scrolling */}
-        <div className="flex items-center justify-between w-full px-4 mb-3">
-          <div className="flex gap-3 items-center w-full">
-            {/* Filter Button */}
-            <Button variant="outline" size="sm" onClick={e => {
-            e.stopPropagation();
-            setShowFilters(!showFilters);
-          }} className="rounded-full flex-shrink-0 h-9 px-3 border-gray-300 text-sm font-poppins">
-              <SlidersHorizontal className="w-4 h-4 mr-1" />
-              Filter
-            </Button>
-            
-            {/* Category Filter */}
-            <Select value={filters.category} onValueChange={value => handleFilterChange('category', value)}>
-              <SelectTrigger className="flex-1 h-9 rounded-full text-sm border-gray-300 font-poppins" onClick={e => e.stopPropagation()}>
-                <SelectValue placeholder="Category" />
-              </SelectTrigger>
-              <SelectContent className="bg-white z-50">
-                <SelectItem value="all" className="font-poppins">All</SelectItem>
-                <SelectItem value="barber_shop" className="font-poppins">Salon</SelectItem>
-                <SelectItem value="beauty_parlour" className="font-poppins">Beauty</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {/* Type (Gender Focus) */}
-            <Select value={filters.genderFocus} onValueChange={value => handleFilterChange('genderFocus', value)}>
-              <SelectTrigger className="flex-1 h-9 rounded-full text-sm border-gray-300 font-poppins" onClick={e => e.stopPropagation()}>
-                <SelectValue placeholder="Type" />
-              </SelectTrigger>
-              <SelectContent className="bg-white z-50">
-                <SelectItem value="all" className="font-poppins">All</SelectItem>
-                <SelectItem value="men" className="font-poppins">Men</SelectItem>
-                <SelectItem value="women" className="font-poppins">Women</SelectItem>
-                <SelectItem value="unisex" className="font-poppins">Unisex</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          
-          {/* Expand/Collapse Icon - Only this should control expansion */}
-          <div className="flex-shrink-0 ml-2">
-            <Button variant="ghost" size="sm" onClick={handleExpandToggle} className="p-1 h-auto">
-              {isExpanded ? <ChevronDown className="w-5 h-5 text-gray-400" /> : <ChevronUp className="w-5 h-5 text-gray-400" />}
-            </Button>
-          </div>
-        </div>
-        
-        {/* Venue count */}
-        <div className="px-4 w-full">
-          <p className="text-sm text-gray-500 text-left font-poppins">
-            {merchants.length} salons found {userCity && `in ${userCity}`}
-          </p>
-        </div>
-      </div>
-
-      {/* Extended filters */}
-      {showFilters && <div className="px-4 py-4 border-t border-gray-100 bg-gray-50 flex-shrink-0">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-gray-900 font-righteous font-medium">More Filters</h3>
-            <Button variant="ghost" size="sm" onClick={resetFilters} className="text-booqit-primary font-poppins">
-              Reset
-            </Button>
-          </div>
-          
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium mb-3 block text-gray-700 font-poppins">Price Range</label>
-              <div className="flex gap-2 flex-wrap">
-                {[{
-              value: 'all',
-              label: 'Any'
-            }, {
-              value: 'low',
-              label: '₹0-500'
-            }, {
-              value: 'medium',
-              label: '₹500-1000'
-            }, {
-              value: 'high',
-              label: '₹1000+'
-            }].map(price => <Button key={price.value} variant={filters.priceRange === price.value ? "default" : "outline"} size="sm" onClick={() => handleFilterChange('priceRange', price.value)} className="rounded-full h-9 font-poppins">
-                    {price.label}
-                  </Button>)}
-              </div>
+  const ShopCardSkeleton = () => (
+    <Card className="mb-4">
+      <CardContent className="p-0">
+        <div className="flex">
+          <Skeleton className="w-24 h-24 flex-shrink-0 rounded-l-lg" />
+          <div className="p-4 flex-1">
+            <div className="flex justify-between items-start mb-2">
+              <Skeleton className="h-5 w-3/4" />
+              <Skeleton className="h-6 w-16 rounded-full" />
             </div>
-            
-            <div>
-              <label className="text-sm font-medium mb-3 block text-gray-700 font-poppins">Minimum Rating</label>
-              <div className="flex gap-2 flex-wrap">
-                {['all', '3', '4', '4.5'].map(rating => <Button key={rating} variant={filters.rating === rating ? "default" : "outline"} size="sm" onClick={() => handleFilterChange('rating', rating)} className="rounded-full h-9 font-poppins">
-                    {rating === 'all' ? 'Any' : `${rating}+ ⭐`}
-                  </Button>)}
-              </div>
+            <Skeleton className="h-4 w-1/2 mb-2" />
+            <div className="flex justify-between items-center">
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-8 w-24 rounded" />
             </div>
           </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  return (
+    <Sheet open={isOpen} onOpenChange={setIsOpen}>
+      <SheetTrigger asChild>
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-40">
+          <Button
+            variant="outline"
+            className="bg-white/95 backdrop-blur-sm shadow-lg border-0 px-6 py-3 rounded-full font-medium"
+          >
+            <ChevronUp className="h-4 w-4 mr-2" />
+            {isLoading ? 'Loading...' : `${merchants.length} ${userCity ? `in ${userCity}` : 'salons found'}`}
+          </Button>
+        </div>
+      </SheetTrigger>
+      
+      <SheetContent side="bottom" className="h-[85vh] p-0">
+        <div className="flex flex-col h-full">
+          {/* Header with drag indicator */}
+          <div className="flex-shrink-0 p-4 border-b bg-white">
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-4"></div>
+            <div className="flex justify-between items-center">
+              <h2 className="text-lg font-semibold">
+                {merchants.length} {userCity ? `salons in ${userCity}` : 'salons found'}
+              </h2>
+              <Button variant="outline" size="sm" className="gap-2">
+                <Filter className="h-4 w-4" />
+                Filter
+              </Button>
+            </div>
+            
+            {/* Filter Controls */}
+            <div className="flex gap-2 mt-4 overflow-x-auto pb-2">
+              <Select
+                value={filters.sortBy}
+                onValueChange={(value) => onFiltersChange({ ...filters, sortBy: value })}
+              >
+                <SelectTrigger className="w-32 h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="rating">Rating</SelectItem>
+                  <SelectItem value="distance">Distance</SelectItem>
+                  <SelectItem value="name">Name</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={filters.priceRange}
+                onValueChange={(value) => onFiltersChange({ ...filters, priceRange: value })}
+              >
+                <SelectTrigger className="w-24 h-8 text-xs">
+                  <SelectValue placeholder="Price" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="low">₹0-500</SelectItem>
+                  <SelectItem value="medium">₹500-1000</SelectItem>
+                  <SelectItem value="high">₹1000+</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={filters.category}
+                onValueChange={(value) => onFiltersChange({ ...filters, category: value })}
+              >
+                <SelectTrigger className="w-28 h-8 text-xs">
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="barber_shop">Salon</SelectItem>
+                  <SelectItem value="beauty_parlour">Beauty Parlour</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={filters.rating}
+                onValueChange={(value) => onFiltersChange({ ...filters, rating: value })}
+              >
+                <SelectTrigger className="w-24 h-8 text-xs">
+                  <SelectValue placeholder="Rating" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="4">4+ ★</SelectItem>
+                  <SelectItem value="3">3+ ★</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={filters.genderFocus}
+                onValueChange={(value) => onFiltersChange({ ...filters, genderFocus: value })}
+              >
+                <SelectTrigger className="w-24 h-8 text-xs">
+                  <SelectValue placeholder="Gender" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="male">Male</SelectItem>
+                  <SelectItem value="female">Female</SelectItem>
+                  <SelectItem value="unisex">Unisex</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           
-          <Separator className="my-4" />
-        </div>}
-
-      {/* Merchant list - Scrollable */}
-      {isExpanded && <div className="flex-1 overflow-y-auto px-4 pb-20">
-          {isLoading ? <div className="flex justify-center py-10">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-booqit-primary"></div>
-            </div> : merchants.length === 0 ? <div className="flex flex-col items-center justify-center py-16 px-8">
-              <div className="relative mb-6">
-                <div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center">
-                  <Search className="w-10 h-10 text-blue-400" />
-                </div>
-                <div className="absolute -top-2 -right-2 w-8 h-8 bg-gradient-to-br from-pink-100 to-orange-100 rounded-full flex items-center justify-center">
-                  <Star className="w-4 h-4 text-pink-400" />
-                </div>
-                <div className="absolute -bottom-2 -left-2 w-6 h-6 bg-gradient-to-br from-green-100 to-teal-100 rounded-full flex items-center justify-center">
-                  <MapPin className="w-3 h-3 text-green-400" />
-                </div>
+          {/* Scrollable content */}
+          <div className="flex-1 overflow-y-auto p-4">
+            {isLoading ? (
+              <div className="space-y-4">
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <ShopCardSkeleton key={index} />
+                ))}
               </div>
-              
-              <h3 className="text-lg font-semibold text-gray-900 mb-2 font-righteous font-medium">No salons found</h3>
-              <p className="text-gray-500 text-center text-sm leading-relaxed font-poppins">
-                We couldn't find any salons matching your criteria {userCity && `in ${userCity}`}.
-                <br />
-                Try adjusting your filters or search in a different area.
-              </p>
-            </div> : <div className="space-y-6">
-              {merchants.map(merchant => <Card key={merchant.id} className="overflow-hidden cursor-pointer hover:shadow-lg transition-all duration-200 border-0 shadow-md rounded-2xl" onClick={() => onMerchantSelect(merchant)}>
-                  <div className="relative">
-                    {/* Shop Image */}
-                    <div className="w-full h-48 relative">
-                      <img src={merchant.image_url || '/placeholder.svg'} alt={merchant.shop_name} className="w-full h-full object-cover rounded-t-2xl" />
-                      
-                    </div>
-                    
-                    <CardContent className="p-4">
-                      {/* Shop Name and Star Rating */}
-                      <div className="mb-3">
-                        <h3 className="font-bold text-gray-900 mb-1 font-righteous font-medium text-xl">
-                          {merchant.shop_name}
-                        </h3>
-                        
-                        {/* Star Rating Display */}
-                        <StarRating rating={merchant.rating} />
-                      </div>
-
-                      {/* Services */}
-                      {merchant.services && merchant.services.length > 0 && <div className="space-y-3">
-                          {merchant.services.slice(0, 3).map((service, index) => <div key={service.id} className="flex justify-between items-center">
-                              <div className="flex-1">
-                                <h4 className="font-medium text-gray-900 font-poppins text-base">{service.name}</h4>
-                                <div className="flex items-center text-gray-500 text-xs mt-1">
-                                  <Clock className="w-3 h-3 mr-1" />
-                                  <span className="font-poppins">{formatDuration(service.duration)}</span>
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <span className="text-gray-900 font-poppins font-semibold">
-                                  from {formatPrice(service.price)}
-                                </span>
-                              </div>
-                            </div>)}
-                          
-                          {merchant.services.length > 3 && <div className="pt-2">
-                              <span className="text-booqit-primary text-sm font-medium font-poppins">
-                                See more
-                              </span>
-                            </div>}
-                        </div>}
-
-                      {/* Distance */}
-                      {merchant.distanceValue && <div className="mt-3 pt-3 border-t border-gray-100">
-                          <div className="flex items-center text-gray-600">
-                            <MapPin className="w-4 h-4 mr-1" />
-                            <span className="text-sm font-poppins">{merchant.distance} away</span>
+            ) : merchants.length > 0 ? (
+              <div className="space-y-4">
+                {merchants.map((merchant) => {
+                  const minPrice = getMinPrice(merchant);
+                  return (
+                    <Card
+                      key={merchant.id}
+                      className="cursor-pointer hover:shadow-md transition-shadow"
+                      onClick={() => onMerchantSelect(merchant)}
+                    >
+                      <CardContent className="p-0">
+                        <div className="flex">
+                          <div className="w-24 h-24 bg-gray-200 flex-shrink-0">
+                            <img
+                              src={getShopImage(merchant)}
+                              alt={merchant.shop_name}
+                              className="w-full h-full object-cover rounded-l-lg"
+                              loading="lazy"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.src = 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
+                              }}
+                            />
                           </div>
-                        </div>}
-                    </CardContent>
-                  </div>
-                </Card>)}
-            </div>}
-        </div>}
-    </div>;
+                          <div className="p-4 flex-1">
+                            <div className="flex justify-between items-start mb-2">
+                              <h3 className="font-medium text-base line-clamp-1">{merchant.shop_name}</h3>
+                              {merchant.rating && (
+                                <div className="flex items-center bg-green-100 px-2 py-1 rounded-full">
+                                  <Star className="w-3 h-3 text-green-600 fill-current mr-1" />
+                                  <span className="text-xs font-medium text-green-800">
+                                    {merchant.rating.toFixed(1)} ({merchant.reviewCount || 0})
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-600 mb-1">{merchant.category}</p>
+                            <div className="flex items-center text-xs text-gray-500 mb-2">
+                              <MapPin className="w-3 h-3 mr-1" />
+                              <span className="line-clamp-1">{merchant.address}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <div className="flex items-center gap-2">
+                                {merchant.distance && (
+                                  <span className="text-xs text-gray-500">{merchant.distance}</span>
+                                )}
+                                {minPrice && (
+                                  <Badge variant="outline" className="text-xs">
+                                    from ₹{minPrice}
+                                  </Badge>
+                                )}
+                              </div>
+                              <Button size="sm" className="bg-booqit-primary hover:bg-booqit-primary/90 text-xs h-8">
+                                Book Now
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <div className="text-gray-400 mb-4">
+                  <MapPin className="w-12 h-12 mx-auto" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-600 mb-2">No salons found</h3>
+                <p className="text-gray-500">Try adjusting your filters or search in a different area</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
 };
 
 export default SearchBottomSheet;

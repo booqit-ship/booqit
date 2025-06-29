@@ -23,7 +23,7 @@ const SearchPage: React.FC = () => {
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>({ lat: 12.9716, lng: 77.5946 });
   const [mapZoom, setMapZoom] = useState(11);
   const [specificSearchActive, setSpecificSearchActive] = useState(false);
-  const [isSearchMode, setIsSearchMode] = useState(false); // New state for enter/clear button
+  const [isSearchMode, setIsSearchMode] = useState(false);
   const [filters, setFilters] = useState({
     sortBy: 'rating',
     priceRange: 'all',
@@ -151,8 +151,8 @@ const SearchPage: React.FC = () => {
       console.log(`Fetched ${data?.length || 0} merchants from database`);
       
       if (data) {
-        // Calculate ratings for each merchant from reviews
-        const merchantsWithRatings = await Promise.all(
+        // Calculate ratings and review counts for each merchant from reviews
+        const merchantsWithRatingsAndCounts = await Promise.all(
           data.map(async (merchant) => {
             // Get all bookings for this merchant to find associated reviews
             const { data: bookings } = await supabase
@@ -175,20 +175,22 @@ const SearchPage: React.FC = () => {
                 const averageRating = totalRating / reviews.length;
                 return {
                   ...merchant,
-                  rating: Math.round(averageRating * 10) / 10 // Round to 1 decimal place
+                  rating: Math.round(averageRating * 10) / 10, // Round to 1 decimal place
+                  reviewCount: reviews.length // Add review count
                 };
               }
             }
             
             return {
               ...merchant,
-              rating: null
+              rating: null,
+              reviewCount: 0 // No reviews
             };
           })
         );
 
         // Apply price range filter client-side based on services
-        let filteredData = merchantsWithRatings as Merchant[];
+        let filteredData = merchantsWithRatingsAndCounts as Merchant[];
         
         if (filters.priceRange !== 'all') {
           console.log(`Applying price range filter: ${filters.priceRange}`);
@@ -564,7 +566,7 @@ const SearchPage: React.FC = () => {
                       {merchant.rating && (
                         <div className="flex items-center bg-green-100 px-2 py-1 rounded-full">
                           <span className="text-xs font-medium text-green-800 font-poppins">
-                            ★ {merchant.rating.toFixed(1)}
+                            ★ {merchant.rating.toFixed(1)} ({merchant.reviewCount || 0})
                           </span>
                         </div>
                       )}
