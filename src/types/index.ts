@@ -1,4 +1,3 @@
-
 export type UserRole = 'customer' | 'merchant';
 
 export interface User {
@@ -9,6 +8,7 @@ export interface User {
   role: string;
   avatar_url?: string | null;
   created_at: string;
+  updated_at?: string; // Added missing updated_at field
 }
 
 export interface Merchant {
