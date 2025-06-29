@@ -40,6 +40,7 @@ const SearchPage: React.FC = () => {
   // Get user location and fetch merchants
   useEffect(() => {
     const initializeSearch = async () => {
+      console.log('🗺️ Initializing search page...');
       // Get user's current location with high accuracy
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
@@ -48,6 +49,7 @@ const SearchPage: React.FC = () => {
               lat: position.coords.latitude,
               lng: position.coords.longitude
             };
+            console.log('📍 User location found:', newLocation);
             setUserLocation(newLocation);
             setMapCenter(newLocation);
             setMapZoom(14);
@@ -59,6 +61,7 @@ const SearchPage: React.FC = () => {
             console.error('Error getting location:', error);
             // Default to Bangalore if location access is denied
             const defaultLocation = { lat: 12.9716, lng: 77.5946 };
+            console.log('📍 Using default location:', defaultLocation);
             setUserLocation(defaultLocation);
             setMapCenter(defaultLocation);
             setUserCity('Bangalore');
@@ -76,6 +79,7 @@ const SearchPage: React.FC = () => {
         );
       } else {
         const defaultLocation = { lat: 12.9716, lng: 77.5946 };
+        console.log('📍 Geolocation not available, using default:', defaultLocation);
         setUserLocation(defaultLocation);
         setMapCenter(defaultLocation);
         setUserCity('Bangalore');
@@ -226,6 +230,7 @@ const SearchPage: React.FC = () => {
         }
         
         // Set all merchants for the map (no filtering by city)
+        console.log(`🗺️ Setting ${filteredData.length} merchants for map display`);
         setAllMerchants(filteredData);
 
         // Now apply city filtering for the bottom sheet
@@ -468,6 +473,14 @@ const SearchPage: React.FC = () => {
         lng: merchant.lng,
         title: merchant.shop_name
       }));
+
+  console.log('🗺️ Map render data:', {
+    mapCenter,
+    mapZoom,
+    markersCount: mapMarkers.length,
+    allMerchantsCount: allMerchants.length,
+    userLocation
+  });
 
   const handleMarkerClick = (index: number) => {
     const merchant = specificSearchActive && selectedMerchant 
