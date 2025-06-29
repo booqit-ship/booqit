@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -10,6 +11,8 @@ import LazyGoogleMap from '@/components/customer/LazyGoogleMap';
 import OptimizedShopsList from '@/components/customer/OptimizedShopsList';
 import { useOptimizedMerchants } from '@/hooks/useOptimizedMerchants';
 import { useOptimizedUserProfile } from '@/hooks/useOptimizedUserProfile';
+import { supabase } from '@/integrations/supabase/client';
+import { Merchant } from '@/types';
 
 const featuredCategories = [{
   id: 1,
@@ -25,6 +28,8 @@ const featuredCategories = [{
 
 const HomePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Merchant[]>([]);
+  const [showSearchResults, setShowSearchResults] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locationName, setLocationName] = useState("Loading location...");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
@@ -124,14 +129,130 @@ const HomePage: React.FC = () => {
     }
   }, []);
 
-  const handleCategoryClick = (categoryName: string) => {
-    setActiveCategory(activeCategory === categoryName ? null : categoryName);
+  // Handle search with inline results
+  const handleSearch = async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      setShowSearchResults(false);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('merchants')
+        .select(`
+          *,
+          services (
+            id,
+            merchant_id,
+            name,
+            price,
+            duration,
+            description,
+            image_url,
+            created_at
+          )
+        `)
+        .or(
+          `shop_name.ilike.%${query}%,category.ilike.%${query}%,address.ilike.%${query}%`
+        )
+        .limit(10);
+
+      if (error) throw error;
+
+      if (data) {
+        // Calculate ratings for each merchant
+        const merchantsWithRatings = await Promise.all(
+          data.map(async (merchant) => {
+            const { data: bookings } = await supabase
+              .from('bookings')
+              .select('id')
+              .eq('merchant_id', merchant.id)
+              .eq('status', 'completed');
+
+            if (bookings && bookings.length > 0) {
+              const bookingIds = bookings.map(b => b.id);
+              
+              const { data: reviews } = await supabase
+                .from('reviews')
+                .select('rating')
+                .in('booking_id', bookingIds);
+
+              if (reviews && reviews.length > 0) {
+                const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
+                const averageRating = totalRating / reviews.length;
+                return {
+                  ...merchant,
+                  rating: Math.round(averageRating * 10) / 10
+                };
+              }
+            }
+            
+            return {
+              ...merchant,
+              rating: null
+            };
+          })
+        );
+
+        // Add distance if user location is available
+        const resultsWithDistance = userLocation
+          ? merchantsWithRatings.map((merchant) => {
+              const distance = calculateDistance(
+                userLocation.lat, userLocation.lng, merchant.lat, merchant.lng
+              );
+              return {
+                ...merchant,
+                distance: `${distance.toFixed(1)} km`,
+                distanceValue: distance
+              };
+            })
+          : merchantsWithRatings;
+
+        setSearchResults(resultsWithDistance as Merchant[]);
+        setShowSearchResults(true);
+      }
+    } catch (error) {
+      console.error('Search error:', error);
+      setSearchResults([]);
+    }
   };
 
-  const handleSearch = () => {
-    if (searchQuery.trim()) {
-      navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
-    }
+  // Calculate distance using Haversine formula
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // Radius of the earth in km
+    const dLat = deg2rad(lat2 - lat1);
+    const dLon = deg2rad(lon2 - lon1);
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) + 
+      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const d = R * c;
+    return d;
+  };
+
+  const deg2rad = (deg: number) => {
+    return deg * (Math.PI / 180);
+  };
+
+  const handleCategoryClick = (categoryName: string) => {
+    setActiveCategory(activeCategory === categoryName ? null : categoryName);
+    setShowSearchResults(false);
+  };
+
+  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchQuery(value);
+    handleSearch(value);
+  };
+
+  const handleShopClick = (merchant: Merchant) => {
+    navigate(`/merchant/${merchant.id}`);
+  };
+
+  const handleProfileClick = () => {
+    navigate('/settings/account-information');
   };
 
   return (
@@ -149,7 +270,7 @@ const HomePage: React.FC = () => {
               {locationName}
             </p>
           </div>
-          <Avatar className="h-10 w-10 bg-white">
+          <Avatar className="h-10 w-10 bg-white cursor-pointer" onClick={handleProfileClick}>
             {userAvatar ? (
               <AvatarImage src={userAvatar} alt={userName} className="object-cover" />
             ) : (
@@ -164,70 +285,121 @@ const HomePage: React.FC = () => {
           <Input
             placeholder="Search services, shops..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+            onChange={handleSearchInputChange}
             className="pl-10 bg-white text-gray-800 border-0 shadow-md focus:ring-2 focus:ring-white"
           />
         </div>
       </div>
 
       <div className="p-6 space-y-8">
-        {/* Upcoming Bookings Section */}
-        <UpcomingBookings />
-
-        {/* Categories Section */}
-        <div>
-          <h2 className="mb-4 font-normal text-xl">Categories</h2>
-          <div className="grid grid-cols-2 gap-4">
-            {featuredCategories.map(category => (
+        {/* Search Results */}
+        {showSearchResults && searchResults.length > 0 && (
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="font-normal text-xl">Search Results</h2>
               <Button
-                key={category.id}
-                variant="outline"
-                className={`h-16 flex items-center justify-between p-0 border transition-all duration-200 overflow-hidden
-                  ${activeCategory === category.name 
-                    ? 'border-booqit-primary bg-booqit-primary/10 shadow-md' 
-                    : 'border-gray-200 shadow-sm hover:shadow-md hover:border-booqit-primary'
-                  }`}
-                style={{
-                  backgroundColor: activeCategory === category.name 
-                    ? `${category.color}20` 
-                    : `${category.color}10`
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowSearchResults(false);
+                  setSearchQuery('');
                 }}
-                onClick={() => handleCategoryClick(category.name)}
+                className="text-booqit-primary"
               >
-                <div className="flex-1 flex items-center justify-start p-2">
-                  {category.name === 'Beauty Parlour' ? (
-                    <div className="text-xs font-medium text-gray-800 leading-tight">
-                      <div>Beauty</div>
-                      <div>Parlour</div>
-                    </div>
-                  ) : (
-                    <span className="text-xs font-medium text-gray-800">{category.name}</span>
-                  )}
-                </div>
-                <div className="w-16 h-16 flex items-center justify-center overflow-hidden">
-                  <img
-                    src={category.image}
-                    alt={category.name}
-                    className="w-full h-full object-contain"
-                    loading="lazy"
-                  />
-                </div>
+                Clear
               </Button>
-            ))}
+            </div>
+            <div className="space-y-4">
+              {searchResults.map((merchant) => (
+                <div
+                  key={merchant.id}
+                  onClick={() => handleShopClick(merchant)}
+                  className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 cursor-pointer hover:shadow-md transition-shadow"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <h3 className="font-medium text-gray-900">{merchant.shop_name}</h3>
+                      <p className="text-sm text-gray-600 mt-1">{merchant.category}</p>
+                      <p className="text-xs text-gray-500 mt-1">{merchant.address}</p>
+                      {merchant.distance && (
+                        <p className="text-xs text-booqit-primary mt-1">{merchant.distance}</p>
+                      )}
+                    </div>
+                    {merchant.rating && (
+                      <div className="flex items-center bg-green-100 px-2 py-1 rounded-full">
+                        <span className="text-xs font-medium text-green-800">
+                          ★ {merchant.rating.toFixed(1)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Near You Section */}
-        <OptimizedShopsList
-          shops={filteredMerchants}
-          isLoading={isLoading}
-          activeCategory={activeCategory}
-          onClearFilter={() => setActiveCategory(null)}
-        />
+        {/* Only show other sections if not in search mode */}
+        {!showSearchResults && (
+          <>
+            {/* Upcoming Bookings Section */}
+            <UpcomingBookings />
 
-        {/* Lazy Loaded Map Section */}
-        <LazyGoogleMap center={userLocation} merchants={filteredMerchants} />
+            {/* Categories Section */}
+            <div>
+              <h2 className="mb-4 font-normal text-xl">Categories</h2>
+              <div className="grid grid-cols-2 gap-4">
+                {featuredCategories.map(category => (
+                  <Button
+                    key={category.id}
+                    variant="outline"
+                    className={`h-16 flex items-center justify-between p-0 border transition-all duration-200 overflow-hidden
+                      ${activeCategory === category.name 
+                        ? 'border-booqit-primary bg-booqit-primary/10 shadow-md' 
+                        : 'border-gray-200 shadow-sm hover:shadow-md hover:border-booqit-primary'
+                      }`}
+                    style={{
+                      backgroundColor: activeCategory === category.name 
+                        ? `${category.color}20` 
+                        : `${category.color}10`
+                    }}
+                    onClick={() => handleCategoryClick(category.name)}
+                  >
+                    <div className="flex-1 flex items-center justify-start p-2">
+                      {category.name === 'Beauty Parlour' ? (
+                        <div className="text-xs font-medium text-gray-800 leading-tight">
+                          <div>Beauty</div>
+                          <div>Parlour</div>
+                        </div>
+                      ) : (
+                        <span className="text-xs font-medium text-gray-800">{category.name}</span>
+                      )}
+                    </div>
+                    <div className="w-16 h-16 flex items-center justify-center overflow-hidden">
+                      <img
+                        src={category.image}
+                        alt={category.name}
+                        className="w-full h-full object-contain"
+                        loading="lazy"
+                      />
+                    </div>
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {/* Near You Section */}
+            <OptimizedShopsList
+              shops={filteredMerchants}
+              isLoading={isLoading}
+              activeCategory={activeCategory}
+              onClearFilter={() => setActiveCategory(null)}
+            />
+
+            {/* Lazy Loaded Map Section */}
+            <LazyGoogleMap center={userLocation} merchants={filteredMerchants} />
+          </>
+        )}
       </div>
     </div>
   );
