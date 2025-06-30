@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -22,10 +23,10 @@ const VerifyPage: React.FC = () => {
       console.log('Processing email verification...');
       console.log('Current URL:', window.location.href);
       
-      // Get parameters from URL - handle both old and new formats
+      // Get parameters from URL
       const accessToken = searchParams.get('access_token');
       const refreshToken = searchParams.get('refresh_token');
-      const confirmationCode = searchParams.get('code'); // New format
+      const confirmationCode = searchParams.get('code');
       const type = searchParams.get('type');
       const urlError = searchParams.get('error');
       const errorDescription = searchParams.get('error_description');
@@ -42,15 +43,7 @@ const VerifyPage: React.FC = () => {
       // Handle URL errors first
       if (urlError) {
         console.error('URL verification error:', urlError, errorDescription);
-        let errorMessage = 'The verification link is invalid or has expired.';
-        
-        if (urlError === 'access_denied') {
-          errorMessage = 'Access denied. Please try registering again.';
-        } else if (errorDescription) {
-          errorMessage = errorDescription;
-        }
-
-        setError(errorMessage);
+        setError('The verification link is invalid or has expired. Please register again.');
         setIsProcessing(false);
         return;
       }
@@ -58,7 +51,7 @@ const VerifyPage: React.FC = () => {
       // Handle new confirmation code format
       if (confirmationCode) {
         try {
-          console.log('Processing confirmation code...');
+          console.log('Processing confirmation code verification...');
           
           const { data, error: verifyError } = await supabase.auth.verifyOtp({
             token_hash: confirmationCode,
@@ -66,7 +59,32 @@ const VerifyPage: React.FC = () => {
           });
           
           if (verifyError) {
-            console.error('Verification error:', verifyError);
+            console.error('OTP Verification error:', verifyError);
+            // Check if it's already verified
+            if (verifyError.message?.includes('already confirmed') || verifyError.message?.includes('already signed up')) {
+              console.log('✅ Account already verified, attempting to get session...');
+              
+              // Try to get current session
+              const { data: sessionData } = await supabase.auth.getSession();
+              
+              if (sessionData.session) {
+                console.log('✅ Found existing session, proceeding with success flow');
+                await handleSuccessfulVerification(sessionData.session, sessionData.session.user);
+                return;
+              } else {
+                // Account exists but no session, direct to login
+                setSuccess(true);
+                toast({
+                  title: "Account Already Verified!",
+                  description: "Your account is ready. Please log in to continue.",
+                });
+                
+                setTimeout(() => {
+                  navigate('/auth', { replace: true });
+                }, 2000);
+                return;
+              }
+            }
             throw new Error(verifyError.message || 'Email verification failed');
           }
           
@@ -75,84 +93,11 @@ const VerifyPage: React.FC = () => {
           }
           
           console.log('✅ Email confirmed successfully with confirmation code');
-          
-          // Get user role from metadata
-          const userRole = data.user.user_metadata?.role as UserRole || 'customer';
-          
-          // Create profile record
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .upsert({
-              id: data.user.id,
-              name: data.user.user_metadata?.name || 'User',
-              email: data.user.email || '',
-              phone: data.user.user_metadata?.phone || null,
-              role: userRole,
-              notification_enabled: true,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            }, { 
-              onConflict: 'id',
-              ignoreDuplicates: false 
-            });
-
-          if (profileError) {
-            console.error('❌ Profile creation error:', profileError);
-          }
-
-          // Create merchant record if needed
-          if (userRole === 'merchant') {
-            const { error: merchantError } = await supabase
-              .from('merchants')
-              .insert({
-                user_id: data.user.id,
-                shop_name: `${data.user.user_metadata?.name || 'User'}'s Shop`,
-                address: '',
-                category: 'salon',
-                gender_focus: 'unisex',
-                lat: 0,
-                lng: 0,
-                open_time: '09:00',
-                close_time: '18:00',
-                description: '',
-              });
-
-            if (merchantError && !merchantError.message?.includes('duplicate')) {
-              console.error('❌ Merchant record creation error:', merchantError);
-            }
-          }
-
-          // Save session
-          PermanentSession.saveSession(data.session, userRole, data.user.id);
-          
-          setSuccess(true);
-          
-          toast({
-            title: "Email Verified!",
-            description: "Your account has been successfully verified. Redirecting...",
-          });
-          
-          // Redirect after success
-          setTimeout(() => {
-            if (userRole === 'merchant') {
-              navigate('/merchant/onboarding', { replace: true });
-            } else {
-              navigate('/home', { replace: true });
-            }
-          }, 2000);
+          await handleSuccessfulVerification(data.session, data.user);
           
         } catch (error: any) {
           console.error('Confirmation code verification failed:', error);
-          
-          let errorMessage = 'Email verification failed.';
-          
-          if (error.message?.includes('expired')) {
-            errorMessage = 'This verification link has expired. Please register again.';
-          } else if (error.message?.includes('invalid')) {
-            errorMessage = 'This verification link is invalid. Please register again.';
-          }
-          
-          setError(errorMessage);
+          handleVerificationError(error);
         }
       }
       // Handle legacy token-based format
@@ -160,7 +105,6 @@ const VerifyPage: React.FC = () => {
         try {
           console.log('Processing legacy email confirmation...');
           
-          // Set the session to confirm email
           const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
@@ -168,6 +112,19 @@ const VerifyPage: React.FC = () => {
           
           if (sessionError) {
             console.error('Session error:', sessionError);
+            // Check if it's already verified
+            if (sessionError.message?.includes('already confirmed')) {
+              setSuccess(true);
+              toast({
+                title: "Account Already Verified!",
+                description: "Your account is ready. Please log in to continue.",
+              });
+              
+              setTimeout(() => {
+                navigate('/auth', { replace: true });
+              }, 2000);
+              return;
+            }
             throw new Error(sessionError.message || 'Failed to confirm email');
           }
           
@@ -176,85 +133,11 @@ const VerifyPage: React.FC = () => {
           }
           
           console.log('✅ Email confirmed successfully (legacy)');
-          
-          // Get user role from metadata
-          const userRole = sessionData.user.user_metadata?.role as UserRole || 'customer';
-          
-          // Create profile record
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .upsert({
-              id: sessionData.user.id,
-              name: sessionData.user.user_metadata?.name || 'User',
-              email: sessionData.user.email || '',
-              phone: sessionData.user.user_metadata?.phone || null,
-              role: userRole,
-              notification_enabled: true,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            }, { 
-              onConflict: 'id',
-              ignoreDuplicates: false 
-            });
-
-          if (profileError) {
-            console.error('❌ Profile creation error:', profileError);
-            // Don't fail verification for profile errors
-          }
-
-          // Create merchant record if needed
-          if (userRole === 'merchant') {
-            const { error: merchantError } = await supabase
-              .from('merchants')
-              .insert({
-                user_id: sessionData.user.id,
-                shop_name: `${sessionData.user.user_metadata?.name || 'User'}'s Shop`,
-                address: '',
-                category: 'salon',
-                gender_focus: 'unisex',
-                lat: 0,
-                lng: 0,
-                open_time: '09:00',
-                close_time: '18:00',
-                description: '',
-              });
-
-            if (merchantError && !merchantError.message?.includes('duplicate')) {
-              console.error('❌ Merchant record creation error:', merchantError);
-            }
-          }
-
-          // Save session
-          PermanentSession.saveSession(sessionData.session, userRole, sessionData.user.id);
-          
-          setSuccess(true);
-          
-          toast({
-            title: "Email Verified!",
-            description: "Your account has been successfully verified. Redirecting...",
-          });
-          
-          // Redirect after success
-          setTimeout(() => {
-            if (userRole === 'merchant') {
-              navigate('/merchant/onboarding', { replace: true });
-            } else {
-              navigate('/home', { replace: true });
-            }
-          }, 2000);
+          await handleSuccessfulVerification(sessionData.session, sessionData.user);
           
         } catch (error: any) {
           console.error('Legacy verification failed:', error);
-          
-          let errorMessage = 'Email verification failed.';
-          
-          if (error.message?.includes('expired')) {
-            errorMessage = 'This verification link has expired. Please register again.';
-          } else if (error.message?.includes('invalid')) {
-            errorMessage = 'This verification link is invalid. Please register again.';
-          }
-          
-          setError(errorMessage);
+          handleVerificationError(error);
         }
       } else {
         // Invalid verification attempt
@@ -263,6 +146,102 @@ const VerifyPage: React.FC = () => {
       }
       
       setIsProcessing(false);
+    };
+
+    const handleSuccessfulVerification = async (session: any, user: any) => {
+      try {
+        // Get user role from metadata
+        const userRole = user.user_metadata?.role as UserRole || 'customer';
+        
+        // Create profile record
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: user.id,
+            name: user.user_metadata?.name || 'User',
+            email: user.email || '',
+            phone: user.user_metadata?.phone || null,
+            role: userRole,
+            notification_enabled: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }, { 
+            onConflict: 'id',
+            ignoreDuplicates: false 
+          });
+
+        if (profileError) {
+          console.error('❌ Profile creation error:', profileError);
+        }
+
+        // Create merchant record if needed
+        if (userRole === 'merchant') {
+          const { error: merchantError } = await supabase
+            .from('merchants')
+            .insert({
+              user_id: user.id,
+              shop_name: `${user.user_metadata?.name || 'User'}'s Shop`,
+              address: '',
+              category: 'salon',
+              gender_focus: 'unisex',
+              lat: 0,
+              lng: 0,
+              open_time: '09:00',
+              close_time: '18:00',
+              description: '',
+            });
+
+          if (merchantError && !merchantError.message?.includes('duplicate')) {
+            console.error('❌ Merchant record creation error:', merchantError);
+          }
+        }
+
+        // Save session
+        PermanentSession.saveSession(session, userRole, user.id);
+        
+        setSuccess(true);
+        
+        toast({
+          title: "Email Verified Successfully!",
+          description: "Your account has been verified. Redirecting to your dashboard...",
+        });
+        
+        // Redirect after success
+        setTimeout(() => {
+          if (userRole === 'merchant') {
+            navigate('/merchant/onboarding', { replace: true });
+          } else {
+            navigate('/home', { replace: true });
+          }
+        }, 2000);
+        
+      } catch (error: any) {
+        console.error('Error in success handler:', error);
+        // Even if profile creation fails, verification was successful
+        setSuccess(true);
+        toast({
+          title: "Email Verified!",
+          description: "Your account has been verified successfully.",
+        });
+        
+        setTimeout(() => {
+          navigate('/auth', { replace: true });
+        }, 2000);
+      }
+    };
+
+    const handleVerificationError = (error: any) => {
+      let errorMessage = 'Email verification failed.';
+      
+      if (error.message?.includes('expired')) {
+        errorMessage = 'This verification link has expired. Please register again.';
+      } else if (error.message?.includes('invalid')) {
+        errorMessage = 'This verification link is invalid. Please register again.';
+      } else if (error.message?.includes('already confirmed')) {
+        errorMessage = 'This account is already verified. Please log in.';
+      }
+      
+      setError(errorMessage);
     };
 
     processVerification();
@@ -287,7 +266,7 @@ const VerifyPage: React.FC = () => {
                 <CheckCircle className="w-6 h-6 text-green-600" />
               </div>
               <CardTitle className="text-2xl font-righteous text-booqit-dark">
-                Email Verified!
+                Email Verified Successfully!
               </CardTitle>
             </CardHeader>
             <CardContent className="text-center">
