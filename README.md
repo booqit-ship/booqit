@@ -1,73 +1,96 @@
-# Welcome to your Lovable project
 
-## Project info
+# BooqIt Android App
 
-**URL**: https://lovable.dev/projects/11abe201-5c2e-4bfd-8399-358f356fd184
+A beauty salon booking app built with Capacitor 5 that loads from the live domain.
 
-## How can I edit this code?
+## 🚀 Quick Setup
 
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/11abe201-5c2e-4bfd-8399-358f356fd184) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```bash
+git clone <your_repo_url>
+cd booqit
+npm install
+npx cap sync android
+npx cap open android
 ```
 
-**Edit a file directly in GitHub**
+## 📱 App Details
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+- **App Name**: booqit
+- **App ID**: com.x16studios.booqit  
+- **Version**: 1.0.1 (Production)
+- **Java Version**: 17
+- **Capacitor Version**: ^5.x
+- **Live Domain**: https://app.booqit.in
 
-**Use GitHub Codespaces**
+## 🔧 Android SDK Requirements
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+- **minSdkVersion**: 24 (Android 7+)
+- **targetSdkVersion**: 34
+- **compileSdkVersion**: 34
 
-## What technologies are used for this project?
+## ✅ Features
 
-This project is built with:
+- ✅ Native Push Notifications with runtime permission (Android 13+)
+- ✅ Geolocation access with permission prompt
+- ✅ Auto-update when live domain updates
+- ✅ Firebase Cloud Messaging integration
+- ✅ Google Maps API integration
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## 🏗️ Building for Production
 
-## How can I deploy this project?
+### In Android Studio:
 
-Simply open [Lovable](https://lovable.dev/projects/11abe201-5c2e-4bfd-8399-358f356fd184) and click on Share -> Publish.
+1. Confirm `google-services.json` exists at `android/app/`
+2. Sync Gradle
+3. Build Signed APK or AAB
+4. Upload to Play Store as version 1.0.1
 
-## Can I connect a custom domain to my Lovable project?
+### Commands:
 
-Yes, you can!
+```bash
+# Sync native files
+npx cap sync android
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+# Open in Android Studio
+npx cap open android
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+# Copy web assets
+npx cap copy android
+```
+
+## 📋 Permissions
+
+The app requests these permissions:
+- Location (Fine & Coarse)
+- Push Notifications (Android 13+)
+- Internet Access
+- Network State
+
+## 🎯 How It Works
+
+- App loads UI from `https://app.booqit.in`
+- Any update to the live domain = instant app update
+- No Play Store update needed for frontend/backend changes
+- Native features work through Capacitor plugins
+
+## 📚 Documentation Links
+
+- [Capacitor Getting Started](https://capacitorjs.com/docs/getting-started)
+- [Capacitor Android](https://capacitorjs.com/docs/android)
+- [Push Notifications](https://capacitorjs.com/docs/apis/push-notifications)
+- [Geolocation](https://capacitorjs.com/docs/apis/geolocation)
+- [Firebase Android Setup](https://firebase.google.com/docs/android/setup)
+- [Firebase Cloud Messaging](https://firebase.google.com/docs/cloud-messaging/android/client)
+- [Publishing to Play Store](https://capacitorjs.com/docs/guides/publishing-android-app)
+
+## 🚀 Final Behavior
+
+✅ App loads UI and backend from https://app.booqit.in  
+✅ Any update to that domain = instant update in app  
+✅ Push + Geolocation work natively  
+✅ No update triggered by GitHub changes  
+✅ No Play Store update needed unless native code/plugins change
+
+---
+
+**Ready for production deployment! 🚀**

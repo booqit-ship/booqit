@@ -3,11 +3,12 @@ import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.x16studios.booqit',
-  appName: 'BooqIt',
+  appName: 'booqit',
   webDir: 'dist',
   bundledWebRuntime: false,
   server: {
-    androidScheme: 'https'
+    url: 'https://app.booqit.in',
+    cleartext: true
   },
   plugins: {
     PushNotifications: {
@@ -20,7 +21,7 @@ const config: CapacitorConfig = {
   android: {
     allowMixedContent: true,
     captureInput: true,
-    webContentsDebuggingEnabled: true
+    webContentsDebuggingEnabled: false // Set to false for production
   }
 };
 
