@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -20,7 +19,7 @@ const VerifyPage: React.FC = () => {
 
   useEffect(() => {
     const processVerification = async () => {
-      console.log('Processing email verification...');
+      console.log('🔍 Processing email verification...');
       console.log('Current URL:', window.location.href);
       
       // Get parameters from URL
@@ -42,78 +41,69 @@ const VerifyPage: React.FC = () => {
 
       // Handle URL errors first
       if (urlError) {
-        console.error('URL verification error:', urlError, errorDescription);
+        console.error('❌ URL verification error:', urlError, errorDescription);
         setError('The verification link is invalid or has expired. Please register again.');
         setIsProcessing(false);
         return;
       }
-      
-      // Handle new confirmation code format
-      if (confirmationCode) {
-        try {
-          console.log('Processing confirmation code verification...');
-          
-          const { data, error: verifyError } = await supabase.auth.verifyOtp({
-            token_hash: confirmationCode,
-            type: 'signup'
-          });
-          
-          if (verifyError) {
-            console.error('OTP Verification error:', verifyError);
-            // Check if it's already verified
-            if (verifyError.message?.includes('already confirmed') || verifyError.message?.includes('already signed up')) {
-              console.log('✅ Account already verified, attempting to get session...');
-              
-              // Try to get current session
-              const { data: sessionData } = await supabase.auth.getSession();
-              
-              if (sessionData.session) {
-                console.log('✅ Found existing session, proceeding with success flow');
-                await handleSuccessfulVerification(sessionData.session, sessionData.session.user);
-                return;
-              } else {
-                // Account exists but no session, direct to login
-                setSuccess(true);
-                toast({
-                  title: "Account Already Verified!",
-                  description: "Your account is ready. Please log in to continue.",
-                });
-                
-                setTimeout(() => {
-                  navigate('/auth', { replace: true });
-                }, 2000);
-                return;
-              }
-            }
-            throw new Error(verifyError.message || 'Email verification failed');
-          }
-          
-          if (!data.session || !data.user) {
-            throw new Error('Invalid verification response');
-          }
-          
-          console.log('✅ Email confirmed successfully with confirmation code');
-          await handleSuccessfulVerification(data.session, data.user);
-          
-        } catch (error: any) {
-          console.error('Confirmation code verification failed:', error);
-          handleVerificationError(error);
+
+      // STEP 1: Check if user already has a valid session (post-verification redirect)
+      try {
+        console.log('🔍 Checking for existing session...');
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionData.session && sessionData.user) {
+          console.log('✅ Found existing valid session - verification was successful!');
+          await handleSuccessfulVerification(sessionData.session, sessionData.user);
+          return;
         }
+        
+        if (sessionError) {
+          console.log('⚠️ Session check error (will continue with token verification):', sessionError.message);
+        }
+      } catch (error) {
+        console.log('⚠️ Session check failed (will continue with token verification):', error);
       }
-      // Handle legacy token-based format
-      else if (type === 'signup' && accessToken && refreshToken) {
-        try {
-          console.log('Processing legacy email confirmation...');
+
+      // STEP 2: Try token-based verification if no session exists
+      if (confirmationCode) {
+        await handleTokenVerification(confirmationCode);
+      } else if (type === 'signup' && accessToken && refreshToken) {
+        await handleLegacyVerification(accessToken, refreshToken);
+      } else {
+        console.log('❌ Invalid verification parameters');
+        setError('Invalid verification link. Please register again.');
+        setIsProcessing(false);
+      }
+    };
+
+    const handleTokenVerification = async (confirmationCode: string) => {
+      try {
+        console.log('🔐 Processing confirmation code verification...');
+        
+        const { data, error: verifyError } = await supabase.auth.verifyOtp({
+          token_hash: confirmationCode,
+          type: 'signup'
+        });
+        
+        if (verifyError) {
+          console.error('❌ OTP Verification error:', verifyError);
           
-          const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          });
-          
-          if (sessionError) {
-            console.error('Session error:', sessionError);
-            // Check if it's already verified
-            if (sessionError.message?.includes('already confirmed')) {
+          // Check if account is already verified
+          if (verifyError.message?.includes('already confirmed') || 
+              verifyError.message?.includes('already signed up') ||
+              verifyError.message?.includes('Email link is invalid or has expired')) {
+            console.log('✅ Account already verified, checking for session...');
+            
+            // Try to get current session one more time
+            const { data: sessionData } = await supabase.auth.getSession();
+            
+            if (sessionData.session) {
+              console.log('✅ Found session for already verified account');
+              await handleSuccessfulVerification(sessionData.session, sessionData.session.user);
+              return;
+            } else {
+              // Account exists but no session, direct to login with success message
               setSuccess(true);
               toast({
                 title: "Account Already Verified!",
@@ -125,31 +115,73 @@ const VerifyPage: React.FC = () => {
               }, 2000);
               return;
             }
-            throw new Error(sessionError.message || 'Failed to confirm email');
           }
           
-          if (!sessionData.session || !sessionData.user) {
-            throw new Error('Invalid session data received');
-          }
-          
-          console.log('✅ Email confirmed successfully (legacy)');
-          await handleSuccessfulVerification(sessionData.session, sessionData.user);
-          
-        } catch (error: any) {
-          console.error('Legacy verification failed:', error);
-          handleVerificationError(error);
+          throw new Error(verifyError.message || 'Email verification failed');
         }
-      } else {
-        // Invalid verification attempt
-        console.log('Invalid verification parameters');
-        setError('Invalid verification link. Please register again.');
+        
+        if (!data.session || !data.user) {
+          throw new Error('Invalid verification response');
+        }
+        
+        console.log('✅ Email confirmed successfully with confirmation code');
+        await handleSuccessfulVerification(data.session, data.user);
+        
+      } catch (error: any) {
+        console.error('❌ Confirmation code verification failed:', error);
+        handleVerificationError(error);
+      } finally {
+        setIsProcessing(false);
       }
-      
-      setIsProcessing(false);
+    };
+
+    const handleLegacyVerification = async (accessToken: string, refreshToken: string) => {
+      try {
+        console.log('🔐 Processing legacy email confirmation...');
+        
+        const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        
+        if (sessionError) {
+          console.error('❌ Session error:', sessionError);
+          
+          if (sessionError.message?.includes('already confirmed')) {
+            setSuccess(true);
+            toast({
+              title: "Account Already Verified!",
+              description: "Your account is ready. Please log in to continue.",
+            });
+            
+            setTimeout(() => {
+              navigate('/auth', { replace: true });
+            }, 2000);
+            return;
+          }
+          
+          throw new Error(sessionError.message || 'Failed to confirm email');
+        }
+        
+        if (!sessionData.session || !sessionData.user) {
+          throw new Error('Invalid session data received');
+        }
+        
+        console.log('✅ Email confirmed successfully (legacy)');
+        await handleSuccessfulVerification(sessionData.session, sessionData.user);
+        
+      } catch (error: any) {
+        console.error('❌ Legacy verification failed:', error);
+        handleVerificationError(error);
+      } finally {
+        setIsProcessing(false);
+      }
     };
 
     const handleSuccessfulVerification = async (session: any, user: any) => {
       try {
+        console.log('🎉 Processing successful verification for user:', user.id);
+        
         // Get user role from metadata
         const userRole = user.user_metadata?.role as UserRole || 'customer';
         
@@ -171,7 +203,9 @@ const VerifyPage: React.FC = () => {
           });
 
         if (profileError) {
-          console.error('❌ Profile creation error:', profileError);
+          console.error('⚠️ Profile creation error (continuing anyway):', profileError);
+        } else {
+          console.log('✅ Profile created/updated successfully');
         }
 
         // Create merchant record if needed
@@ -192,7 +226,9 @@ const VerifyPage: React.FC = () => {
             });
 
           if (merchantError && !merchantError.message?.includes('duplicate')) {
-            console.error('❌ Merchant record creation error:', merchantError);
+            console.error('⚠️ Merchant record creation error (continuing anyway):', merchantError);
+          } else {
+            console.log('✅ Merchant record created successfully');
           }
         }
 
@@ -216,7 +252,7 @@ const VerifyPage: React.FC = () => {
         }, 2000);
         
       } catch (error: any) {
-        console.error('Error in success handler:', error);
+        console.error('⚠️ Error in success handler (showing success anyway):', error);
         // Even if profile creation fails, verification was successful
         setSuccess(true);
         toast({
@@ -238,6 +274,7 @@ const VerifyPage: React.FC = () => {
       } else if (error.message?.includes('invalid')) {
         errorMessage = 'This verification link is invalid. Please register again.';
       } else if (error.message?.includes('already confirmed')) {
+        // This should be handled as success now
         errorMessage = 'This account is already verified. Please log in.';
       }
       
