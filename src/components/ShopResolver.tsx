@@ -4,7 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 
 interface ShopResolverProps {
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 interface MerchantData {
