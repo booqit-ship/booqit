@@ -223,12 +223,16 @@ const AuthPage: React.FC = () => {
         return;
       }
 
-      // Create user account with email confirmation
+      // Create user account with email confirmation - use production domain
+      const redirectUrl = window.location.hostname === 'localhost' 
+        ? `${window.location.origin}/verify`
+        : 'https://app.booqit.in/verify';
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: emailToRegister,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/verify`,
+          emailRedirectTo: redirectUrl,
           data: {
             name: name.trim(),
             phone: phone.trim() || null,
@@ -397,11 +401,15 @@ const AuthPage: React.FC = () => {
     
     setIsLoading(true);
     try {
+      const redirectUrl = window.location.hostname === 'localhost' 
+        ? `${window.location.origin}/verify`
+        : 'https://app.booqit.in/verify';
+
       const { error } = await supabase.auth.resend({
         type: 'signup',
         email: registrationEmail,
         options: {
-          emailRedirectTo: `${window.location.origin}/verify`
+          emailRedirectTo: redirectUrl
         }
       });
 

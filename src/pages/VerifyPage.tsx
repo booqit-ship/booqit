@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -23,16 +22,18 @@ const VerifyPage: React.FC = () => {
       console.log('Processing email verification...');
       console.log('Current URL:', window.location.href);
       
-      // Get parameters from URL
+      // Get parameters from URL - handle both old and new formats
       const accessToken = searchParams.get('access_token');
       const refreshToken = searchParams.get('refresh_token');
+      const confirmationCode = searchParams.get('code'); // New format
       const type = searchParams.get('type');
       const urlError = searchParams.get('error');
       const errorDescription = searchParams.get('error_description');
       
       console.log('Verification params:', { 
         hasAccessToken: !!accessToken, 
-        hasRefreshToken: !!refreshToken, 
+        hasRefreshToken: !!refreshToken,
+        hasConfirmationCode: !!confirmationCode,
         type, 
         error: urlError,
         errorDescription 
@@ -54,10 +55,110 @@ const VerifyPage: React.FC = () => {
         return;
       }
       
-      // Handle email confirmation
-      if (type === 'signup' && accessToken && refreshToken) {
+      // Handle new confirmation code format
+      if (confirmationCode) {
         try {
-          console.log('Processing email confirmation...');
+          console.log('Processing confirmation code...');
+          
+          const { data, error: verifyError } = await supabase.auth.verifyOtp({
+            token_hash: confirmationCode,
+            type: 'signup'
+          });
+          
+          if (verifyError) {
+            console.error('Verification error:', verifyError);
+            throw new Error(verifyError.message || 'Email verification failed');
+          }
+          
+          if (!data.session || !data.user) {
+            throw new Error('Invalid verification response');
+          }
+          
+          console.log('✅ Email confirmed successfully with confirmation code');
+          
+          // Get user role from metadata
+          const userRole = data.user.user_metadata?.role as UserRole || 'customer';
+          
+          // Create profile record
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .upsert({
+              id: data.user.id,
+              name: data.user.user_metadata?.name || 'User',
+              email: data.user.email || '',
+              phone: data.user.user_metadata?.phone || null,
+              role: userRole,
+              notification_enabled: true,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }, { 
+              onConflict: 'id',
+              ignoreDuplicates: false 
+            });
+
+          if (profileError) {
+            console.error('❌ Profile creation error:', profileError);
+          }
+
+          // Create merchant record if needed
+          if (userRole === 'merchant') {
+            const { error: merchantError } = await supabase
+              .from('merchants')
+              .insert({
+                user_id: data.user.id,
+                shop_name: `${data.user.user_metadata?.name || 'User'}'s Shop`,
+                address: '',
+                category: 'salon',
+                gender_focus: 'unisex',
+                lat: 0,
+                lng: 0,
+                open_time: '09:00',
+                close_time: '18:00',
+                description: '',
+              });
+
+            if (merchantError && !merchantError.message?.includes('duplicate')) {
+              console.error('❌ Merchant record creation error:', merchantError);
+            }
+          }
+
+          // Save session
+          PermanentSession.saveSession(data.session, userRole, data.user.id);
+          
+          setSuccess(true);
+          
+          toast({
+            title: "Email Verified!",
+            description: "Your account has been successfully verified. Redirecting...",
+          });
+          
+          // Redirect after success
+          setTimeout(() => {
+            if (userRole === 'merchant') {
+              navigate('/merchant/onboarding', { replace: true });
+            } else {
+              navigate('/home', { replace: true });
+            }
+          }, 2000);
+          
+        } catch (error: any) {
+          console.error('Confirmation code verification failed:', error);
+          
+          let errorMessage = 'Email verification failed.';
+          
+          if (error.message?.includes('expired')) {
+            errorMessage = 'This verification link has expired. Please register again.';
+          } else if (error.message?.includes('invalid')) {
+            errorMessage = 'This verification link is invalid. Please register again.';
+          }
+          
+          setError(errorMessage);
+        }
+      }
+      // Handle legacy token-based format
+      else if (type === 'signup' && accessToken && refreshToken) {
+        try {
+          console.log('Processing legacy email confirmation...');
           
           // Set the session to confirm email
           const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
@@ -74,7 +175,7 @@ const VerifyPage: React.FC = () => {
             throw new Error('Invalid session data received');
           }
           
-          console.log('✅ Email confirmed successfully');
+          console.log('✅ Email confirmed successfully (legacy)');
           
           // Get user role from metadata
           const userRole = sessionData.user.user_metadata?.role as UserRole || 'customer';
@@ -143,7 +244,7 @@ const VerifyPage: React.FC = () => {
           }, 2000);
           
         } catch (error: any) {
-          console.error('Verification failed:', error);
+          console.error('Legacy verification failed:', error);
           
           let errorMessage = 'Email verification failed.';
           

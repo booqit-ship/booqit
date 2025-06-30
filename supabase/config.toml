@@ -26,14 +26,16 @@ name = "merchant_images"
 public = true
 
 [auth]
-site_url = "https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com"
+site_url = "https://app.booqit.in"
 additional_redirect_urls = [
   "http://localhost:3000",
   "https://localhost:3000",
   "https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com",
+  "https://app.booqit.in/verify",
   "http://localhost:3000/verify",
   "https://localhost:3000/verify",
   "https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com/verify",
+  "https://app.booqit.in/reset-password",
   "http://localhost:3000/reset-password",
   "https://localhost:3000/reset-password",
   "https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com/reset-password"
@@ -42,6 +44,5 @@ jwt_expiry = 86400 # 24 hours, so the access token lasts a day
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
 enable_signup = true
-enable_email_confirmations = false
+enable_email_confirmations = true
 refresh_token_expiry = 3600 # 1 hour for password reset tokens
-
