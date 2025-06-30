@@ -52,9 +52,9 @@ const VerifyPage: React.FC = () => {
         console.log('🔍 Checking for existing session...');
         const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
         
-        if (sessionData.session && sessionData.user) {
+        if (sessionData.session && sessionData.session.user) {
           console.log('✅ Found existing valid session - verification was successful!');
-          await handleSuccessfulVerification(sessionData.session, sessionData.user);
+          await handleSuccessfulVerification(sessionData.session, sessionData.session.user);
           return;
         }
         
