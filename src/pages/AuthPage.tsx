@@ -38,6 +38,8 @@ const AuthPage: React.FC = () => {
   const [phone, setPhone] = useState('');
   const [agreeToPolicies, setAgreeToPolicies] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showEmailVerification, setShowEmailVerification] = useState(false);
+  const [registrationEmail, setRegistrationEmail] = useState('');
   const [errors, setErrors] = useState<{
     email?: string;
     password?: string;
@@ -169,7 +171,7 @@ const AuthPage: React.FC = () => {
     setErrors({});
 
     try {
-      console.log('📝 Starting simplified registration process...');
+      console.log('📝 Starting registration with email confirmation...');
       
       // Validate form
       if (!validateForm(false)) {
@@ -189,11 +191,12 @@ const AuthPage: React.FC = () => {
         return;
       }
 
-      // Step 1: Create the user account with essential metadata only
+      // Create user account with email confirmation
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password,
         options: {
+          emailRedirectTo: `${window.location.origin}/verify`,
           data: {
             name: name.trim(),
             phone: phone.trim() || null,
@@ -224,144 +227,17 @@ const AuthPage: React.FC = () => {
         return;
       }
 
-      console.log('✅ User account created:', authData.user.id);
+      console.log('✅ User account created, email confirmation required:', authData.user.id);
 
-      // Step 2: Create profile record with only essential fields
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .upsert({
-          id: authData.user.id,
-          name: name.trim(),
-          email: email.trim().toLowerCase(),
-          phone: phone.trim() || null,
-          role: selectedRole,
-          notification_enabled: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }, { 
-          onConflict: 'id',
-          ignoreDuplicates: false 
-        });
+      // Show email verification screen
+      setRegistrationEmail(email.trim().toLowerCase());
+      setShowEmailVerification(true);
+      
+      toast({
+        title: "Check your email!",
+        description: "We've sent you a confirmation link. Please check your email and click the link to verify your account.",
+      });
 
-      if (profileError) {
-        console.error('❌ Profile creation error:', profileError);
-        setErrors({ general: 'Failed to create user profile. Please try again.' });
-        setIsLoading(false);
-        return;
-      }
-
-      console.log('✅ Profile created successfully');
-
-      // Step 3: Create merchant record and shop URL if needed
-      if (selectedRole === 'merchant') {
-        console.log('🏪 Creating merchant record...');
-        
-        const { data: merchantData, error: merchantError } = await supabase
-          .from('merchants')
-          .insert({
-            user_id: authData.user.id,
-            shop_name: `${name.trim()}'s Shop`,
-            address: '',
-            category: 'salon',
-            gender_focus: 'unisex',
-            lat: 0,
-            lng: 0,
-            open_time: '09:00',
-            close_time: '18:00',
-            description: '',
-          })
-          .select()
-          .single();
-
-        if (merchantError) {
-          console.error('❌ Merchant record creation error:', merchantError);
-          // Don't fail registration for merchant setup errors
-          console.log('⚠️ Merchant setup can be completed later');
-        } else {
-          console.log('✅ Merchant record created');
-          
-          // Step 3.1: Create shop URL for the merchant
-          console.log('🔗 Creating shop URL...');
-          
-          // Generate shop slug from shop name
-          const generateSlug = (name: string): string => {
-            return name
-              .toLowerCase()
-              .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
-              .replace(/\s+/g, '-') // Replace spaces with hyphens
-              .replace(/-+/g, '-') // Replace multiple hyphens with single
-              .trim()
-              .substring(0, 50); // Limit length
-          };
-
-          const baseSlug = generateSlug(`${name.trim()}'s Shop`);
-          let shopSlug = baseSlug;
-          let counter = 1;
-
-          // Ensure unique slug
-          while (true) {
-            const { data: existingSlug } = await supabase
-              .from('shop_urls')
-              .select('id')
-              .eq('shop_slug', shopSlug)
-              .single();
-
-            if (!existingSlug) break;
-            
-            shopSlug = `${baseSlug}-${counter}`;
-            counter++;
-          }
-
-          const { error: shopUrlError } = await supabase
-            .from('shop_urls')
-            .insert({
-              merchant_id: merchantData.id,
-              shop_slug: shopSlug,
-              is_active: true
-            });
-
-          if (shopUrlError) {
-            console.error('❌ Shop URL creation error:', shopUrlError);
-            // Don't fail registration for shop URL errors
-            console.log('⚠️ Shop URL can be created later');
-          } else {
-            console.log('✅ Shop URL created:', shopSlug);
-          }
-        }
-      }
-
-      // Step 4: Handle successful registration
-      if (authData.session) {
-        console.log('✅ Registration successful with session');
-        
-        PermanentSession.saveSession({
-          userId: authData.user.id,
-          email: authData.user.email || '',
-          userRole: selectedRole,
-          isLoggedIn: true,
-          session: authData.session
-        });
-        
-        setAuth(true, selectedRole, authData.user.id);
-        
-        redirectExecuted.current = true;
-        if (selectedRole === 'merchant') {
-          navigate('/merchant/onboarding', { replace: true });
-        } else {
-          navigate('/home', { replace: true });
-        }
-
-        toast({
-          title: "Welcome to BooqIt!",
-          description: "Your account has been created successfully.",
-        });
-      } else {
-        console.log('📧 Email confirmation may be required');
-        toast({
-          title: "Check your email",
-          description: "Please check your email to confirm your account before logging in.",
-        });
-      }
     } catch (error: any) {
       console.error('❌ Registration error:', error);
       setErrors({ general: 'Failed to create account. Please try again.' });
@@ -370,7 +246,7 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  // Enhanced login with better error handling and direct navigation
+  // Enhanced login with email confirmation check
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -395,6 +271,9 @@ const AuthPage: React.FC = () => {
         if (error.message?.includes('Invalid login credentials')) {
           setErrors({ general: "Invalid email or password. Please check your credentials and try again." });
         } else if (error.message?.includes('Email not confirmed')) {
+          // Show email verification screen for unconfirmed accounts
+          setRegistrationEmail(email.trim().toLowerCase());
+          setShowEmailVerification(true);
           setErrors({ general: "Please check your email and click the confirmation link before logging in." });
         } else if (error.message?.includes('Too many requests')) {
           setErrors({ general: "Too many login attempts. Please wait a moment and try again." });
@@ -408,7 +287,7 @@ const AuthPage: React.FC = () => {
       if (data.session && data.user) {
         console.log('✅ Login successful, session created');
         
-        console.log('🔍 Validating new session immediately');
+        // Validate session
         const isValid = await validateCurrentSession();
         
         if (!isValid) {
@@ -475,18 +354,99 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleLogin(e as any);
+  const resendConfirmationEmail = async () => {
+    if (!registrationEmail) return;
+    
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: registrationEmail,
+        options: {
+          emailRedirectTo: `${window.location.origin}/verify`
+        }
+      });
+
+      if (error) {
+        toast({
+          title: "Error",
+          description: "Failed to resend confirmation email. Please try again.",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Email sent!",
+          description: "We've sent another confirmation email. Please check your inbox.",
+        });
+      }
+    } catch (error) {
+      console.error('Error resending confirmation:', error);
+      toast({
+        title: "Error",
+        description: "Failed to resend confirmation email.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleForgotPasswordClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    navigate('/forgot-password');
-  };
+  // Show email verification screen
+  if (showEmailVerification) {
+    return (
+      <motion.div 
+        className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-booqit-primary/10 to-white p-6"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+      >
+        <div className="w-full max-w-md">
+          <Card className="border-none shadow-lg">
+            <CardHeader className="text-center">
+              <CardTitle className="text-2xl font-righteous text-booqit-dark">
+                Check Your Email
+              </CardTitle>
+              <CardDescription className="font-poppins">
+                We've sent a confirmation link to:
+                <br />
+                <strong>{registrationEmail}</strong>
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 text-center">
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <p className="text-sm text-blue-800 font-poppins">
+                  Please check your email and click the confirmation link to verify your account before logging in.
+                </p>
+              </div>
+              <p className="text-sm text-gray-600 font-poppins">
+                Don't forget to check your spam folder if you don't see the email.
+              </p>
+            </CardContent>
+            <CardFooter className="flex flex-col space-y-2">
+              <Button 
+                onClick={resendConfirmationEmail}
+                variant="outline"
+                className="w-full font-poppins"
+                disabled={isLoading}
+              >
+                {isLoading ? "Sending..." : "Resend Confirmation Email"}
+              </Button>
+              <Button 
+                onClick={() => {
+                  setShowEmailVerification(false);
+                  setRegistrationEmail('');
+                }}
+                variant="ghost"
+                className="w-full font-poppins"
+              >
+                Back to Login
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
+      </motion.div>
+    );
+  }
 
   // Show loading while auth is being checked
   if (loading) {
@@ -623,6 +583,11 @@ const AuthPage: React.FC = () => {
                       {errors.general}
                     </div>
                   )}
+                  
+                  <div className="p-3 text-sm text-blue-600 bg-blue-50 border border-blue-200 rounded-md">
+                    <strong>Email Verification Required:</strong> You'll need to verify your email address before you can log in.
+                  </div>
+                  
                   <div className="space-y-2">
                     <Label htmlFor="name" className="font-poppins">Full Name *</Label>
                     <Input 
