@@ -208,9 +208,24 @@ const AuthPage: React.FC = () => {
         return;
       }
 
+      const emailToRegister = email.trim().toLowerCase();
+
+      // Check if user already exists first
+      const { data: existingUser } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('email', emailToRegister)
+        .single();
+
+      if (existingUser) {
+        setErrors({ email: "An account with this email already exists. Please try logging in instead." });
+        setIsLoading(false);
+        return;
+      }
+
       // Create user account with email confirmation
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
+        email: emailToRegister,
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/verify`,
@@ -225,21 +240,23 @@ const AuthPage: React.FC = () => {
       if (authError) {
         console.error('❌ Auth signup error:', authError);
         
-        if (authError.message?.includes('User already registered')) {
-          setErrors({ email: "An account with this email already exists. Please try logging in instead." });
-        } else if (authError.message?.includes('Invalid email')) {
+        if (authError.message?.includes('Password should be at least 6 characters')) {
+          setErrors({ password: "Password must be at least 6 characters long." });
+        } else if (authError.message?.includes('Unable to validate email address')) {
           setErrors({ email: "Please enter a valid email address." });
-        } else if (authError.message?.includes('Password')) {
-          setErrors({ password: authError.message });
+        } else if (authError.message?.includes('Signup is disabled')) {
+          setErrors({ general: "Registration is currently disabled. Please contact support." });
+        } else if (authError.message?.includes('User already registered')) {
+          setErrors({ email: "An account with this email already exists. Please try logging in instead." });
         } else {
-          setErrors({ general: "Failed to create account. Please try again." });
+          setErrors({ general: authError.message || "Failed to create account. Please try again." });
         }
         setIsLoading(false);
         return;
       }
 
       if (!authData.user) {
-        setErrors({ general: 'Failed to create user account' });
+        setErrors({ general: 'Registration failed. Please try again.' });
         setIsLoading(false);
         return;
       }
@@ -247,7 +264,7 @@ const AuthPage: React.FC = () => {
       console.log('✅ User account created, email confirmation required:', authData.user.id);
 
       // Show email verification screen
-      setRegistrationEmail(email.trim().toLowerCase());
+      setRegistrationEmail(emailToRegister);
       setShowEmailVerification(true);
       
       toast({
@@ -257,7 +274,11 @@ const AuthPage: React.FC = () => {
 
     } catch (error: any) {
       console.error('❌ Registration error:', error);
-      setErrors({ general: 'Failed to create account. Please try again.' });
+      if (error.message?.includes('duplicate')) {
+        setErrors({ email: 'An account with this email already exists. Please try logging in instead.' });
+      } else {
+        setErrors({ general: 'Failed to create account. Please check your details and try again.' });
+      }
     } finally {
       setIsLoading(false);
     }
