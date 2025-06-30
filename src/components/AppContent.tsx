@@ -97,6 +97,10 @@ const AppContent: React.FC = () => {
         <Route path="/reset-password" element={<LazyRoute><ResetPasswordPage /></LazyRoute>} />
         <Route path="/verify" element={<LazyRoute><VerifyPage /></LazyRoute>} />
 
+        {/* Privacy Policy and Terms - Must come before shop resolver */}
+        <Route path="/privacy-policy" element={<LazyRoute><PrivacyPolicy /></LazyRoute>} />
+        <Route path="/terms-and-conditions" element={<LazyRoute><TermsAndConditions /></LazyRoute>} />
+
         {/* Guest Booking Routes - Complete Flow */}
         <Route path="/book/:merchantId/:shopName" element={<LazyRoute><GuestInfoPage /></LazyRoute>} />
         <Route path="/book/:merchantId" element={<LazyRoute><GuestInfoPage /></LazyRoute>} />
@@ -253,9 +257,7 @@ const AppContent: React.FC = () => {
           path="/:shopSlug" 
           element={
             <LazyRoute>
-              <ShopResolver>
-                <div />
-              </ShopResolver>
+              <ShopResolver />
             </LazyRoute>
           } 
         />
