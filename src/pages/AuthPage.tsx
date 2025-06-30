@@ -104,6 +104,23 @@ const AuthPage: React.FC = () => {
     navigate('/', { replace: true });
   };
 
+  // Handle forgot password click
+  const handleForgotPasswordClick = () => {
+    navigate('/forgot-password');
+  };
+
+  // Handle key down events for form submission
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      // Find the form element and trigger submit
+      const form = e.currentTarget.closest('form');
+      if (form) {
+        form.requestSubmit();
+      }
+    }
+  };
+
   // Enhanced email validation
   const validateEmail = (email: string): boolean => {
     const trimmedEmail = email.trim();
