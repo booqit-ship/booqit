@@ -1,4 +1,3 @@
-
 import React, { Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Toaster } from '@/components/ui/toaster';
@@ -103,7 +102,7 @@ function App() {
 
             {/* Customer routes */}
             <Route path="/home" element={
-              <ProtectedRoute allowedRoles={['customer']}>
+              <ProtectedRoute requiredRole="customer">
                 <LazyRoute>
                   <CustomerLayout>
                     <HomePage />
@@ -113,7 +112,7 @@ function App() {
             } />
             
             <Route path="/map" element={
-              <ProtectedRoute allowedRoles={['customer']}>
+              <ProtectedRoute requiredRole="customer">
                 <LazyRoute>
                   <CustomerLayout>
                     <MapPage />
@@ -123,7 +122,7 @@ function App() {
             } />
             
             <Route path="/search" element={
-              <ProtectedRoute allowedRoles={['customer']}>
+              <ProtectedRoute requiredRole="customer">
                 <LazyRoute>
                   <CustomerLayout>
                     <SearchPage />
@@ -133,7 +132,7 @@ function App() {
             } />
             
             <Route path="/nearby" element={
-              <ProtectedRoute allowedRoles={['customer']}>
+              <ProtectedRoute requiredRole="customer">
                 <LazyRoute>
                   <CustomerLayout>
                     <NearbyShopsPage />
@@ -143,7 +142,7 @@ function App() {
             } />
             
             <Route path="/merchant/:id" element={
-              <ProtectedRoute allowedRoles={['customer']}>
+              <ProtectedRoute requiredRole="customer">
                 <LazyRoute>
                   <CustomerLayout>
                     <MerchantDetailPage />
@@ -153,7 +152,7 @@ function App() {
             } />
             
             <Route path="/merchant/:id/services" element={
-              <ProtectedRoute allowedRoles={['customer']}>
+              <ProtectedRoute requiredRole="customer">
                 <LazyRoute>
                   <CustomerLayout>
                     <ServiceSelectionPage />
@@ -163,7 +162,7 @@ function App() {
             } />
             
             <Route path="/merchant/:id/staff" element={
-              <ProtectedRoute allowedRoles={['customer']}>
+              <ProtectedRoute requiredRole="customer">
                 <LazyRoute>
                   <CustomerLayout>
                     <StaffSelectionPage />
@@ -173,7 +172,7 @@ function App() {
             } />
             
             <Route path="/merchant/:id/datetime" element={
-              <ProtectedRoute allowedRoles={['customer']}>
+              <ProtectedRoute requiredRole="customer">
                 <LazyRoute>
                   <CustomerLayout>
                     <DateTimeSelectionPage />
@@ -183,7 +182,7 @@ function App() {
             } />
             
             <Route path="/booking-summary" element={
-              <ProtectedRoute allowedRoles={['customer']}>
+              <ProtectedRoute requiredRole="customer">
                 <LazyRoute>
                   <CustomerLayout>
                     <BookingSummaryPage />
@@ -193,7 +192,7 @@ function App() {
             } />
             
             <Route path="/payment" element={
-              <ProtectedRoute allowedRoles={['customer']}>
+              <ProtectedRoute requiredRole="customer">
                 <LazyRoute>
                   <CustomerLayout>
                     <PaymentPage />
@@ -203,7 +202,7 @@ function App() {
             } />
             
             <Route path="/receipt/:bookingId" element={
-              <ProtectedRoute allowedRoles={['customer']}>
+              <ProtectedRoute requiredRole="customer">
                 <LazyRoute>
                   <CustomerLayout>
                     <ReceiptPage />
@@ -213,7 +212,7 @@ function App() {
             } />
             
             <Route path="/calendar" element={
-              <ProtectedRoute allowedRoles={['customer']}>
+              <ProtectedRoute requiredRole="customer">
                 <LazyRoute>
                   <CustomerLayout>
                     <CalendarPage />
@@ -223,7 +222,7 @@ function App() {
             } />
             
             <Route path="/bookings" element={
-              <ProtectedRoute allowedRoles={['customer']}>
+              <ProtectedRoute requiredRole="customer">
                 <LazyRoute>
                   <CustomerLayout>
                     <BookingsHistoryPage />
@@ -233,7 +232,7 @@ function App() {
             } />
             
             <Route path="/profile" element={
-              <ProtectedRoute allowedRoles={['customer']}>
+              <ProtectedRoute requiredRole="customer">
                 <LazyRoute>
                   <CustomerLayout>
                     <ProfilePage />
@@ -243,7 +242,7 @@ function App() {
             } />
             
             <Route path="/account" element={
-              <ProtectedRoute allowedRoles={['customer']}>
+              <ProtectedRoute requiredRole="customer">
                 <LazyRoute>
                   <CustomerLayout>
                     <AccountPage />
@@ -253,7 +252,7 @@ function App() {
             } />
             
             <Route path="/settings" element={
-              <ProtectedRoute allowedRoles={['customer']}>
+              <ProtectedRoute requiredRole="customer">
                 <LazyRoute>
                   <CustomerLayout>
                     <SettingsPage />
@@ -263,7 +262,7 @@ function App() {
             } />
             
             <Route path="/reviews/:merchantId" element={
-              <ProtectedRoute allowedRoles={['customer']}>
+              <ProtectedRoute requiredRole="customer">
                 <LazyRoute>
                   <CustomerLayout>
                     <ReviewsPage />
@@ -274,44 +273,44 @@ function App() {
 
             {/* Customer settings sub-routes */}
             <Route path="/settings/account" element={
-              <ProtectedRoute allowedRoles={['customer']}>
+              <ProtectedRoute requiredRole="customer">
                 <LazyRoute><AccountInformationPage /></LazyRoute>
               </ProtectedRoute>
             } />
             <Route path="/settings/notifications" element={
-              <ProtectedRoute allowedRoles={['customer']}>
+              <ProtectedRoute requiredRole="customer">
                 <LazyRoute><NotificationsPage /></LazyRoute>
               </ProtectedRoute>
             } />
             <Route path="/settings/contact" element={
-              <ProtectedRoute allowedRoles={['customer']}>
+              <ProtectedRoute requiredRole="customer">
                 <LazyRoute><CustomerContactPage /></LazyRoute>
               </ProtectedRoute>
             } />
             <Route path="/settings/about" element={
-              <ProtectedRoute allowedRoles={['customer']}>
+              <ProtectedRoute requiredRole="customer">
                 <LazyRoute><CustomerAboutPage /></LazyRoute>
               </ProtectedRoute>
             } />
             <Route path="/settings/privacy-policy" element={
-              <ProtectedRoute allowedRoles={['customer']}>
+              <ProtectedRoute requiredRole="customer">
                 <LazyRoute><CustomerPrivacyPolicyPage /></LazyRoute>
               </ProtectedRoute>
             } />
             <Route path="/settings/terms-conditions" element={
-              <ProtectedRoute allowedRoles={['customer']}>
+              <ProtectedRoute requiredRole="customer">
                 <LazyRoute><CustomerTermsConditionsPage /></LazyRoute>
               </ProtectedRoute>
             } />
             <Route path="/settings/delete-account" element={
-              <ProtectedRoute allowedRoles={['customer']}>
+              <ProtectedRoute requiredRole="customer">
                 <LazyRoute><CustomerDeleteAccountPage /></LazyRoute>
               </ProtectedRoute>
             } />
 
             {/* Merchant routes */}
             <Route path="/merchant" element={
-              <ProtectedRoute allowedRoles={['merchant']}>
+              <ProtectedRoute requiredRole="merchant">
                 <LazyRoute>
                   <MerchantLayout>
                     <MerchantDashboardPage />
@@ -321,13 +320,13 @@ function App() {
             } />
             
             <Route path="/merchant/onboarding" element={
-              <ProtectedRoute allowedRoles={['merchant']}>
+              <ProtectedRoute requiredRole="merchant">
                 <LazyRoute><OnboardingPage /></LazyRoute>
               </ProtectedRoute>
             } />
             
             <Route path="/merchant/calendar" element={
-              <ProtectedRoute allowedRoles={['merchant']}>
+              <ProtectedRoute requiredRole="merchant">
                 <LazyRoute>
                   <MerchantLayout>
                     <MerchantCalendarManagementPage />
@@ -337,7 +336,7 @@ function App() {
             } />
             
             <Route path="/merchant/services" element={
-              <ProtectedRoute allowedRoles={['merchant']}>
+              <ProtectedRoute requiredRole="merchant">
                 <LazyRoute>
                   <MerchantLayout>
                     <MerchantServicesPage />
@@ -347,7 +346,7 @@ function App() {
             } />
             
             <Route path="/merchant/profile" element={
-              <ProtectedRoute allowedRoles={['merchant']}>
+              <ProtectedRoute requiredRole="merchant">
                 <LazyRoute>
                   <MerchantLayout>
                     <MerchantProfilePage />
@@ -357,7 +356,7 @@ function App() {
             } />
             
             <Route path="/merchant/settings" element={
-              <ProtectedRoute allowedRoles={['merchant']}>
+              <ProtectedRoute requiredRole="merchant">
                 <LazyRoute>
                   <MerchantLayout>
                     <MerchantSettingsPage />
@@ -367,7 +366,7 @@ function App() {
             } />
             
             <Route path="/merchant/analytics" element={
-              <ProtectedRoute allowedRoles={['merchant']}>
+              <ProtectedRoute requiredRole="merchant">
                 <LazyRoute>
                   <MerchantLayout>
                     <MerchantAnalyticsPage />
@@ -377,7 +376,7 @@ function App() {
             } />
             
             <Route path="/merchant/earnings" element={
-              <ProtectedRoute allowedRoles={['merchant']}>
+              <ProtectedRoute requiredRole="merchant">
                 <LazyRoute>
                   <MerchantLayout>
                     <MerchantEarningsPage />
@@ -388,37 +387,37 @@ function App() {
 
             {/* Merchant settings sub-routes */}
             <Route path="/merchant/settings/business" element={
-              <ProtectedRoute allowedRoles={['merchant']}>
+              <ProtectedRoute requiredRole="merchant">
                 <LazyRoute><BusinessInformationPage /></LazyRoute>
               </ProtectedRoute>
             } />
             <Route path="/merchant/settings/banking" element={
-              <ProtectedRoute allowedRoles={['merchant']}>
+              <ProtectedRoute requiredRole="merchant">
                 <LazyRoute><BankingDetailsPage /></LazyRoute>
               </ProtectedRoute>
             } />
             <Route path="/merchant/settings/contact" element={
-              <ProtectedRoute allowedRoles={['merchant']}>
+              <ProtectedRoute requiredRole="merchant">
                 <LazyRoute><MerchantContactPage /></LazyRoute>
               </ProtectedRoute>
             } />
             <Route path="/merchant/settings/about" element={
-              <ProtectedRoute allowedRoles={['merchant']}>
+              <ProtectedRoute requiredRole="merchant">
                 <LazyRoute><MerchantAboutPage /></LazyRoute>
               </ProtectedRoute>
             } />
             <Route path="/merchant/settings/privacy-policy" element={
-              <ProtectedRoute allowedRoles={['merchant']}>
+              <ProtectedRoute requiredRole="merchant">
                 <LazyRoute><MerchantPrivacyPolicyPage /></LazyRoute>
               </ProtectedRoute>
             } />
             <Route path="/merchant/settings/terms-conditions" element={
-              <ProtectedRoute allowedRoles={['merchant']}>
+              <ProtectedRoute requiredRole="merchant">
                 <LazyRoute><MerchantTermsConditionsPage /></LazyRoute>
               </ProtectedRoute>
             } />
             <Route path="/merchant/settings/delete-account" element={
-              <ProtectedRoute allowedRoles={['merchant']}>
+              <ProtectedRoute requiredRole="merchant">
                 <LazyRoute><MerchantDeleteAccountPage /></LazyRoute>
               </ProtectedRoute>
             } />
@@ -439,11 +438,7 @@ function App() {
             <Route path="/test-notifications" element={<LazyRoute><NotificationTestPage /></LazyRoute>} />
 
             {/* Shop resolver - MUST come after all specific routes */}
-            <Route path="/:shopSlug" element={
-              <ShopResolver>
-                <LazyRoute><div>Shop resolved</div></LazyRoute>
-              </ShopResolver>
-            } />
+            <Route path="/:shopSlug" element={<LazyRoute><ShopResolver /></LazyRoute>} />
 
             {/* 404 page */}
             <Route path="*" element={<LazyRoute><NotFound /></LazyRoute>} />

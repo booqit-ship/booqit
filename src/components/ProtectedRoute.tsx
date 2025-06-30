@@ -7,11 +7,13 @@ import { PermanentSession } from '@/utils/permanentSession';
 
 interface ProtectedRouteProps {
   children?: React.ReactNode;
+  allowedRoles?: UserRole[];
   requiredRole?: UserRole;
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
   children, 
+  allowedRoles,
   requiredRole 
 }) => {
   const { isAuthenticated, userRole, loading } = useAuth();
@@ -52,10 +54,13 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return children ? <>{children}</> : <Outlet />;
   }
   
-  if (requiredRole && effectiveRole !== requiredRole) {
+  // Check role requirements - support both requiredRole and allowedRoles
+  const roleToCheck = requiredRole || (allowedRoles && allowedRoles[0]);
+  
+  if (roleToCheck && effectiveRole !== roleToCheck) {
     console.log('🚫 User role mismatch, redirecting based on role:', effectiveRole);
     // Redirect to the appropriate dashboard based on role
-    return <Navigate to={effectiveRole === 'merchant' ? '/merchant' : '/'} replace />;
+    return <Navigate to={effectiveRole === 'merchant' ? '/merchant' : '/home'} replace />;
   }
 
   // If children are provided, render them (for wrapper usage)
