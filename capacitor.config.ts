@@ -8,7 +8,7 @@ const config: CapacitorConfig = {
   bundledWebRuntime: false,
   server: {
     url: 'https://app.booqit.in',
-    cleartext: true
+    cleartext: false
   },
   plugins: {
     PushNotifications: {
