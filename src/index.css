@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -137,11 +138,13 @@
   }
 }
 
-/* Android WebView fixes */
+/* Performance optimizations for smooth rendering */
 html, body, #root {
   height: 100%;
   overflow: auto;
   -webkit-overflow-scrolling: touch;
+  /* Prevent white flashes during navigation */
+  background-color: rgb(249 250 251);
 }
 
 /* Prevent zoom on input focus in Android */
@@ -167,4 +170,65 @@ button, .clickable {
   .full-height {
     height: -webkit-fill-available;
   }
+}
+
+/* Performance optimizations */
+* {
+  /* Reduce repaints and improve rendering performance */
+  will-change: auto;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Smooth transitions without performance impact */
+.transition-all {
+  transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* Optimize image rendering */
+img {
+  image-rendering: optimizeQuality;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* Prevent layout shifts during loading */
+.loading-skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Optimize scrolling performance */
+.scroll-smooth {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent white overlay issues during navigation */
+.page-transition {
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity 0.15s ease-in-out, transform 0.15s ease-in-out;
+}
+
+.page-transition-enter {
+  opacity: 0;
+  transform: translateX(10px);
+}
+
+.page-transition-exit {
+  opacity: 0;
+  transform: translateX(-10px);
 }
