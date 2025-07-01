@@ -6,23 +6,22 @@ const config: CapacitorConfig = {
   appName: 'booqit',
   webDir: 'dist',
   bundledWebRuntime: false,
+  server: {
+    url: 'https://app.booqit.in',
+    cleartext: true
+  },
   plugins: {
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert']
     },
     Geolocation: {
       permissions: ['precise', 'coarse']
-    },
-    StatusBar: {
-      style: 'default',
-      backgroundColor: '#7E57C2',
-      overlaysWebView: false
     }
   },
   android: {
     allowMixedContent: true,
     captureInput: true,
-    webContentsDebuggingEnabled: false
+    webContentsDebuggingEnabled: false // Set to false for production
   }
 };
 
