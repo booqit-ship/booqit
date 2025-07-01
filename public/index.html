@@ -1,0 +1,37 @@
+<script>
+  function showOfflineScreen() {
+    document.body.innerHTML = `
+      <style>
+        * { box-sizing: border-box; }
+        body {
+          margin: 0;
+          padding: 0;
+          font-family: 'Poppins', sans-serif;
+          background-color: #f8f8f8;
+          color: #333;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          height: 100vh;
+          text-align: center;
+        }
+        .container { padding: 20px; }
+        .icon { font-size: 3.5rem; margin-bottom: 20px; }
+        h1 { font-size: 2rem; margin-bottom: 10px; color: #222; }
+        p { font-size: 1rem; color: #555; }
+        @media (min-width: 480px) {
+          h1 { font-size: 2.5rem; }
+          .icon { font-size: 4.5rem; }
+        }
+      </style>
+      <div class="container">
+        <div class="icon">📴</div>
+        <h1>You’re Offline</h1>
+        <p>Please check your internet connection and try again.</p>
+      </div>
+    `;
+  }
+
+  window.addEventListener('offline', showOfflineScreen);
+  if (!navigator.onLine) showOfflineScreen();
+</script>
