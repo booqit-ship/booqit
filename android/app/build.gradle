@@ -1,3 +1,4 @@
+
 apply plugin: 'com.android.application'
 
 android {
@@ -33,7 +34,7 @@ android {
 
 repositories {
     flatDir {
-        dirs 'libs' // Removed capacitor-cordova-android-plugins
+        dirs 'libs'
     }
 }
 
@@ -45,8 +46,8 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
 
-    // Firebase Push Notifications
-    implementation 'com.google.firebase:firebase-messaging:23.4.0'
+    // Firebase Push Notifications - Updated to latest version
+    implementation 'com.google.firebase:firebase-messaging:24.1.0'
 
     // Capacitor core Android bindings
     implementation project(':capacitor-android')
@@ -55,8 +56,6 @@ dependencies {
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
-
-    // ❌ Removed: implementation project(':capacitor-cordova-android-plugins')
 }
 
 apply from: 'capacitor.build.gradle'

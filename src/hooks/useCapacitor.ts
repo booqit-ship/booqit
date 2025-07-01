@@ -1,11 +1,10 @@
+
 import { useEffect, useState, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { StatusBar, Style } from '@capacitor/status-bar';
-import { PushNotifications } from '@capacitor/push-notifications';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { setupNotifications } from '@/lib/capacitor-firebase';
-import { requestNotificationPermission } from '@/firebase';
+import { UnifiedNotificationService } from '@/services/UnifiedNotificationService';
 
 export const useCapacitor = () => {
   const [isNative, setIsNative] = useState(false);
@@ -34,32 +33,8 @@ export const useCapacitor = () => {
           await StatusBar.setStyle({ style: Style.Default });
           await StatusBar.setBackgroundColor({ color: '#7E57C2' });
 
-          if (Capacitor.getPlatform() === 'android') {
-            console.log('📱 Initializing Android native push notifications...');
-            const permStatus = await PushNotifications.requestPermissions();
-            console.log('📱 Native push permission status:', permStatus);
-
-            if (permStatus.receive === 'granted') {
-              await PushNotifications.register();
-              console.log('📱 Registered for native push notifications');
-
-              PushNotifications.addListener('registration', (token) => {
-                console.log('📱 Native push registration token:', token.value);
-              });
-
-              PushNotifications.addListener('registrationError', (error) => {
-                console.error('❌ Native push registration error:', error);
-              });
-
-              PushNotifications.addListener('pushNotificationReceived', (notification) => {
-                console.log('📱 Native push notification received:', notification);
-              });
-
-              PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-                console.log('📱 Native push notification action performed:', notification);
-              });
-            }
-          }
+          // Setup native notification listeners
+          UnifiedNotificationService.setupNativeListeners();
 
           App.addListener('appStateChange', ({ isActive }) => {
             console.log('📱 App state changed. Active:', isActive);
@@ -78,17 +53,6 @@ export const useCapacitor = () => {
           console.log('✅ Native platform initialized');
         } catch (error) {
           console.error('❌ Error initializing native platform:', error);
-        }
-      } else {
-        // Only run web Firebase setup if NOT native
-        try {
-          const hasPermission = await requestNotificationPermission();
-          if (hasPermission) {
-            await setupNotifications();
-            console.log('✅ Web notifications initialized');
-          }
-        } catch (error) {
-          console.error('❌ Error initializing web notifications:', error);
         }
       }
 
