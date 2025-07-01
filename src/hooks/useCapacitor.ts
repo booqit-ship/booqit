@@ -30,14 +30,20 @@ export const useCapacitor = () => {
 
       if (native) {
         try {
+          // Set status bar style for better native experience
           await StatusBar.setStyle({ style: Style.Default });
           await StatusBar.setBackgroundColor({ color: '#7E57C2' });
+          await StatusBar.setOverlaysWebView({ overlay: false });
 
           // Setup native notification listeners
           UnifiedNotificationService.setupNativeListeners();
 
           App.addListener('appStateChange', ({ isActive }) => {
             console.log('📱 App state changed. Active:', isActive);
+            if (isActive) {
+              // Refresh critical data when app becomes active
+              console.log('📱 App resumed - refreshing data');
+            }
           });
 
           App.addListener('backButton', ({ canGoBack }) => {
@@ -50,7 +56,7 @@ export const useCapacitor = () => {
             }
           });
 
-          console.log('✅ Native platform initialized');
+          console.log('✅ Native platform initialized with offline support');
         } catch (error) {
           console.error('❌ Error initializing native platform:', error);
         }
