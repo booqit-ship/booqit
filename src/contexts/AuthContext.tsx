@@ -1,330 +1,284 @@
-
-import React, { createContext, useState, useEffect, useContext } from 'react';
-import { Session, User } from '@supabase/supabase-js';
+import React, { useEffect, useState } from 'react';
+import {
+  Route,
+  Routes,
+} from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
-import { PermanentSession } from '@/utils/permanentSession';
-import { UserRole } from '@/types';
+import ErrorBoundary from '@/components/ErrorBoundary';
+import LazyRoute from '@/components/LazyRoute';
+import AppInit from '@/components/AppInit';
+import ShopResolver from '@/components/ShopResolver';
+import Index from '@/pages/Index';
+import HomePage from '@/pages/customer/HomePage';
+import SearchPage from '@/pages/customer/SearchPage';
+import MapPage from '@/pages/customer/MapPage';
+import MerchantDetailPage from '@/pages/customer/MerchantDetailPage';
+import ServiceSelectionPage from '@/pages/customer/ServiceSelectionPage';
+import StaffSelectionPage from '@/pages/customer/StaffSelectionPage';
+import DateTimeSelectionPage from '@/pages/customer/DateTimeSelectionPage';
+import BookingSummaryPage from '@/pages/customer/BookingSummaryPage';
+import PaymentPage from '@/pages/customer/PaymentPage';
+import ReceiptPage from '@/pages/customer/ReceiptPage';
+import CalendarPage from '@/pages/customer/CalendarPage';
+import ProfilePage from '@/pages/customer/ProfilePage';
+import AccountPage from '@/pages/customer/AccountPage';
+import ReviewsPage from '@/pages/customer/ReviewsPage';
+import SettingsPage from '@/pages/customer/SettingsPage';
+import BookingsHistoryPage from '@/pages/customer/BookingsHistoryPage';
+import Auth from '@/pages/AuthPage';
+import ForgotPasswordPage from '@/pages/ForgotPasswordPage';
+import ResetPasswordPage from '@/pages/ResetPasswordPage';
+import VerifyPage from '@/pages/VerifyPage';
+import CustomerLayout from '@/layouts/CustomerLayout';
+import MerchantDashboard from '@/pages/merchant/DashboardPage';
+import MerchantServices from '@/pages/merchant/ServicesPage';
+import MerchantCalendar from '@/pages/merchant/CalendarManagementPage';
+import MerchantProfile from '@/pages/merchant/ProfilePage';
+import MerchantLayout from '@/layouts/MerchantLayout';
+import AnalyticsPage from '@/pages/merchant/AnalyticsPage';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import MerchantSettingsPage from '@/pages/merchant/SettingsPage';
+import OnboardingPage from '@/pages/merchant/OnboardingPage';
+import PrivacyPolicy from '@/pages/PrivacyPolicy';
+import TermsAndConditions from '@/pages/TermsAndConditions';
+import DeleteAccountPage from '@/pages/settings/DeleteAccountPage';
+import ContactPage from '@/pages/settings/ContactPage';
+import AboutPage from '@/pages/settings/AboutPage';
+import MerchantBusinessInfoPage from '@/pages/merchant/settings/BusinessInformationPage';
+import MerchantBankingDetailsPage from '@/pages/merchant/settings/BankingDetailsPage';
+import MerchantContactPage from '@/pages/merchant/settings/ContactPage';
+import MerchantAboutPage from '@/pages/merchant/settings/AboutPage';
+import MerchantPrivacyPolicyPage from '@/pages/merchant/settings/PrivacyPolicyPage';
+import MerchantTermsConditionsPage from '@/pages/merchant/settings/TermsConditionsPage';
+import MerchantDeleteAccountPage from '@/pages/merchant/settings/DeleteAccountPage';
+import NotificationsPage from '@/pages/settings/NotificationsPage';
+import GuestInfoPage from '@/pages/guest/GuestInfoPage';
+import GuestShopDetailsPage from '@/pages/guest/GuestShopDetailsPage';
+import GuestServiceSelectionPage from '@/pages/guest/GuestServiceSelectionPage';
+import GuestStaffSelectionPage from '@/pages/guest/GuestStaffSelectionPage';
+import GuestDatetimePage from '@/pages/guest/GuestDatetimePage';
+import GuestPaymentPage from '@/pages/guest/GuestPaymentPage';
+import GuestBookingSuccessPage from '@/pages/guest/GuestBookingSuccessPage';
+import GuestBookingCancellationPage from '@/pages/guest/GuestBookingCancellationPage';
+import GuestBookingHistoryPage from '@/pages/guest/GuestBookingHistoryPage';
+import NotFound from '@/pages/NotFound';
 
-interface AuthContextType {
-  user: User | null;
-  userId: string;
-  userRole: string;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  loading: boolean; // Added for backward compatibility
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
-  updateUserRole: (newRole: string) => void;
-  setAuth: (authenticated: boolean, role: UserRole, userId: string) => void;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
-
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [userId, setUserId] = useState('');
-  const [userRole, setUserRole] = useState('');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const navigate = useNavigate();
-
-  const setAuth = (authenticated: boolean, role: UserRole, userId: string) => {
-    setIsAuthenticated(authenticated);
-    setUserRole(role);
-    setUserId(userId);
-  };
-
-  const clearAuthState = () => {
-    setUser(null);
-    setUserId('');
-    setUserRole('');
-    setIsAuthenticated(false);
-    PermanentSession.clearSession();
-  };
-
-  const handleAuthError = async (error: any) => {
-    console.error('❌ AUTH: Authentication error:', error);
-    
-    // Check if it's a token refresh error
-    if (error?.message?.includes('refresh_token_not_found') || 
-        error?.message?.includes('Invalid Refresh Token') ||
-        error?.message?.includes('refresh token not found')) {
-      
-      console.log('🔄 AUTH: Refresh token expired, clearing session');
-      clearAuthState();
-      toast.error('Your session has expired. Please sign in again.');
-      navigate('/auth');
-      return;
-    }
-    
-    // For other auth errors, also clear state
-    if (error?.status === 400 || error?.status === 401) {
-      console.log('🔄 AUTH: Authentication failed, clearing session');
-      clearAuthState();
-    }
-  };
+const AppContent: React.FC = () => {
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadSession = async () => {
+    const getSession = async () => {
       try {
-        console.log('🔍 AUTH: Loading initial session');
-        
-        // Check permanent session first for quick UI updates
-        const permanentSession = PermanentSession.getSession();
-        if (permanentSession.isLoggedIn && permanentSession.userId) {
-          console.log('✅ AUTH: Found permanent session');
-          setUserId(permanentSession.userId);
-          setUserRole(permanentSession.userRole);
-          setIsAuthenticated(true);
-        }
-
-        // Get current Supabase session
-        const { data: { session }, error } = await supabase.auth.getSession();
-
-        if (error) {
-          await handleAuthError(error);
-          return;
-        }
-
-        if (session?.user) {
-          console.log('✅ AUTH: Valid session found');
-          setUser(session.user);
-          setUserId(session.user.id);
-          setIsAuthenticated(true);
-
-          // Fetch user role if we don't have it
-          if (!permanentSession.isLoggedIn || !permanentSession.userRole) {
-            try {
-              const { data: profileData, error: profileError } = await supabase
-                .from('profiles')
-                .select('role')
-                .eq('id', session.user.id)
-                .single();
-
-              if (profileError) {
-                console.error('❌ AUTH: Error fetching profile:', profileError);
-                // Don't fail auth for profile errors, use default role
-                const role = 'customer';
-                setUserRole(role);
-                PermanentSession.saveSession({
-                  userId: session.user.id,
-                  email: session.user.email || '',
-                  userRole: role,
-                  isLoggedIn: true,
-                  session
-                });
-              } else if (profileData) {
-                const role = profileData.role || 'customer';
-                setUserRole(role);
-                PermanentSession.saveSession({
-                  userId: session.user.id,
-                  email: session.user.email || '',
-                  userRole: role,
-                  isLoggedIn: true,
-                  session
-                });
-              }
-            } catch (profileError) {
-              console.error('❌ AUTH: Profile fetch failed:', profileError);
-              // Use default role if profile fetch fails
-              setUserRole('customer');
-            }
-          }
-        } else {
-          console.log('ℹ️ AUTH: No valid session found');
-          clearAuthState();
-        }
-      } catch (sessionError) {
-        console.error('❌ AUTH: Session loading failed:', sessionError);
-        await handleAuthError(sessionError);
+        const { data: { session } } = await supabase.auth.getSession();
+        console.log("Session loaded:", !!session);
+      } catch (error) {
+        console.error("Error fetching session:", error);
       } finally {
-        setIsLoading(false);
+        setLoading(false);
       }
     };
 
-    loadSession();
+    getSession();
 
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('👂 AUTH: Auth state change event:', event);
+    supabase.auth.onAuthStateChange((event, session) => {
+      console.log("Auth State Change:", event);
+      setLoading(false);
+    });
+  }, []);
 
-        try {
-          if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED' && !session) {
-            console.log('🚪 AUTH: User signed out or token refresh failed');
-            clearAuthState();
-          } else if (session?.user) {
-            console.log('✅ AUTH: Session updated');
-            setUser(session.user);
-            setUserId(session.user.id);
-            setIsAuthenticated(true);
-          } else if (event === 'SIGNED_IN' && session?.user) {
-            console.log('✅ AUTH: User signed in');
-            setUser(session.user);
-            setUserId(session.user.id);
-            setIsAuthenticated(true);
-          }
-        } catch (error) {
-          await handleAuthError(error);
-        }
-      }
-    );
-
-    return () => {
-      console.log('🚪 AUTH: Removing auth state listener');
-      subscription?.unsubscribe();
-    };
-  }, [navigate]);
-
-  const login = async (email: string, password: string) => {
-    setIsLoading(true);
-    try {
-      console.log('🔑 AUTH: Attempting login for:', email);
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email,
-        password: password,
-      });
-
-      if (error) {
-        console.error('❌ AUTH: Login error:', error);
-        toast.error('Invalid credentials');
-        return;
-      } 
-      
-      if (data.user) {
-        console.log('✅ AUTH: Login successful');
-        setUser(data.user);
-        setUserId(data.user.id);
-        setIsAuthenticated(true);
-
-        // Fetch user role
-        try {
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', data.user.id)
-            .single();
-
-          const role = profileData?.role || 'customer';
-          setUserRole(role);
-          
-          PermanentSession.saveSession({
-            userId: data.user.id,
-            email: data.user.email || '',
-            userRole: role,
-            isLoggedIn: true,
-            session: data.session
-          });
-          
-          toast.success('Logged in successfully');
-          navigate('/');
-        } catch (profileError) {
-          console.error('❌ AUTH: Profile fetch error during login:', profileError);
-          // Use default role and continue
-          setUserRole('customer');
-          PermanentSession.saveSession({
-            userId: data.user.id,
-            email: data.user.email || '',
-            userRole: 'customer',
-            isLoggedIn: true,
-            session: data.session
-          });
-          toast.success('Logged in successfully');
-          navigate('/');
-        }
-      }
-    } catch (loginError) {
-      console.error('❌ AUTH: Login failed:', loginError);
-      toast.error('Login failed. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const logout = async () => {
-    try {
-      console.log('🚪 AUTH: Starting logout process');
-      
-      // Clean up tokens if available
-      if (userId) {
-        try {
-          const { EnhancedTokenCleanupService } = await import('@/services/EnhancedTokenCleanupService');
-          await EnhancedTokenCleanupService.cleanupUserTokensOnLogout(userId);
-        } catch (cleanupError) {
-          console.error('❌ AUTH: Token cleanup failed:', cleanupError);
-        }
-      }
-
-      // Clear permanent session first
-      PermanentSession.clearSession();
-      
-      // Sign out from Supabase
-      const { error } = await supabase.auth.signOut();
-      
-      if (error) {
-        console.error('❌ AUTH: Error during logout:', error);
-      } else {
-        console.log('✅ AUTH: Logout successful');
-      }
-
-      // Clear state regardless of Supabase result
-      clearAuthState();
-      
-      // Clear cached data
+  // Native push notification setup using Capacitor
+  useEffect(() => {
+    const initNotifications = async () => {
       try {
-        sessionStorage.clear();
-        localStorage.removeItem('booking-draft');
-        localStorage.removeItem('performance-metrics');
-        localStorage.removeItem('user_location');
-        localStorage.removeItem('user_profile');
-      } catch (storageError) {
-        console.error('❌ AUTH: Error clearing storage:', storageError);
+        const { setupNativePushNotifications } = await import('@/setupNativePushNotifications');
+        await setupNativePushNotifications();
+      } catch (err) {
+        console.error("Failed to initialize notifications", err);
       }
+    };
+    initNotifications();
+  }, []);
 
-      toast.success('Logged out successfully');
-      navigate('/auth');
-      
-    } catch (error) {
-      console.error('❌ AUTH: Logout failed:', error);
-      // Force clear state even if logout fails
-      clearAuthState();
-      navigate('/auth');
-    }
-  };
+  return (
+    <ErrorBoundary>
+      <AppInit />
+      <Routes>
+        {/* Auth Routes */}
+        <Route path="/auth" element={<LazyRoute><Auth /></LazyRoute>} />
+        <Route path="/forgot-password" element={<LazyRoute><ForgotPasswordPage /></LazyRoute>} />
+        <Route path="/reset-password" element={<LazyRoute><ResetPasswordPage /></LazyRoute>} />
+        <Route path="/verify" element={<LazyRoute><VerifyPage /></LazyRoute>} />
 
-  const updateUserRole = async (newRole: string) => {
-    try {
-      console.log(`👤 AUTH: Updating user role to: ${newRole}`);
-      setUserRole(newRole);
-      PermanentSession.updateUserRole(newRole);
-    } catch (roleError) {
-      console.error('❌ AUTH: Error updating user role:', roleError);
-      toast.error('Error updating user role');
-    }
-  };
+        {/* Privacy Policy and Terms - Must come before shop resolver */}
+        <Route path="/privacy-policy" element={<LazyRoute><PrivacyPolicy /></LazyRoute>} />
+        <Route path="/terms-and-conditions" element={<LazyRoute><TermsAndConditions /></LazyRoute>} />
 
-  const value = {
-    user,
-    userId,
-    userRole,
-    isAuthenticated,
-    isLoading,
-    loading: isLoading,
-    login,
-    logout,
-    updateUserRole,
-    setAuth,
-  };
+        {/* Guest Booking Routes - Complete Flow */}
+        <Route path="/book/:merchantId/:shopName" element={<LazyRoute><GuestInfoPage /></LazyRoute>} />
+        <Route path="/book/:merchantId" element={<LazyRoute><GuestInfoPage /></LazyRoute>} />
+        <Route path="/guest-info/:merchantId" element={<LazyRoute><GuestInfoPage /></LazyRoute>} />
+        <Route path="/guest-shop/:merchantId" element={<LazyRoute><GuestShopDetailsPage /></LazyRoute>} />
+        <Route path="/guest-services/:merchantId" element={<LazyRoute><GuestServiceSelectionPage /></LazyRoute>} />
+        <Route path="/guest-staff/:merchantId" element={<LazyRoute><GuestStaffSelectionPage /></LazyRoute>} />
+        <Route path="/guest-datetime/:merchantId" element={<LazyRoute><GuestDatetimePage /></LazyRoute>} />
+        <Route path="/guest-payment/:merchantId" element={<LazyRoute><GuestPaymentPage /></LazyRoute>} />
+        <Route path="/guest-booking-success/:merchantId" element={<LazyRoute><GuestBookingSuccessPage /></LazyRoute>} />
+        
+        {/* Guest Booking Management Routes */}
+        <Route path="/guest-cancel-booking" element={<LazyRoute><GuestBookingCancellationPage /></LazyRoute>} />
+        <Route path="/guest-booking-history" element={<LazyRoute><GuestBookingHistoryPage /></LazyRoute>} />
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+        {/* Merchant Routes */}
+        <Route path="/merchant/auth" element={<LazyRoute><Auth /></LazyRoute>} />
+        <Route path="/merchant/onboarding" element={<LazyRoute><ProtectedRoute><OnboardingPage /></ProtectedRoute></LazyRoute>} />
+        <Route path="/merchant" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantDashboard /></MerchantLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/merchant/dashboard" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantDashboard /></MerchantLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/merchant/services" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantServices /></MerchantLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/merchant/calendar" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantCalendar /></MerchantLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/merchant/profile" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantProfile /></MerchantLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/merchant/analytics" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><AnalyticsPage /></MerchantLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/merchant/settings" element={<LazyRoute><ProtectedRoute requiredRole="merchant"><MerchantLayout><MerchantSettingsPage /></MerchantLayout></ProtectedRoute></LazyRoute>} />
+
+        {/* Merchant Settings Sub-Pages */}
+        <Route
+          path="/merchant/settings/business-information"
+          element={
+            <LazyRoute>
+              <ProtectedRoute requiredRole="merchant">
+                <MerchantLayout>
+                  <MerchantBusinessInfoPage />
+                </MerchantLayout>
+              </ProtectedRoute>
+            </LazyRoute>
+          }
+        />
+        <Route
+          path="/merchant/settings/banking-details"
+          element={
+            <LazyRoute>
+              <ProtectedRoute requiredRole="merchant">
+                <MerchantLayout>
+                  <MerchantBankingDetailsPage />
+                </MerchantLayout>
+              </ProtectedRoute>
+            </LazyRoute>
+          }
+        />
+        <Route
+          path="/merchant/settings/notifications"
+          element={
+            <LazyRoute>
+              <ProtectedRoute requiredRole="merchant">
+                <MerchantLayout>
+                  <NotificationsPage />
+                </MerchantLayout>
+              </ProtectedRoute>
+            </LazyRoute>
+          }
+        />
+        <Route
+          path="/merchant/settings/contact"
+          element={
+            <LazyRoute>
+              <ProtectedRoute requiredRole="merchant">
+                <MerchantLayout>
+                  <MerchantContactPage />
+                </MerchantLayout>
+              </ProtectedRoute>
+            </LazyRoute>
+          }
+        />
+        <Route
+          path="/merchant/settings/about"
+          element={
+            <LazyRoute>
+              <ProtectedRoute requiredRole="merchant">
+                <MerchantLayout>
+                  <MerchantAboutPage />
+                </MerchantLayout>
+              </ProtectedRoute>
+            </LazyRoute>
+          }
+        />
+        <Route
+          path="/merchant/settings/privacy-policy"
+          element={
+            <LazyRoute>
+              <ProtectedRoute requiredRole="merchant">
+                <MerchantLayout>
+                  <MerchantPrivacyPolicyPage />
+                </MerchantLayout>
+              </ProtectedRoute>
+            </LazyRoute>
+          }
+        />
+        <Route
+          path="/merchant/settings/terms-conditions"
+          element={
+            <LazyRoute>
+              <ProtectedRoute requiredRole="merchant">
+                <MerchantLayout>
+                  <MerchantTermsConditionsPage />
+                </MerchantLayout>
+              </ProtectedRoute>
+            </LazyRoute>
+          }
+        />
+        <Route
+          path="/merchant/settings/delete-account"
+          element={
+            <LazyRoute>
+              <ProtectedRoute requiredRole="merchant">
+                <MerchantLayout>
+                  <MerchantDeleteAccountPage />
+                </MerchantLayout>
+              </ProtectedRoute>
+            </LazyRoute>
+          }
+        />
+
+        {/* Customer Routes */}
+        <Route path="/" element={<LazyRoute><Index /></LazyRoute>} />
+        <Route path="/home" element={<LazyRoute><ProtectedRoute><CustomerLayout><HomePage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/search" element={<LazyRoute><ProtectedRoute><CustomerLayout><SearchPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/map" element={<LazyRoute><ProtectedRoute><CustomerLayout><MapPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/merchant/:merchantId" element={<LazyRoute><ProtectedRoute><CustomerLayout><MerchantDetailPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+
+        <Route path="/booking/:merchantId/services" element={<LazyRoute><ProtectedRoute><CustomerLayout><ServiceSelectionPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/booking/:merchantId/staff" element={<LazyRoute><ProtectedRoute><CustomerLayout><StaffSelectionPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/booking/:merchantId/datetime" element={<LazyRoute><ProtectedRoute><CustomerLayout><DateTimeSelectionPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/booking-summary" element={<LazyRoute><ProtectedRoute><CustomerLayout><BookingSummaryPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/payment/:merchantId" element={<LazyRoute><ProtectedRoute><CustomerLayout><PaymentPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/receipt/:bookingId" element={<LazyRoute><ProtectedRoute><CustomerLayout><ReceiptPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/calendar" element={<LazyRoute><ProtectedRoute><CustomerLayout><CalendarPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/bookings-history" element={<LazyRoute><ProtectedRoute><CustomerLayout><BookingsHistoryPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/profile" element={<LazyRoute><ProtectedRoute><CustomerLayout><ProfilePage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/account" element={<LazyRoute><ProtectedRoute><CustomerLayout><AccountPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/reviews" element={<LazyRoute><ProtectedRoute><CustomerLayout><ReviewsPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/settings" element={<LazyRoute><ProtectedRoute><CustomerLayout><SettingsPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+
+        <Route path="/settings/account" element={<LazyRoute><ProtectedRoute><CustomerLayout><AccountPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/settings/privacy-policy" element={<LazyRoute><ProtectedRoute><CustomerLayout><PrivacyPolicy /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/settings/terms-conditions" element={<LazyRoute><ProtectedRoute><CustomerLayout><TermsAndConditions /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/settings/contact" element={<LazyRoute><ProtectedRoute><CustomerLayout><ContactPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/settings/about" element={<LazyRoute><ProtectedRoute><CustomerLayout><AboutPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        <Route path="/settings/delete-account" element={<LazyRoute><ProtectedRoute><CustomerLayout><DeleteAccountPage /></CustomerLayout></ProtectedRoute></LazyRoute>} />
+        
+        {/* Custom Shop URL Route - Must be last to avoid conflicts */}
+        <Route 
+          path="/:shopSlug" 
+          element={
+            <LazyRoute>
+              <ShopResolver />
+            </LazyRoute>
+          } 
+        />
+        
+        {/* Catch-all route for 404 */}
+        <Route path="*" element={<LazyRoute><NotFound /></LazyRoute>} />
+      </Routes>
+    </ErrorBoundary>
+  );
 };
+
+export default AppContent;

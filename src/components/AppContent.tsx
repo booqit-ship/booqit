@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import {
   Route,
@@ -86,6 +85,24 @@ const AppContent: React.FC = () => {
       setLoading(false);
     });
   }, []);
+
+  // Native push notification setup using Capacitor
+  useEffect(() => {
+  const delayPermissionRequest = async () => {
+    await new Promise(resolve => setTimeout(resolve, 1500)); // Wait 1.5 seconds
+
+    try {
+      const { setupNativePushNotifications } = await import('@/setupNativePushNotifications');
+      await setupNativePushNotifications();
+    } catch (err) {
+      console.error('Failed to init notifications', err);
+    }
+  };
+
+  delayPermissionRequest();
+  }, []);
+
+
 
   return (
     <ErrorBoundary>
