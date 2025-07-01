@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -138,14 +137,11 @@
   }
 }
 
-/* Performance optimizations for mobile */
+/* Android WebView fixes */
 html, body, #root {
   height: 100%;
   overflow: auto;
   -webkit-overflow-scrolling: touch;
-  /* Prevent layout thrashing */
-  backface-visibility: hidden;
-  transform: translateZ(0);
 }
 
 /* Prevent zoom on input focus in Android */
@@ -158,9 +154,6 @@ input, select, textarea {
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
   min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-  /* Hardware acceleration for smooth scrolling */
-  will-change: scroll-position;
-  transform: translateZ(0);
 }
 
 /* Improve touch targets for mobile */
@@ -174,28 +167,4 @@ button, .clickable {
   .full-height {
     height: -webkit-fill-available;
   }
-}
-
-/* Optimize animations and transitions */
-* {
-  /* Reduce motion for better performance */
-  transition-duration: 0.15s;
-}
-
-/* Prevent white flashes during navigation */
-body {
-  background-color: #f9fafb; /* bg-gray-50 */
-}
-
-/* Optimize image loading */
-img {
-  content-visibility: auto;
-  contain-intrinsic-size: 1px 1000px;
-}
-
-/* GPU acceleration for smooth scrolling */
-.scroll-smooth {
-  scroll-behavior: smooth;
-  -webkit-overflow-scrolling: touch;
-  transform: translateZ(0);
 }
