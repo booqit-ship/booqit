@@ -28,14 +28,22 @@ export const useNetworkStatus = () => {
     checkNetworkStatus();
 
     if (Capacitor.isNativePlatform()) {
-      const networkListener = Network.addListener('networkStatusChange', (status) => {
-        console.log('📶 Network status changed:', status);
-        setIsOnline(status.connected);
-        setConnectionType(status.connectionType);
-      });
+      let networkListener: any;
+      
+      const setupListener = async () => {
+        networkListener = await Network.addListener('networkStatusChange', (status) => {
+          console.log('📶 Network status changed:', status);
+          setIsOnline(status.connected);
+          setConnectionType(status.connectionType);
+        });
+      };
+
+      setupListener();
 
       return () => {
-        networkListener.remove();
+        if (networkListener) {
+          networkListener.remove();
+        }
       };
     } else {
       // Web event listeners
