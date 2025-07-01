@@ -1,4 +1,3 @@
-
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Base application theme. -->
@@ -7,10 +6,6 @@
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="colorAccent">@color/colorAccent</item>
-    </style>
-
-    <style name="AppTheme.NoActionBarLaunch" parent="AppTheme">
-        <item name="android:background">@drawable/splash</item>
     </style>
 
     <style name="AppTheme.NoActionBar" parent="AppTheme">
@@ -23,3 +18,4 @@
         <item name="android:background">@drawable/splash</item>
     </style>
 </resources>
+
