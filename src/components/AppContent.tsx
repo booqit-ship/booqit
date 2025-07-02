@@ -86,20 +86,24 @@ const AppContent: React.FC = () => {
     });
   }, []);
 
-  // Native push notification setup using Capacitor
+  // Native Capacitor and push notification setup
   useEffect(() => {
-  const delayPermissionRequest = async () => {
-    await new Promise(resolve => setTimeout(resolve, 1500)); // Wait 1.5 seconds
+    const initializeNative = async () => {
+      try {
+        // Setup native Capacitor first
+        const { setupNativeCapacitor } = await import('@/setupNativeCapacitor');
+        await setupNativeCapacitor();
+        
+        // Wait a bit then setup push notifications
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        const { setupNativePushNotifications } = await import('@/setupNativePushNotifications');
+        await setupNativePushNotifications();
+      } catch (err) {
+        console.error('Failed to init native features', err);
+      }
+    };
 
-    try {
-      const { setupNativePushNotifications } = await import('@/setupNativePushNotifications');
-      await setupNativePushNotifications();
-    } catch (err) {
-      console.error('Failed to init notifications', err);
-    }
-  };
-
-  delayPermissionRequest();
+    initializeNative();
   }, []);
 
 

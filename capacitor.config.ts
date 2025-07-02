@@ -16,6 +16,11 @@ const config: CapacitorConfig = {
     },
     Geolocation: {
       permissions: ['precise', 'coarse']
+    },
+    StatusBar: {
+      overlaysWebView: false,
+      style: 'Default',
+      backgroundColor: '#7E57C2'
     }
   },
   android: {
