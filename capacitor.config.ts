@@ -1,4 +1,3 @@
-
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
@@ -6,10 +5,7 @@ const config: CapacitorConfig = {
   appName: 'booqit',
   webDir: 'dist',
   bundledWebRuntime: false,
-  server: {
-    url: 'https://app.booqit.in',
-    cleartext: false
-  },
+  // 🚫 REMOVE server block completely!
   plugins: {
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert']
@@ -26,7 +22,7 @@ const config: CapacitorConfig = {
   android: {
     allowMixedContent: true,
     captureInput: true,
-    webContentsDebuggingEnabled: false // Set to false for production
+    webContentsDebuggingEnabled: false
   }
 };
 
