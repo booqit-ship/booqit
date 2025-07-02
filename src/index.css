@@ -169,4 +169,24 @@
   .tap-highlight-transparent {
     -webkit-tap-highlight-color: transparent;
   }
+
+  /* Performance optimizations for smooth scrolling */
+  .will-change-scroll {
+    will-change: scroll-position;
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+  }
+
+  .transform-gpu {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
+
+  .will-change-transform {
+    will-change: transform;
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+  }
 }

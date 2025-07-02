@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -32,6 +32,7 @@ const HomePage: React.FC = () => {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locationName, setLocationName] = useState("Loading location...");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
   const navigate = useNavigate();
   const { userId } = useAuth();
 
@@ -54,6 +55,24 @@ const HomePage: React.FC = () => {
       shop.category.toLowerCase() === dbCategory.toLowerCase()
     );
   }, [merchants, activeCategory]);
+
+  // Memoized distance calculation function
+  const calculateDistance = useCallback((lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // Radius of the earth in km
+    const dLat = deg2rad(lat2 - lat1);
+    const dLon = deg2rad(lon2 - lon1);
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) + 
+      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const d = R * c;
+    return d;
+  }, []);
+
+  const deg2rad = useCallback((deg: number) => {
+    return deg * (Math.PI / 180);
+  }, []);
 
   // Get user location with better caching
   useEffect(() => {
@@ -128,136 +147,88 @@ const HomePage: React.FC = () => {
     }
   }, []);
 
-  // Handle search with inline results
-  const handleSearch = async (query: string) => {
-    if (!query.trim()) {
-      setSearchResults([]);
-      setShowSearchResults(false);
-      return;
-    }
+  // Debounced search function to prevent excessive API calls
+  const handleSearch = useCallback(
+    (() => {
+      let timeoutId: NodeJS.Timeout;
+      return async (query: string) => {
+        clearTimeout(timeoutId);
+        
+        if (!query.trim()) {
+          setSearchResults([]);
+          setShowSearchResults(false);
+          setIsSearching(false);
+          return;
+        }
 
-    try {
-      const { data, error } = await supabase
-        .from('merchants')
-        .select(`
-          *,
-          services (
-            id,
-            merchant_id,
-            name,
-            price,
-            duration,
-            description,
-            image_url,
-            created_at
-          )
-        `)
-        .or(
-          `shop_name.ilike.%${query}%,category.ilike.%${query}%,address.ilike.%${query}%`
-        )
-        .limit(10);
+        setIsSearching(true);
+        
+        timeoutId = setTimeout(async () => {
+          try {
+            const { data, error } = await supabase
+              .from('merchants')
+              .select('*, services(*)')
+              .or(
+                `shop_name.ilike.%${query}%,category.ilike.%${query}%,address.ilike.%${query}%`
+              )
+              .limit(8);
 
-      if (error) throw error;
+            if (error) throw error;
 
-      if (data) {
-        // Calculate ratings for each merchant
-        const merchantsWithRatings = await Promise.all(
-          data.map(async (merchant) => {
-            const { data: bookings } = await supabase
-              .from('bookings')
-              .select('id')
-              .eq('merchant_id', merchant.id)
-              .eq('status', 'completed');
+            if (data) {
+              // Simplified search results without heavy rating calculations
+              const resultsWithDistance = userLocation
+                ? data.map((merchant) => {
+                    const distance = calculateDistance(
+                      userLocation.lat, userLocation.lng, merchant.lat, merchant.lng
+                    );
+                    return {
+                      ...merchant,
+                      distance: `${distance.toFixed(1)} km`,
+                      distanceValue: distance,
+                      rating: merchant.rating || null
+                    };
+                  })
+                : data.map(merchant => ({ ...merchant, rating: merchant.rating || null }));
 
-            if (bookings && bookings.length > 0) {
-              const bookingIds = bookings.map(b => b.id);
-              
-              const { data: reviews } = await supabase
-                .from('reviews')
-                .select('rating')
-                .in('booking_id', bookingIds);
-
-              if (reviews && reviews.length > 0) {
-                const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
-                const averageRating = totalRating / reviews.length;
-                return {
-                  ...merchant,
-                  rating: Math.round(averageRating * 10) / 10
-                };
-              }
+              setSearchResults(resultsWithDistance as Merchant[]);
+              setShowSearchResults(true);
             }
-            
-            return {
-              ...merchant,
-              rating: null
-            };
-          })
-        );
+          } catch (error) {
+            console.error('Search error:', error);
+            setSearchResults([]);
+          } finally {
+            setIsSearching(false);
+          }
+        }, 300); // 300ms debounce
+      };
+    })(),
+    [userLocation, calculateDistance]
+  );
 
-        // Add distance if user location is available
-        const resultsWithDistance = userLocation
-          ? merchantsWithRatings.map((merchant) => {
-              const distance = calculateDistance(
-                userLocation.lat, userLocation.lng, merchant.lat, merchant.lng
-              );
-              return {
-                ...merchant,
-                distance: `${distance.toFixed(1)} km`,
-                distanceValue: distance
-              };
-            })
-          : merchantsWithRatings;
-
-        setSearchResults(resultsWithDistance as Merchant[]);
-        setShowSearchResults(true);
-      }
-    } catch (error) {
-      console.error('Search error:', error);
-      setSearchResults([]);
-    }
-  };
-
-  // Calculate distance using Haversine formula
-  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371; // Radius of the earth in km
-    const dLat = deg2rad(lat2 - lat1);
-    const dLon = deg2rad(lon2 - lon1);
-    const a = 
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) + 
-      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const d = R * c;
-    return d;
-  };
-
-  const deg2rad = (deg: number) => {
-    return deg * (Math.PI / 180);
-  };
-
-  const handleCategoryClick = (categoryName: string) => {
+  const handleCategoryClick = useCallback((categoryName: string) => {
     setActiveCategory(activeCategory === categoryName ? null : categoryName);
     setShowSearchResults(false);
-  };
+  }, [activeCategory]);
 
-  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSearchInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setSearchQuery(value);
     handleSearch(value);
-  };
+  }, [handleSearch]);
 
-  const handleShopClick = (merchant: Merchant) => {
+  const handleShopClick = useCallback((merchant: Merchant) => {
     navigate(`/merchant/${merchant.id}`);
-  };
+  }, [navigate]);
 
-  const handleProfileClick = () => {
+  const handleProfileClick = useCallback(() => {
     navigate('/settings/account');
-  };
+  }, [navigate]);
 
   return (
-    <div className="pb-20 min-h-screen">
+    <div className="pb-20 min-h-screen will-change-scroll">
       {/* Header Section - optimized for smooth rendering */}
-      <div className="bg-gradient-to-r from-booqit-primary to-purple-700 text-white p-6 rounded-b-3xl shadow-lg">
+      <div className="bg-gradient-to-r from-booqit-primary to-purple-700 text-white p-6 rounded-b-3xl shadow-lg transform-gpu">
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-2xl font-light">Hi {userName}! 👋</h1>
@@ -280,7 +251,7 @@ const HomePage: React.FC = () => {
           </Avatar>
         </div>
         <div className="relative">
-          <Search className="absolute left-3 top-3 h-5 w-5 text-booqit-primary" />
+          <Search className={`absolute left-3 top-3 h-5 w-5 text-booqit-primary ${isSearching ? 'animate-pulse' : ''}`} />
           <Input
             placeholder="Search services, shops..."
             value={searchQuery}
@@ -290,12 +261,14 @@ const HomePage: React.FC = () => {
         </div>
       </div>
 
-      <div className="p-6 space-y-8">
+      <div className="p-6 space-y-8 transform-gpu">
         {/* Search Results */}
-        {showSearchResults && searchResults.length > 0 && (
-          <div>
+        {showSearchResults && (
+          <div className="will-change-transform">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="font-normal text-xl">Search Results</h2>
+              <h2 className="font-normal text-xl">
+                {isSearching ? 'Searching...' : 'Search Results'}
+              </h2>
               <Button
                 variant="ghost"
                 size="sm"
@@ -308,33 +281,50 @@ const HomePage: React.FC = () => {
                 Clear
               </Button>
             </div>
-            <div className="space-y-4">
-              {searchResults.map((merchant) => (
-                <div
-                  key={merchant.id}
-                  onClick={() => handleShopClick(merchant)}
-                  className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 cursor-pointer hover:shadow-md transition-shadow"
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <h3 className="font-medium text-gray-900">{merchant.shop_name}</h3>
-                      <p className="text-sm text-gray-600 mt-1">{merchant.category}</p>
-                      <p className="text-xs text-gray-500 mt-1">{merchant.address}</p>
-                      {merchant.distance && (
-                        <p className="text-xs text-booqit-primary mt-1">{merchant.distance}</p>
+            {isSearching ? (
+              <div className="space-y-4">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <div key={index} className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 animate-pulse">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                        <div className="h-3 bg-gray-200 rounded w-1/2 mb-1"></div>
+                        <div className="h-3 bg-gray-200 rounded w-2/3"></div>
+                      </div>
+                      <div className="w-12 h-6 bg-gray-200 rounded-full"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {searchResults.map((merchant) => (
+                  <div
+                    key={merchant.id}
+                    onClick={() => handleShopClick(merchant)}
+                    className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 cursor-pointer hover:shadow-md transition-shadow will-change-transform"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h3 className="font-medium text-gray-900">{merchant.shop_name}</h3>
+                        <p className="text-sm text-gray-600 mt-1">{merchant.category}</p>
+                        <p className="text-xs text-gray-500 mt-1">{merchant.address}</p>
+                        {merchant.distance && (
+                          <p className="text-xs text-booqit-primary mt-1">{merchant.distance}</p>
+                        )}
+                      </div>
+                      {merchant.rating && (
+                        <div className="flex items-center bg-green-100 px-2 py-1 rounded-full">
+                          <span className="text-xs font-medium text-green-800">
+                            ★ {merchant.rating.toFixed(1)}
+                          </span>
+                        </div>
                       )}
                     </div>
-                    {merchant.rating && (
-                      <div className="flex items-center bg-green-100 px-2 py-1 rounded-full">
-                        <span className="text-xs font-medium text-green-800">
-                          ★ {merchant.rating.toFixed(1)}
-                        </span>
-                      </div>
-                    )}
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -345,14 +335,14 @@ const HomePage: React.FC = () => {
             <UpcomingBookings />
 
             {/* Categories Section */}
-            <div>
+            <div className="will-change-transform">
               <h2 className="mb-4 font-normal text-xl">Categories</h2>
               <div className="grid grid-cols-2 gap-4">
                 {featuredCategories.map(category => (
                   <Button
                     key={category.id}
                     variant="outline"
-                    className={`h-16 flex items-center justify-between p-0 border transition-all duration-200 overflow-hidden
+                    className={`h-16 flex items-center justify-between p-0 border transition-all duration-200 overflow-hidden will-change-transform
                       ${activeCategory === category.name 
                         ? 'border-booqit-primary bg-booqit-primary/10 shadow-md' 
                         : 'border-gray-200 shadow-sm hover:shadow-md hover:border-booqit-primary'
