@@ -962,10 +962,6 @@ export type Database = {
         Args: { p_booking_id: string; p_user_id: string }
         Returns: Json
       }
-      check_email_exists: {
-        Args: { email_to_check: string }
-        Returns: boolean
-      }
       check_slot_availability_with_duration: {
         Args: {
           p_staff_id: string

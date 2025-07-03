@@ -8,13 +8,11 @@ import { PermanentSession } from '@/utils/permanentSession';
 interface ProtectedRouteProps {
   children?: React.ReactNode;
   requiredRole?: UserRole;
-  allowedRoles?: UserRole[];
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
   children, 
-  requiredRole,
-  allowedRoles 
+  requiredRole 
 }) => {
   const { isAuthenticated, userRole, loading } = useAuth();
   const location = useLocation();
@@ -49,33 +47,15 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const isOnboardingPage = location.pathname === '/merchant/onboarding';
   
   if (isOnboardingPage) {
+    // For onboarding, just check if user is authenticated, not their role
     console.log('✅ Allowing access to onboarding for authenticated user');
     return children ? <>{children}</> : <Outlet />;
   }
   
-  // Role-based access control
   if (requiredRole && effectiveRole !== requiredRole) {
     console.log('🚫 User role mismatch, redirecting based on role:', effectiveRole);
     // Redirect to the appropriate dashboard based on role
-    return <Navigate to={effectiveRole === 'merchant' ? '/merchant' : '/home'} replace />;
-  }
-
-  // Check allowed roles (for routes that accept multiple roles)
-  if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(effectiveRole as UserRole)) {
-    console.log('🚫 User role not in allowed roles, redirecting based on role:', effectiveRole);
-    return <Navigate to={effectiveRole === 'merchant' ? '/merchant' : '/home'} replace />;
-  }
-
-  // Prevent merchants from accessing customer routes
-  if (effectiveRole === 'merchant' && location.pathname.startsWith('/home')) {
-    console.log('🚫 Merchant trying to access customer route, redirecting to merchant dashboard');
-    return <Navigate to="/merchant" replace />;
-  }
-
-  // Prevent customers from accessing merchant routes (except guest booking pages)
-  if (effectiveRole === 'customer' && location.pathname.startsWith('/merchant') && !location.pathname.includes('/guest/')) {
-    console.log('🚫 Customer trying to access merchant route, redirecting to customer home');
-    return <Navigate to="/home" replace />;
+    return <Navigate to={effectiveRole === 'merchant' ? '/merchant' : '/'} replace />;
   }
 
   // If children are provided, render them (for wrapper usage)

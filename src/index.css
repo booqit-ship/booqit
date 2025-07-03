@@ -1,66 +1,87 @@
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Righteous&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
+    --background: 210 20% 98%;
+    --foreground: 224 71% 4%;
+
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
+    --card-foreground: 224 71% 4%;
+
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
+    --popover-foreground: 224 71% 4%;
+
+    --primary: 262 44% 55%;
+    --primary-foreground: 210 20% 98%;
+
+    --secondary: 0 77% 70%;
+    --secondary-foreground: 210 20% 98%;
+
+    --muted: 220 14.3% 95.9%;
+    --muted-foreground: 220 8.9% 46.1%;
+
+    --accent: 262 44% 90%;
+    --accent-foreground: 262 44% 55%;
+
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
+    --destructive-foreground: 210 20% 98%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 262 44% 55%;
+
     --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
   .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
+    --background: 224 71% 4%;
+    --foreground: 210 20% 98%;
+
+    --card: 224 71% 4%;
+    --card-foreground: 210 20% 98%;
+
+    --popover: 224 71% 4%;
+    --popover-foreground: 210 20% 98%;
+
+    --primary: 262 44% 55%;
+    --primary-foreground: 210 20% 98%;
+
+    --secondary: 0 77% 70%;
+    --secondary-foreground: 210 20% 98%;
+
+    --muted: 215 27.9% 16.9%;
+    --muted-foreground: 217.9 10.6% 64.9%;
+
+    --accent: 262 44% 20%;
+    --accent-foreground: 262 44% 90%;
+
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    --destructive-foreground: 210 20% 98%;
+
+    --border: 215 27.9% 16.9%;
+    --input: 215 27.9% 16.9%;
+    --ring: 262 44% 55%;
+
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
 
@@ -68,224 +89,104 @@
   * {
     @apply border-border;
   }
+
+  /* Capacitor Mobile App Safe Area & Scrolling Fixes */
+  html {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-text-size-adjust: 100%;
+    -webkit-overflow-scrolling: touch;
+  }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-poppins;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    box-sizing: border-box;
+    /* Safe area support for notches, status bar, home indicator */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    /* Ensure smooth scrolling */
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+
+  #root {
+    min-height: 100%;
+    width: 100%;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* Typography classes for consistent font usage */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-righteous font-medium;
+  }
+
+  .logo-text {
+    @apply font-righteous font-medium;
+  }
+
+  .main-text {
+    @apply font-righteous font-medium;
+  }
+
+  .body-text {
+    @apply font-poppins;
   }
 }
 
-/* 🔧 CAPACITOR ANDROID FIXES */
-
-/* Safe area handling for all platforms */
-html, body {
-  height: 100vh;
-  height: 100dvh; /* Dynamic viewport height for mobile */
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  overflow-x: hidden;
-  box-sizing: border-box;
-  /* Prevent zoom on input focus */
-  -webkit-text-size-adjust: 100%;
-  -ms-text-size-adjust: 100%;
-}
-
-/* Safe area insets for notches and status bars */
-body {
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
-  padding-left: env(safe-area-inset-left);
-  padding-right: env(safe-area-inset-right);
-  
-  /* Ensure body takes full height */
-  min-height: 100vh;
-  min-height: 100dvh;
-}
-
-/* Root app container */
-#root {
-  height: 100%;
-  min-height: 100vh;
-  min-height: 100dvh;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Main content area - adjust for bottom navigation */
-.main-content {
-  flex: 1;
-  padding-bottom: 5rem; /* 80px bottom nav height */
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* Bottom navigation safe area class */
-.safe-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-/* Keyboard handling - prevent viewport jumping */
-.keyboard-adjust {
-  /* Prevent viewport resize on keyboard open */
-  height: 100vh;
-  height: 100dvh;
-}
-
-/* Fixed bottom navigation improvements */
-nav[class*="fixed bottom-0"] {
-  /* Ensure navigation stays at bottom above keyboard */
-  position: fixed !important;
-  bottom: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  z-index: 1000 !important;
-  
-  /* Prevent keyboard from pushing nav up */
-  transform: translateZ(0);
-  -webkit-transform: translateZ(0);
-  
-  /* Safe area for home indicator */
-  padding-bottom: env(safe-area-inset-bottom);
-  
-  /* Ensure proper layering */
-  background: white;
-  border-top: 1px solid #e5e7eb;
-  box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1);
-}
-
-/* Prevent text selection on navigation items */
-nav a {
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
-}
-
-/* Performance optimizations for smooth scrolling */
-.smooth-scroll {
-  scroll-behavior: smooth;
-  -webkit-overflow-scrolling: touch;
-  
-  /* GPU acceleration for better performance */
-  transform: translate3d(0, 0, 0);
-  -webkit-transform: translate3d(0, 0, 0);
-  
-  /* Smooth momentum scrolling */
-  overscroll-behavior: contain;
-}
-
-/* Remove white overlay/flash during scroll */
-.scroll-container {
-  /* Prevent white overlay during scroll */
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
-  
-  /* Smooth scrolling with GPU acceleration */
-  will-change: transform;
-  transform: translateZ(0);
-  -webkit-transform: translateZ(0);
-  
-  /* Prevent scroll lag */
-  -webkit-overflow-scrolling: touch;
-  overflow-scrolling: touch;
-}
-
-/* Input field improvements for mobile */
-input, textarea, select {
-  /* Prevent zoom on focus */
-  font-size: 16px;
-  
-  /* Better mobile experience */
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  appearance: none;
-  
-  /* Prevent keyboard from affecting layout */
-  width: 100%;
-  box-sizing: border-box;
-}
-
-/* Phone input specific styling */
-input[type="tel"] {
-  /* Ensure numeric keyboard on mobile */
-  -webkit-appearance: none;
-  -moz-appearance: textfield;
-}
-
-/* Prevent unwanted highlighting */
-* {
-  -webkit-tap-highlight-color: transparent;
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  -khtml-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
-}
-
-/* Allow text selection for specific elements */
-input, textarea, [contenteditable] {
-  -webkit-user-select: text;
-  -moz-user-select: text;
-  user-select: text;
-}
-
-/* Custom fonts */
-.font-righteous {
-  font-family: 'Righteous', cursive;
-}
-
-.font-poppins {
-  font-family: 'Poppins', sans-serif;
-}
-
-/* Loading states and animations */
-.animate-spin {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
+@layer components {
+  /* Custom typography utilities */
+  .font-logo {
+    @apply font-righteous font-medium;
   }
-  to {
-    transform: rotate(360deg);
+  
+  .font-heading {
+    @apply font-righteous font-medium;
+  }
+  
+  .font-main {
+    @apply font-righteous font-medium;
+  }
+  
+  .font-body {
+    @apply font-poppins;
   }
 }
 
-/* Utility classes for common mobile issues */
-.tap-highlight-transparent {
-  -webkit-tap-highlight-color: transparent;
-}
+@layer utilities {
+  .tap-highlight-transparent {
+    -webkit-tap-highlight-color: transparent;
+  }
 
-.no-scroll {
-  overflow: hidden;
-  position: fixed;
-  width: 100%;
-}
+  /* Performance optimizations for smooth scrolling */
+  .will-change-scroll {
+    will-change: scroll-position;
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+  }
 
-.transform-gpu {
-  transform: translateZ(0);
-  -webkit-transform: translateZ(0);
-}
+  .transform-gpu {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
 
-/* Additional performance optimizations */
-.will-change-scroll {
-  will-change: scroll-position;
-}
-
-.will-change-transform {
-  will-change: transform;
-}
-
-/* Ensure proper layer stacking */
-.z-bottom-nav {
-  z-index: 1000;
-}
-
-.z-modal {
-  z-index: 2000;
-}
-
-.z-toast {
-  z-index: 3000;
+  .will-change-transform {
+    will-change: transform;
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+  }
 }

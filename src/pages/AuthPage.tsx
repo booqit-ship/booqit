@@ -27,7 +27,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { PermanentSession } from '@/utils/permanentSession';
 import { validateCurrentSession } from '@/utils/sessionRecovery';
 import { Capacitor } from '@capacitor/core';
-import { App } from '@capacitor/app';
 
 const AuthPage: React.FC = () => {
   const location = useLocation();
@@ -52,31 +51,6 @@ const AuthPage: React.FC = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { setAuth, isAuthenticated, userRole, loading } = useAuth();
-
-  // Android back button handler
-  useEffect(() => {
-    if (Capacitor.isNativePlatform()) {
-      const setupBackButtonListener = async () => {
-        const backButtonListener = await App.addListener('backButton', () => {
-          if (isRoleSelected && selectedRole) {
-            // If on auth form, go back to role selection
-            handleBackToRoleSelection();
-          } else {
-            // If on role selection, exit app
-            App.exitApp();
-          }
-        });
-
-        return () => {
-          backButtonListener.remove();
-        };
-      };
-
-      setupBackButtonListener().then((cleanup) => {
-        return cleanup;
-      });
-    }
-  }, [isRoleSelected, selectedRole]);
 
   // Initialize role selection from navigation state
   useEffect(() => {
@@ -148,77 +122,19 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  // Enhanced email validation with database-level duplication check
+  // Enhanced email validation
   const validateEmail = (email: string): boolean => {
     const trimmedEmail = email.trim();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(trimmedEmail) && trimmedEmail.length > 0;
   };
 
-  // Check if email already exists using the database function
-  const checkEmailExists = async (email: string): Promise<boolean> => {
-    try {
-      const { data, error } = await supabase.rpc('check_email_exists', {
-        email_to_check: email.trim().toLowerCase()
-      });
-      
-      if (error) {
-        console.error('Email check error:', error);
-        return false;
-      }
-      
-      return data === true;
-    } catch (error) {
-      console.error('Email check error:', error);
-      return false;
-    }
-  };
-
-  // Enhanced phone validation - only digits, 10-15 length
+  // Enhanced phone validation
   const validatePhone = (phone: string): boolean => {
     if (!phone || phone.trim() === '') return true; // Phone is optional
-    // Remove +91 prefix if present and any spaces/special chars
-    const cleanPhone = phone.replace(/^\+91\s*/, '').replace(/\D/g, '');
-    return cleanPhone.length >= 10 && cleanPhone.length <= 15;
-  };
-
-  // Enhanced password validation - 6+ chars, 1 uppercase, 1 symbol
-  const validatePassword = (password: string): boolean => {
-    if (password.length < 6) return false;
-    
-    const hasUppercase = /[A-Z]/.test(password);
-    const hasSymbol = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
-    
-    return hasUppercase && hasSymbol;
-  };
-
-  // Format phone input to always show +91 prefix
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value;
-    
-    // Remove any non-digit characters except +
-    const cleanValue = value.replace(/[^\d+]/g, '');
-    
-    // Ensure it starts with +91
-    if (!cleanValue.startsWith('+91')) {
-      // If user types digits, prepend +91
-      if (/^\d/.test(cleanValue)) {
-        value = '+91' + cleanValue;
-      } else {
-        value = '+91';
-      }
-    } else {
-      // Limit to +91 + 15 digits max
-      const phoneDigits = cleanValue.substring(3);
-      if (phoneDigits.length > 15) {
-        value = '+91' + phoneDigits.substring(0, 15);
-      } else {
-        value = cleanValue;
-      }
-    }
-    
-    setPhone(value);
-    clearError('phone');
+    const cleanPhone = phone.replace(/\s/g, '');
+    const phoneRegex = /^[\+]?[0-9\s\-\(\)]{10,15}$/;
+    return phoneRegex.test(cleanPhone) && cleanPhone.length >= 10;
   };
 
   // Clear errors when user starts typing
@@ -229,29 +145,24 @@ const AuthPage: React.FC = () => {
   };
 
   // Enhanced form validation
-  const validateForm = async (isLogin: boolean = false): Promise<boolean> => {
+  const validateForm = (isLogin: boolean = false): boolean => {
     const newErrors: typeof errors = {};
     const trimmedEmail = email.trim();
     const trimmedName = name.trim();
+    const trimmedPhone = phone.trim();
 
     // Email validation
     if (!trimmedEmail) {
       newErrors.email = 'Email is required';
     } else if (!validateEmail(trimmedEmail)) {
       newErrors.email = 'Please enter a valid email address';
-    } else if (!isLogin) {
-      // Check for email duplication on registration using database function
-      const emailExists = await checkEmailExists(trimmedEmail);
-      if (emailExists) {
-        newErrors.email = 'Email already in use. Please login or use a different email.';
-      }
     }
 
     // Password validation
     if (!password) {
       newErrors.password = 'Password is required';
-    } else if (!isLogin && !validatePassword(password)) {
-      newErrors.password = 'Password must be 6+ characters with 1 uppercase and 1 special character.';
+    } else if (!isLogin && password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters long';
     }
 
     // Registration-specific validations
@@ -262,8 +173,8 @@ const AuthPage: React.FC = () => {
         newErrors.name = 'Name must be at least 2 characters long';
       }
 
-      if (phone && !validatePhone(phone)) {
-        newErrors.phone = 'Please enter a valid phone number (10-15 digits after +91)';
+      if (trimmedPhone && !validatePhone(trimmedPhone)) {
+        newErrors.phone = 'Please enter a valid phone number (10-15 digits)';
       }
     }
 
@@ -271,18 +182,17 @@ const AuthPage: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Enhanced registration with proper email duplication prevention
+  // Simplified registration with FIXED email redirect URL
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setErrors({});
 
     try {
-      console.log('📝 Starting registration with email duplication check...');
+      console.log('📝 Starting registration with email confirmation...');
       
-      // Validate form with database-level duplication check
-      const isValid = await validateForm(false);
-      if (!isValid) {
+      // Validate form
+      if (!validateForm(false)) {
         setIsLoading(false);
         return;
       }
@@ -300,28 +210,39 @@ const AuthPage: React.FC = () => {
       }
 
       const emailToRegister = email.trim().toLowerCase();
-      
-      // Double-check email existence right before signup to prevent race conditions
-      const emailExists = await checkEmailExists(emailToRegister);
-      if (emailExists) {
-        setErrors({ email: 'Email already in use. Please login or use a different email.' });
+
+      // Check if user already exists first
+      const { data: existingUser } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('email', emailToRegister)
+        .single();
+
+      if (existingUser) {
+        setErrors({ email: "An account with this email already exists. Please try logging in instead." });
         setIsLoading(false);
         return;
       }
 
+      // 🔥 CRITICAL FIX: Always use app.booqit.in/verify for ALL platforms
       const redirectUrl = 'https://app.booqit.in/verify';
       
       console.log('🔗 Using redirect URL:', redirectUrl);
+      console.log('📱 Platform info:', {
+        isNative: Capacitor.isNativePlatform(),
+        platform: Capacitor.getPlatform(),
+        currentOrigin: window.location.origin
+      });
 
-      // Create user account with email confirmation
+      // Create user account with email confirmation - FIXED redirect URL
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: emailToRegister,
         password,
         options: {
-          emailRedirectTo: redirectUrl,
+          emailRedirectTo: redirectUrl, // 🔥 This ensures BOTH browser and Android app redirect correctly
           data: {
             name: name.trim(),
-            phone: phone || null,
+            phone: phone.trim() || null,
             role: selectedRole,
           }
         }
@@ -331,11 +252,13 @@ const AuthPage: React.FC = () => {
         console.error('❌ Auth signup error:', authError);
         
         if (authError.message?.includes('Password should be at least 6 characters')) {
-          setErrors({ password: "Password must be 6+ characters with 1 uppercase and 1 special character." });
+          setErrors({ password: "Password must be at least 6 characters long." });
         } else if (authError.message?.includes('Unable to validate email address')) {
           setErrors({ email: "Please enter a valid email address." });
+        } else if (authError.message?.includes('Signup is disabled')) {
+          setErrors({ general: "Registration is currently disabled. Please contact support." });
         } else if (authError.message?.includes('User already registered')) {
-          setErrors({ email: "Email already in use. Please login or use a different email." });
+          setErrors({ email: "An account with this email already exists. Please try logging in instead." });
         } else {
           setErrors({ general: authError.message || "Failed to create account. Please try again." });
         }
@@ -362,8 +285,8 @@ const AuthPage: React.FC = () => {
 
     } catch (error: any) {
       console.error('❌ Registration error:', error);
-      if (error.message?.includes('duplicate') || error.message?.includes('already exists')) {
-        setErrors({ email: 'Email already in use. Please login or use a different email.' });
+      if (error.message?.includes('duplicate')) {
+        setErrors({ email: 'An account with this email already exists. Please try logging in instead.' });
       } else {
         setErrors({ general: 'Failed to create account. Please check your details and try again.' });
       }
@@ -372,7 +295,7 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  // Enhanced login with validation
+  // Enhanced login with email confirmation check
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -381,8 +304,7 @@ const AuthPage: React.FC = () => {
     try {
       console.log('🔐 Attempting login...');
       
-      const isValid = await validateForm(true);
-      if (!isValid) {
+      if (!validateForm(true)) {
         setIsLoading(false);
         return;
       }
@@ -398,9 +320,12 @@ const AuthPage: React.FC = () => {
         if (error.message?.includes('Invalid login credentials')) {
           setErrors({ general: "Invalid email or password. Please check your credentials and try again." });
         } else if (error.message?.includes('Email not confirmed')) {
+          // Show email verification screen for unconfirmed accounts
           setRegistrationEmail(email.trim().toLowerCase());
           setShowEmailVerification(true);
           setErrors({ general: "Please check your email and click the confirmation link before logging in." });
+        } else if (error.message?.includes('Too many requests')) {
+          setErrors({ general: "Too many login attempts. Please wait a moment and try again." });
         } else {
           setErrors({ general: error.message || "Login failed. Please try again." });
         }
@@ -411,6 +336,7 @@ const AuthPage: React.FC = () => {
       if (data.session && data.user) {
         console.log('✅ Login successful, session created');
         
+        // Validate session
         const isValid = await validateCurrentSession();
         
         if (!isValid) {
@@ -441,8 +367,6 @@ const AuthPage: React.FC = () => {
         
         console.log('🎯 Navigating after login...');
         redirectExecuted.current = true;
-        
-        // Role-based navigation
         if (userRole === 'merchant') {
           const { data: merchantData } = await supabase
             .from('merchants')
@@ -468,6 +392,8 @@ const AuthPage: React.FC = () => {
           title: "Welcome back!",
           description: "You have been logged in successfully.",
         });
+      } else {
+        setErrors({ general: 'No session created during login' });
       }
     } catch (error: any) {
       console.error('❌ Login error:', error);
@@ -482,6 +408,7 @@ const AuthPage: React.FC = () => {
     
     setIsLoading(true);
     try {
+      // 🔥 FIXED: Use same redirect URL for resend as well
       const redirectUrl = 'https://app.booqit.in/verify';
 
       const { error } = await supabase.auth.resend({
@@ -757,8 +684,11 @@ const AuthPage: React.FC = () => {
                       id="phone" 
                       type="tel" 
                       placeholder="+91 XXXXXXXXXX" 
-                      value={phone || '+91'}
-                      onChange={handlePhoneChange}
+                      value={phone}
+                      onChange={(e) => {
+                        setPhone(e.target.value);
+                        clearError('phone');
+                      }}
                       className={`font-poppins ${errors.phone ? 'border-red-500 focus:border-red-500' : ''}`}
                       disabled={isLoading}
                     />
@@ -771,7 +701,7 @@ const AuthPage: React.FC = () => {
                     <Input 
                       id="new-password" 
                       type="password"
-                      placeholder="6+ chars, 1 uppercase, 1 special character"
+                      placeholder="At least 6 characters"
                       value={password}
                       onChange={(e) => {
                         setPassword(e.target.value);
