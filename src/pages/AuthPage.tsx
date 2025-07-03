@@ -56,19 +56,25 @@ const AuthPage: React.FC = () => {
   // Android back button handler
   useEffect(() => {
     if (Capacitor.isNativePlatform()) {
-      const backButtonListener = App.addListener('backButton', () => {
-        if (isRoleSelected && selectedRole) {
-          // If on auth form, go back to role selection
-          handleBackToRoleSelection();
-        } else {
-          // If on role selection, exit app
-          App.exitApp();
-        }
-      });
+      const setupBackButtonListener = async () => {
+        const backButtonListener = await App.addListener('backButton', () => {
+          if (isRoleSelected && selectedRole) {
+            // If on auth form, go back to role selection
+            handleBackToRoleSelection();
+          } else {
+            // If on role selection, exit app
+            App.exitApp();
+          }
+        });
 
-      return () => {
-        backButtonListener.remove();
+        return () => {
+          backButtonListener.remove();
+        };
       };
+
+      setupBackButtonListener().then((cleanup) => {
+        return cleanup;
+      });
     }
   }, [isRoleSelected, selectedRole]);
 
