@@ -52,36 +52,38 @@ const BottomNavigation: React.FC = () => {
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex justify-around items-center h-20 px-4 z-50 shadow-lg">
-      {navItems.map((item) => {
-        const isActive = location.pathname === item.path;
-        
-        return (
-          <Link
-            key={item.path}
-            to={item.path}
-            className="flex flex-col items-center justify-center space-y-1 tap-highlight-transparent py-2"
-          >
-            <div className={cn(
-              "p-2 rounded-xl transition-all duration-200",
-              isActive 
-                ? "bg-booqit-primary text-white shadow-md" 
-                : "text-gray-400 hover:text-gray-600"
-            )}>
-              {item.icon}
-            </div>
-            <span className={cn(
-              "text-xs transition-colors duration-200",
-              isActive 
-                ? "text-booqit-primary font-medium" 
-                : "text-gray-400"
-            )}>
-              {item.label}
-            </span>
-          </Link>
-        );
-      })}
-    </div>
+    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-50 shadow-lg safe-bottom">
+      <div className="flex justify-around items-center h-20 px-4">
+        {navItems.map((item) => {
+          const isActive = location.pathname === item.path;
+          
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              className="flex flex-col items-center justify-center space-y-1 tap-highlight-transparent py-2 min-w-0 flex-1"
+            >
+              <div className={cn(
+                "p-2 rounded-xl transition-all duration-200",
+                isActive 
+                  ? "bg-booqit-primary text-white shadow-md" 
+                  : "text-gray-400 hover:text-gray-600"
+              )}>
+                {item.icon}
+              </div>
+              <span className={cn(
+                "text-xs transition-colors duration-200 truncate",
+                isActive 
+                  ? "text-booqit-primary font-medium" 
+                  : "text-gray-400"
+              )}>
+                {item.label}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
   );
 };
 
