@@ -148,25 +148,28 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  // Enhanced email validation with duplication check
+  // Enhanced email validation with database-level duplication check
   const validateEmail = (email: string): boolean => {
     const trimmedEmail = email.trim();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(trimmedEmail) && trimmedEmail.length > 0;
   };
 
-  // Check if email already exists
+  // Check if email already exists using the database function
   const checkEmailExists = async (email: string): Promise<boolean> => {
     try {
-      const { data: existingUser } = await supabase
-        .from('profiles')
-        .select('email')
-        .eq('email', email.trim().toLowerCase())
-        .single();
+      const { data, error } = await supabase.rpc('check_email_exists', {
+        email_to_check: email.trim().toLowerCase()
+      });
       
-      return !!existingUser;
+      if (error) {
+        console.error('Email check error:', error);
+        return false;
+      }
+      
+      return data === true;
     } catch (error) {
-      console.log('Email check error (likely email not found):', error);
+      console.error('Email check error:', error);
       return false;
     }
   };
@@ -237,7 +240,7 @@ const AuthPage: React.FC = () => {
     } else if (!validateEmail(trimmedEmail)) {
       newErrors.email = 'Please enter a valid email address';
     } else if (!isLogin) {
-      // Check for email duplication on registration
+      // Check for email duplication on registration using database function
       const emailExists = await checkEmailExists(trimmedEmail);
       if (emailExists) {
         newErrors.email = 'Email already in use. Please login or use a different email.';
@@ -268,16 +271,16 @@ const AuthPage: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Enhanced registration with email duplication check
+  // Enhanced registration with proper email duplication prevention
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setErrors({});
 
     try {
-      console.log('📝 Starting registration with validation...');
+      console.log('📝 Starting registration with email duplication check...');
       
-      // Validate form with duplication check
+      // Validate form with database-level duplication check
       const isValid = await validateForm(false);
       if (!isValid) {
         setIsLoading(false);
@@ -297,6 +300,15 @@ const AuthPage: React.FC = () => {
       }
 
       const emailToRegister = email.trim().toLowerCase();
+      
+      // Double-check email existence right before signup to prevent race conditions
+      const emailExists = await checkEmailExists(emailToRegister);
+      if (emailExists) {
+        setErrors({ email: 'Email already in use. Please login or use a different email.' });
+        setIsLoading(false);
+        return;
+      }
+
       const redirectUrl = 'https://app.booqit.in/verify';
       
       console.log('🔗 Using redirect URL:', redirectUrl);
@@ -350,7 +362,7 @@ const AuthPage: React.FC = () => {
 
     } catch (error: any) {
       console.error('❌ Registration error:', error);
-      if (error.message?.includes('duplicate')) {
+      if (error.message?.includes('duplicate') || error.message?.includes('already exists')) {
         setErrors({ email: 'Email already in use. Please login or use a different email.' });
       } else {
         setErrors({ general: 'Failed to create account. Please check your details and try again.' });
