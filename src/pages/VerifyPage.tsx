@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -8,6 +9,7 @@ import { Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { UserRole } from '@/types';
 import { PermanentSession } from '@/utils/permanentSession';
+import { Capacitor } from '@capacitor/core';
 
 const VerifyPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -21,11 +23,15 @@ const VerifyPage: React.FC = () => {
     const processVerification = async () => {
       console.log('🔍 Processing email verification...');
       console.log('Current URL:', window.location.href);
+      console.log('📱 Platform info:', {
+        isNative: Capacitor.isNativePlatform(),
+        platform: Capacitor.getPlatform()
+      });
       
-      // Get parameters from URL
+      // Get parameters from URL - handle both formats
       const accessToken = searchParams.get('access_token');
       const refreshToken = searchParams.get('refresh_token');
-      const confirmationCode = searchParams.get('code');
+      const confirmationCode = searchParams.get('code'); // This is the new format
       const type = searchParams.get('type');
       const urlError = searchParams.get('error');
       const errorDescription = searchParams.get('error_description');
@@ -65,7 +71,7 @@ const VerifyPage: React.FC = () => {
         console.log('⚠️ Session check failed (will continue with token verification):', error);
       }
 
-      // STEP 2: Try token-based verification if no session exists
+      // STEP 2: Try token-based verification
       if (confirmationCode) {
         await handleTokenVerification(confirmationCode);
       } else if (type === 'signup' && accessToken && refreshToken) {
@@ -111,7 +117,12 @@ const VerifyPage: React.FC = () => {
               });
               
               setTimeout(() => {
-                navigate('/auth', { replace: true });
+                // 🔥 FIXED: For Android app, navigate to auth page instead of external redirect
+                if (Capacitor.isNativePlatform()) {
+                  navigate('/auth', { replace: true });
+                } else {
+                  navigate('/auth', { replace: true });
+                }
               }, 2000);
               return;
             }
@@ -155,7 +166,12 @@ const VerifyPage: React.FC = () => {
             });
             
             setTimeout(() => {
-              navigate('/auth', { replace: true });
+              // 🔥 FIXED: For Android app, navigate to auth page
+              if (Capacitor.isNativePlatform()) {
+                navigate('/auth', { replace: true });
+              } else {
+                navigate('/auth', { replace: true });
+              }
             }, 2000);
             return;
           }
@@ -242,7 +258,7 @@ const VerifyPage: React.FC = () => {
           description: "Your account has been verified. Redirecting to your dashboard...",
         });
         
-        // Redirect after success
+        // 🔥 FIXED: For both Android and browser, navigate within the app
         setTimeout(() => {
           if (userRole === 'merchant') {
             navigate('/merchant/onboarding', { replace: true });

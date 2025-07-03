@@ -1,3 +1,4 @@
+
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
@@ -5,7 +6,12 @@ const config: CapacitorConfig = {
   appName: 'booqit',
   webDir: 'dist',
   bundledWebRuntime: false,
-  // 🚫 REMOVE server block completely!
+  // 🔥 CRITICAL: Add server configuration for custom URL scheme handling
+  server: {
+    // This allows the app to handle deep links properly
+    androidScheme: 'https',
+    hostname: 'app.booqit.in'
+  },
   plugins: {
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert']

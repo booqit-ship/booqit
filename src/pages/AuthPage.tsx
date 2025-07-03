@@ -26,6 +26,7 @@ import RoleSelection from '@/components/RoleSelection';
 import { supabase } from '@/integrations/supabase/client';
 import { PermanentSession } from '@/utils/permanentSession';
 import { validateCurrentSession } from '@/utils/sessionRecovery';
+import { Capacitor } from '@capacitor/core';
 
 const AuthPage: React.FC = () => {
   const location = useLocation();
@@ -181,7 +182,7 @@ const AuthPage: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Simplified registration with essential database operations only
+  // Simplified registration with FIXED email redirect URL
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -223,16 +224,22 @@ const AuthPage: React.FC = () => {
         return;
       }
 
-      // Create user account with email confirmation - use production domain
-      const redirectUrl = window.location.hostname === 'localhost' 
-        ? `${window.location.origin}/verify`
-        : 'https://app.booqit.in/verify';
+      // 🔥 CRITICAL FIX: Always use app.booqit.in/verify for ALL platforms
+      const redirectUrl = 'https://app.booqit.in/verify';
+      
+      console.log('🔗 Using redirect URL:', redirectUrl);
+      console.log('📱 Platform info:', {
+        isNative: Capacitor.isNativePlatform(),
+        platform: Capacitor.getPlatform(),
+        currentOrigin: window.location.origin
+      });
 
+      // Create user account with email confirmation - FIXED redirect URL
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: emailToRegister,
         password,
         options: {
-          emailRedirectTo: redirectUrl,
+          emailRedirectTo: redirectUrl, // 🔥 This ensures BOTH browser and Android app redirect correctly
           data: {
             name: name.trim(),
             phone: phone.trim() || null,
@@ -401,9 +408,8 @@ const AuthPage: React.FC = () => {
     
     setIsLoading(true);
     try {
-      const redirectUrl = window.location.hostname === 'localhost' 
-        ? `${window.location.origin}/verify`
-        : 'https://app.booqit.in/verify';
+      // 🔥 FIXED: Use same redirect URL for resend as well
+      const redirectUrl = 'https://app.booqit.in/verify';
 
       const { error } = await supabase.auth.resend({
         type: 'signup',
