@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Eye, EyeOff, Lock, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, Lock, AlertCircle, CheckCircle } from 'lucide-react';
 
 const ResetPasswordPage: React.FC = () => {
   const [password, setPassword] = useState('');
@@ -23,63 +23,95 @@ const ResetPasswordPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showReset, setShowReset] = useState(false);
   const [isValidating, setIsValidating] = useState(true);
+  const [resetSuccess, setResetSuccess] = useState(false);
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
-    const checkPasswordRecovery = async () => {
-      console.log('Checking for password recovery session...');
+    const validateResetSession = async () => {
+      console.log('🔍 Validating password reset session...');
+      console.log('Current URL:', window.location.href);
       
-      // Set up auth state change listener for PASSWORD_RECOVERY event
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(
-        async (event, session) => {
-          console.log('Auth state change event:', event);
+      // Get URL parameters
+      const accessToken = searchParams.get('access_token');
+      const refreshToken = searchParams.get('refresh_token');
+      const type = searchParams.get('type');
+      
+      console.log('Reset params:', { 
+        hasAccessToken: !!accessToken, 
+        hasRefreshToken: !!refreshToken, 
+        type 
+      });
+
+      // If we have tokens in URL, set the session
+      if (accessToken && refreshToken && type === 'recovery') {
+        try {
+          console.log('🔐 Setting session with tokens from URL...');
           
-          if (event === 'PASSWORD_RECOVERY') {
-            console.log('Password recovery event detected');
-            setShowReset(true);
-            setIsValidating(false);
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          });
+          
+          if (error) {
+            console.error('❌ Error setting session:', error);
+            throw error;
           }
+          
+          if (data.session) {
+            console.log('✅ Session set successfully');
+            setShowReset(true);
+          } else {
+            throw new Error('No session created');
+          }
+        } catch (error: any) {
+          console.error('❌ Failed to set session:', error);
+          toast({
+            title: "Invalid Reset Link",
+            description: "This reset link is invalid or has expired. Please request a new one.",
+            variant: "destructive",
+          });
+          setTimeout(() => navigate('/forgot-password'), 2000);
         }
-      );
-
-      // Also check current session state
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        console.log('Current session check:', { 
-          hasSession: !!session, 
-          error: error?.message 
-        });
-        
-        if (session?.user) {
-          console.log('Valid session found for password reset');
-          setShowReset(true);
-        } else {
-          // If no session after a brief wait, redirect to forgot password
-          setTimeout(() => {
-            if (!showReset) {
-              console.log('No password recovery session found, redirecting...');
-              toast({
-                title: "Session Invalid",
-                description: "Your reset session has expired. Please request a new reset link.",
-                variant: "destructive",
-              });
-              navigate('/forgot-password');
-            }
-          }, 3000);
+      } else {
+        // Check if we already have a valid session for password recovery
+        try {
+          const { data: { session }, error } = await supabase.auth.getSession();
+          
+          if (error) {
+            console.error('❌ Session check error:', error);
+            throw error;
+          }
+          
+          if (session?.user) {
+            console.log('✅ Found existing valid session');
+            setShowReset(true);
+          } else {
+            console.log('❌ No valid session found');
+            toast({
+              title: "Session Invalid",
+              description: "Your reset session has expired. Please request a new reset link.",
+              variant: "destructive",
+            });
+            setTimeout(() => navigate('/forgot-password'), 2000);
+          }
+        } catch (error: any) {
+          console.error('❌ Session validation failed:', error);
+          toast({
+            title: "Session Error",
+            description: "Unable to validate your session. Please try again.",
+            variant: "destructive",
+          });
+          setTimeout(() => navigate('/forgot-password'), 2000);
         }
-      } catch (error: any) {
-        console.error('Session validation error:', error);
-      } finally {
-        setIsValidating(false);
       }
-
-      return () => subscription.unsubscribe();
+      
+      setIsValidating(false);
     };
 
-    checkPasswordRecovery();
-  }, [navigate, toast, showReset]);
+    validateResetSession();
+  }, [searchParams, navigate, toast]);
 
   // Enhanced password validation - same as registration
   const validatePassword = (password: string): boolean => {
@@ -120,14 +152,14 @@ const ResetPasswordPage: React.FC = () => {
         throw new Error("Password must be 6+ characters with 1 uppercase and 1 special character.");
       }
 
-      console.log('Updating password...');
+      console.log('🔄 Updating password...');
 
       const { data, error } = await supabase.auth.updateUser({
         password: password
       });
 
       if (error) {
-        console.error('Password update error:', error);
+        console.error('❌ Password update error:', error);
         
         if (error.message.includes('session_not_found') || 
             error.message.includes('invalid_token') ||
@@ -138,22 +170,23 @@ const ResetPasswordPage: React.FC = () => {
         throw new Error(error.message || "Failed to update password");
       }
 
-      console.log('Password updated successfully');
-
+      console.log('✅ Password updated successfully');
+      
+      setResetSuccess(true);
+      
       toast({
         title: "Password Updated!",
-        description: "Your password has been successfully updated. Redirecting to login...",
+        description: "Your password has been successfully updated.",
       });
 
-      // Sign out for security and redirect to login
-      await supabase.auth.signOut();
-      
-      setTimeout(() => {
+      // Sign out for security and redirect to login after a delay
+      setTimeout(async () => {
+        await supabase.auth.signOut();
         navigate('/auth');
-      }, 2000);
+      }, 3000);
       
     } catch (error: any) {
-      console.error('Password reset error:', error);
+      console.error('❌ Password reset error:', error);
       
       if (error.message.includes('session') || 
           error.message.includes('token') || 
@@ -176,6 +209,37 @@ const ResetPasswordPage: React.FC = () => {
     }
   };
 
+  // Show success state
+  if (resetSuccess) {
+    return (
+      <motion.div 
+        className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-booqit-primary/10 to-white p-6"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+      >
+        <div className="w-full max-w-md">
+          <Card className="border-none shadow-lg">
+            <CardHeader className="text-center">
+              <div className="mx-auto mb-4 w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-green-600" />
+              </div>
+              <CardTitle className="text-2xl font-righteous text-booqit-dark">
+                Password Updated!
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-center">
+              <p className="text-booqit-dark/70 font-poppins mb-4">
+                Your password has been successfully updated. You'll be redirected to login shortly.
+              </p>
+              <div className="w-6 h-6 border-2 border-booqit-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+            </CardContent>
+          </Card>
+        </div>
+      </motion.div>
+    );
+  }
+
   // Show loading state while validating session
   if (isValidating) {
     return (
@@ -197,7 +261,7 @@ const ResetPasswordPage: React.FC = () => {
             </CardHeader>
             <CardContent className="text-center">
               <p className="text-booqit-dark/70 font-poppins">
-                Please wait while we validate your session...
+                Please wait while we validate your reset session...
               </p>
             </CardContent>
           </Card>

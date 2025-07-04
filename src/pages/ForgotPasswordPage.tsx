@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -16,11 +17,9 @@ const ForgotPasswordPage: React.FC = () => {
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const { toast } = useToast();
 
-  // Always use app.booqit.in for password reset emails - CRITICAL for reliability
+  // Always use app.booqit.in for password reset emails - CRITICAL for cross-device compatibility
   const getResetRedirectUrl = () => {
-    const redirectUrl = 'https://app.booqit.in/reset-password';
-    console.log('🔗 Using redirect URL for password reset:', redirectUrl);
-    return redirectUrl;
+    return 'https://app.booqit.in/reset-password';
   };
 
   // Cooldown timer effect
@@ -63,32 +62,24 @@ const ForgotPasswordPage: React.FC = () => {
       const redirectUrl = getResetRedirectUrl();
       console.log('🔗 Using redirect URL:', redirectUrl);
 
-      // Enhanced error handling and retry logic for email delivery
+      // Send password reset email with proper redirect URL
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: redirectUrl,
-        // Add additional options for better email delivery
-        captchaToken: undefined // Ensure no captcha blocking
+        redirectTo: redirectUrl
       });
       
       if (error) {
         console.error('❌ Reset password error:', error);
 
-        // Handle specific error cases with better user feedback
+        // Handle specific error cases
         if (error.message.includes('rate limit') || error.message.includes('Email rate limit exceeded')) {
           setCooldownSeconds(60);
           throw new Error("Too many reset attempts. Please wait 1 minute before trying again.");
         } else if (error.message.includes('invalid_email')) {
           throw new Error("Please enter a valid email address.");
-        } else if (error.message.includes('email not confirmed')) {
-          // Still show success for security, but log the actual error
-          console.log('⚠️ Email not confirmed, but showing success message for security');
-        } else if (error.message.includes('User not found')) {
-          // For security, don't reveal that user doesn't exist
-          console.log('⚠️ User not found, but showing success message for security');
         }
         
-        // For most errors, still show success message for security
-        console.log('✅ Showing success message despite error for security purposes');
+        // For security, don't reveal if user exists - just show success
+        console.log('⚠️ Error occurred, but showing success message for security');
       }
       
       console.log('✅ Password reset email request processed successfully');

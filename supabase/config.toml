@@ -40,15 +40,16 @@ additional_redirect_urls = [
   "https://localhost:3000/reset-password",
   "https://11abe201-5c2e-4bfd-8399-358f356fd184.lovableproject.com/reset-password"
 ]
-jwt_expiry = 86400 # 24 hours, so the access token lasts a day
+jwt_expiry = 86400 # 24 hours
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
 enable_signup = true
 enable_email_confirmations = true
-refresh_token_expiry = 3600 # 1 hour for password reset tokens
+# Set password reset token expiry to 1 hour (3600 seconds)
+password_reset_expiry = 3600
 # Ensure email delivery is reliable
 enable_anonymous_sign_ins = false
 disable_signup = false
-# Email rate limiting - increase limits for better reliability
-email_rate_limit = 30
+# Email rate limiting - reasonable limits for production use
+email_rate_limit = 10
 email_rate_limit_window = 3600 # 1 hour window
