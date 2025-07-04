@@ -33,7 +33,35 @@ const ResetPasswordPage: React.FC = () => {
       console.log('🔍 Validating password reset session...');
       console.log('Current URL:', window.location.href);
       
-      // Get URL parameters
+      // Check for error parameters first
+      const error = searchParams.get('error');
+      const errorCode = searchParams.get('error_code');
+      const errorDescription = searchParams.get('error_description');
+      
+      if (error) {
+        console.log('❌ Reset link error:', { error, errorCode, errorDescription });
+        
+        let errorMessage = 'This reset link is invalid or has expired.';
+        
+        if (errorCode === 'otp_expired') {
+          errorMessage = 'This password reset link has expired. Please request a new one.';
+        } else if (error === 'access_denied') {
+          errorMessage = 'This password reset link is invalid. Please request a new one.';
+        }
+        
+        toast({
+          title: "Invalid Reset Link",
+          description: errorMessage,
+          variant: "destructive",
+        });
+        
+        // Redirect to forgot password page after showing error
+        setTimeout(() => navigate('/forgot-password'), 3000);
+        setIsValidating(false);
+        return;
+      }
+      
+      // Get URL parameters for valid reset
       const accessToken = searchParams.get('access_token');
       const refreshToken = searchParams.get('refresh_token');
       const type = searchParams.get('type');
@@ -44,10 +72,10 @@ const ResetPasswordPage: React.FC = () => {
         type 
       });
 
-      // If we have tokens in URL, set the session
+      // Check if we have the required tokens for password recovery
       if (accessToken && refreshToken && type === 'recovery') {
         try {
-          console.log('🔐 Setting session with tokens from URL...');
+          console.log('🔐 Setting session with recovery tokens...');
           
           const { data, error } = await supabase.auth.setSession({
             access_token: accessToken,
@@ -55,18 +83,18 @@ const ResetPasswordPage: React.FC = () => {
           });
           
           if (error) {
-            console.error('❌ Error setting session:', error);
+            console.error('❌ Error setting recovery session:', error);
             throw error;
           }
           
           if (data.session) {
-            console.log('✅ Session set successfully');
+            console.log('✅ Recovery session set successfully');
             setShowReset(true);
           } else {
-            throw new Error('No session created');
+            throw new Error('No session created from recovery tokens');
           }
         } catch (error: any) {
-          console.error('❌ Failed to set session:', error);
+          console.error('❌ Failed to set recovery session:', error);
           toast({
             title: "Invalid Reset Link",
             description: "This reset link is invalid or has expired. Please request a new one.",
@@ -75,36 +103,14 @@ const ResetPasswordPage: React.FC = () => {
           setTimeout(() => navigate('/forgot-password'), 2000);
         }
       } else {
-        // Check if we already have a valid session for password recovery
-        try {
-          const { data: { session }, error } = await supabase.auth.getSession();
-          
-          if (error) {
-            console.error('❌ Session check error:', error);
-            throw error;
-          }
-          
-          if (session?.user) {
-            console.log('✅ Found existing valid session');
-            setShowReset(true);
-          } else {
-            console.log('❌ No valid session found');
-            toast({
-              title: "Session Invalid",
-              description: "Your reset session has expired. Please request a new reset link.",
-              variant: "destructive",
-            });
-            setTimeout(() => navigate('/forgot-password'), 2000);
-          }
-        } catch (error: any) {
-          console.error('❌ Session validation failed:', error);
-          toast({
-            title: "Session Error",
-            description: "Unable to validate your session. Please try again.",
-            variant: "destructive",
-          });
-          setTimeout(() => navigate('/forgot-password'), 2000);
-        }
+        // No valid recovery tokens found
+        console.log('❌ No valid recovery tokens found');
+        toast({
+          title: "Invalid Reset Link",
+          description: "This reset link is missing required information. Please request a new reset link.",
+          variant: "destructive",
+        });
+        setTimeout(() => navigate('/forgot-password'), 2000);
       }
       
       setIsValidating(false);
@@ -113,12 +119,10 @@ const ResetPasswordPage: React.FC = () => {
     validateResetSession();
   }, [searchParams, navigate, toast]);
 
-  // Enhanced password validation - same as registration
+  // Enhanced password validation
   const validatePassword = (password: string): boolean => {
     if (password.length < 6) return false;
-    // At least 1 uppercase letter
     if (!/[A-Z]/.test(password)) return false;
-    // At least 1 special character
     if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/.test(password)) return false;
     return true;
   };
@@ -256,12 +260,12 @@ const ResetPasswordPage: React.FC = () => {
                 <Lock className="w-6 h-6 text-booqit-primary animate-pulse" />
               </div>
               <CardTitle className="text-2xl font-righteous text-booqit-dark">
-                Validating Session
+                Validating Reset Link
               </CardTitle>
             </CardHeader>
             <CardContent className="text-center">
               <p className="text-booqit-dark/70 font-poppins">
-                Please wait while we validate your reset session...
+                Please wait while we validate your password reset link...
               </p>
             </CardContent>
           </Card>
@@ -286,12 +290,12 @@ const ResetPasswordPage: React.FC = () => {
                 <AlertCircle className="w-6 h-6 text-red-600" />
               </div>
               <CardTitle className="text-2xl font-righteous text-booqit-dark">
-                Invalid Session
+                Invalid Reset Link
               </CardTitle>
             </CardHeader>
             <CardContent className="text-center">
               <p className="text-booqit-dark/70 font-poppins mb-4">
-                Your password reset session has expired or is invalid.
+                This password reset link is invalid or has expired.
               </p>
               <Button 
                 onClick={() => navigate('/forgot-password')} 

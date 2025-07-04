@@ -17,7 +17,7 @@ const ForgotPasswordPage: React.FC = () => {
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const { toast } = useToast();
 
-  // Always use app.booqit.in for password reset emails - CRITICAL for cross-device compatibility
+  // Always use app.booqit.in for password reset emails
   const getResetRedirectUrl = () => {
     return 'https://app.booqit.in/reset-password';
   };
@@ -121,7 +121,7 @@ const ForgotPasswordPage: React.FC = () => {
                 Check Your Email
               </CardTitle>
               <CardDescription className="font-poppins">
-                Password reset instructions have been sent to your email.
+                A password reset link has been sent to your email if an account exists.
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center space-y-4">
@@ -135,9 +135,9 @@ const ForgotPasswordPage: React.FC = () => {
                 If you don't see the email in your inbox within 5 minutes, please check your spam folder.
               </p>
               
-              <div className="bg-gray-50 p-3 rounded-lg">
-                <p className="text-xs text-gray-500 font-poppins">
-                  Still no email? Wait a moment before requesting a new one, or contact support.
+              <div className="bg-amber-50 p-3 rounded-lg">
+                <p className="text-xs text-amber-700 font-poppins">
+                  <strong>Cross-device note:</strong> You can open the reset link on any device - the link will work on both mobile and desktop.
                 </p>
               </div>
             </CardContent>
@@ -222,7 +222,7 @@ const ForgotPasswordPage: React.FC = () => {
                   <AlertCircle className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
                   <p className="text-xs text-gray-600 font-poppins">
                     For security, we'll send reset instructions to your email if an account exists. 
-                    The link expires in 1 hour. Check spam folder if needed.
+                    The link expires in 1 hour and works on any device.
                   </p>
                 </div>
               </div>
