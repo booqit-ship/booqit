@@ -17,9 +17,9 @@ const ForgotPasswordPage: React.FC = () => {
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const { toast } = useToast();
 
-  // Always use booqit.in for password reset emails
+  // Always use app.booqit.in for password reset emails
   const getResetRedirectUrl = () => {
-    const redirectUrl = 'https://booqit.in/verify';
+    const redirectUrl = 'https://app.booqit.in/reset-password';
     console.log('Using redirect URL for password reset:', redirectUrl);
     return redirectUrl;
   };

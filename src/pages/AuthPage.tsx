@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -28,6 +27,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { PermanentSession } from '@/utils/permanentSession';
 import { validateCurrentSession } from '@/utils/sessionRecovery';
 import { Capacitor } from '@capacitor/core';
+import { Eye, EyeOff } from 'lucide-react';
 
 const AuthPage: React.FC = () => {
   const location = useLocation();
@@ -36,15 +36,19 @@ const AuthPage: React.FC = () => {
   const [isRoleSelected, setIsRoleSelected] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [agreeToPolicies, setAgreeToPolicies] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showEmailVerification, setShowEmailVerification] = useState(false);
   const [registrationEmail, setRegistrationEmail] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState<{
     email?: string;
     password?: string;
+    confirmPassword?: string;
     name?: string;
     phone?: string;
     general?: string;
@@ -185,7 +189,7 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  // Enhanced form validation with all new rules
+  // Enhanced form validation with confirm password
   const validateForm = async (isLogin: boolean = false): Promise<boolean> => {
     const newErrors: typeof errors = {};
     const trimmedEmail = email.trim();
@@ -224,6 +228,13 @@ const AuthPage: React.FC = () => {
 
       if (trimmedPhone && !validatePhone(trimmedPhone)) {
         newErrors.phone = 'Please enter 10-15 digits only';
+      }
+
+      // Confirm password validation
+      if (!confirmPassword) {
+        newErrors.confirmPassword = 'Please confirm your password';
+      } else if (password !== confirmPassword) {
+        newErrors.confirmPassword = 'Passwords do not match';
       }
     }
 
@@ -643,19 +654,34 @@ const AuthPage: React.FC = () => {
                         </span>
                       </div>
                     </div>
-                    <Input 
-                      id="password" 
-                      type="password" 
-                      value={password}
-                      onChange={(e) => {
-                        setPassword(e.target.value);
-                        clearError('password');
-                      }}
-                      onKeyDown={handleKeyDown}
-                      className={`font-poppins ${errors.password ? 'border-red-500 focus:border-red-500' : ''}`}
-                      required
-                      disabled={isLoading}
-                    />
+                    <div className="relative">
+                      <Input 
+                        id="password" 
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          clearError('password');
+                        }}
+                        onKeyDown={handleKeyDown}
+                        className={`font-poppins pr-10 ${errors.password ? 'border-red-500 focus:border-red-500' : ''}`}
+                        required
+                        disabled={isLoading}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4 text-gray-400" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-gray-400" />
+                        )}
+                      </Button>
+                    </div>
                     {errors.password && (
                       <p className="text-sm text-red-600">{errors.password}</p>
                     )}
@@ -748,24 +774,75 @@ const AuthPage: React.FC = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="new-password" className="font-poppins">Password *</Label>
-                    <Input 
-                      id="new-password" 
-                      type="password"
-                      placeholder="At least 6 characters"
-                      value={password}
-                      onChange={(e) => {
-                        setPassword(e.target.value);
-                        clearError('password');
-                      }}
-                      className={`font-poppins ${errors.password ? 'border-red-500 focus:border-red-500' : ''}`}
-                      required
-                      disabled={isLoading}
-                      minLength={6}
-                    />
+                    <div className="relative">
+                      <Input 
+                        id="new-password" 
+                        type={showPassword ? "text" : "password"}
+                        placeholder="At least 6 characters"
+                        value={password}
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          clearError('password');
+                        }}
+                        className={`font-poppins pr-10 ${errors.password ? 'border-red-500 focus:border-red-500' : ''}`}
+                        required
+                        disabled={isLoading}
+                        minLength={6}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4 text-gray-400" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-gray-400" />
+                        )}
+                      </Button>
+                    </div>
                     {errors.password && (
                       <p className="text-sm text-red-600">{errors.password}</p>
                     )}
                     <p className="text-xs text-gray-500 font-poppins">Must have 6+ characters, 1 uppercase, and 1 special character</p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm-password" className="font-poppins">Confirm Password *</Label>
+                    <div className="relative">
+                      <Input 
+                        id="confirm-password" 
+                        type={showConfirmPassword ? "text" : "password"}
+                        placeholder="Confirm your password"
+                        value={confirmPassword}
+                        onChange={(e) => {
+                          setConfirmPassword(e.target.value);
+                          clearError('confirmPassword');
+                        }}
+                        className={`font-poppins pr-10 ${errors.confirmPassword ? 'border-red-500 focus:border-red-500' : ''}`}
+                        required
+                        disabled={isLoading}
+                        minLength={6}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOff className="h-4 w-4 text-gray-400" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-gray-400" />
+                        )}
+                      </Button>
+                    </div>
+                    {errors.confirmPassword && (
+                      <p className="text-sm text-red-600">{errors.confirmPassword}</p>
+                    )}
                   </div>
                   
                   <div className="flex items-start space-x-2 pt-2">

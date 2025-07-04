@@ -21,65 +21,80 @@ const ResetPasswordPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showReset, setShowReset] = useState(false);
   const [isValidating, setIsValidating] = useState(true);
-  const [hasValidSession, setHasValidSession] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
-    const validateSession = async () => {
-      console.log('Validating user session for password reset...');
+    const checkPasswordRecovery = async () => {
+      console.log('Checking for password recovery session...');
       
+      // Set up auth state change listener for PASSWORD_RECOVERY event
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        async (event, session) => {
+          console.log('Auth state change event:', event);
+          
+          if (event === 'PASSWORD_RECOVERY') {
+            console.log('Password recovery event detected');
+            setShowReset(true);
+            setIsValidating(false);
+          }
+        }
+      );
+
+      // Also check current session state
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
         
-        console.log('Session check result:', { 
+        console.log('Current session check:', { 
           hasSession: !!session, 
-          error: error?.message,
-          userId: session?.user?.id
+          error: error?.message 
         });
         
-        if (error) {
-          console.error('Session validation error:', error);
-          throw new Error('Session validation failed');
+        if (session?.user) {
+          console.log('Valid session found for password reset');
+          setShowReset(true);
+        } else {
+          // If no session after a brief wait, redirect to forgot password
+          setTimeout(() => {
+            if (!showReset) {
+              console.log('No password recovery session found, redirecting...');
+              toast({
+                title: "Session Invalid",
+                description: "Your reset session has expired. Please request a new reset link.",
+                variant: "destructive",
+              });
+              navigate('/forgot-password');
+            }
+          }, 3000);
         }
-        
-        if (!session || !session.user) {
-          throw new Error('No valid session found');
-        }
-        
-        // Additional check: ensure this is a recovery session
-        if (session.user.aud !== 'authenticated') {
-          throw new Error('Invalid session type');
-        }
-        
-        console.log('Valid session found for password reset');
-        setHasValidSession(true);
-        
       } catch (error: any) {
-        console.error('Session validation failed:', error);
-        
-        toast({
-          title: "Session Invalid",
-          description: "Your reset session has expired. Please request a new reset link.",
-          variant: "destructive",
-        });
-        
-        setTimeout(() => {
-          navigate('/forgot-password');
-        }, 2000);
+        console.error('Session validation error:', error);
       } finally {
         setIsValidating(false);
       }
+
+      return () => subscription.unsubscribe();
     };
 
-    validateSession();
-  }, [navigate, toast]);
+    checkPasswordRecovery();
+  }, [navigate, toast, showReset]);
+
+  // Enhanced password validation - same as registration
+  const validatePassword = (password: string): boolean => {
+    if (password.length < 6) return false;
+    // At least 1 uppercase letter
+    if (!/[A-Z]/.test(password)) return false;
+    // At least 1 special character
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/.test(password)) return false;
+    return true;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!hasValidSession) {
+    if (!showReset) {
       toast({
         title: "Session Invalid",
         description: "Please request a new password reset link.",
@@ -101,8 +116,8 @@ const ResetPasswordPage: React.FC = () => {
         throw new Error("Passwords do not match");
       }
 
-      if (password.length < 6) {
-        throw new Error("Password must be at least 6 characters long");
+      if (!validatePassword(password)) {
+        throw new Error("Password must be 6+ characters with 1 uppercase and 1 special character.");
       }
 
       console.log('Updating password...');
@@ -192,7 +207,7 @@ const ResetPasswordPage: React.FC = () => {
   }
 
   // Show error state if no valid session
-  if (!hasValidSession) {
+  if (!showReset) {
     return (
       <motion.div 
         className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-booqit-primary/10 to-white p-6"
@@ -312,9 +327,9 @@ const ResetPasswordPage: React.FC = () => {
                 </div>
               </div>
 
-              {password && password.length < 6 && (
+              {password && !validatePassword(password) && (
                 <div className="text-sm text-red-600 font-poppins">
-                  Password must be at least 6 characters long
+                  Password must be 6+ characters with 1 uppercase and 1 special character.
                 </div>
               )}
               
@@ -328,7 +343,7 @@ const ResetPasswordPage: React.FC = () => {
               <Button 
                 type="submit" 
                 className="w-full bg-booqit-primary hover:bg-booqit-primary/90 font-poppins"
-                disabled={isLoading || !password || !confirmPassword || password !== confirmPassword}
+                disabled={isLoading || !password || !confirmPassword || password !== confirmPassword || !validatePassword(password)}
               >
                 {isLoading ? "Updating..." : "Update Password"}
               </Button>
