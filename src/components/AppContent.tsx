@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import {
   Route,
@@ -62,9 +63,13 @@ import GuestBookingSuccessPage from '@/pages/guest/GuestBookingSuccessPage';
 import GuestBookingCancellationPage from '@/pages/guest/GuestBookingCancellationPage';
 import GuestBookingHistoryPage from '@/pages/guest/GuestBookingHistoryPage';
 import NotFound from '@/pages/NotFound';
+import { useCapacitor } from '@/hooks/useCapacitor';
 
 const AppContent: React.FC = () => {
   const [loading, setLoading] = useState(true);
+  
+  // Initialize Capacitor functionality (includes Android back button handling)
+  const { isNative, isReady } = useCapacitor();
 
   useEffect(() => {
     const getSession = async () => {
@@ -106,7 +111,17 @@ const AppContent: React.FC = () => {
     initializeNative();
   }, []);
 
-
+  // Don't render until Capacitor is ready on native platforms
+  if (isNative && !isReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-booqit-primary/20 to-white">
+        <div className="text-center">
+          <h1 className="text-2xl font-righteous mb-2">BooqIt</h1>
+          <div className="w-6 h-6 border-2 border-booqit-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <ErrorBoundary>

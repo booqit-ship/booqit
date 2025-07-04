@@ -1,6 +1,8 @@
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { PermanentSession } from '@/utils/permanentSession';
 
 interface AuthContextType {
   user: User | null;
@@ -71,13 +73,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Enhanced logout that clears everything and goes to role selection
   const logout = async () => {
     try {
+      console.log('🔓 Starting logout process...');
+      
+      // Clear permanent session first
+      PermanentSession.clearSession();
+      
+      // Sign out from Supabase
       await supabase.auth.signOut();
+      
+      // Clear local state
       setUser(null);
       setUserRole(null);
+      
+      console.log('✅ Logout completed - redirecting to role selection');
+      
+      // Force redirect to role selection page
+      window.location.href = '/';
+      
     } catch (error) {
-      console.error('Error signing out:', error);
+      console.error('❌ Error during logout:', error);
+      // Even if logout fails, clear local state and redirect
+      PermanentSession.clearSession();
+      setUser(null);
+      setUserRole(null);
+      window.location.href = '/';
     }
   };
 
@@ -97,6 +119,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('🔄 Auth state change:', event);
         setAuth(session);
         setLoading(false);
       }

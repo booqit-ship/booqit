@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -122,19 +123,59 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  // Enhanced email validation
-  const validateEmail = (email: string): boolean => {
+  // Enhanced email validation with duplication check
+  const validateEmail = async (email: string): Promise<boolean> => {
     const trimmedEmail = email.trim();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(trimmedEmail) && trimmedEmail.length > 0;
+    
+    if (!emailRegex.test(trimmedEmail) || trimmedEmail.length === 0) {
+      return false;
+    }
+
+    try {
+      // Check if email already exists using our database function
+      const { data, error } = await supabase.rpc('check_email_exists', { 
+        email_to_check: trimmedEmail.toLowerCase() 
+      });
+      
+      if (error) {
+        console.error('Error checking email existence:', error);
+        return true; // Allow signup if check fails
+      }
+      
+      return !data; // Return true if email doesn't exist
+    } catch (error) {
+      console.error('Error in email validation:', error);
+      return true; // Allow signup if check fails
+    }
   };
 
-  // Enhanced phone validation
+  // Enhanced phone validation - strict +91 format
   const validatePhone = (phone: string): boolean => {
     if (!phone || phone.trim() === '') return true; // Phone is optional
     const cleanPhone = phone.replace(/\s/g, '');
-    const phoneRegex = /^[\+]?[0-9\s\-\(\)]{10,15}$/;
-    return phoneRegex.test(cleanPhone) && cleanPhone.length >= 10;
+    // Must be exactly 10-15 digits (no +91 prefix in input as it's static)
+    const phoneRegex = /^[0-9]{10,15}$/;
+    return phoneRegex.test(cleanPhone);
+  };
+
+  // Enhanced password validation - strict requirements
+  const validatePassword = (password: string): boolean => {
+    if (password.length < 6) return false;
+    // At least 1 uppercase letter
+    if (!/[A-Z]/.test(password)) return false;
+    // At least 1 special character
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/.test(password)) return false;
+    return true;
+  };
+
+  // Handle phone input - only allow digits
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // Only allow digits and limit to 15 characters
+    const digitsOnly = value.replace(/[^0-9]/g, '').slice(0, 15);
+    setPhone(digitsOnly);
+    clearError('phone');
   };
 
   // Clear errors when user starts typing
@@ -144,24 +185,32 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  // Enhanced form validation
-  const validateForm = (isLogin: boolean = false): boolean => {
+  // Enhanced form validation with all new rules
+  const validateForm = async (isLogin: boolean = false): Promise<boolean> => {
     const newErrors: typeof errors = {};
     const trimmedEmail = email.trim();
     const trimmedName = name.trim();
     const trimmedPhone = phone.trim();
 
-    // Email validation
+    // Email validation with duplication check for signup
     if (!trimmedEmail) {
       newErrors.email = 'Email is required';
-    } else if (!validateEmail(trimmedEmail)) {
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
       newErrors.email = 'Please enter a valid email address';
+    } else if (!isLogin) {
+      // Check for email duplication only during signup
+      const emailAvailable = await validateEmail(trimmedEmail);
+      if (!emailAvailable) {
+        newErrors.email = 'Email already in use. Please login or use a different email.';
+      }
     }
 
-    // Password validation
+    // Enhanced password validation
     if (!password) {
       newErrors.password = 'Password is required';
-    } else if (!isLogin && password.length < 6) {
+    } else if (!isLogin && !validatePassword(password)) {
+      newErrors.password = 'Password must be 6+ characters with 1 uppercase and 1 special character.';
+    } else if (isLogin && password.length < 6) {
       newErrors.password = 'Password must be at least 6 characters long';
     }
 
@@ -174,7 +223,7 @@ const AuthPage: React.FC = () => {
       }
 
       if (trimmedPhone && !validatePhone(trimmedPhone)) {
-        newErrors.phone = 'Please enter a valid phone number (10-15 digits)';
+        newErrors.phone = 'Please enter 10-15 digits only';
       }
     }
 
@@ -182,7 +231,7 @@ const AuthPage: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Simplified registration with FIXED email redirect URL
+  // Enhanced registration with email duplication prevention
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -191,8 +240,8 @@ const AuthPage: React.FC = () => {
     try {
       console.log('📝 Starting registration with email confirmation...');
       
-      // Validate form
-      if (!validateForm(false)) {
+      // Validate form with async email check
+      if (!(await validateForm(false))) {
         setIsLoading(false);
         return;
       }
@@ -211,20 +260,18 @@ const AuthPage: React.FC = () => {
 
       const emailToRegister = email.trim().toLowerCase();
 
-      // Check if user already exists first
-      const { data: existingUser } = await supabase
-        .from('profiles')
-        .select('email')
-        .eq('email', emailToRegister)
-        .single();
+      // Final email duplication check before signup
+      const { data: emailExists } = await supabase.rpc('check_email_exists', { 
+        email_to_check: emailToRegister 
+      });
 
-      if (existingUser) {
-        setErrors({ email: "An account with this email already exists. Please try logging in instead." });
+      if (emailExists) {
+        setErrors({ email: "Email already in use. Please login or use a different email." });
         setIsLoading(false);
         return;
       }
 
-      // 🔥 CRITICAL FIX: Always use app.booqit.in/verify for ALL platforms
+      // Use app.booqit.in/verify for ALL platforms
       const redirectUrl = 'https://app.booqit.in/verify';
       
       console.log('🔗 Using redirect URL:', redirectUrl);
@@ -234,15 +281,15 @@ const AuthPage: React.FC = () => {
         currentOrigin: window.location.origin
       });
 
-      // Create user account with email confirmation - FIXED redirect URL
+      // Create user account with email confirmation
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: emailToRegister,
         password,
         options: {
-          emailRedirectTo: redirectUrl, // 🔥 This ensures BOTH browser and Android app redirect correctly
+          emailRedirectTo: redirectUrl,
           data: {
             name: name.trim(),
-            phone: phone.trim() || null,
+            phone: phone.trim() ? `+91${phone.trim()}` : null, // Add +91 prefix
             role: selectedRole,
           }
         }
@@ -252,13 +299,13 @@ const AuthPage: React.FC = () => {
         console.error('❌ Auth signup error:', authError);
         
         if (authError.message?.includes('Password should be at least 6 characters')) {
-          setErrors({ password: "Password must be at least 6 characters long." });
+          setErrors({ password: "Password must be 6+ characters with 1 uppercase and 1 special character." });
         } else if (authError.message?.includes('Unable to validate email address')) {
           setErrors({ email: "Please enter a valid email address." });
         } else if (authError.message?.includes('Signup is disabled')) {
           setErrors({ general: "Registration is currently disabled. Please contact support." });
         } else if (authError.message?.includes('User already registered')) {
-          setErrors({ email: "An account with this email already exists. Please try logging in instead." });
+          setErrors({ email: "Email already in use. Please login or use a different email." });
         } else {
           setErrors({ general: authError.message || "Failed to create account. Please try again." });
         }
@@ -286,7 +333,7 @@ const AuthPage: React.FC = () => {
     } catch (error: any) {
       console.error('❌ Registration error:', error);
       if (error.message?.includes('duplicate')) {
-        setErrors({ email: 'An account with this email already exists. Please try logging in instead.' });
+        setErrors({ email: 'Email already in use. Please login or use a different email.' });
       } else {
         setErrors({ general: 'Failed to create account. Please check your details and try again.' });
       }
@@ -295,7 +342,7 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  // Enhanced login with email confirmation check
+  // Enhanced login with improved validation
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -304,7 +351,7 @@ const AuthPage: React.FC = () => {
     try {
       console.log('🔐 Attempting login...');
       
-      if (!validateForm(true)) {
+      if (!(await validateForm(true))) {
         setIsLoading(false);
         return;
       }
@@ -408,7 +455,6 @@ const AuthPage: React.FC = () => {
     
     setIsLoading(true);
     try {
-      // 🔥 FIXED: Use same redirect URL for resend as well
       const redirectUrl = 'https://app.booqit.in/verify';
 
       const { error } = await supabase.auth.resend({
@@ -680,21 +726,25 @@ const AuthPage: React.FC = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone" className="font-poppins">Phone Number</Label>
-                    <Input 
-                      id="phone" 
-                      type="tel" 
-                      placeholder="+91 XXXXXXXXXX" 
-                      value={phone}
-                      onChange={(e) => {
-                        setPhone(e.target.value);
-                        clearError('phone');
-                      }}
-                      className={`font-poppins ${errors.phone ? 'border-red-500 focus:border-red-500' : ''}`}
-                      disabled={isLoading}
-                    />
+                    <div className="flex">
+                      <div className="flex items-center px-3 bg-gray-100 border border-r-0 rounded-l-md font-poppins text-gray-700">
+                        +91
+                      </div>
+                      <Input 
+                        id="phone" 
+                        type="tel" 
+                        placeholder="9876543210" 
+                        value={phone}
+                        onChange={handlePhoneChange}
+                        className={`font-poppins rounded-l-none ${errors.phone ? 'border-red-500 focus:border-red-500' : ''}`}
+                        disabled={isLoading}
+                        maxLength={15}
+                      />
+                    </div>
                     {errors.phone && (
                       <p className="text-sm text-red-600">{errors.phone}</p>
                     )}
+                    <p className="text-xs text-gray-500 font-poppins">Enter 10-15 digits only</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="new-password" className="font-poppins">Password *</Label>
@@ -715,6 +765,7 @@ const AuthPage: React.FC = () => {
                     {errors.password && (
                       <p className="text-sm text-red-600">{errors.password}</p>
                     )}
+                    <p className="text-xs text-gray-500 font-poppins">Must have 6+ characters, 1 uppercase, and 1 special character</p>
                   </div>
                   
                   <div className="flex items-start space-x-2 pt-2">

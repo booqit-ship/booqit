@@ -52,7 +52,19 @@ const BottomNavigation: React.FC = () => {
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex justify-around items-center h-20 px-4 z-50 shadow-lg">
+    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex justify-around items-center h-20 px-4 z-50 shadow-lg transform-gpu will-change-transform" 
+         style={{ 
+           position: 'fixed',
+           bottom: 0,
+           left: 0,
+           right: 0,
+           zIndex: 9999,
+           // Ensure it stays above keyboard and other elements
+           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+           // Prevent keyboard from pushing it up
+           transform: 'translateZ(0)',
+           backfaceVisibility: 'hidden'
+         }}>
       {navItems.map((item) => {
         const isActive = location.pathname === item.path;
         

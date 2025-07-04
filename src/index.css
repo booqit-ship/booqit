@@ -99,6 +99,8 @@
     box-sizing: border-box;
     -webkit-text-size-adjust: 100%;
     -webkit-overflow-scrolling: touch;
+    /* Prevent keyboard from resizing viewport */
+    resize: none;
   }
 
   body {
@@ -119,6 +121,8 @@
     /* Ensure smooth scrolling */
     -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
+    /* Prevent keyboard from affecting layout */
+    position: relative;
   }
 
   #root {
@@ -126,6 +130,8 @@
     width: 100%;
     overflow-x: hidden;
     position: relative;
+    /* Ensure bottom navigation stays fixed */
+    padding-bottom: 5rem; /* Space for bottom navigation */
   }
 
   /* Typography classes for consistent font usage */
@@ -143,6 +149,21 @@
 
   .body-text {
     @apply font-poppins;
+  }
+
+  /* Android keyboard handling - prevent bottom nav from moving */
+  @supports (-webkit-appearance: none) {
+    body {
+      /* iOS specific fixes */
+      position: fixed;
+      overflow: hidden;
+    }
+    
+    #root {
+      overflow-y: auto;
+      height: 100vh;
+      -webkit-overflow-scrolling: touch;
+    }
   }
 }
 
@@ -188,5 +209,18 @@
     will-change: transform;
     -webkit-transform: translateZ(0);
     transform: translateZ(0);
+  }
+
+  /* Fixed bottom navigation that doesn't move with keyboard */
+  .bottom-nav-fixed {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 9999 !important;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
   }
 }
