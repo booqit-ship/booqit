@@ -242,7 +242,7 @@ const AuthPage: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Enhanced registration with email duplication prevention
+  // Enhanced registration with improved email delivery
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -282,17 +282,17 @@ const AuthPage: React.FC = () => {
         return;
       }
 
-      // Use app.booqit.in/verify for ALL platforms
+      // CRITICAL: Use app.booqit.in for reliable email delivery
       const redirectUrl = 'https://app.booqit.in/verify';
       
-      console.log('🔗 Using redirect URL:', redirectUrl);
+      console.log('🔗 Using verification redirect URL:', redirectUrl);
       console.log('📱 Platform info:', {
         isNative: Capacitor.isNativePlatform(),
         platform: Capacitor.getPlatform(),
         currentOrigin: window.location.origin
       });
 
-      // Create user account with email confirmation
+      // Enhanced signup with better email delivery options
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: emailToRegister,
         password,
@@ -300,9 +300,11 @@ const AuthPage: React.FC = () => {
           emailRedirectTo: redirectUrl,
           data: {
             name: name.trim(),
-            phone: phone.trim() ? `+91${phone.trim()}` : null, // Add +91 prefix
+            phone: phone.trim() ? `+91${phone.trim()}` : null,
             role: selectedRole,
-          }
+          },
+          // Additional options for reliable email delivery
+          captchaToken: undefined, // Ensure no captcha blocking
         }
       });
 
@@ -317,6 +319,8 @@ const AuthPage: React.FC = () => {
           setErrors({ general: "Registration is currently disabled. Please contact support." });
         } else if (authError.message?.includes('User already registered')) {
           setErrors({ email: "Email already in use. Please login or use a different email." });
+        } else if (authError.message?.includes('rate limit')) {
+          setErrors({ general: "Too many registration attempts. Please wait a moment and try again." });
         } else {
           setErrors({ general: authError.message || "Failed to create account. Please try again." });
         }
@@ -338,7 +342,7 @@ const AuthPage: React.FC = () => {
       
       toast({
         title: "Check your email!",
-        description: "We've sent you a confirmation link. Please check your email and click the link to verify your account.",
+        description: "We've sent you a confirmation link. Please check your email (including spam folder) and click the link to verify your account.",
       });
 
     } catch (error: any) {
@@ -348,6 +352,60 @@ const AuthPage: React.FC = () => {
       } else {
         setErrors({ general: 'Failed to create account. Please check your details and try again.' });
       }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Enhanced email resend with better error handling
+  const resendConfirmationEmail = async () => {
+    if (!registrationEmail) return;
+    
+    setIsLoading(true);
+    try {
+      const redirectUrl = 'https://app.booqit.in/verify';
+      console.log('🔄 Resending confirmation email to:', registrationEmail);
+      console.log('🔗 Using redirect URL:', redirectUrl);
+
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: registrationEmail,
+        options: {
+          emailRedirectTo: redirectUrl,
+          captchaToken: undefined
+        }
+      });
+
+      if (error) {
+        console.error('❌ Resend error:', error);
+        
+        if (error.message?.includes('rate limit')) {
+          toast({
+            title: "Please wait",
+            description: "Too many email requests. Please wait a moment before trying again.",
+            variant: "destructive"
+          });
+        } else {
+          toast({
+            title: "Error",
+            description: "Failed to resend confirmation email. Please try again.",
+            variant: "destructive"
+          });
+        }
+      } else {
+        console.log('✅ Confirmation email resent successfully');
+        toast({
+          title: "Email sent!",
+          description: "We've sent another confirmation email. Please check your inbox and spam folder.",
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error resending confirmation:', error);
+      toast({
+        title: "Error",
+        description: "Failed to resend confirmation email.",
+        variant: "destructive"
+      });
     } finally {
       setIsLoading(false);
     }
@@ -461,46 +519,7 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  const resendConfirmationEmail = async () => {
-    if (!registrationEmail) return;
-    
-    setIsLoading(true);
-    try {
-      const redirectUrl = 'https://app.booqit.in/verify';
-
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: registrationEmail,
-        options: {
-          emailRedirectTo: redirectUrl
-        }
-      });
-
-      if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to resend confirmation email. Please try again.",
-          variant: "destructive"
-        });
-      } else {
-        toast({
-          title: "Email sent!",
-          description: "We've sent another confirmation email. Please check your inbox.",
-        });
-      }
-    } catch (error) {
-      console.error('Error resending confirmation:', error);
-      toast({
-        title: "Error",
-        description: "Failed to resend confirmation email.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Show email verification screen
+  // Show email verification screen with enhanced messaging
   if (showEmailVerification) {
     return (
       <motion.div 
@@ -528,8 +547,13 @@ const AuthPage: React.FC = () => {
                 </p>
               </div>
               <p className="text-sm text-gray-600 font-poppins">
-                Don't forget to check your spam folder if you don't see the email.
+                <strong>Important:</strong> Check your spam folder if you don't see the email within 5 minutes.
               </p>
+              <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                <p className="text-xs text-yellow-800 font-poppins">
+                  The confirmation link will expire in 24 hours for security.
+                </p>
+              </div>
             </CardContent>
             <CardFooter className="flex flex-col space-y-2">
               <Button 

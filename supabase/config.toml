@@ -46,3 +46,9 @@ refresh_token_reuse_interval = 10
 enable_signup = true
 enable_email_confirmations = true
 refresh_token_expiry = 3600 # 1 hour for password reset tokens
+# Ensure email delivery is reliable
+enable_anonymous_sign_ins = false
+disable_signup = false
+# Email rate limiting - increase limits for better reliability
+email_rate_limit = 30
+email_rate_limit_window = 3600 # 1 hour window

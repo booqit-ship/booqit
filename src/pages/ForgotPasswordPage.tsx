@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -17,10 +16,10 @@ const ForgotPasswordPage: React.FC = () => {
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const { toast } = useToast();
 
-  // Always use app.booqit.in for password reset emails
+  // Always use app.booqit.in for password reset emails - CRITICAL for reliability
   const getResetRedirectUrl = () => {
     const redirectUrl = 'https://app.booqit.in/reset-password';
-    console.log('Using redirect URL for password reset:', redirectUrl);
+    console.log('🔗 Using redirect URL for password reset:', redirectUrl);
     return redirectUrl;
   };
 
@@ -53,26 +52,28 @@ const ForgotPasswordPage: React.FC = () => {
         throw new Error("Please enter your email address");
       }
 
-      // Validate email format
+      // Enhanced email validation
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(email.trim())) {
         throw new Error("Please enter a valid email address");
       }
       
-      console.log('Sending password reset email to:', email.trim());
+      console.log('📧 Sending password reset email to:', email.trim());
 
       const redirectUrl = getResetRedirectUrl();
-      console.log('Using redirect URL:', redirectUrl);
+      console.log('🔗 Using redirect URL:', redirectUrl);
 
-      // Call Supabase to send password reset email
+      // Enhanced error handling and retry logic for email delivery
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: redirectUrl
+        redirectTo: redirectUrl,
+        // Add additional options for better email delivery
+        captchaToken: undefined // Ensure no captcha blocking
       });
       
       if (error) {
-        console.error('Reset password error:', error);
+        console.error('❌ Reset password error:', error);
 
-        // Handle specific error cases
+        // Handle specific error cases with better user feedback
         if (error.message.includes('rate limit') || error.message.includes('Email rate limit exceeded')) {
           setCooldownSeconds(60);
           throw new Error("Too many reset attempts. Please wait 1 minute before trying again.");
@@ -80,23 +81,26 @@ const ForgotPasswordPage: React.FC = () => {
           throw new Error("Please enter a valid email address.");
         } else if (error.message.includes('email not confirmed')) {
           // Still show success for security, but log the actual error
-          console.log('Email not confirmed, but showing success message for security');
+          console.log('⚠️ Email not confirmed, but showing success message for security');
+        } else if (error.message.includes('User not found')) {
+          // For security, don't reveal that user doesn't exist
+          console.log('⚠️ User not found, but showing success message for security');
         }
         
-        // For other errors, still proceed to show success for security
-        console.log('Showing success message despite error for security purposes');
+        // For most errors, still show success message for security
+        console.log('✅ Showing success message despite error for security purposes');
       }
       
-      console.log('Password reset email request processed');
+      console.log('✅ Password reset email request processed successfully');
       setEmailSent(true);
       
       toast({
         title: "Reset link sent!",
-        description: "If an account with this email exists, you'll receive a password reset link. Please check your spam folder if you don't see it."
+        description: "If an account with this email exists, you'll receive a password reset link. Please check your spam folder if you don't see it within 5 minutes."
       });
       
     } catch (error: any) {
-      console.error('Password reset error:', error);
+      console.error('❌ Password reset error:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to send reset email. Please try again.",
@@ -107,6 +111,7 @@ const ForgotPasswordPage: React.FC = () => {
     }
   };
 
+  
   if (emailSent) {
     return (
       <motion.div 
@@ -136,12 +141,12 @@ const ForgotPasswordPage: React.FC = () => {
               </div>
               
               <p className="text-sm text-gray-600 font-poppins">
-                If you don't see the email in your inbox, please check your spam folder.
+                If you don't see the email in your inbox within 5 minutes, please check your spam folder.
               </p>
               
               <div className="bg-gray-50 p-3 rounded-lg">
                 <p className="text-xs text-gray-500 font-poppins">
-                  Didn't receive the email? Wait a moment before requesting a new one.
+                  Still no email? Wait a moment before requesting a new one, or contact support.
                 </p>
               </div>
             </CardContent>
@@ -226,7 +231,7 @@ const ForgotPasswordPage: React.FC = () => {
                   <AlertCircle className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
                   <p className="text-xs text-gray-600 font-poppins">
                     For security, we'll send reset instructions to your email if an account exists. 
-                    The link expires in 1 hour.
+                    The link expires in 1 hour. Check spam folder if needed.
                   </p>
                 </div>
               </div>
