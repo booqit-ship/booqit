@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,13 +25,15 @@ const ResetPasswordPage: React.FC = () => {
   const [isValidating, setIsValidating] = useState(true);
   const [resetSuccess, setResetSuccess] = useState(false);
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
-    const validateResetSession = async () => {
-      console.log('🔍 Validating password reset session...');
+    const handlePasswordReset = async () => {
+      console.log('🔍 Starting password reset validation...');
       console.log('Current URL:', window.location.href);
+      console.log('Location:', location.pathname + location.search + location.hash);
       
       // Check for error parameters first
       const error = searchParams.get('error');
@@ -39,14 +41,12 @@ const ResetPasswordPage: React.FC = () => {
       const errorDescription = searchParams.get('error_description');
       
       if (error) {
-        console.log('❌ Reset link error:', { error, errorCode, errorDescription });
+        console.log('❌ Reset link error detected:', { error, errorCode, errorDescription });
         
         let errorMessage = 'This reset link is invalid or has expired.';
         
-        if (errorCode === 'otp_expired') {
-          errorMessage = 'This password reset link has expired. Please request a new one.';
-        } else if (error === 'access_denied') {
-          errorMessage = 'This password reset link is invalid. Please request a new one.';
+        if (errorCode === 'otp_expired' || error === 'access_denied') {
+          errorMessage = 'This password reset link has expired or is invalid. Please request a new one.';
         }
         
         toast({
@@ -55,69 +55,99 @@ const ResetPasswordPage: React.FC = () => {
           variant: "destructive",
         });
         
-        // Redirect to forgot password page after showing error
         setTimeout(() => navigate('/forgot-password'), 3000);
         setIsValidating(false);
         return;
       }
+
+      // Extract tokens from URL (both query params and hash fragments)
+      const getTokenFromUrl = (param: string): string | null => {
+        // First check URL search params
+        const fromParams = searchParams.get(param);
+        if (fromParams) return fromParams;
+        
+        // Then check hash fragment
+        const hash = window.location.hash.substring(1);
+        const hashParams = new URLSearchParams(hash);
+        return hashParams.get(param);
+      };
+
+      const accessToken = getTokenFromUrl('access_token');
+      const refreshToken = getTokenFromUrl('refresh_token');
+      const type = getTokenFromUrl('type');
       
-      // Get URL parameters for valid reset
-      const accessToken = searchParams.get('access_token');
-      const refreshToken = searchParams.get('refresh_token');
-      const type = searchParams.get('type');
-      
-      console.log('Reset params:', { 
+      console.log('🔐 Extracted tokens:', { 
         hasAccessToken: !!accessToken, 
         hasRefreshToken: !!refreshToken, 
-        type 
+        type,
+        accessTokenLength: accessToken?.length || 0,
+        refreshTokenLength: refreshToken?.length || 0
       });
 
-      // Check if we have the required tokens for password recovery
       if (accessToken && refreshToken && type === 'recovery') {
         try {
-          console.log('🔐 Setting session with recovery tokens...');
+          console.log('🔄 Setting recovery session...');
           
-          const { data, error } = await supabase.auth.setSession({
+          // Clear any existing session first
+          await supabase.auth.signOut();
+          
+          // Small delay to ensure signOut completes
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          // Set the new session with the recovery tokens
+          const { data, error: sessionError } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken
           });
           
-          if (error) {
-            console.error('❌ Error setting recovery session:', error);
-            throw error;
+          if (sessionError) {
+            console.error('❌ Session error:', sessionError);
+            throw new Error(`Session error: ${sessionError.message}`);
           }
           
-          if (data.session) {
-            console.log('✅ Recovery session set successfully');
+          if (data.session && data.user) {
+            console.log('✅ Recovery session established successfully');
+            console.log('User ID:', data.user.id);
+            console.log('Session expires at:', data.session.expires_at);
+            
             setShowReset(true);
+            toast({
+              title: "Reset Link Verified",
+              description: "You can now set your new password.",
+            });
           } else {
-            throw new Error('No session created from recovery tokens');
+            throw new Error('No session or user returned from setSession');
           }
         } catch (error: any) {
-          console.error('❌ Failed to set recovery session:', error);
+          console.error('❌ Failed to establish recovery session:', error);
+          
           toast({
-            title: "Invalid Reset Link",
-            description: "This reset link is invalid or has expired. Please request a new one.",
+            title: "Session Error",
+            description: `Unable to verify reset link: ${error.message}`,
             variant: "destructive",
           });
+          
           setTimeout(() => navigate('/forgot-password'), 2000);
         }
       } else {
-        // No valid recovery tokens found
-        console.log('❌ No valid recovery tokens found');
+        console.log('❌ Missing required tokens or invalid type');
+        console.log('Required: access_token, refresh_token, type=recovery');
+        console.log('Got:', { accessToken: !!accessToken, refreshToken: !!refreshToken, type });
+        
         toast({
-          title: "Invalid Reset Link",
-          description: "This reset link is missing required information. Please request a new reset link.",
+          title: "Invalid Reset Link", 
+          description: "This reset link is missing required information. Please request a new one.",
           variant: "destructive",
         });
+        
         setTimeout(() => navigate('/forgot-password'), 2000);
       }
       
       setIsValidating(false);
     };
 
-    validateResetSession();
-  }, [searchParams, navigate, toast]);
+    handlePasswordReset();
+  }, [searchParams, location, navigate, toast]);
 
   // Enhanced password validation
   const validatePassword = (password: string): boolean => {
@@ -158,19 +188,19 @@ const ResetPasswordPage: React.FC = () => {
 
       console.log('🔄 Updating password...');
 
+      // Verify we still have a valid session before updating
+      const { data: sessionCheck, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !sessionCheck.session) {
+        throw new Error("Your session has expired. Please request a new reset link.");
+      }
+
       const { data, error } = await supabase.auth.updateUser({
         password: password
       });
 
       if (error) {
         console.error('❌ Password update error:', error);
-        
-        if (error.message.includes('session_not_found') || 
-            error.message.includes('invalid_token') ||
-            error.message.includes('expired')) {
-          throw new Error("Your session has expired. Please request a new reset link.");
-        }
-        
         throw new Error(error.message || "Failed to update password");
       }
 
@@ -192,22 +222,11 @@ const ResetPasswordPage: React.FC = () => {
     } catch (error: any) {
       console.error('❌ Password reset error:', error);
       
-      if (error.message.includes('session') || 
-          error.message.includes('token') || 
-          error.message.includes('expired')) {
-        toast({
-          title: "Session Expired",
-          description: "Please request a new password reset link.",
-          variant: "destructive",
-        });
-        navigate('/forgot-password');
-      } else {
-        toast({
-          title: "Error",
-          description: error.message || "Failed to update password.",
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update password.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }

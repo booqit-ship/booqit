@@ -10,7 +10,13 @@ const config: CapacitorConfig = {
   server: {
     // This allows the app to handle deep links properly
     androidScheme: 'https',
-    hostname: 'app.booqit.in'
+    hostname: 'app.booqit.in',
+    // Allow mixed content for better compatibility
+    allowNavigation: [
+      'app.booqit.in',
+      '*.supabase.co',
+      'supabase.com'
+    ]
   },
   plugins: {
     PushNotifications: {
@@ -23,12 +29,23 @@ const config: CapacitorConfig = {
       overlaysWebView: false,
       style: 'Default',
       backgroundColor: '#7E57C2'
+    },
+    // Add deep linking support
+    App: {
+      deepLinkingEnabled: true
     }
   },
   android: {
     allowMixedContent: true,
     captureInput: true,
-    webContentsDebuggingEnabled: false
+    webContentsDebuggingEnabled: false,
+    // Enable deep linking for password reset
+    deepLinks: [
+      {
+        scheme: 'https',
+        hostname: 'app.booqit.in'
+      }
+    ]
   }
 };
 

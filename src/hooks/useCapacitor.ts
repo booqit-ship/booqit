@@ -1,9 +1,11 @@
+
 import { useEffect, useState, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { UnifiedNotificationService } from '@/services/UnifiedNotificationService';
+import { setupNativeCapacitorFeatures } from '@/utils/nativeCapacitorSetup';
 
 export const useCapacitor = () => {
   const [isNative, setIsNative] = useState(false);
@@ -29,6 +31,9 @@ export const useCapacitor = () => {
 
       if (native) {
         try {
+          // Setup native feel first
+          setupNativeCapacitorFeatures();
+          
           await StatusBar.setStyle({ style: Style.Default });
           await StatusBar.setBackgroundColor({ color: '#7E57C2' });
 
@@ -91,7 +96,7 @@ export const useCapacitor = () => {
             }
           });
 
-          console.log('✅ Native platform initialized');
+          console.log('✅ Native platform initialized with native feel');
         } catch (error) {
           console.error('❌ Error initializing native platform:', error);
         }
