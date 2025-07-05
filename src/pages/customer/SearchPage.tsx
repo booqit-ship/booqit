@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -23,7 +24,7 @@ const SearchPage: React.FC = () => {
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>({ lat: 12.9716, lng: 77.5946 });
   const [mapZoom, setMapZoom] = useState(11);
   const [specificSearchActive, setSpecificSearchActive] = useState(false);
-  const [isSearchMode, setIsSearchMode] = useState(false); // New state for enter/clear button
+  const [isSearchMode, setIsSearchMode] = useState(false);
   const [filters, setFilters] = useState({
     sortBy: 'rating',
     priceRange: 'all',
@@ -522,7 +523,7 @@ const SearchPage: React.FC = () => {
   };
 
   return (
-    <div className="h-[100dvh] w-full flex flex-col overflow-hidden relative">
+    <div className="h-screen w-full flex flex-col overflow-hidden fixed inset-0">
       {/* Floating Search Bar with Suggestions */}
       <div className="absolute top-4 left-4 right-4 z-50">
         <form onSubmit={handleSearch}>
@@ -588,8 +589,8 @@ const SearchPage: React.FC = () => {
         </form>
       </div>
 
-      {/* Map View - Full Height */}
-      <div className="flex-1 w-full">
+      {/* Map View - Fixed, Non-scrollable */}
+      <div className="flex-1 w-full h-full fixed inset-0 overflow-hidden">
         <GoogleMapComponent 
           center={mapCenter}
           zoom={mapZoom}
