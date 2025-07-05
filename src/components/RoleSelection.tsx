@@ -18,24 +18,24 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({ onRoleSelect }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-booqit-primary/10 to-white flex flex-col items-center justify-center p-4">
+    <div className="h-screen overflow-hidden bg-gradient-to-br from-booqit-primary/10 to-white flex flex-col items-center justify-center p-4">
       <motion.div 
         initial={{ scale: 0.9, opacity: 0 }} 
         animate={{ scale: 1, opacity: 1 }} 
         transition={{ duration: 0.5 }} 
-        className="w-full max-w-md space-y-6"
+        className="w-full max-w-md space-y-4"
       >
         {/* Logo */}
         <div className="text-center">
-          <h1 className="text-5xl font-righteous mb-2 text-black font-medium">
+          <h1 className="text-4xl font-righteous mb-2 text-black font-medium">
             booqit
           </h1>
-          <p className="text-gray-600 font-poppins">Choose how you want to continue</p>
+          <p className="text-gray-600 font-poppins text-sm">Choose how you want to continue</p>
         </div>
 
-        {/* Static Image - No Loading Logic */}
+        {/* Compact Image */}
         <div className="text-center">
-          <div className="relative w-full h-64 mx-auto overflow-hidden rounded-lg">
+          <div className="relative w-full h-40 mx-auto overflow-hidden rounded-lg">
             <img 
               src="/lovable-uploads/d7dc2456-35dc-4a91-bbac-3783a243d686.png"
               alt="BooqIt Service Illustration" 
@@ -46,19 +46,19 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({ onRoleSelect }) => {
         </div>
 
         {/* Role Selection Cards */}
-        <div className="space-y-4">
+        <div className="space-y-3">
           <Card className="cursor-pointer hover:shadow-lg transition-all duration-200 border-2 hover:border-booqit-primary/50">
             <CardContent 
-              className="p-6" 
+              className="p-4" 
               onClick={(e) => handleRoleClick('customer', e)}
             >
               <div className="flex items-center space-x-4">
-                <div className="p-3 bg-booqit-primary/10 rounded-full">
-                  <User className="h-6 w-6 text-booqit-primary" />
+                <div className="p-2 bg-booqit-primary/10 rounded-full">
+                  <User className="h-5 w-5 text-booqit-primary" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-lg font-righteous font-light">I'm a Customer</h3>
-                  <p className="text-gray-600 text-sm font-poppins">Book appointments at Salons & Beauty Salon</p>
+                  <h3 className="text-base font-righteous font-light">I'm a Customer</h3>
+                  <p className="text-gray-600 text-xs font-poppins">Book appointments at Salons & Beauty Salon</p>
                 </div>
               </div>
             </CardContent>
@@ -66,24 +66,24 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({ onRoleSelect }) => {
 
           <Card className="cursor-pointer hover:shadow-lg transition-all duration-200 border-2 hover:border-booqit-primary/50">
             <CardContent 
-              className="p-6" 
+              className="p-4" 
               onClick={(e) => handleRoleClick('merchant', e)}
             >
               <div className="flex items-center space-x-4">
-                <div className="p-3 bg-booqit-secondary/10 rounded-full">
-                  <Store className="h-6 w-6 text-booqit-secondary" />
+                <div className="p-2 bg-booqit-secondary/10 rounded-full">
+                  <Store className="h-5 w-5 text-booqit-secondary" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-righteous text-lg font-light">I'm a Business Owner</h3>
-                  <p className="text-gray-600 text-sm font-poppins">Manage my Salon or Beauty Salon business</p>
+                  <h3 className="font-righteous text-base font-light">I'm a Business Owner</h3>
+                  <p className="text-gray-600 text-xs font-poppins">Manage my Salon or Beauty Salon business</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Additional Info */}
-        <div className="text-center">
+        {/* Additional Info - Compact */}
+        <div className="text-center pt-2">
           <p className="text-xs text-gray-500 font-poppins">
             By continuing, you agree to our Terms of Service and Privacy Policy
           </p>
