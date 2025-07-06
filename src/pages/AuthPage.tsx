@@ -127,39 +127,12 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  // Enhanced email validation with duplication check
-  const validateEmail = async (email: string): Promise<boolean> => {
-    const trimmedEmail = email.trim();
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    
-    if (!emailRegex.test(trimmedEmail) || trimmedEmail.length === 0) {
-      return false;
-    }
-
-    try {
-      // Check if email already exists using our database function
-      const { data, error } = await supabase.rpc('check_email_exists', { 
-        email_to_check: trimmedEmail.toLowerCase() 
-      });
-      
-      if (error) {
-        console.error('Error checking email existence:', error);
-        return true; // Allow signup if check fails
-      }
-      
-      return !data; // Return true if email doesn't exist
-    } catch (error) {
-      console.error('Error in email validation:', error);
-      return true; // Allow signup if check fails
-    }
-  };
-
-  // Enhanced phone validation - strict +91 format
+  // Enhanced phone validation - strict +91 format and MANDATORY
   const validatePhone = (phone: string): boolean => {
-    if (!phone || phone.trim() === '') return true; // Phone is optional
+    if (!phone || phone.trim() === '') return false; // Phone is now MANDATORY
     const cleanPhone = phone.replace(/\s/g, '');
-    // Must be exactly 10-15 digits (no +91 prefix in input as it's static)
-    const phoneRegex = /^[0-9]{10,15}$/;
+    // Must be exactly 10 digits (Indian mobile numbers)
+    const phoneRegex = /^[6-9][0-9]{9}$/;
     return phoneRegex.test(cleanPhone);
   };
 
@@ -173,11 +146,11 @@ const AuthPage: React.FC = () => {
     return true;
   };
 
-  // Handle phone input - only allow digits
+  // Handle phone input - only allow digits and make it mandatory
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    // Only allow digits and limit to 15 characters
-    const digitsOnly = value.replace(/[^0-9]/g, '').slice(0, 15);
+    // Only allow digits and limit to 10 characters for Indian mobile numbers
+    const digitsOnly = value.replace(/[^0-9]/g, '').slice(0, 10);
     setPhone(digitsOnly);
     clearError('phone');
   };
@@ -189,7 +162,7 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  // Enhanced form validation with confirm password
+  // Enhanced form validation with MANDATORY phone number
   const validateForm = async (isLogin: boolean = false): Promise<boolean> => {
     const newErrors: typeof errors = {};
     const trimmedEmail = email.trim();
@@ -226,8 +199,11 @@ const AuthPage: React.FC = () => {
         newErrors.name = 'Name must be at least 2 characters long';
       }
 
-      if (trimmedPhone && !validatePhone(trimmedPhone)) {
-        newErrors.phone = 'Please enter 10-15 digits only';
+      // MANDATORY phone number validation
+      if (!trimmedPhone) {
+        newErrors.phone = 'Phone number is required';
+      } else if (!validatePhone(trimmedPhone)) {
+        newErrors.phone = 'Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9';
       }
 
       // Confirm password validation
@@ -242,7 +218,34 @@ const AuthPage: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Enhanced registration with improved email delivery
+  // Enhanced email validation with duplication check
+  const validateEmail = async (email: string): Promise<boolean> => {
+    const trimmedEmail = email.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    
+    if (!emailRegex.test(trimmedEmail) || trimmedEmail.length === 0) {
+      return false;
+    }
+
+    try {
+      // Check if email already exists using our database function
+      const { data, error } = await supabase.rpc('check_email_exists', { 
+        email_to_check: trimmedEmail.toLowerCase() 
+      });
+      
+      if (error) {
+        console.error('Error checking email existence:', error);
+        return true; // Allow signup if check fails
+      }
+      
+      return !data; // Return true if email doesn't exist
+    } catch (error) {
+      console.error('Error in email validation:', error);
+      return true; // Allow signup if check fails
+    }
+  };
+
+  // Enhanced registration with MANDATORY phone validation
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -265,6 +268,19 @@ const AuthPage: React.FC = () => {
 
       if (!selectedRole) {
         setErrors({ general: "Please select a role" });
+        setIsLoading(false);
+        return;
+      }
+
+      // MANDATORY phone number check
+      if (!phone.trim()) {
+        setErrors({ phone: "Phone number is required for registration" });
+        setIsLoading(false);
+        return;
+      }
+
+      if (!validatePhone(phone.trim())) {
+        setErrors({ phone: "Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9" });
         setIsLoading(false);
         return;
       }
@@ -292,7 +308,7 @@ const AuthPage: React.FC = () => {
         currentOrigin: window.location.origin
       });
 
-      // Enhanced signup with better email delivery options
+      // Enhanced signup with MANDATORY phone number in metadata
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: emailToRegister,
         password,
@@ -300,7 +316,7 @@ const AuthPage: React.FC = () => {
           emailRedirectTo: redirectUrl,
           data: {
             name: name.trim(),
-            phone: phone.trim() ? `+91${phone.trim()}` : null,
+            phone: `+91${phone.trim()}`, // MANDATORY phone with country code
             role: selectedRole,
           },
           // Additional options for reliable email delivery
@@ -334,7 +350,7 @@ const AuthPage: React.FC = () => {
         return;
       }
 
-      console.log('✅ User account created, email confirmation required:', authData.user.id);
+      console.log('✅ User account created with mandatory phone, email confirmation required:', authData.user.id);
 
       // Show email verification screen
       setRegistrationEmail(emailToRegister);
@@ -629,7 +645,7 @@ const AuthPage: React.FC = () => {
                 variant="ghost" 
                 size="sm" 
                 className="p-0 font-poppins" 
-                onClick={handleBackToRoleSelection}
+                onClick={() => navigate('/')}
               >
                 ← Change Role
               </Button>
@@ -733,7 +749,7 @@ const AuthPage: React.FC = () => {
                   )}
                   
                   <div className="p-3 text-sm text-blue-600 bg-blue-50 border border-blue-200 rounded-md">
-                    <strong>Email Verification Required:</strong> You'll need to verify your email address before you can log in.
+                    <strong>Required Information:</strong> All fields including mobile number are mandatory for registration.
                   </div>
                   
                   <div className="space-y-2">
@@ -755,6 +771,7 @@ const AuthPage: React.FC = () => {
                       <p className="text-sm text-red-600">{errors.name}</p>
                     )}
                   </div>
+                  
                   <div className="space-y-2">
                     <Label htmlFor="email" className="font-poppins">Email *</Label>
                     <Input 
@@ -774,8 +791,9 @@ const AuthPage: React.FC = () => {
                       <p className="text-sm text-red-600">{errors.email}</p>
                     )}
                   </div>
+                  
                   <div className="space-y-2">
-                    <Label htmlFor="phone" className="font-poppins">Phone Number</Label>
+                    <Label htmlFor="phone" className="font-poppins">Mobile Number *</Label>
                     <div className="flex">
                       <div className="flex items-center px-3 bg-gray-100 border border-r-0 rounded-l-md font-poppins text-gray-700">
                         +91
@@ -788,14 +806,16 @@ const AuthPage: React.FC = () => {
                         onChange={handlePhoneChange}
                         className={`font-poppins rounded-l-none ${errors.phone ? 'border-red-500 focus:border-red-500' : ''}`}
                         disabled={isLoading}
-                        maxLength={15}
+                        maxLength={10}
+                        required
                       />
                     </div>
                     {errors.phone && (
                       <p className="text-sm text-red-600">{errors.phone}</p>
                     )}
-                    <p className="text-xs text-gray-500 font-poppins">Enter 10-15 digits only</p>
+                    <p className="text-xs text-gray-500 font-poppins">Enter 10 digits starting with 6, 7, 8, or 9 (Required)</p>
                   </div>
+                  
                   <div className="space-y-2">
                     <Label htmlFor="new-password" className="font-poppins">Password *</Label>
                     <div className="relative">
@@ -907,7 +927,7 @@ const AuthPage: React.FC = () => {
                   <Button 
                     type="submit" 
                     className="w-full bg-booqit-primary hover:bg-booqit-primary/90 font-poppins"
-                    disabled={isLoading || !agreeToPolicies}
+                    disabled={isLoading || !agreeToPolicies || !phone.trim()}
                   >
                     {isLoading ? "Creating Account..." : "Create Account"}
                   </Button>

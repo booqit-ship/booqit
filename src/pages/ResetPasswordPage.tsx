@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -59,16 +60,20 @@ const ResetPasswordPage: React.FC = () => {
         return;
       }
 
-      // Extract tokens from URL (both query params and hash fragments)
+      // Enhanced token extraction - check both URL params and hash fragments
       const getTokenFromUrl = (param: string): string | null => {
-        // First check URL search params
+        // Check URL search params first
         const fromParams = searchParams.get(param);
         if (fromParams) return fromParams;
         
-        // Then check hash fragment
+        // Check hash fragment
         const hash = window.location.hash.substring(1);
-        const hashParams = new URLSearchParams(hash);
-        return hashParams.get(param);
+        if (hash) {
+          const hashParams = new URLSearchParams(hash);
+          return hashParams.get(param);
+        }
+        
+        return null;
       };
 
       const accessToken = getTokenFromUrl('access_token');
@@ -87,13 +92,17 @@ const ResetPasswordPage: React.FC = () => {
         try {
           console.log('🔄 Setting recovery session...');
           
-          // Clear any existing session first
-          await supabase.auth.signOut();
+          // Clear any existing session completely
+          await supabase.auth.signOut({ scope: 'local' });
           
-          // Small delay to ensure signOut completes
-          await new Promise(resolve => setTimeout(resolve, 100));
+          // Wait for signOut to complete
+          await new Promise(resolve => setTimeout(resolve, 500));
           
-          // Set the new session with the recovery tokens
+          // Verify session is cleared
+          const { data: clearedSession } = await supabase.auth.getSession();
+          console.log('Session cleared:', !clearedSession.session);
+          
+          // Set the new recovery session
           const { data, error: sessionError } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken
@@ -108,6 +117,14 @@ const ResetPasswordPage: React.FC = () => {
             console.log('✅ Recovery session established successfully');
             console.log('User ID:', data.user.id);
             console.log('Session expires at:', data.session.expires_at);
+            
+            // Verify session is working by making a test call
+            const { data: testData, error: testError } = await supabase.auth.getUser();
+            if (testError) {
+              throw new Error(`Session verification failed: ${testError.message}`);
+            }
+            
+            console.log('✅ Session verification successful');
             
             setShowReset(true);
             toast({
@@ -187,12 +204,20 @@ const ResetPasswordPage: React.FC = () => {
 
       console.log('🔄 Updating password...');
 
-      // Verify we still have a valid session before updating
+      // Double-check session validity before password update
       const { data: sessionCheck, error: sessionError } = await supabase.auth.getSession();
       
       if (sessionError || !sessionCheck.session) {
         throw new Error("Your session has expired. Please request a new reset link.");
       }
+
+      // Verify user is authenticated
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData.user) {
+        throw new Error("Authentication required. Please request a new reset link.");
+      }
+
+      console.log('✅ Session and user verified, updating password...');
 
       const { data, error } = await supabase.auth.updateUser({
         password: password
@@ -336,106 +361,165 @@ const ResetPasswordPage: React.FC = () => {
       transition={{ duration: 0.5 }}
     >
       <div className="w-full max-w-md">
-        <motion.div 
-          className="mb-8 text-center"
-          initial={{ y: -20 }}
-          animate={{ y: 0 }}
-        >
-          <div className="mx-auto mb-4 w-12 h-12 bg-booqit-primary/10 rounded-full flex items-center justify-center">
-            <Lock className="w-6 h-6 text-booqit-primary" />
-          </div>
-          <h1 className="text-3xl font-righteous text-booqit-dark">
-            Reset Password
-          </h1>
-          <p className="text-booqit-dark/70 font-poppins">
-            Enter your new password below
-          </p>
-        </motion.div>
-
-        <Card className="border-none shadow-lg">
-          <form onSubmit={handleSubmit}>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="password" className="font-poppins">New Password</Label>
-                <div className="relative">
-                  <Input 
-                    id="password" 
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Enter new password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="font-poppins pr-10"
-                    required
-                    minLength={6}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4 text-gray-400" />
-                    ) : (
-                      <Eye className="h-4 w-4 text-gray-400" />
-                    )}
-                  </Button>
-                </div>
+        {resetSuccess ? (
+          <Card className="border-none shadow-lg">
+            <CardHeader className="text-center">
+              <div className="mx-auto mb-4 w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-green-600" />
               </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword" className="font-poppins">Confirm Password</Label>
-                <div className="relative">
-                  <Input 
-                    id="confirmPassword" 
-                    type={showConfirmPassword ? "text" : "password"}
-                    placeholder="Confirm new password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="font-poppins pr-10"
-                    required
-                    minLength={6}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  >
-                    {showConfirmPassword ? (
-                      <EyeOff className="h-4 w-4 text-gray-400" />
-                    ) : (
-                      <Eye className="h-4 w-4 text-gray-400" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-
-              {password && !validatePassword(password) && (
-                <div className="text-sm text-red-600 font-poppins">
-                  Password must be 6+ characters with 1 uppercase and 1 special character.
-                </div>
-              )}
-              
-              {password && confirmPassword && password !== confirmPassword && (
-                <div className="text-sm text-red-600 font-poppins">
-                  Passwords do not match
-                </div>
-              )}
+              <CardTitle className="text-2xl font-righteous text-booqit-dark">
+                Password Updated!
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-center">
+              <p className="text-booqit-dark/70 font-poppins mb-4">
+                Your password has been successfully updated. You'll be redirected to login shortly.
+              </p>
+              <div className="w-6 h-6 border-2 border-booqit-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
             </CardContent>
-            <CardContent>
+          </Card>
+        ) : isValidating ? (
+          <Card className="border-none shadow-lg">
+            <CardHeader className="text-center">
+              <div className="mx-auto mb-4 w-12 h-12 bg-booqit-primary/10 rounded-full flex items-center justify-center">
+                <Lock className="w-6 h-6 text-booqit-primary animate-pulse" />
+              </div>
+              <CardTitle className="text-2xl font-righteous text-booqit-dark">
+                Validating Reset Link
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-center">
+              <p className="text-booqit-dark/70 font-poppins">
+                Please wait while we validate your password reset link...
+              </p>
+            </CardContent>
+          </Card>
+        ) : !showReset ? (
+          <Card className="border-none shadow-lg">
+            <CardHeader className="text-center">
+              <div className="mx-auto mb-4 w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                <AlertCircle className="w-6 h-6 text-red-600" />
+              </div>
+              <CardTitle className="text-2xl font-righteous text-booqit-dark">
+                Invalid Reset Link
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-center">
+              <p className="text-booqit-dark/70 font-poppins mb-4">
+                This password reset link is invalid or has expired.
+              </p>
               <Button 
-                type="submit" 
-                className="w-full bg-booqit-primary hover:bg-booqit-primary/90 font-poppins"
-                disabled={isLoading || !password || !confirmPassword || password !== confirmPassword || !validatePassword(password)}
+                onClick={() => navigate('/forgot-password')} 
+                className="bg-booqit-primary hover:bg-booqit-primary/90 font-poppins"
               >
-                {isLoading ? "Updating..." : "Update Password"}
+                Request New Reset Link
               </Button>
             </CardContent>
-          </form>
-        </Card>
+          </Card>
+        ) : (
+          <>
+            <motion.div 
+              className="mb-8 text-center"
+              initial={{ y: -20 }}
+              animate={{ y: 0 }}
+            >
+              <div className="mx-auto mb-4 w-12 h-12 bg-booqit-primary/10 rounded-full flex items-center justify-center">
+                <Lock className="w-6 h-6 text-booqit-primary" />
+              </div>
+              <h1 className="text-3xl font-righteous text-booqit-dark">
+                Reset Password
+              </h1>
+              <p className="text-booqit-dark/70 font-poppins">
+                Enter your new password below
+              </p>
+            </motion.div>
+
+            <Card className="border-none shadow-lg">
+              <form onSubmit={handleSubmit}>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="password" className="font-poppins">New Password</Label>
+                    <div className="relative">
+                      <Input 
+                        id="password" 
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Enter new password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="font-poppins pr-10"
+                        required
+                        minLength={6}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4 text-gray-400" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-gray-400" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword" className="font-poppins">Confirm Password</Label>
+                    <div className="relative">
+                      <Input 
+                        id="confirmPassword" 
+                        type={showConfirmPassword ? "text" : "password"}
+                        placeholder="Confirm new password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="font-poppins pr-10"
+                        required
+                        minLength={6}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOff className="h-4 w-4 text-gray-400" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-gray-400" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {password && !validatePassword(password) && (
+                    <div className="text-sm text-red-600 font-poppins">
+                      Password must be 6+ characters with 1 uppercase and 1 special character.
+                    </div>
+                  )}
+                  
+                  {password && confirmPassword && password !== confirmPassword && (
+                    <div className="text-sm text-red-600 font-poppins">
+                      Passwords do not match
+                    </div>
+                  )}
+                </CardContent>
+                <CardContent>
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-booqit-primary hover:bg-booqit-primary/90 font-poppins"
+                    disabled={isLoading || !password || !confirmPassword || password !== confirmPassword || !validatePassword(password)}
+                  >
+                    {isLoading ? "Updating..." : "Update Password"}
+                  </Button>
+                </CardContent>
+              </form>
+            </Card>
+          </>
+        )}
       </div>
     </motion.div>
   );
