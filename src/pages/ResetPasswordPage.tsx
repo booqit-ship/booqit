@@ -31,9 +31,10 @@ const ResetPasswordPage: React.FC = () => {
 
   useEffect(() => {
     const handlePasswordReset = async () => {
-      console.log('🔍 Starting password reset validation...');
+      console.log('🔍 Starting enhanced password reset validation...');
       console.log('Current URL:', window.location.href);
-      console.log('Location:', location.pathname + location.search + location.hash);
+      console.log('Search params:', Object.fromEntries(searchParams.entries()));
+      console.log('Hash:', window.location.hash);
       
       // Check for error parameters first
       const error = searchParams.get('error');
@@ -90,69 +91,75 @@ const ResetPasswordPage: React.FC = () => {
 
       if (accessToken && refreshToken && type === 'recovery') {
         try {
-          console.log('🔄 Setting recovery session...');
+          console.log('🔄 Setting up recovery session with enhanced flow...');
           
-          // Clear any existing session completely
-          await supabase.auth.signOut({ scope: 'local' });
+          // Step 1: Completely clear any existing session
+          await supabase.auth.signOut({ scope: 'global' });
           
-          // Wait for signOut to complete
-          await new Promise(resolve => setTimeout(resolve, 500));
+          // Step 2: Small delay to ensure cleanup
+          await new Promise(resolve => setTimeout(resolve, 200));
           
-          // Verify session is cleared
+          // Step 3: Verify session is completely cleared
           const { data: clearedSession } = await supabase.auth.getSession();
-          console.log('Session cleared:', !clearedSession.session);
+          console.log('✓ Session cleared:', !clearedSession.session);
           
-          // Set the new recovery session
-          const { data, error: sessionError } = await supabase.auth.setSession({
+          // Step 4: Set the new recovery session with proper error handling
+          const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken
           });
           
           if (sessionError) {
-            console.error('❌ Session error:', sessionError);
-            throw new Error(`Session error: ${sessionError.message}`);
+            console.error('❌ Session setup error:', sessionError);
+            throw new Error(`Failed to establish reset session: ${sessionError.message}`);
           }
           
-          if (data.session && data.user) {
-            console.log('✅ Recovery session established successfully');
-            console.log('User ID:', data.user.id);
-            console.log('Session expires at:', data.session.expires_at);
-            
-            // Verify session is working by making a test call
-            const { data: testData, error: testError } = await supabase.auth.getUser();
-            if (testError) {
-              throw new Error(`Session verification failed: ${testError.message}`);
-            }
-            
-            console.log('✅ Session verification successful');
-            
-            setShowReset(true);
-            toast({
-              title: "Reset Link Verified",
-              description: "You can now set your new password.",
-            });
-          } else {
-            throw new Error('No session or user returned from setSession');
+          if (!sessionData.session || !sessionData.user) {
+            throw new Error('No valid session created from tokens');
           }
+          
+          console.log('✅ Recovery session established successfully');
+          console.log('User ID:', sessionData.user.id);
+          console.log('Session expires at:', sessionData.session.expires_at);
+          
+          // Step 5: Verify the session is actually working
+          const { data: userVerification, error: userError } = await supabase.auth.getUser();
+          if (userError || !userVerification.user) {
+            throw new Error(`Session verification failed: ${userError?.message || 'No user found'}`);
+          }
+          
+          console.log('✅ Session verification successful');
+          
+          setShowReset(true);
+          toast({
+            title: "Reset Link Verified",
+            description: "You can now set your new password.",
+          });
+          
         } catch (error: any) {
           console.error('❌ Failed to establish recovery session:', error);
           
           toast({
             title: "Session Error",
-            description: `Unable to verify reset link: ${error.message}`,
+            description: `Unable to verify reset link: ${error.message}. Please request a new password reset.`,
             variant: "destructive",
           });
           
           setTimeout(() => navigate('/forgot-password'), 2000);
         }
       } else {
-        console.log('❌ Missing required tokens or invalid type');
+        console.log('❌ Missing or invalid tokens for password reset');
         console.log('Required: access_token, refresh_token, type=recovery');
-        console.log('Got:', { accessToken: !!accessToken, refreshToken: !!refreshToken, type });
+        console.log('Available:', { 
+          hasAccessToken: !!accessToken, 
+          hasRefreshToken: !!refreshToken, 
+          type,
+          allParams: Object.fromEntries(searchParams.entries())
+        });
         
         toast({
           title: "Invalid Reset Link", 
-          description: "This reset link is missing required information. Please request a new one.",
+          description: "This reset link is missing required information or has expired. Please request a new one.",
           variant: "destructive",
         });
         
@@ -202,22 +209,22 @@ const ResetPasswordPage: React.FC = () => {
         throw new Error("Password must be 6+ characters with 1 uppercase and 1 special character.");
       }
 
-      console.log('🔄 Updating password...');
+      console.log('🔄 Updating password with enhanced validation...');
 
-      // Double-check session validity before password update
+      // Triple-check session validity before password update
       const { data: sessionCheck, error: sessionError } = await supabase.auth.getSession();
       
       if (sessionError || !sessionCheck.session) {
-        throw new Error("Your session has expired. Please request a new reset link.");
+        throw new Error("Your reset session has expired. Please request a new reset link.");
       }
 
-      // Verify user is authenticated
+      // Verify user is authenticated with additional checks
       const { data: userData, error: userError } = await supabase.auth.getUser();
       if (userError || !userData.user) {
-        throw new Error("Authentication required. Please request a new reset link.");
+        throw new Error("Authentication session lost. Please request a new reset link.");
       }
 
-      console.log('✅ Session and user verified, updating password...');
+      console.log('✅ Session and user verified, proceeding with password update...');
 
       const { data, error } = await supabase.auth.updateUser({
         password: password
@@ -225,7 +232,15 @@ const ResetPasswordPage: React.FC = () => {
 
       if (error) {
         console.error('❌ Password update error:', error);
-        throw new Error(error.message || "Failed to update password");
+        
+        // Handle specific password update errors
+        if (error.message?.includes('session')) {
+          throw new Error("Your reset session has expired. Please request a new reset link.");
+        } else if (error.message?.includes('weak')) {
+          throw new Error("Password is too weak. Please use a stronger password.");
+        } else {
+          throw new Error(error.message || "Failed to update password. Please try again.");
+        }
       }
 
       console.log('✅ Password updated successfully');
@@ -234,21 +249,26 @@ const ResetPasswordPage: React.FC = () => {
       
       toast({
         title: "Password Updated!",
-        description: "Your password has been successfully updated.",
+        description: "Your password has been successfully updated. Redirecting to login...",
       });
 
-      // Sign out for security and redirect to login after a delay
+      // Sign out for security and redirect to login after success
       setTimeout(async () => {
-        await supabase.auth.signOut();
-        navigate('/auth');
-      }, 3000);
+        try {
+          await supabase.auth.signOut();
+          navigate('/auth');
+        } catch (signOutError) {
+          console.warn('Sign out error (non-critical):', signOutError);
+          navigate('/auth');
+        }
+      }, 2000);
       
     } catch (error: any) {
       console.error('❌ Password reset error:', error);
       
       toast({
         title: "Error",
-        description: error.message || "Failed to update password.",
+        description: error.message || "Failed to update password. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -277,7 +297,7 @@ const ResetPasswordPage: React.FC = () => {
             </CardHeader>
             <CardContent className="text-center">
               <p className="text-booqit-dark/70 font-poppins mb-4">
-                Your password has been successfully updated. You'll be redirected to login shortly.
+                Your password has been successfully updated. Redirecting to login...
               </p>
               <div className="w-6 h-6 border-2 border-booqit-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
             </CardContent>
@@ -361,165 +381,106 @@ const ResetPasswordPage: React.FC = () => {
       transition={{ duration: 0.5 }}
     >
       <div className="w-full max-w-md">
-        {resetSuccess ? (
-          <Card className="border-none shadow-lg">
-            <CardHeader className="text-center">
-              <div className="mx-auto mb-4 w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-green-600" />
+        <motion.div 
+          className="mb-8 text-center"
+          initial={{ y: -20 }}
+          animate={{ y: 0 }}
+        >
+          <div className="mx-auto mb-4 w-12 h-12 bg-booqit-primary/10 rounded-full flex items-center justify-center">
+            <Lock className="w-6 h-6 text-booqit-primary" />
+          </div>
+          <h1 className="text-3xl font-righteous text-booqit-dark">
+            Reset Password
+          </h1>
+          <p className="text-booqit-dark/70 font-poppins">
+            Enter your new password below
+          </p>
+        </motion.div>
+
+        <Card className="border-none shadow-lg">
+          <form onSubmit={handleSubmit}>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="password" className="font-poppins">New Password</Label>
+                <div className="relative">
+                  <Input 
+                    id="password" 
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter new password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="font-poppins pr-10"
+                    required
+                    minLength={6}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4 text-gray-400" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-gray-400" />
+                    )}
+                  </Button>
+                </div>
               </div>
-              <CardTitle className="text-2xl font-righteous text-booqit-dark">
-                Password Updated!
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-center">
-              <p className="text-booqit-dark/70 font-poppins mb-4">
-                Your password has been successfully updated. You'll be redirected to login shortly.
-              </p>
-              <div className="w-6 h-6 border-2 border-booqit-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword" className="font-poppins">Confirm Password</Label>
+                <div className="relative">
+                  <Input 
+                    id="confirmPassword" 
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="Confirm new password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="font-poppins pr-10"
+                    required
+                    minLength={6}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff className="h-4 w-4 text-gray-400" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-gray-400" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {password && !validatePassword(password) && (
+                <div className="text-sm text-red-600 font-poppins">
+                  Password must be 6+ characters with 1 uppercase and 1 special character.
+                </div>
+              )}
+              
+              {password && confirmPassword && password !== confirmPassword && (
+                <div className="text-sm text-red-600 font-poppins">
+                  Passwords do not match
+                </div>
+              )}
             </CardContent>
-          </Card>
-        ) : isValidating ? (
-          <Card className="border-none shadow-lg">
-            <CardHeader className="text-center">
-              <div className="mx-auto mb-4 w-12 h-12 bg-booqit-primary/10 rounded-full flex items-center justify-center">
-                <Lock className="w-6 h-6 text-booqit-primary animate-pulse" />
-              </div>
-              <CardTitle className="text-2xl font-righteous text-booqit-dark">
-                Validating Reset Link
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-center">
-              <p className="text-booqit-dark/70 font-poppins">
-                Please wait while we validate your password reset link...
-              </p>
-            </CardContent>
-          </Card>
-        ) : !showReset ? (
-          <Card className="border-none shadow-lg">
-            <CardHeader className="text-center">
-              <div className="mx-auto mb-4 w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                <AlertCircle className="w-6 h-6 text-red-600" />
-              </div>
-              <CardTitle className="text-2xl font-righteous text-booqit-dark">
-                Invalid Reset Link
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-center">
-              <p className="text-booqit-dark/70 font-poppins mb-4">
-                This password reset link is invalid or has expired.
-              </p>
+            <CardContent>
               <Button 
-                onClick={() => navigate('/forgot-password')} 
-                className="bg-booqit-primary hover:bg-booqit-primary/90 font-poppins"
+                type="submit" 
+                className="w-full bg-booqit-primary hover:bg-booqit-primary/90 font-poppins"
+                disabled={isLoading || !password || !confirmPassword || password !== confirmPassword || !validatePassword(password)}
               >
-                Request New Reset Link
+                {isLoading ? "Updating..." : "Update Password"}
               </Button>
             </CardContent>
-          </Card>
-        ) : (
-          <>
-            <motion.div 
-              className="mb-8 text-center"
-              initial={{ y: -20 }}
-              animate={{ y: 0 }}
-            >
-              <div className="mx-auto mb-4 w-12 h-12 bg-booqit-primary/10 rounded-full flex items-center justify-center">
-                <Lock className="w-6 h-6 text-booqit-primary" />
-              </div>
-              <h1 className="text-3xl font-righteous text-booqit-dark">
-                Reset Password
-              </h1>
-              <p className="text-booqit-dark/70 font-poppins">
-                Enter your new password below
-              </p>
-            </motion.div>
-
-            <Card className="border-none shadow-lg">
-              <form onSubmit={handleSubmit}>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="password" className="font-poppins">New Password</Label>
-                    <div className="relative">
-                      <Input 
-                        id="password" 
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Enter new password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="font-poppins pr-10"
-                        required
-                        minLength={6}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? (
-                          <EyeOff className="h-4 w-4 text-gray-400" />
-                        ) : (
-                          <Eye className="h-4 w-4 text-gray-400" />
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="confirmPassword" className="font-poppins">Confirm Password</Label>
-                    <div className="relative">
-                      <Input 
-                        id="confirmPassword" 
-                        type={showConfirmPassword ? "text" : "password"}
-                        placeholder="Confirm new password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="font-poppins pr-10"
-                        required
-                        minLength={6}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      >
-                        {showConfirmPassword ? (
-                          <EyeOff className="h-4 w-4 text-gray-400" />
-                        ) : (
-                          <Eye className="h-4 w-4 text-gray-400" />
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-
-                  {password && !validatePassword(password) && (
-                    <div className="text-sm text-red-600 font-poppins">
-                      Password must be 6+ characters with 1 uppercase and 1 special character.
-                    </div>
-                  )}
-                  
-                  {password && confirmPassword && password !== confirmPassword && (
-                    <div className="text-sm text-red-600 font-poppins">
-                      Passwords do not match
-                    </div>
-                  )}
-                </CardContent>
-                <CardContent>
-                  <Button 
-                    type="submit" 
-                    className="w-full bg-booqit-primary hover:bg-booqit-primary/90 font-poppins"
-                    disabled={isLoading || !password || !confirmPassword || password !== confirmPassword || !validatePassword(password)}
-                  >
-                    {isLoading ? "Updating..." : "Update Password"}
-                  </Button>
-                </CardContent>
-              </form>
-            </Card>
-          </>
-        )}
+          </form>
+        </Card>
       </div>
     </motion.div>
   );

@@ -17,9 +17,10 @@ const ForgotPasswordPage: React.FC = () => {
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const { toast } = useToast();
 
-  // Always use app.booqit.in for password reset emails
+  // Enhanced redirect URL handling
   const getResetRedirectUrl = () => {
-    return 'https://app.booqit.in/reset-password';
+    const baseUrl = 'https://app.booqit.in';
+    return `${baseUrl}/reset-password`;
   };
 
   // Cooldown timer effect
@@ -62,20 +63,23 @@ const ForgotPasswordPage: React.FC = () => {
       const redirectUrl = getResetRedirectUrl();
       console.log('🔗 Using redirect URL:', redirectUrl);
 
-      // Send password reset email with proper redirect URL
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: redirectUrl
+      // Enhanced password reset request with better error handling
+      const { data, error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: redirectUrl,
+        captchaToken: undefined // Ensure no captcha issues
       });
       
       if (error) {
         console.error('❌ Reset password error:', error);
 
-        // Handle specific error cases
+        // Handle specific error cases with user-friendly messages
         if (error.message.includes('rate limit') || error.message.includes('Email rate limit exceeded')) {
           setCooldownSeconds(60);
           throw new Error("Too many reset attempts. Please wait 1 minute before trying again.");
         } else if (error.message.includes('invalid_email')) {
           throw new Error("Please enter a valid email address.");
+        } else if (error.message.includes('signup_disabled')) {
+          throw new Error("Password reset is currently disabled. Please contact support.");
         }
         
         // For security, don't reveal if user exists - just show success
@@ -83,6 +87,8 @@ const ForgotPasswordPage: React.FC = () => {
       }
       
       console.log('✅ Password reset email request processed successfully');
+      console.log('Reset data:', data);
+      
       setEmailSent(true);
       
       toast({
@@ -102,7 +108,6 @@ const ForgotPasswordPage: React.FC = () => {
     }
   };
 
-  
   if (emailSent) {
     return (
       <motion.div 
@@ -127,7 +132,7 @@ const ForgotPasswordPage: React.FC = () => {
             <CardContent className="text-center space-y-4">
               <div className="bg-blue-50 p-4 rounded-lg">
                 <p className="text-sm text-blue-800 font-poppins">
-                  <strong>Important:</strong> The reset link will expire in 1 hour for security.
+                  <strong>Important:</strong> The reset link will expire in 2 hours for security.
                 </p>
               </div>
               
@@ -222,7 +227,7 @@ const ForgotPasswordPage: React.FC = () => {
                   <AlertCircle className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
                   <p className="text-xs text-gray-600 font-poppins">
                     For security, we'll send reset instructions to your email if an account exists. 
-                    The link expires in 1 hour and works on any device.
+                    The link expires in 2 hours and works on any device.
                   </p>
                 </div>
               </div>
