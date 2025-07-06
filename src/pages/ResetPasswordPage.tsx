@@ -21,10 +21,15 @@ const ResetPasswordPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [showReset, setShowReset] = useState(false);
   const [isValidating, setIsValidating] = useState(true);
+  const [resetSession, setResetSession] = useState<any>(null);
   const [resetSuccess, setResetSuccess] = useState(false);
-  const [userEmail, setUserEmail] = useState('');
+  const [errorState, setErrorState] = useState<{
+    show: boolean;
+    type: 'expired' | 'not_found' | 'invalid';
+    message: string;
+  }>({ show: false, type: 'invalid', message: '' });
+  
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -34,113 +39,69 @@ const ResetPasswordPage: React.FC = () => {
     const handlePasswordReset = async () => {
       console.log('🔍 Starting password reset validation...');
       console.log('Current URL:', window.location.href);
-      console.log('Location:', location.pathname + location.search);
+      console.log('Search params:', Object.fromEntries(searchParams));
       
-      // Check for error parameters first
-      const error = searchParams.get('error');
-      const errorCode = searchParams.get('error_code');
-      const errorDescription = searchParams.get('error_description');
-      
-      if (error) {
-        console.log('❌ Reset link error detected:', { error, errorCode, errorDescription });
+      try {
+        // Check for error parameters first
+        const error = searchParams.get('error');
+        const errorCode = searchParams.get('error_code');
+        const errorDescription = searchParams.get('error_description');
         
-        let errorMessage = 'This reset link is invalid or has expired.';
-        
-        if (errorCode === 'otp_expired' || error === 'access_denied') {
-          errorMessage = 'This password reset link has expired or is invalid. Please request a new one.';
-        }
-        
-        toast({
-          title: "Invalid Reset Link",
-          description: errorMessage,
-          variant: "destructive",
-        });
-        
-        setTimeout(() => navigate('/forgot-password'), 3000);
-        setIsValidating(false);
-        return;
-      }
-
-      // Extract code from URL (modern Supabase flow)
-      const code = searchParams.get('code');
-      
-      if (!code) {
-        // Fallback: try to extract from hash fragment (legacy flow)
-        const hash = window.location.hash.substring(1);
-        const hashParams = new URLSearchParams(hash);
-        const accessToken = hashParams.get('access_token');
-        const refreshToken = hashParams.get('refresh_token');
-        const type = hashParams.get('type');
-        
-        if (accessToken && refreshToken && type === 'recovery') {
-          console.log('🔐 Using legacy token flow');
-          await handleLegacyTokenFlow(accessToken, refreshToken);
+        if (error) {
+          console.log('❌ URL contains error params:', { error, errorCode, errorDescription });
+          handleResetError('expired', 'This password reset link has expired or is invalid.');
           return;
         }
-        
-        console.log('❌ No valid reset code or tokens found');
-        toast({
-          title: "Invalid Reset Link", 
-          description: "This reset link is missing required information. Please request a new one.",
-          variant: "destructive",
-        });
-        
-        setTimeout(() => navigate('/forgot-password'), 2000);
-        setIsValidating(false);
-        return;
-      }
 
-      try {
+        // Get the code parameter
+        const code = searchParams.get('code');
+        
+        if (!code) {
+          console.log('❌ No reset code found in URL');
+          handleResetError('invalid', 'Invalid reset link. Please request a new password reset.');
+          return;
+        }
+
         console.log('🔄 Processing reset code...');
         
         // Clear any existing session first
         await supabase.auth.signOut({ scope: 'global' });
         
+        // Small delay to ensure cleanup
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         // Exchange the code for a session
         const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
         
+        console.log('Exchange result:', { data: !!data, error: exchangeError });
+        
         if (exchangeError) {
-          console.error('❌ Code exchange error:', exchangeError);
+          console.error('❌ Code exchange failed:', exchangeError);
           
-          if (exchangeError.message?.includes('expired') || 
-              exchangeError.message?.includes('invalid') ||
-              exchangeError.message?.includes('not found')) {
-            toast({
-              title: "Account Not Found",
-              description: "This reset link is invalid or the account no longer exists. Please check your email or request a new reset link.",
-              variant: "destructive",
-            });
+          // Handle specific error cases
+          if (exchangeError.message?.toLowerCase().includes('not found') || 
+              exchangeError.message?.toLowerCase().includes('user not found')) {
+            handleResetError('not_found', 'Account not found. This reset link may be for an account that no longer exists.');
+          } else if (exchangeError.message?.toLowerCase().includes('expired') || 
+                     exchangeError.message?.toLowerCase().includes('invalid')) {
+            handleResetError('expired', 'This password reset link has expired or is invalid. Please request a new one.');
           } else {
-            toast({
-              title: "Reset Link Error",
-              description: `Unable to verify reset link: ${exchangeError.message}`,
-              variant: "destructive",
-            });
+            handleResetError('invalid', `Reset link error: ${exchangeError.message}`);
           }
-          
-          setTimeout(() => navigate('/forgot-password'), 2000);
-          setIsValidating(false);
           return;
         }
         
-        if (!data.session || !data.user) {
-          console.log('❌ No session created from code');
-          toast({
-            title: "Account Not Found",
-            description: "Unable to find the account associated with this reset link.",
-            variant: "destructive",
-          });
-          
-          setTimeout(() => navigate('/forgot-password'), 2000);
-          setIsValidating(false);
+        if (!data?.session || !data?.user) {
+          console.log('❌ No session created from code exchange');
+          handleResetError('not_found', 'Account not found. Unable to verify the reset link.');
           return;
         }
         
         console.log('✅ Reset session established successfully');
         console.log('User email:', data.user.email);
         
-        setUserEmail(data.user.email || '');
-        setShowReset(true);
+        // Store the session for password update
+        setResetSession(data.session);
         
         toast({
           title: "Reset Link Verified",
@@ -148,62 +109,27 @@ const ResetPasswordPage: React.FC = () => {
         });
         
       } catch (error: any) {
-        console.error('❌ Failed to process reset code:', error);
-        
-        toast({
-          title: "Session Error",
-          description: `Unable to verify reset link: ${error.message}. Please request a new password reset.`,
-          variant: "destructive",
-        });
-        
-        setTimeout(() => navigate('/forgot-password'), 2000);
+        console.error('❌ Unexpected error during reset validation:', error);
+        handleResetError('invalid', `Unexpected error: ${error.message}`);
+      } finally {
+        setIsValidating(false);
       }
-      
-      setIsValidating(false);
     };
 
-    const handleLegacyTokenFlow = async (accessToken: string, refreshToken: string) => {
-      try {
-        console.log('🔄 Setting up legacy recovery session...');
-        
-        await supabase.auth.signOut({ scope: 'global' });
-        await new Promise(resolve => setTimeout(resolve, 200));
-        
-        const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken
-        });
-        
-        if (sessionError || !sessionData.session || !sessionData.user) {
-          throw new Error(`Session setup failed: ${sessionError?.message || 'No session created'}`);
-        }
-        
-        console.log('✅ Legacy recovery session established');
-        setUserEmail(sessionData.user.email || '');
-        setShowReset(true);
-        
-        toast({
-          title: "Reset Link Verified",
-          description: "You can now set your new password.",
-        });
-        
-      } catch (error: any) {
-        console.error('❌ Legacy token flow failed:', error);
-        
-        toast({
-          title: "Session Error",
-          description: `Unable to verify reset link: ${error.message}. Please request a new password reset.`,
-          variant: "destructive",
-        });
-        
-        setTimeout(() => navigate('/forgot-password'), 2000);
-      }
+    const handleResetError = (type: 'expired' | 'not_found' | 'invalid', message: string) => {
+      setErrorState({ show: true, type, message });
+      toast({
+        title: "Reset Link Issue",
+        description: message,
+        variant: "destructive",
+      });
       
-      setIsValidating(false);
+      // Auto-redirect after 3 seconds
+      setTimeout(() => navigate('/forgot-password'), 3000);
     };
 
     handlePasswordReset();
-  }, [searchParams, location, navigate, toast]);
+  }, [searchParams, navigate, toast]);
 
   // Enhanced password validation
   const validatePassword = (password: string): boolean => {
@@ -216,7 +142,7 @@ const ResetPasswordPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!showReset) {
+    if (!resetSession) {
       toast({
         title: "Session Invalid",
         description: "Please request a new password reset link.",
@@ -364,8 +290,24 @@ const ResetPasswordPage: React.FC = () => {
     );
   }
 
-  // Show error state if no valid session
-  if (!showReset) {
+  // Show error state
+  if (errorState.show) {
+    const getErrorIcon = () => {
+      switch (errorState.type) {
+        case 'not_found': return <AlertCircle className="w-6 h-6 text-red-600" />;
+        case 'expired': return <AlertCircle className="w-6 h-6 text-orange-600" />;
+        default: return <AlertCircle className="w-6 h-6 text-red-600" />;
+      }
+    };
+
+    const getErrorTitle = () => {
+      switch (errorState.type) {
+        case 'not_found': return 'Account Not Found';
+        case 'expired': return 'Reset Link Expired';
+        default: return 'Invalid Reset Link';
+      }
+    };
+
     return (
       <motion.div 
         className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-booqit-primary/10 to-white p-6"
@@ -377,15 +319,15 @@ const ResetPasswordPage: React.FC = () => {
           <Card className="border-none shadow-lg">
             <CardHeader className="text-center">
               <div className="mx-auto mb-4 w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                <AlertCircle className="w-6 h-6 text-red-600" />
+                {getErrorIcon()}
               </div>
               <CardTitle className="text-2xl font-righteous text-booqit-dark">
-                Account Not Found
+                {getErrorTitle()}
               </CardTitle>
             </CardHeader>
             <CardContent className="text-center">
               <p className="text-booqit-dark/70 font-poppins mb-4">
-                This password reset link is invalid or the account no longer exists.
+                {errorState.message}
               </p>
               <Button 
                 onClick={() => navigate('/forgot-password')} 
@@ -400,6 +342,7 @@ const ResetPasswordPage: React.FC = () => {
     );
   }
 
+  // Show password reset form
   return (
     <motion.div 
       className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-booqit-primary/10 to-white p-6"
@@ -420,7 +363,7 @@ const ResetPasswordPage: React.FC = () => {
             Reset Password
           </h1>
           <p className="text-booqit-dark/70 font-poppins">
-            {userEmail ? `Reset password for ${userEmail}` : 'Enter your new password below'}
+            {resetSession?.user?.email ? `Reset password for ${resetSession.user.email}` : 'Enter your new password below'}
           </p>
         </motion.div>
 
