@@ -1,3 +1,4 @@
+
 <script>
   function showOfflineScreen() {
     document.body.innerHTML = `
@@ -16,17 +17,20 @@
           text-align: center;
         }
         .container { padding: 20px; }
-        .icon { font-size: 3.5rem; margin-bottom: 20px; }
+        .logo { margin-bottom: 20px; }
+        .logo img { width: 200px; height: auto; }
         h1 { font-size: 2rem; margin-bottom: 10px; color: #222; }
         p { font-size: 1rem; color: #555; }
         @media (min-width: 480px) {
           h1 { font-size: 2.5rem; }
-          .icon { font-size: 4.5rem; }
+          .logo img { width: 250px; }
         }
       </style>
       <div class="container">
-        <div class="icon">📴</div>
-        <h1>You’re Offline</h1>
+        <div class="logo">
+          <img src="/lovable-uploads/bdfdeed4-081b-4ac9-aaec-2bcb61ed6ee9.png" alt="BooqIt Logo" />
+        </div>
+        <h1>You're Offline</h1>
         <p>Please check your internet connection and try again.</p>
       </div>
     `;
