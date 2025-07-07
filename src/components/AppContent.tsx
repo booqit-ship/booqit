@@ -68,7 +68,7 @@ import { useCapacitor } from '@/hooks/useCapacitor';
 const AppContent: React.FC = () => {
   const [loading, setLoading] = useState(true);
   
-  // Initialize Capacitor functionality (includes Android back button handling)
+  // Initialize Capacitor functionality (now includes Android back button handling)
   const { isNative, isReady } = useCapacitor();
 
   useEffect(() => {
