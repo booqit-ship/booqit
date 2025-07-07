@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Clock, MapPin, Star, User } from 'lucide-react';
@@ -10,19 +11,28 @@ import { supabase } from '@/integrations/supabase/client';
 import { Merchant, Service, Staff } from '@/types';
 import { toast } from 'sonner';
 import ReviewsSection from '@/components/customer/ReviewsSection';
+import ServiceSearchBar from '@/components/common/ServiceSearchBar';
+
+interface Category {
+  id: string;
+  name: string;
+  color: string;
+}
 
 const MerchantDetailPage: React.FC = () => {
-  const {
-    merchantId
-  } = useParams<{
-    merchantId: string;
-  }>();
+  const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
   const [merchant, setMerchant] = useState<Merchant | null>(null);
   const [services, setServices] = useState<Service[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
+  
+  // Search states
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [filteredServices, setFilteredServices] = useState<Service[]>([]);
 
   const formatCategory = (category: string) => {
     return category.replace(/_/g, ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ').replace('Shop', '');
@@ -49,29 +59,41 @@ const MerchantDetailPage: React.FC = () => {
         if (!merchantId) return;
 
         // Fetch merchant details
-        const {
-          data: merchantData,
-          error: merchantError
-        } = await supabase.from('merchants').select('*').eq('id', merchantId).single();
+        const { data: merchantData, error: merchantError } = await supabase
+          .from('merchants')
+          .select('*')
+          .eq('id', merchantId)
+          .single();
         if (merchantError) throw merchantError;
 
         // Fetch services for this merchant
-        const {
-          data: servicesData,
-          error: servicesError
-        } = await supabase.from('services').select('*').eq('merchant_id', merchantId);
+        const { data: servicesData, error: servicesError } = await supabase
+          .from('services')
+          .select('*')
+          .eq('merchant_id', merchantId);
         if (servicesError) throw servicesError;
 
+        // Fetch categories for this merchant
+        const { data: categoriesData, error: categoriesError } = await supabase
+          .from('service_categories')
+          .select('*')
+          .eq('merchant_id', merchantId);
+        if (categoriesError) throw categoriesError;
+
         // Fetch staff for this merchant
-        const {
-          data: staffData,
-          error: staffError
-        } = await supabase.from('staff').select('*').eq('merchant_id', merchantId);
+        const { data: staffData, error: staffError } = await supabase
+          .from('staff')
+          .select('*')
+          .eq('merchant_id', merchantId);
         if (staffError) throw staffError;
+
         console.log('Merchant data:', merchantData);
         console.log('Staff data:', staffData);
+        console.log('Categories data:', categoriesData);
+        
         setMerchant(merchantData);
         setServices(servicesData || []);
+        setCategories(categoriesData || []);
         setStaff(staffData || []);
       } catch (error) {
         console.error('Error fetching merchant details:', error);
@@ -80,8 +102,45 @@ const MerchantDetailPage: React.FC = () => {
         setLoading(false);
       }
     };
+    
     fetchMerchantDetails();
   }, [merchantId]);
+
+  // Filter services based on search term and selected categories
+  useEffect(() => {
+    let filtered = services;
+
+    // Filter by search term
+    if (searchTerm.trim()) {
+      filtered = filtered.filter(service =>
+        service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        service.description?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Filter by selected categories
+    if (selectedCategories.length > 0) {
+      filtered = filtered.filter(service => {
+        if (!service.categories || !Array.isArray(service.categories)) return false;
+        return service.categories.some(catId => selectedCategories.includes(catId));
+      });
+    }
+
+    setFilteredServices(filtered);
+  }, [services, searchTerm, selectedCategories]);
+
+  const handleCategoryToggle = (categoryId: string) => {
+    setSelectedCategories(prev =>
+      prev.includes(categoryId)
+        ? prev.filter(id => id !== categoryId)
+        : [...prev, categoryId]
+    );
+  };
+
+  const getServiceCategories = (service: Service) => {
+    if (!service.categories || !Array.isArray(service.categories)) return [];
+    return categories.filter(cat => service.categories.includes(cat.id));
+  };
 
   const getFormattedTime = (timeString: string) => {
     const time = new Date(`2000-01-01T${timeString}`);
@@ -116,7 +175,6 @@ const MerchantDetailPage: React.FC = () => {
       return;
     }
 
-    // Forcefully provide both merchant and services as state on navigation
     navigate(`/booking/${merchantId}/services`, {
       state: {
         merchant,
@@ -225,29 +283,66 @@ const MerchantDetailPage: React.FC = () => {
           </TabsList>
           
           <TabsContent value="services" className="mt-6">
-            {services.length > 0 ? (
+            {/* Search Bar */}
+            <div className="mb-4">
+              <ServiceSearchBar
+                searchTerm={searchTerm}
+                onSearchChange={setSearchTerm}
+                selectedCategories={selectedCategories}
+                onCategoryToggle={handleCategoryToggle}
+                categories={categories}
+                placeholder="Search services..."
+              />
+            </div>
+
+            {filteredServices.length > 0 ? (
               <div className="space-y-4">
-                {services.map(service => (
-                  <Card key={service.id} className="overflow-hidden">
-                    <CardContent className="p-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="font-medium">{service.name}</h3>
-                        <span className="font-medium">₹{service.price}</span>
-                      </div>
-                      
-                      <p className="text-sm text-gray-500 mb-3">{service.description}</p>
-                      
-                      <div className="flex items-center text-gray-500 text-sm">
-                        <Clock className="h-3 w-3 mr-1" />
-                        <span>{service.duration} mins</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                {filteredServices.map(service => {
+                  const serviceCategories = getServiceCategories(service);
+                  return (
+                    <Card key={service.id} className="overflow-hidden">
+                      <CardContent className="p-4">
+                        <div className="flex justify-between items-start mb-2">
+                          <h3 className="font-medium">{service.name}</h3>
+                          <span className="font-medium">₹{service.price}</span>
+                        </div>
+                        
+                        <p className="text-sm text-gray-500 mb-3">{service.description}</p>
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center text-gray-500 text-sm">
+                            <Clock className="h-3 w-3 mr-1" />
+                            <span>{service.duration} mins</span>
+                          </div>
+                          
+                          {serviceCategories.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {serviceCategories.map((category) => (
+                                <Badge
+                                  key={category.id}
+                                  variant="outline"
+                                  className="text-xs"
+                                  style={{ borderColor: category.color, color: category.color }}
+                                >
+                                  {category.name}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-8 bg-gray-50 rounded-lg">
-                <p className="text-gray-500">No services available</p>
+                <p className="text-gray-500">
+                  {searchTerm || selectedCategories.length > 0 
+                    ? 'No services match your search criteria' 
+                    : 'No services available'
+                  }
+                </p>
               </div>
             )}
           </TabsContent>

@@ -1,15 +1,22 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { Service } from '@/types';
-import { PlusCircle, X, Loader2, DollarSign, Clock } from 'lucide-react';
+import { PlusCircle, X, Loader2, DollarSign, Clock, Tag } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+
+interface Category {
+  id: string;
+  name: string;
+  color: string;
+}
 
 interface AddServiceWidgetProps {
   merchantId: string;
@@ -28,14 +35,46 @@ const AddServiceWidget: React.FC<AddServiceWidgetProps> = ({
   const [price, setPrice] = useState('');
   const [duration, setDuration] = useState('');
   const [description, setDescription] = useState('');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (isOpen && merchantId) {
+      fetchCategories();
+    }
+  }, [isOpen, merchantId]);
+
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('service_categories')
+        .select('*')
+        .eq('merchant_id', merchantId)
+        .order('name');
+
+      if (error) throw error;
+      setCategories(data || []);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
 
   const resetForm = () => {
     setName('');
     setPrice('');
     setDuration('');
     setDescription('');
+    setSelectedCategories([]);
+  };
+
+  const handleCategoryToggle = (categoryId: string) => {
+    setSelectedCategories(prev => 
+      prev.includes(categoryId)
+        ? prev.filter(id => id !== categoryId)
+        : [...prev, categoryId]
+    );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -57,7 +96,8 @@ const AddServiceWidget: React.FC<AddServiceWidgetProps> = ({
           name,
           price: parseFloat(price),
           duration: parseInt(duration),
-          description
+          description,
+          categories: selectedCategories
         })
         .select();
 
@@ -70,7 +110,7 @@ const AddServiceWidget: React.FC<AddServiceWidgetProps> = ({
 
       resetForm();
       onClose();
-      onServiceAdded(); // Trigger data refresh
+      onServiceAdded();
     } catch (error: any) {
       toast({
         title: "Error",
@@ -88,7 +128,7 @@ const AddServiceWidget: React.FC<AddServiceWidgetProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md max-w-[95vw] mx-auto">
+      <DialogContent className="sm:max-w-md max-w-[95vw] mx-auto max-h-[90vh] overflow-y-auto">
         <DialogHeader className="relative">
           <DialogTitle className="text-xl font-light text-booqit-dark flex items-center gap-2">
             <PlusCircle className="h-5 w-5 text-booqit-primary" />
@@ -164,6 +204,39 @@ const AddServiceWidget: React.FC<AddServiceWidgetProps> = ({
                   className="border-booqit-primary/20 focus:border-booqit-primary resize-none"
                 />
               </div>
+
+              {/* Categories Selection */}
+              {categories.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium flex items-center gap-1">
+                    <Tag className="h-3 w-3" />
+                    Categories (Optional)
+                  </Label>
+                  <div className="grid grid-cols-1 gap-2 max-h-32 overflow-y-auto border rounded-md p-2">
+                    {categories.map((category) => (
+                      <div key={category.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={category.id}
+                          checked={selectedCategories.includes(category.id)}
+                          onCheckedChange={() => handleCategoryToggle(category.id)}
+                        />
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: category.color }}
+                          />
+                          <label
+                            htmlFor={category.id}
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                          >
+                            {category.name}
+                          </label>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4">
                 <Button

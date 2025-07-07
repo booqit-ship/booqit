@@ -3,25 +3,35 @@ import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Service } from '@/types';
-import { PlusCircle, Edit, Trash, Loader2, Clock, Users } from 'lucide-react';
+import { PlusCircle, Edit, Trash, Loader2, Clock, Users, Tag } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useServicesData, useStaffData, useInvalidateServicesData } from '@/hooks/useServicesData';
 import AddServiceWidget from '@/components/merchant/AddServiceWidget';
 import EditServiceWidget from '@/components/merchant/EditServiceWidget';
 import AddStaffWidget from '@/components/merchant/AddStaffWidget';
+import ManageCategoriesWidget from '@/components/merchant/ManageCategoriesWidget';
+
+interface Category {
+  id: string;
+  name: string;
+  color: string;
+}
 
 const ServicesPage: React.FC = () => {
   const [merchantId, setMerchantId] = useState<string | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [deleteServiceId, setDeleteServiceId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isServiceWidgetOpen, setIsServiceWidgetOpen] = useState(false);
   const [isStaffWidgetOpen, setIsStaffWidgetOpen] = useState(false);
+  const [isCategoriesWidgetOpen, setIsCategoriesWidgetOpen] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
   
   const { toast } = useToast();
@@ -47,6 +57,29 @@ const ServicesPage: React.FC = () => {
     };
     fetchMerchantId();
   }, [userId]);
+
+  // Fetch categories
+  useEffect(() => {
+    if (merchantId) {
+      fetchCategories();
+    }
+  }, [merchantId]);
+
+  const fetchCategories = async () => {
+    if (!merchantId) return;
+    try {
+      const { data, error } = await supabase
+        .from('service_categories')
+        .select('*')
+        .eq('merchant_id', merchantId)
+        .order('name');
+      
+      if (error) throw error;
+      setCategories(data || []);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
 
   // Use React Query hooks for data fetching
   const { data: services = [], isLoading: servicesLoading, error: servicesError } = useServicesData(merchantId);
@@ -81,6 +114,13 @@ const ServicesPage: React.FC = () => {
       title: "Success",
       description: "Staff member added successfully."
     });
+  };
+
+  const handleCategoriesUpdated = () => {
+    fetchCategories();
+    if (merchantId) {
+      invalidateData(merchantId);
+    }
   };
 
   const handleEditService = (service: Service) => {
@@ -121,7 +161,14 @@ const ServicesPage: React.FC = () => {
     }
   };
 
+  const getServiceCategories = (service: Service) => {
+    if (!service.categories || !Array.isArray(service.categories)) return [];
+    return categories.filter(cat => service.categories.includes(cat.id));
+  };
+
   const MobileServiceCard = ({ service }: { service: Service }) => {
+    const serviceCategories = getServiceCategories(service);
+    
     return (
       <Card className="mb-5 overflow-hidden border border-gray-200 shadow-sm hover:shadow-md transition-shadow animate-fade-in">
         <CardHeader className="p-4 pb-2 bg-muted/20 border-b">
@@ -159,6 +206,20 @@ const ServicesPage: React.FC = () => {
               <span className="text-base font-semibold">₹{service.price}</span>
             </div>
           </div>
+          {serviceCategories.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {serviceCategories.map((category) => (
+                <Badge
+                  key={category.id}
+                  variant="outline"
+                  className="text-xs"
+                  style={{ borderColor: category.color, color: category.color }}
+                >
+                  {category.name}
+                </Badge>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     );
@@ -186,6 +247,15 @@ const ServicesPage: React.FC = () => {
             className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary/10"
           >
             <Users className="mr-2 h-5 w-5" /> Manage Staff
+          </Button>
+
+          <Button 
+            onClick={() => setIsCategoriesWidgetOpen(true)} 
+            size={isMobile ? "default" : "lg"} 
+            variant="outline" 
+            className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary/10"
+          >
+            <Tag className="mr-2 h-5 w-5" /> Manage Categories
           </Button>
         </div>
       </div>
@@ -231,37 +301,59 @@ const ServicesPage: React.FC = () => {
                     <TableHead className="w-1/3 py-3 text-booqit-dark/90 font-medium">Service Name</TableHead>
                     <TableHead className="text-center py-3 text-booqit-dark/90 font-medium">Duration</TableHead>
                     <TableHead className="text-center py-3 text-booqit-dark/90 font-medium">Price</TableHead>
+                    <TableHead className="text-center py-3 text-booqit-dark/90 font-medium">Categories</TableHead>
                     <TableHead className="text-right w-28 py-3 text-booqit-dark/90 font-medium">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {services.map(service => (
-                    <TableRow key={service.id} className="hover:bg-muted/20 border-b border-gray-100">
-                      <TableCell className="font-medium py-4">{service.name}</TableCell>
-                      <TableCell className="text-center py-4">{service.duration} mins</TableCell>
-                      <TableCell className="text-center py-4">₹{service.price}</TableCell>
-                      <TableCell className="text-right space-x-1.5 py-4">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEditService(service)}
-                          className="hover:bg-booqit-primary/10 hover:text-booqit-primary"
-                          title="Edit service"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => confirmDeleteService(service.id)}
-                          className="hover:bg-destructive/10 hover:text-destructive"
-                          title="Delete service"
-                        >
-                          <Trash className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {services.map(service => {
+                    const serviceCategories = getServiceCategories(service);
+                    return (
+                      <TableRow key={service.id} className="hover:bg-muted/20 border-b border-gray-100">
+                        <TableCell className="font-medium py-4">{service.name}</TableCell>
+                        <TableCell className="text-center py-4">{service.duration} mins</TableCell>
+                        <TableCell className="text-center py-4">₹{service.price}</TableCell>
+                        <TableCell className="text-center py-4">
+                          {serviceCategories.length > 0 ? (
+                            <div className="flex flex-wrap gap-1 justify-center">
+                              {serviceCategories.map((category) => (
+                                <Badge
+                                  key={category.id}
+                                  variant="outline"
+                                  className="text-xs"
+                                  style={{ borderColor: category.color, color: category.color }}
+                                >
+                                  {category.name}
+                                </Badge>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 text-sm">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right space-x-1.5 py-4">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEditService(service)}
+                            className="hover:bg-booqit-primary/10 hover:text-booqit-primary"
+                            title="Edit service"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => confirmDeleteService(service.id)}
+                            className="hover:bg-destructive/10 hover:text-destructive"
+                            title="Delete service"
+                          >
+                            <Trash className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -296,6 +388,16 @@ const ServicesPage: React.FC = () => {
           onStaffAdded={handleStaffAdded}
           isOpen={isStaffWidgetOpen}
           onClose={() => setIsStaffWidgetOpen(false)}
+        />
+      )}
+
+      {/* Manage Categories Widget */}
+      {merchantId && (
+        <ManageCategoriesWidget
+          merchantId={merchantId}
+          isOpen={isCategoriesWidgetOpen}
+          onClose={() => setIsCategoriesWidgetOpen(false)}
+          onCategoriesUpdated={handleCategoriesUpdated}
         />
       )}
 

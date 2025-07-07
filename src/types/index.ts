@@ -1,3 +1,4 @@
+
 export type UserRole = 'customer' | 'merchant';
 
 export interface User {
@@ -51,6 +52,7 @@ export interface Service {
   duration: number; // in minutes
   description: string;
   image_url?: string;
+  categories?: string[]; // Added categories field as array of category IDs
   created_at: string;
 }
 

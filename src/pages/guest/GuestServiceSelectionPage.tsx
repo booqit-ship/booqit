@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Clock, Check, ChevronRight } from 'lucide-react';
+import ServiceSearchBar from '@/components/common/ServiceSearchBar';
 
 interface Service {
   id: string;
@@ -16,6 +17,13 @@ interface Service {
   duration: number;
   description?: string;
   image_url?: string;
+  categories?: string[];
+}
+
+interface Category {
+  id: string;
+  name: string;
+  color: string;
 }
 
 interface Merchant {
@@ -37,8 +45,14 @@ const GuestServiceSelectionPage: React.FC = () => {
   
   const [merchant, setMerchant] = useState<Merchant | null>(null);
   const [services, setServices] = useState<Service[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Search states
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [filteredServices, setFilteredServices] = useState<Service[]>([]);
   
   const guestInfo = location.state?.guestInfo || JSON.parse(sessionStorage.getItem('guestBookingInfo') || '{}');
 
@@ -51,6 +65,29 @@ const GuestServiceSelectionPage: React.FC = () => {
     
     fetchMerchantData();
   }, [merchantId, guestInfo]);
+
+  // Filter services based on search term and selected categories
+  useEffect(() => {
+    let filtered = services;
+
+    // Filter by search term
+    if (searchTerm.trim()) {
+      filtered = filtered.filter(service =>
+        service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        service.description?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Filter by selected categories
+    if (selectedCategories.length > 0) {
+      filtered = filtered.filter(service => {
+        if (!service.categories || !Array.isArray(service.categories)) return false;
+        return service.categories.some(catId => selectedCategories.includes(catId));
+      });
+    }
+
+    setFilteredServices(filtered);
+  }, [services, searchTerm, selectedCategories]);
 
   const fetchMerchantData = async () => {
     if (!merchantId) return;
@@ -74,12 +111,29 @@ const GuestServiceSelectionPage: React.FC = () => {
       if (servicesError) throw servicesError;
       setServices(servicesData || []);
 
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from('service_categories')
+        .select('*')
+        .eq('merchant_id', merchantId)
+        .order('name');
+
+      if (categoriesError) throw categoriesError;
+      setCategories(categoriesData || []);
+
     } catch (error) {
       console.error('Error fetching merchant data:', error);
       toast.error('Failed to load shop information');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleCategoryToggle = (categoryId: string) => {
+    setSelectedCategories(prev =>
+      prev.includes(categoryId)
+        ? prev.filter(id => id !== categoryId)
+        : [...prev, categoryId]
+    );
   };
 
   const handleServiceToggle = (service: Service) => {
@@ -96,6 +150,11 @@ const GuestServiceSelectionPage: React.FC = () => {
         return updated;
       }
     });
+  };
+
+  const getServiceCategories = (service: Service) => {
+    if (!service.categories || !Array.isArray(service.categories)) return [];
+    return categories.filter(cat => service.categories.includes(cat.id));
   };
 
   const handleContinue = () => {
@@ -167,6 +226,18 @@ const GuestServiceSelectionPage: React.FC = () => {
       </div>
 
       <div className="max-w-lg mx-auto px-4 py-6">
+        {/* Search Section */}
+        <div className="mb-6">
+          <ServiceSearchBar
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            selectedCategories={selectedCategories}
+            onCategoryToggle={handleCategoryToggle}
+            categories={categories}
+            placeholder="Search services..."
+          />
+        </div>
+
         {/* Selection Summary */}
         {selectedServices.length > 0 && (
           <Card className="mb-6 border-purple-200 bg-gradient-to-r from-purple-50 to-purple-100 shadow-lg">
@@ -196,16 +267,22 @@ const GuestServiceSelectionPage: React.FC = () => {
         {/* Services */}
         <div className="space-y-4">
           <h3 className="text-xl font-semibold font-righteous text-gray-800">Choose Services</h3>
-          {services.length === 0 ? (
+          {filteredServices.length === 0 ? (
             <Card className="shadow-lg">
               <CardContent className="p-8 text-center">
-                <p className="text-gray-500 font-poppins">No services available at the moment</p>
+                <p className="text-gray-500 font-poppins">
+                  {searchTerm || selectedCategories.length > 0 
+                    ? 'No services match your search criteria' 
+                    : 'No services available at the moment'
+                  }
+                </p>
               </CardContent>
             </Card>
           ) : (
             <div className="space-y-4">
-              {services.map((service) => {
+              {filteredServices.map((service) => {
                 const isSelected = selectedServices.some(s => s.id === service.id);
+                const serviceCategories = getServiceCategories(service);
                 
                 return (
                   <Card 
@@ -232,12 +309,29 @@ const GuestServiceSelectionPage: React.FC = () => {
                             {service.description && (
                               <p className="text-gray-600 text-sm mb-3 font-poppins leading-relaxed">{service.description}</p>
                             )}
-                            <div className="flex items-center gap-2">
+                            
+                            <div className="flex items-center gap-2 mb-2">
                               <div className="flex items-center gap-1 text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
                                 <Clock className="h-4 w-4" />
                                 <span className="font-poppins">{service.duration} min</span>
                               </div>
                             </div>
+
+                            {/* Service Categories */}
+                            {serviceCategories.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {serviceCategories.map((category) => (
+                                  <Badge
+                                    key={category.id}
+                                    variant="outline"
+                                    className="text-xs"
+                                    style={{ borderColor: category.color, color: category.color }}
+                                  >
+                                    {category.name}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
                         <div className="text-right ml-4">

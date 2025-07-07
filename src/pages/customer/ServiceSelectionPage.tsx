@@ -5,9 +5,17 @@ import { ChevronLeft, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { Service, Merchant } from '@/types';
 import { toast } from 'sonner';
+import ServiceSearchBar from '@/components/common/ServiceSearchBar';
+
+interface Category {
+  id: string;
+  name: string;
+  color: string;
+}
 
 const ServiceSelectionPage: React.FC = () => {
   const { merchantId } = useParams<{ merchantId: string }>();
@@ -19,8 +27,14 @@ const ServiceSelectionPage: React.FC = () => {
 
   const [merchant, setMerchant] = useState<Merchant | null>(initialMerchant || null);
   const [services, setServices] = useState<Service[]>(initialServices || []);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Search states
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [filteredServices, setFilteredServices] = useState<Service[]>([]);
 
   useEffect(() => {
     // If we don't have merchant or services data, fetch them
@@ -28,6 +42,51 @@ const ServiceSelectionPage: React.FC = () => {
       fetchMerchantAndServices();
     }
   }, [merchantId]);
+
+  useEffect(() => {
+    // Fetch categories when we have merchantId
+    if (merchantId) {
+      fetchCategories();
+    }
+  }, [merchantId]);
+
+  // Filter services based on search term and selected categories
+  useEffect(() => {
+    let filtered = services;
+
+    // Filter by search term
+    if (searchTerm.trim()) {
+      filtered = filtered.filter(service =>
+        service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        service.description?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Filter by selected categories
+    if (selectedCategories.length > 0) {
+      filtered = filtered.filter(service => {
+        if (!service.categories || !Array.isArray(service.categories)) return false;
+        return service.categories.some(catId => selectedCategories.includes(catId));
+      });
+    }
+
+    setFilteredServices(filtered);
+  }, [services, searchTerm, selectedCategories]);
+
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('service_categories')
+        .select('*')
+        .eq('merchant_id', merchantId)
+        .order('name');
+      
+      if (error) throw error;
+      setCategories(data || []);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
 
   const fetchMerchantAndServices = async () => {
     try {
@@ -82,6 +141,14 @@ const ServiceSelectionPage: React.FC = () => {
     }
   };
 
+  const handleCategoryToggle = (categoryId: string) => {
+    setSelectedCategories(prev =>
+      prev.includes(categoryId)
+        ? prev.filter(id => id !== categoryId)
+        : [...prev, categoryId]
+    );
+  };
+
   const selectService = (service: Service) => {
     const isSelected = selectedServices.some(s => s.id === service.id);
     
@@ -90,6 +157,11 @@ const ServiceSelectionPage: React.FC = () => {
     } else {
       setSelectedServices(prev => [...prev, service]);
     }
+  };
+
+  const getServiceCategories = (service: Service) => {
+    if (!service.categories || !Array.isArray(service.categories)) return [];
+    return categories.filter(cat => service.categories.includes(cat.id));
   };
 
   // Calculate total price and duration for all selected services
@@ -165,10 +237,23 @@ const ServiceSelectionPage: React.FC = () => {
           <p className="text-gray-500 text-sm">Select one or more services you'd like to book</p>
         </div>
 
-        {services.length > 0 ? (
+        {/* Search Bar */}
+        <div className="mb-6">
+          <ServiceSearchBar
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            selectedCategories={selectedCategories}
+            onCategoryToggle={handleCategoryToggle}
+            categories={categories}
+            placeholder="Search services..."
+          />
+        </div>
+
+        {filteredServices.length > 0 ? (
           <div className="space-y-4 mb-6">
-            {services.map(service => {
+            {filteredServices.map(service => {
               const isSelected = selectedServices.some(s => s.id === service.id);
+              const serviceCategories = getServiceCategories(service);
 
               return (
                 <Card 
@@ -192,10 +277,27 @@ const ServiceSelectionPage: React.FC = () => {
                         <span>{service.duration} mins</span>
                       </div>
                       
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                        isSelected ? 'bg-booqit-primary border-booqit-primary' : 'border-gray-300'
-                      }`}>
-                        {isSelected && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                      <div className="flex items-center gap-2">
+                        {serviceCategories.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {serviceCategories.map((category) => (
+                              <Badge
+                                key={category.id}
+                                variant="outline"
+                                className="text-xs"
+                                style={{ borderColor: category.color, color: category.color }}
+                              >
+                                {category.name}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                        
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                          isSelected ? 'bg-booqit-primary border-booqit-primary' : 'border-gray-300'
+                        }`}>
+                          {isSelected && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -204,8 +306,13 @@ const ServiceSelectionPage: React.FC = () => {
             })}
           </div>
         ) : (
-          <div className="text-center py-8 bg-gray-50 rounded-lg">
-            <p className="text-gray-500">No services available</p>
+          <div className="text-center py-8 bg-gray-50 rounded-lg mb-6">
+            <p className="text-gray-500">
+              {searchTerm || selectedCategories.length > 0 
+                ? 'No services match your search criteria' 
+                : 'No services available'
+              }
+            </p>
           </div>
         )}
 
