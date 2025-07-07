@@ -16,61 +16,69 @@ export const useAndroidBackButton = () => {
 
     console.log('🔙 Setting up Android back button handler');
 
-    const backButtonHandler = App.addListener('backButton', ({ canGoBack }) => {
-      const currentPath = location.pathname;
-      
-      console.log('🔙 Back button pressed:', {
-        currentPath,
-        canGoBack,
-        historyLength: window.history.length
-      });
+    let listenerHandle: any = null;
 
-      // Define root/home paths where we should exit the app
-      const rootPaths = ['/', '/home', '/merchant'];
-      const isOnRootPath = rootPaths.includes(currentPath);
-
-      // Special handling for auth pages - always go to root
-      if (currentPath.includes('/auth') || 
-          currentPath === '/forgot-password' || 
-          currentPath === '/reset-password' ||
-          currentPath === '/verify') {
-        console.log('🔙 On auth page, navigating to root');
-        navigate('/', { replace: true });
-        return;
-      }
-
-      // Special handling for merchant onboarding - exit app
-      if (currentPath === '/merchant/onboarding') {
-        console.log('🔙 On onboarding, exiting app');
-        App.exitApp();
-        return;
-      }
-
-      // If on root path, exit the app
-      if (isOnRootPath) {
-        console.log('🔙 On root path, exiting app');
-        App.exitApp();
-        return;
-      }
-
-      // Try to go back in history first
-      if (canGoBack && window.history.length > 1) {
-        console.log('🔙 Going back in history');
-        navigate(-1);
-      } else {
-        // Fallback: navigate to appropriate home based on current route
-        const isOnMerchantRoute = currentPath.startsWith('/merchant');
-        const fallbackPath = isOnMerchantRoute ? '/merchant' : '/home';
+    const setupListener = async () => {
+      listenerHandle = await App.addListener('backButton', ({ canGoBack }) => {
+        const currentPath = location.pathname;
         
-        console.log('🔙 No history, navigating to:', fallbackPath);
-        navigate(fallbackPath, { replace: true });
-      }
-    });
+        console.log('🔙 Back button pressed:', {
+          currentPath,
+          canGoBack,
+          historyLength: window.history.length
+        });
+
+        // Define root/home paths where we should exit the app
+        const rootPaths = ['/', '/home', '/merchant'];
+        const isOnRootPath = rootPaths.includes(currentPath);
+
+        // Special handling for auth pages - always go to root
+        if (currentPath.includes('/auth') || 
+            currentPath === '/forgot-password' || 
+            currentPath === '/reset-password' ||
+            currentPath === '/verify') {
+          console.log('🔙 On auth page, navigating to root');
+          navigate('/', { replace: true });
+          return;
+        }
+
+        // Special handling for merchant onboarding - exit app
+        if (currentPath === '/merchant/onboarding') {
+          console.log('🔙 On onboarding, exiting app');
+          App.exitApp();
+          return;
+        }
+
+        // If on root path, exit the app
+        if (isOnRootPath) {
+          console.log('🔙 On root path, exiting app');
+          App.exitApp();
+          return;
+        }
+
+        // Try to go back in history first
+        if (canGoBack && window.history.length > 1) {
+          console.log('🔙 Going back in history');
+          navigate(-1);
+        } else {
+          // Fallback: navigate to appropriate home based on current route
+          const isOnMerchantRoute = currentPath.startsWith('/merchant');
+          const fallbackPath = isOnMerchantRoute ? '/merchant' : '/home';
+          
+          console.log('🔙 No history, navigating to:', fallbackPath);
+          navigate(fallbackPath, { replace: true });
+        }
+      });
+    };
+
+    setupListener();
 
     // Cleanup listener on unmount
     return () => {
       console.log('🔙 Cleaning up back button handler');
-      backButtonHandler.remove();
+      if (listenerHandle) {
+        listenerHandle.remove();
+      }
     };
   }, [navigate, location.pathname]);
 };
