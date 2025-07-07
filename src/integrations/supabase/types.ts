@@ -984,6 +984,10 @@ export type Database = {
         }
         Returns: Json
       }
+      check_user_email_exists: {
+        Args: { email_to_check: string }
+        Returns: boolean
+      }
       cleanup_expired_locks: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -1333,6 +1337,10 @@ export type Database = {
           device_name: string
           last_used_at: string
         }[]
+      }
+      get_user_reset_info: {
+        Args: { user_email: string }
+        Returns: Json
       }
       manage_stylist_availability: {
         Args: {

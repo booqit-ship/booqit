@@ -58,15 +58,30 @@ const ForgotPasswordPage: React.FC = () => {
         throw new Error("Please enter a valid email address");
       }
       
-      console.log('📧 Sending password reset email to:', email.trim());
+      console.log('📧 Checking if account exists for:', email.trim());
+
+      // First check if the account exists using our new function
+      const { data: accountExists, error: checkError } = await supabase.rpc('check_user_email_exists', { 
+        email_to_check: email.trim().toLowerCase() 
+      });
+
+      if (checkError) {
+        console.error('❌ Error checking account existence:', checkError);
+        throw new Error("Unable to verify account. Please try again.");
+      }
+
+      if (!accountExists) {
+        throw new Error("No account found with this email address. Please check your email or create a new account.");
+      }
+
+      console.log('✅ Account exists, sending password reset email to:', email.trim());
 
       const redirectUrl = getResetRedirectUrl();
       console.log('🔗 Using redirect URL:', redirectUrl);
 
-      // Enhanced password reset request with better error handling
+      // Send password reset email
       const { data, error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: redirectUrl,
-        captchaToken: undefined // Ensure no captcha issues
       });
       
       if (error) {
@@ -82,18 +97,17 @@ const ForgotPasswordPage: React.FC = () => {
           throw new Error("Password reset is currently disabled. Please contact support.");
         }
         
-        // For security, don't reveal if user exists - just show success
-        console.log('⚠️ Error occurred, but showing success message for security');
+        throw new Error(error.message || "Failed to send reset email. Please try again.");
       }
       
-      console.log('✅ Password reset email request processed successfully');
+      console.log('✅ Password reset email sent successfully');
       console.log('Reset data:', data);
       
       setEmailSent(true);
       
       toast({
         title: "Reset link sent!",
-        description: "If an account with this email exists, you'll receive a password reset link. Please check your spam folder if you don't see it within 5 minutes."
+        description: "A password reset link has been sent to your email. Please check your spam folder if you don't see it within 5 minutes."
       });
       
     } catch (error: any) {
@@ -126,7 +140,7 @@ const ForgotPasswordPage: React.FC = () => {
                 Check Your Email
               </CardTitle>
               <CardDescription className="font-poppins">
-                A password reset link has been sent to your email if an account exists.
+                A password reset link has been sent to your email.
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center space-y-4">
@@ -226,7 +240,7 @@ const ForgotPasswordPage: React.FC = () => {
                 <div className="flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
                   <p className="text-xs text-gray-600 font-poppins">
-                    For security, we'll send reset instructions to your email if an account exists. 
+                    We'll first check if an account exists with this email, then send reset instructions if found. 
                     The link expires in 2 hours and works on any device.
                   </p>
                 </div>
@@ -238,7 +252,7 @@ const ForgotPasswordPage: React.FC = () => {
                 className="w-full bg-booqit-primary hover:bg-booqit-primary/90 font-poppins"
                 disabled={isLoading || !email.trim() || cooldownSeconds > 0}
               >
-                {isLoading ? "Sending..." : cooldownSeconds > 0 ? `Wait ${cooldownSeconds}s` : "Send Reset Link"}
+                {isLoading ? "Checking Account..." : cooldownSeconds > 0 ? `Wait ${cooldownSeconds}s` : "Send Reset Link"}
               </Button>
             </CardFooter>
           </form>
