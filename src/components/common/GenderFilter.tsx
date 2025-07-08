@@ -4,15 +4,15 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
 interface GenderFilterProps {
-  selectedTypes: string[];
-  onTypeToggle: (type: string) => void;
+  selectedType: string;
+  onTypeSelect: (type: string) => void;
   onClear: () => void;
   isUnisexShop: boolean;
 }
 
 const GenderFilter: React.FC<GenderFilterProps> = ({
-  selectedTypes,
-  onTypeToggle,
+  selectedType,
+  onTypeSelect,
   onClear,
   isUnisexShop
 }) => {
@@ -28,7 +28,7 @@ const GenderFilter: React.FC<GenderFilterProps> = ({
     <div className="mb-4 p-3 bg-gray-50 rounded-lg">
       <div className="flex items-center justify-between mb-2">
         <h4 className="text-sm font-medium text-gray-700">Filter by Gender</h4>
-        {selectedTypes.length > 0 && (
+        {selectedType && (
           <Button
             variant="ghost"
             size="sm"
@@ -43,13 +43,13 @@ const GenderFilter: React.FC<GenderFilterProps> = ({
         {genderTypes.map((type) => (
           <Badge
             key={type.value}
-            variant={selectedTypes.includes(type.value) ? "default" : "outline"}
+            variant={selectedType === type.value ? "default" : "outline"}
             className={`cursor-pointer transition-colors ${
-              selectedTypes.includes(type.value)
+              selectedType === type.value
                 ? 'bg-booqit-primary hover:bg-booqit-primary/90'
                 : 'hover:bg-booqit-primary/10'
             }`}
-            onClick={() => onTypeToggle(type.value)}
+            onClick={() => onTypeSelect(type.value)}
           >
             {type.label}
           </Badge>

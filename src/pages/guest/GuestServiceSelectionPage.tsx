@@ -2,8 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, ChevronRight } from 'lucide-react';
@@ -33,7 +31,7 @@ const GuestServiceSelectionPage: React.FC = () => {
   // Search states
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [selectedType, setSelectedType] = useState<string>('');
   const [filteredServices, setFilteredServices] = useState<Service[]>([]);
   
   const guestInfo = location.state?.guestInfo || JSON.parse(sessionStorage.getItem('guestBookingInfo') || '{}');
@@ -48,7 +46,7 @@ const GuestServiceSelectionPage: React.FC = () => {
     fetchMerchantData();
   }, [merchantId, guestInfo]);
 
-  // Filter services based on search term, selected categories, and gender types
+  // Filter services based on search term, selected categories, and gender type
   useEffect(() => {
     let filtered = services;
 
@@ -68,15 +66,15 @@ const GuestServiceSelectionPage: React.FC = () => {
       });
     }
 
-    // Filter by gender types (only for unisex shops)
-    if (selectedTypes.length > 0 && merchant?.gender_focus === 'unisex') {
+    // Filter by gender type (only for unisex shops)
+    if (selectedType && merchant?.gender_focus === 'unisex') {
       filtered = filtered.filter(service => {
-        return selectedTypes.includes(service.type || 'unisex');
+        return service.type === selectedType;
       });
     }
 
     setFilteredServices(filtered);
-  }, [services, searchTerm, selectedCategories, selectedTypes, merchant]);
+  }, [services, searchTerm, selectedCategories, selectedType, merchant]);
 
   const fetchMerchantData = async () => {
     if (!merchantId) return;
@@ -135,16 +133,12 @@ const GuestServiceSelectionPage: React.FC = () => {
     );
   };
 
-  const handleTypeToggle = (type: string) => {
-    setSelectedTypes(prev =>
-      prev.includes(type)
-        ? prev.filter(t => t !== type)
-        : [...prev, type]
-    );
+  const handleTypeSelect = (type: string) => {
+    setSelectedType(prevType => prevType === type ? '' : type);
   };
 
-  const handleClearTypes = () => {
-    setSelectedTypes([]);
+  const handleClearType = () => {
+    setSelectedType('');
   };
 
   const handleServiceToggle = (service: Service) => {
@@ -250,37 +244,11 @@ const GuestServiceSelectionPage: React.FC = () => {
 
         {/* Gender Filter - Only for Unisex Shops */}
         <GenderFilter
-          selectedTypes={selectedTypes}
-          onTypeToggle={handleTypeToggle}
-          onClear={handleClearTypes}
+          selectedType={selectedType}
+          onTypeSelect={handleTypeSelect}
+          onClear={handleClearType}
           isUnisexShop={merchant.gender_focus === 'unisex'}
         />
-
-        {/* Selection Summary */}
-        {selectedServices.length > 0 && (
-          <Card className="mb-6 border-purple-200 bg-gradient-to-r from-purple-50 to-purple-100 shadow-lg">
-            <CardContent className="p-5">
-              <h3 className="font-semibold mb-3 font-righteous text-purple-800">Selected Services</h3>
-              <div className="space-y-3">
-                {selectedServices.map((service) => (
-                  <div key={service.id} className="flex justify-between items-center text-sm bg-white p-3 rounded-lg shadow-sm">
-                    <span className="font-poppins font-medium">{service.name}</span>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="font-poppins text-xs">
-                        {service.duration}min
-                      </Badge>
-                      <span className="font-semibold text-purple-600">₹{service.price}</span>
-                    </div>
-                  </div>
-                ))}
-                <div className="border-t pt-3 flex justify-between items-center font-semibold text-purple-800">
-                  <span className="font-poppins">Total: {totalDuration} min</span>
-                  <span className="text-lg">₹{totalPrice}</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Services */}
         <div className="space-y-4">
@@ -299,7 +267,7 @@ const GuestServiceSelectionPage: React.FC = () => {
       {/* Fixed Bottom Bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-2xl">
         <div className="max-w-lg mx-auto p-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <CartWidget
               selectedServices={selectedServices}
               onRemoveService={removeService}

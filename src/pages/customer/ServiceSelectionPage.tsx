@@ -1,10 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { Service, Merchant } from '@/types';
 import { toast } from 'sonner';
@@ -36,7 +33,7 @@ const ServiceSelectionPage: React.FC = () => {
   // Search states
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [selectedType, setSelectedType] = useState<string>('');
   const [filteredServices, setFilteredServices] = useState<Service[]>([]);
 
   useEffect(() => {
@@ -53,7 +50,7 @@ const ServiceSelectionPage: React.FC = () => {
     }
   }, [merchantId]);
 
-  // Filter services based on search term, selected categories, and gender types
+  // Filter services based on search term, selected categories, and gender type
   useEffect(() => {
     let filtered = services;
 
@@ -73,15 +70,15 @@ const ServiceSelectionPage: React.FC = () => {
       });
     }
 
-    // Filter by gender types (only for unisex shops)
-    if (selectedTypes.length > 0 && merchant?.gender_focus === 'unisex') {
+    // Filter by gender type (only for unisex shops)
+    if (selectedType && merchant?.gender_focus === 'unisex') {
       filtered = filtered.filter(service => {
-        return selectedTypes.includes(service.type || 'unisex');
+        return service.type === selectedType;
       });
     }
 
     setFilteredServices(filtered);
-  }, [services, searchTerm, selectedCategories, selectedTypes, merchant]);
+  }, [services, searchTerm, selectedCategories, selectedType, merchant]);
 
   const fetchCategories = async () => {
     try {
@@ -169,16 +166,12 @@ const ServiceSelectionPage: React.FC = () => {
     );
   };
 
-  const handleTypeToggle = (type: string) => {
-    setSelectedTypes(prev =>
-      prev.includes(type)
-        ? prev.filter(t => t !== type)
-        : [...prev, type]
-    );
+  const handleTypeSelect = (type: string) => {
+    setSelectedType(prevType => prevType === type ? '' : type);
   };
 
-  const handleClearTypes = () => {
-    setSelectedTypes([]);
+  const handleClearType = () => {
+    setSelectedType('');
   };
 
   const selectService = (service: Service) => {
@@ -282,9 +275,9 @@ const ServiceSelectionPage: React.FC = () => {
 
         {/* Gender Filter - Only for Unisex Shops */}
         <GenderFilter
-          selectedTypes={selectedTypes}
-          onTypeToggle={handleTypeToggle}
-          onClear={handleClearTypes}
+          selectedType={selectedType}
+          onTypeSelect={handleTypeSelect}
+          onClear={handleClearType}
           isUnisexShop={merchant.gender_focus === 'unisex'}
         />
 
@@ -299,29 +292,10 @@ const ServiceSelectionPage: React.FC = () => {
             isSelectable={true}
           />
         </div>
-
-        {selectedServices.length > 0 && (
-          <Card className="mb-6">
-            <CardContent className="p-4">
-              <h3 className="font-semibold mb-3">Selected Services</h3>
-              {selectedServices.map((service, index) => (
-                <div key={service.id} className="flex justify-between text-sm mb-2">
-                  <span>{service.name}</span>
-                  <span>₹{service.price} ({service.duration} mins)</span>
-                </div>
-              ))}
-              <Separator className="my-3" />
-              <div className="flex justify-between font-semibold">
-                <span>Total ({totalDuration} mins)</span>
-                <span>₹{totalPrice}</span>
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <CartWidget
             selectedServices={selectedServices}
             onRemoveService={removeService}

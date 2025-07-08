@@ -27,12 +27,12 @@ const CartWidget: React.FC<CartWidgetProps> = ({
       <DrawerTrigger asChild>
         <Button
           variant="outline"
-          size="icon"
-          className="relative bg-white border-2 border-booqit-primary text-booqit-primary hover:bg-booqit-primary/10 shadow-lg"
+          size="sm"
+          className="relative bg-white border-2 border-booqit-primary text-booqit-primary hover:bg-booqit-primary/10 shadow-lg min-w-[44px] h-[44px] p-2"
         >
-          <ShoppingCart className="h-5 w-5" />
+          <ShoppingCart className="h-4 w-4" />
           <Badge 
-            className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0 flex items-center justify-center bg-red-500 text-white text-xs font-bold"
+            className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center bg-red-500 text-white text-xs font-bold"
           >
             {selectedServices.length}
           </Badge>
