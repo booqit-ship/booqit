@@ -112,7 +112,9 @@ const GuestServiceSelectionPage: React.FC = () => {
       // Transform services data to match our Service interface
       const transformedServices: Service[] = (servicesData || []).map(service => ({
         ...service,
-        categories: Array.isArray(service.categories) ? service.categories : []
+        categories: Array.isArray(service.categories) 
+          ? service.categories.map(cat => String(cat))
+          : []
       }));
       
       setServices(transformedServices);
