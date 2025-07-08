@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Clock, MapPin, Star, User } from 'lucide-react';
@@ -32,7 +31,7 @@ const MerchantDetailPage: React.FC = () => {
   // Search states
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [selectedType, setSelectedType] = useState<string>('');
   const [filteredServices, setFilteredServices] = useState<Service[]>([]);
 
   const formatCategory = (category: string) => {
@@ -137,15 +136,15 @@ const MerchantDetailPage: React.FC = () => {
       });
     }
 
-    // Filter by gender types (only for unisex shops)
-    if (selectedTypes.length > 0 && merchant?.gender_focus === 'unisex') {
+    // Filter by gender type (only for unisex shops)
+    if (selectedType && merchant?.gender_focus === 'unisex') {
       filtered = filtered.filter(service => {
-        return selectedTypes.includes(service.type || 'unisex');
+        return service.type === selectedType;
       });
     }
 
     setFilteredServices(filtered);
-  }, [services, searchTerm, selectedCategories, selectedTypes, merchant]);
+  }, [services, searchTerm, selectedCategories, selectedType, merchant]);
 
   const handleCategoryToggle = (categoryId: string) => {
     setSelectedCategories(prev =>
@@ -155,16 +154,12 @@ const MerchantDetailPage: React.FC = () => {
     );
   };
 
-  const handleTypeToggle = (type: string) => {
-    setSelectedTypes(prev =>
-      prev.includes(type)
-        ? prev.filter(t => t !== type)
-        : [...prev, type]
-    );
+  const handleTypeSelect = (type: string) => {
+    setSelectedType(prevType => prevType === type ? '' : type);
   };
 
-  const handleClearTypes = () => {
-    setSelectedTypes([]);
+  const handleClearType = () => {
+    setSelectedType('');
   };
 
   const getFormattedTime = (timeString: string) => {
@@ -320,9 +315,9 @@ const MerchantDetailPage: React.FC = () => {
 
             {/* Gender Filter - Only for Unisex Shops */}
             <GenderFilter
-              selectedTypes={selectedTypes}
-              onTypeToggle={handleTypeToggle}
-              onClear={handleClearTypes}
+              selectedType={selectedType}
+              onTypeSelect={handleTypeSelect}
+              onClear={handleClearType}
               isUnisexShop={merchant.gender_focus === 'unisex'}
             />
 
