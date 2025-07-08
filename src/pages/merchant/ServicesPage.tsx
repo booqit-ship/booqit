@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -82,8 +81,14 @@ const ServicesPage: React.FC = () => {
   };
 
   // Use React Query hooks for data fetching
-  const { data: services = [], isLoading: servicesLoading, error: servicesError } = useServicesData(merchantId);
+  const { data: servicesRaw = [], isLoading: servicesLoading, error: servicesError } = useServicesData(merchantId);
   const { data: staff = [], isLoading: staffLoading, error: staffError } = useStaffData(merchantId);
+
+  // Transform services data to match our Service interface
+  const services: Service[] = servicesRaw.map(service => ({
+    ...service,
+    categories: Array.isArray(service.categories) ? service.categories : []
+  }));
 
   const handleServiceAdded = () => {
     if (merchantId) {

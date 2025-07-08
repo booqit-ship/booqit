@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -109,7 +108,14 @@ const GuestServiceSelectionPage: React.FC = () => {
         .eq('merchant_id', merchantId);
 
       if (servicesError) throw servicesError;
-      setServices(servicesData || []);
+      
+      // Transform services data to match our Service interface
+      const transformedServices: Service[] = (servicesData || []).map(service => ({
+        ...service,
+        categories: Array.isArray(service.categories) ? service.categories : []
+      }));
+      
+      setServices(transformedServices);
 
       const { data: categoriesData, error: categoriesError } = await supabase
         .from('service_categories')

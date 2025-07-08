@@ -92,7 +92,14 @@ const MerchantDetailPage: React.FC = () => {
         console.log('Categories data:', categoriesData);
         
         setMerchant(merchantData);
-        setServices(servicesData || []);
+        
+        // Transform services data to match our Service interface
+        const transformedServices: Service[] = (servicesData || []).map(service => ({
+          ...service,
+          categories: Array.isArray(service.categories) ? service.categories : []
+        }));
+        
+        setServices(transformedServices);
         setCategories(categoriesData || []);
         setStaff(staffData || []);
       } catch (error) {
