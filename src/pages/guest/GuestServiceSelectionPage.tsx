@@ -10,6 +10,7 @@ import { ArrowLeft, ChevronRight } from 'lucide-react';
 import ServiceSearchBar from '@/components/common/ServiceSearchBar';
 import StructuredServicesList from '@/components/common/StructuredServicesList';
 import GenderFilter from '@/components/common/GenderFilter';
+import CartWidget from '@/components/common/CartWidget';
 import { Service, Merchant } from '@/types';
 
 interface Category {
@@ -162,6 +163,10 @@ const GuestServiceSelectionPage: React.FC = () => {
     });
   };
 
+  const removeService = (service: Service) => {
+    setSelectedServices(prev => prev.filter(s => s.id !== service.id));
+  };
+
   const handleContinue = () => {
     if (selectedServices.length === 0) {
       toast.error('Please select at least one service');
@@ -294,25 +299,33 @@ const GuestServiceSelectionPage: React.FC = () => {
       {/* Fixed Bottom Bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-2xl">
         <div className="max-w-lg mx-auto p-4">
-          <Button 
-            className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white text-lg py-6 font-poppins font-medium shadow-lg transition-all duration-200 transform hover:scale-[1.02]"
-            size="lg"
-            onClick={handleContinue}
-            disabled={selectedServices.length === 0}
-          >
-            {selectedServices.length > 0 
-              ? (
-                <div className="flex items-center justify-between w-full">
-                  <span>Continue with {selectedServices.length} service{selectedServices.length > 1 ? 's' : ''}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold">₹{totalPrice}</span>
-                    <ChevronRight className="h-5 w-5" />
+          <div className="flex items-center gap-3">
+            <CartWidget
+              selectedServices={selectedServices}
+              onRemoveService={removeService}
+              totalPrice={totalPrice}
+              totalDuration={totalDuration}
+            />
+            <Button 
+              className="flex-1 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white text-lg py-6 font-poppins font-medium shadow-lg transition-all duration-200 transform hover:scale-[1.02]"
+              size="lg"
+              onClick={handleContinue}
+              disabled={selectedServices.length === 0}
+            >
+              {selectedServices.length > 0 
+                ? (
+                  <div className="flex items-center justify-between w-full">
+                    <span>Continue with {selectedServices.length} service{selectedServices.length > 1 ? 's' : ''}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold">₹{totalPrice}</span>
+                      <ChevronRight className="h-5 w-5" />
+                    </div>
                   </div>
-                </div>
-              )
-              : 'Select at least one service'
-            }
-          </Button>
+                )
+                : 'Select at least one service'
+              }
+            </Button>
+          </div>
         </div>
       </div>
     </div>

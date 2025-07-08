@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import ServiceSearchBar from '@/components/common/ServiceSearchBar';
 import StructuredServicesList from '@/components/common/StructuredServicesList';
 import GenderFilter from '@/components/common/GenderFilter';
+import CartWidget from '@/components/common/CartWidget';
 
 interface Category {
   id: string;
@@ -190,6 +191,10 @@ const ServiceSelectionPage: React.FC = () => {
     }
   };
 
+  const removeService = (service: Service) => {
+    setSelectedServices(prev => prev.filter(s => s.id !== service.id));
+  };
+
   // Calculate total price and duration for all selected services
   const totalPrice = selectedServices.reduce((sum, service) => sum + service.price, 0);
   const totalDuration = selectedServices.reduce((sum, service) => sum + service.duration, 0);
@@ -316,14 +321,22 @@ const ServiceSelectionPage: React.FC = () => {
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
-        <Button 
-          className="w-full bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6"
-          size="lg"
-          onClick={handleContinue}
-          disabled={selectedServices.length === 0}
-        >
-          Continue to Stylist Selection
-        </Button>
+        <div className="flex items-center gap-3">
+          <CartWidget
+            selectedServices={selectedServices}
+            onRemoveService={removeService}
+            totalPrice={totalPrice}
+            totalDuration={totalDuration}
+          />
+          <Button 
+            className="flex-1 bg-booqit-primary hover:bg-booqit-primary/90 text-lg py-6"
+            size="lg"
+            onClick={handleContinue}
+            disabled={selectedServices.length === 0}
+          >
+            Continue to Stylist Selection
+          </Button>
+        </div>
       </div>
     </div>
   );

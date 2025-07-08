@@ -71,14 +71,7 @@ const StructuredServicesList: React.FC<StructuredServicesListProps> = ({
             <div className="flex justify-between items-start">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
-                  <h4 className="font-medium text-gray-800">- {service.name}</h4>
-                  {showSelection && (
-                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                      selected ? 'bg-booqit-primary border-booqit-primary' : 'border-gray-300'
-                    }`}>
-                      {selected && <div className="w-2 h-2 bg-white rounded-full"></div>}
-                    </div>
-                  )}
+                  <h4 className="font-medium text-gray-800">{service.name}</h4>
                 </div>
                 {service.description && (
                   <p className="text-sm text-gray-600 mb-2">{service.description}</p>
@@ -88,8 +81,15 @@ const StructuredServicesList: React.FC<StructuredServicesListProps> = ({
                   <span>{service.duration} mins</span>
                 </div>
               </div>
-              <div className="text-right">
-                <span className="font-semibold text-booqit-primary">₹{service.price}</span>
+              <div className="text-right flex flex-col items-end">
+                <span className="font-semibold text-booqit-primary mb-2">₹{service.price}</span>
+                {showSelection && (
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                    selected ? 'bg-booqit-primary border-booqit-primary' : 'border-gray-300'
+                  }`}>
+                    {selected && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                  </div>
+                )}
               </div>
             </div>
           </CardContent>
