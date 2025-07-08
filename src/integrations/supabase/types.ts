@@ -608,6 +608,7 @@ export type Database = {
           merchant_id: string
           name: string
           price: number
+          type: string | null
         }
         Insert: {
           categories?: Json | null
@@ -619,6 +620,7 @@ export type Database = {
           merchant_id: string
           name: string
           price: number
+          type?: string | null
         }
         Update: {
           categories?: Json | null
@@ -630,6 +632,7 @@ export type Database = {
           merchant_id?: string
           name?: string
           price?: number
+          type?: string | null
         }
         Relationships: [
           {

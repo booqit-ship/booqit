@@ -7,9 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { Service } from '@/types';
-import { PlusCircle, X, Loader2, DollarSign, Clock, Tag } from 'lucide-react';
+import { PlusCircle, X, Loader2, DollarSign, Clock, Tag, Users } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface Category {
@@ -35,14 +36,17 @@ const AddServiceWidget: React.FC<AddServiceWidgetProps> = ({
   const [price, setPrice] = useState('');
   const [duration, setDuration] = useState('');
   const [description, setDescription] = useState('');
+  const [type, setType] = useState('unisex');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [merchantGenderFocus, setMerchantGenderFocus] = useState<string>('unisex');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     if (isOpen && merchantId) {
       fetchCategories();
+      fetchMerchantInfo();
     }
   }, [isOpen, merchantId]);
 
@@ -61,11 +65,27 @@ const AddServiceWidget: React.FC<AddServiceWidgetProps> = ({
     }
   };
 
+  const fetchMerchantInfo = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('merchants')
+        .select('gender_focus')
+        .eq('id', merchantId)
+        .single();
+
+      if (error) throw error;
+      setMerchantGenderFocus(data?.gender_focus || 'unisex');
+    } catch (error) {
+      console.error('Error fetching merchant info:', error);
+    }
+  };
+
   const resetForm = () => {
     setName('');
     setPrice('');
     setDuration('');
     setDescription('');
+    setType('unisex');
     setSelectedCategories([]);
   };
 
@@ -97,6 +117,7 @@ const AddServiceWidget: React.FC<AddServiceWidgetProps> = ({
           price: parseFloat(price),
           duration: parseInt(duration),
           description,
+          type,
           categories: selectedCategories
         })
         .select();
@@ -125,6 +146,8 @@ const AddServiceWidget: React.FC<AddServiceWidgetProps> = ({
     resetForm();
     onClose();
   };
+
+  const isUnisexShop = merchantGenderFocus === 'unisex';
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -204,6 +227,26 @@ const AddServiceWidget: React.FC<AddServiceWidgetProps> = ({
                   className="border-booqit-primary/20 focus:border-booqit-primary resize-none"
                 />
               </div>
+
+              {/* Gender Type Selection - Only for Unisex Shops */}
+              {isUnisexShop && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium flex items-center gap-1">
+                    <Users className="h-3 w-3" />
+                    Gender Type (Optional)
+                  </Label>
+                  <Select value={type} onValueChange={setType}>
+                    <SelectTrigger className="border-booqit-primary/20 focus:border-booqit-primary">
+                      <SelectValue placeholder="Select gender type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unisex">Unisex</SelectItem>
+                      <SelectItem value="male">Male</SelectItem>
+                      <SelectItem value="female">Female</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               {/* Categories Selection */}
               {categories.length > 0 && (

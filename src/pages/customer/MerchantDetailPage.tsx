@@ -3,8 +3,6 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Clock, MapPin, Star, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
@@ -12,6 +10,8 @@ import { Merchant, Service, Staff } from '@/types';
 import { toast } from 'sonner';
 import ReviewsSection from '@/components/customer/ReviewsSection';
 import ServiceSearchBar from '@/components/common/ServiceSearchBar';
+import StructuredServicesList from '@/components/common/StructuredServicesList';
+import GenderFilter from '@/components/common/GenderFilter';
 
 interface Category {
   id: string;
@@ -32,6 +32,7 @@ const MerchantDetailPage: React.FC = () => {
   // Search states
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [filteredServices, setFilteredServices] = useState<Service[]>([]);
 
   const formatCategory = (category: string) => {
@@ -98,7 +99,8 @@ const MerchantDetailPage: React.FC = () => {
           ...service,
           categories: Array.isArray(service.categories) 
             ? service.categories.map(cat => String(cat))
-            : []
+            : [],
+          type: service.type || 'unisex'
         }));
         
         setServices(transformedServices);
@@ -115,7 +117,7 @@ const MerchantDetailPage: React.FC = () => {
     fetchMerchantDetails();
   }, [merchantId]);
 
-  // Filter services based on search term and selected categories
+  // Filter services based on search term, selected categories, and gender types
   useEffect(() => {
     let filtered = services;
 
@@ -135,8 +137,15 @@ const MerchantDetailPage: React.FC = () => {
       });
     }
 
+    // Filter by gender types (only for unisex shops)
+    if (selectedTypes.length > 0 && merchant?.gender_focus === 'unisex') {
+      filtered = filtered.filter(service => {
+        return selectedTypes.includes(service.type || 'unisex');
+      });
+    }
+
     setFilteredServices(filtered);
-  }, [services, searchTerm, selectedCategories]);
+  }, [services, searchTerm, selectedCategories, selectedTypes, merchant]);
 
   const handleCategoryToggle = (categoryId: string) => {
     setSelectedCategories(prev =>
@@ -146,9 +155,16 @@ const MerchantDetailPage: React.FC = () => {
     );
   };
 
-  const getServiceCategories = (service: Service) => {
-    if (!service.categories || !Array.isArray(service.categories)) return [];
-    return categories.filter(cat => service.categories.includes(cat.id));
+  const handleTypeToggle = (type: string) => {
+    setSelectedTypes(prev =>
+      prev.includes(type)
+        ? prev.filter(t => t !== type)
+        : [...prev, type]
+    );
+  };
+
+  const handleClearTypes = () => {
+    setSelectedTypes([]);
   };
 
   const getFormattedTime = (timeString: string) => {
@@ -268,8 +284,6 @@ const MerchantDetailPage: React.FC = () => {
             </div>
           </div>
         )}
-        
-        <Separator className="mb-6" />
 
         {/* Book Services Button */}
         {services.length > 0 && (
@@ -304,56 +318,20 @@ const MerchantDetailPage: React.FC = () => {
               />
             </div>
 
-            {filteredServices.length > 0 ? (
-              <div className="space-y-4">
-                {filteredServices.map(service => {
-                  const serviceCategories = getServiceCategories(service);
-                  return (
-                    <Card key={service.id} className="overflow-hidden">
-                      <CardContent className="p-4">
-                        <div className="flex justify-between items-start mb-2">
-                          <h3 className="font-medium">{service.name}</h3>
-                          <span className="font-medium">₹{service.price}</span>
-                        </div>
-                        
-                        <p className="text-sm text-gray-500 mb-3">{service.description}</p>
-                        
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center text-gray-500 text-sm">
-                            <Clock className="h-3 w-3 mr-1" />
-                            <span>{service.duration} mins</span>
-                          </div>
-                          
-                          {serviceCategories.length > 0 && (
-                            <div className="flex flex-wrap gap-1">
-                              {serviceCategories.map((category) => (
-                                <Badge
-                                  key={category.id}
-                                  variant="outline"
-                                  className="text-xs"
-                                  style={{ borderColor: category.color, color: category.color }}
-                                >
-                                  {category.name}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-8 bg-gray-50 rounded-lg">
-                <p className="text-gray-500">
-                  {searchTerm || selectedCategories.length > 0 
-                    ? 'No services match your search criteria' 
-                    : 'No services available'
-                  }
-                </p>
-              </div>
-            )}
+            {/* Gender Filter - Only for Unisex Shops */}
+            <GenderFilter
+              selectedTypes={selectedTypes}
+              onTypeToggle={handleTypeToggle}
+              onClear={handleClearTypes}
+              isUnisexShop={merchant.gender_focus === 'unisex'}
+            />
+
+            {/* Structured Services List */}
+            <StructuredServicesList
+              services={filteredServices}
+              categories={categories}
+              isSelectable={false}
+            />
           </TabsContent>
           
           <TabsContent value="reviews" className="mt-6">

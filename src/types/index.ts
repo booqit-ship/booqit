@@ -53,6 +53,7 @@ export interface Service {
   description: string;
   image_url?: string;
   categories?: string[]; // Added categories field as array of category IDs
+  type?: string; // Added type field for gender-based filtering (male, female, unisex)
   created_at: string;
 }
 
