@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
@@ -278,7 +279,7 @@ const ServiceSelectionPage: React.FC = () => {
           selectedType={selectedType}
           onTypeSelect={handleTypeSelect}
           onClear={handleClearType}
-          isUnisexShop={merchant.gender_focus === 'unisex'}
+          isUnisexShop={merchant?.gender_focus === 'unisex'}
         />
 
         {/* Structured Services List */}
@@ -295,7 +296,7 @@ const ServiceSelectionPage: React.FC = () => {
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <CartWidget
             selectedServices={selectedServices}
             onRemoveService={removeService}

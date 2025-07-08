@@ -28,11 +28,11 @@ const CartWidget: React.FC<CartWidgetProps> = ({
         <Button
           variant="outline"
           size="sm"
-          className="relative bg-white border-2 border-booqit-primary text-booqit-primary hover:bg-booqit-primary/10 shadow-lg min-w-[44px] h-[44px] p-2"
+          className="relative bg-white border-2 border-booqit-primary text-booqit-primary hover:bg-booqit-primary/10 shadow-lg h-10 w-10 p-0 flex-shrink-0"
         >
           <ShoppingCart className="h-4 w-4" />
           <Badge 
-            className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center bg-red-500 text-white text-xs font-bold"
+            className="absolute -top-1 -right-1 h-4 w-4 rounded-full p-0 flex items-center justify-center bg-red-500 text-white text-xs font-bold"
           >
             {selectedServices.length}
           </Badge>

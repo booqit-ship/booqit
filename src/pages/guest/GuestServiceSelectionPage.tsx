@@ -247,7 +247,7 @@ const GuestServiceSelectionPage: React.FC = () => {
           selectedType={selectedType}
           onTypeSelect={handleTypeSelect}
           onClear={handleClearType}
-          isUnisexShop={merchant.gender_focus === 'unisex'}
+          isUnisexShop={merchant?.gender_focus === 'unisex'}
         />
 
         {/* Services */}
@@ -267,7 +267,7 @@ const GuestServiceSelectionPage: React.FC = () => {
       {/* Fixed Bottom Bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-2xl">
         <div className="max-w-lg mx-auto p-4">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <CartWidget
               selectedServices={selectedServices}
               onRemoveService={removeService}
