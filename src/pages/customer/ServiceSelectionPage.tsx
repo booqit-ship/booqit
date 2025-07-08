@@ -220,7 +220,7 @@ const ServiceSelectionPage: React.FC = () => {
 
       <div className="p-4">
         <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-2">Choose Your Services</h2>
+          <h2 className="mb-2 text-xl font-light">Choose Your Services</h2>
           <p className="text-gray-500 text-sm">Select one or more services you'd like to book</p>
         </div>
 
