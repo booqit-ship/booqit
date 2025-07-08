@@ -10,35 +10,12 @@ import { ArrowLeft, ChevronRight } from 'lucide-react';
 import ServiceSearchBar from '@/components/common/ServiceSearchBar';
 import StructuredServicesList from '@/components/common/StructuredServicesList';
 import GenderFilter from '@/components/common/GenderFilter';
-
-interface Service {
-  id: string;
-  name: string;
-  price: number;
-  duration: number;
-  description?: string;
-  image_url?: string;
-  categories?: string[];
-  type?: string;
-}
+import { Service, Merchant } from '@/types';
 
 interface Category {
   id: string;
   name: string;
   color: string;
-}
-
-interface Merchant {
-  id: string;
-  shop_name: string;
-  category: string;
-  address: string;
-  description?: string;
-  open_time: string;
-  close_time: string;
-  rating?: number;
-  image_url?: string;
-  gender_focus: string;
 }
 
 const GuestServiceSelectionPage: React.FC = () => {
