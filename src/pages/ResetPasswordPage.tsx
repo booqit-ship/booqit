@@ -52,13 +52,22 @@ const ResetPasswordPage: React.FC = () => {
           return;
         }
 
-        // For modern PKCE flow, check for access_token and refresh_token
-        const accessToken = searchParams.get('access_token');
-        const refreshToken = searchParams.get('refresh_token');
-        const tokenType = searchParams.get('type');
+        // Check URL hash for tokens (Supabase often uses hash fragments)
+        const hash = window.location.hash;
+        const hashParams = new URLSearchParams(hash.substring(1));
+        
+        console.log('Hash params:', Object.fromEntries(hashParams));
+
+        // For modern PKCE flow, check for access_token and refresh_token in both search params and hash
+        let accessToken = searchParams.get('access_token') || hashParams.get('access_token');
+        let refreshToken = searchParams.get('refresh_token') || hashParams.get('refresh_token');
+        let tokenType = searchParams.get('type') || hashParams.get('type');
         
         if (accessToken && refreshToken && tokenType === 'recovery') {
           console.log('🔑 Found recovery tokens, setting session...');
+          
+          // Clear any existing session first to avoid conflicts
+          await supabase.auth.signOut({ scope: 'local' });
           
           // Set the session using the tokens
           const { data, error: sessionError } = await supabase.auth.setSession({
@@ -93,12 +102,15 @@ const ResetPasswordPage: React.FC = () => {
         }
 
         // Fallback: Check for legacy code parameter
-        const code = searchParams.get('code');
+        const code = searchParams.get('code') || hashParams.get('code');
         
         if (code) {
           console.log('🔄 Processing legacy reset code...');
           
-          // Try to exchange the code for a session without clearing existing session
+          // Clear any existing session first
+          await supabase.auth.signOut({ scope: 'local' });
+          
+          // Try to exchange the code for a session
           const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
           
           console.log('Exchange result:', { data: !!data, error: exchangeError });
@@ -140,7 +152,7 @@ const ResetPasswordPage: React.FC = () => {
         }
 
         // Check if we might be in a direct navigation scenario (no params)
-        if (searchParams.toString() === '') {
+        if (searchParams.toString() === '' && hash === '') {
           console.log('🔄 Direct navigation detected, checking existing session...');
           const { data: currentSession } = await supabase.auth.getSession();
           

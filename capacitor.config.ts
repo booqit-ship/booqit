@@ -15,7 +15,8 @@ const config: CapacitorConfig = {
     allowNavigation: [
       'app.booqit.in',
       '*.supabase.co',
-      'supabase.com'
+      'supabase.com',
+      'booqit.in'
     ]
   },
   plugins: {

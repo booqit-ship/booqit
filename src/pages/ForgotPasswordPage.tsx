@@ -17,9 +17,13 @@ const ForgotPasswordPage: React.FC = () => {
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const { toast } = useToast();
 
-  // Enhanced redirect URL handling
+  // Enhanced redirect URL handling for both web and mobile
   const getResetRedirectUrl = () => {
-    // Use current origin to ensure compatibility across environments
+    // For production, always use the production URL to ensure consistency
+    if (window.location.hostname === 'app.booqit.in' || window.location.hostname === 'booqit.in') {
+      return 'https://app.booqit.in/reset-password';
+    }
+    // For development/preview, use current origin
     return `${window.location.origin}/reset-password`;
   };
 
