@@ -35,143 +35,63 @@ const ResetPasswordPage: React.FC = () => {
   const { toast } = useToast();
 
   useEffect(() => {
+    let mounted = true;
+
     const handlePasswordReset = async () => {
+      if (!mounted) return;
+      
       console.log('🔍 Starting password reset validation...');
       console.log('Current URL:', window.location.href);
-      console.log('Search params:', Object.fromEntries(searchParams));
       
-      try {
-        // Check for error parameters first
+      // Use onAuthStateChange to detect password recovery
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        async (event, session) => {
+          if (!mounted) return;
+          
+          console.log('🔄 Auth state change:', event, session?.user?.email);
+          
+          if (event === 'PASSWORD_RECOVERY' && session?.user) {
+            console.log('✅ Password recovery detected');
+            setUserEmail(session.user.email || '');
+            setIsValidating(false);
+            
+            toast({
+              title: "Reset Link Verified",
+              description: "You can now set your new password.",
+            });
+          } else if (event === 'SIGNED_OUT') {
+            console.log('🔄 User signed out during reset');
+          }
+        }
+      );
+
+      // Check for existing session first
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user && mounted) {
+        console.log('✅ Found existing session');
+        setUserEmail(session.user.email || '');
+        setIsValidating(false);
+      } else if (mounted) {
+        // Check URL for error params
         const error = searchParams.get('error');
-        const errorCode = searchParams.get('error_code');
-        const errorDescription = searchParams.get('error_description');
-        
         if (error) {
-          console.log('❌ URL contains error params:', { error, errorCode, errorDescription });
+          console.log('❌ URL contains error:', error);
           handleResetError('expired', 'This password reset link has expired or is invalid.');
           return;
         }
-
-        // Check URL hash for tokens (Supabase often uses hash fragments)
-        const hash = window.location.hash;
-        const hashParams = new URLSearchParams(hash.substring(1));
         
-        console.log('Hash params:', Object.fromEntries(hashParams));
-
-        // For modern PKCE flow, check for access_token and refresh_token in both search params and hash
-        let accessToken = searchParams.get('access_token') || hashParams.get('access_token');
-        let refreshToken = searchParams.get('refresh_token') || hashParams.get('refresh_token');
-        let tokenType = searchParams.get('type') || hashParams.get('type');
-        
-        if (accessToken && refreshToken && tokenType === 'recovery') {
-          console.log('🔑 Found recovery tokens, setting session...');
-          
-          // Clear any existing session first to avoid conflicts
-          await supabase.auth.signOut({ scope: 'local' });
-          
-          // Set the session using the tokens
-          const { data, error: sessionError } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken
-          });
-          
-          if (sessionError) {
-            console.error('❌ Session setting failed:', sessionError);
-            handleResetError('invalid', `Session error: ${sessionError.message}`);
-            return;
+        // Wait a bit for auth state change to trigger
+        setTimeout(() => {
+          if (mounted && isValidating) {
+            console.log('❌ No valid reset session found');
+            handleResetError('invalid', 'Invalid reset link. Please request a new password reset.');
           }
-          
-          if (!data.session || !data.user) {
-            console.log('❌ No session created from tokens');
-            handleResetError('not_found', 'Unable to verify the reset tokens.');
-            return;
-          }
-          
-          console.log('✅ Recovery session established successfully');
-          console.log('User email:', data.user.email);
-          
-          setUserEmail(data.user.email || '');
-          
-          toast({
-            title: "Reset Link Verified",
-            description: "You can now set your new password.",
-          });
-          
-          setIsValidating(false);
-          return;
-        }
-
-        // Fallback: Check for legacy code parameter
-        const code = searchParams.get('code') || hashParams.get('code');
-        
-        if (code) {
-          console.log('🔄 Processing legacy reset code...');
-          
-          // Clear any existing session first
-          await supabase.auth.signOut({ scope: 'local' });
-          
-          // Try to exchange the code for a session
-          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-          
-          console.log('Exchange result:', { data: !!data, error: exchangeError });
-          
-          if (exchangeError) {
-            console.error('❌ Code exchange failed:', exchangeError);
-            
-            // Handle specific error cases
-            if (exchangeError.message?.toLowerCase().includes('not found') || 
-                exchangeError.message?.toLowerCase().includes('user not found')) {
-              handleResetError('not_found', 'Account not found. This reset link may be for an account that no longer exists.');
-            } else if (exchangeError.message?.toLowerCase().includes('expired') || 
-                       exchangeError.message?.toLowerCase().includes('invalid')) {
-              handleResetError('expired', 'This password reset link has expired or is invalid. Please request a new one.');
-            } else {
-              handleResetError('invalid', `Reset link error: ${exchangeError.message}`);
-            }
-            return;
-          }
-          
-          if (!data?.session || !data?.user) {
-            console.log('❌ No session created from code exchange');
-            handleResetError('not_found', 'Account not found. Unable to verify the reset link.');
-            return;
-          }
-          
-          console.log('✅ Reset session established successfully from code');
-          console.log('User email:', data.user.email);
-          
-          setUserEmail(data.user.email || '');
-          
-          toast({
-            title: "Reset Link Verified",
-            description: "You can now set your new password.",
-          });
-          
-          setIsValidating(false);
-          return;
-        }
-
-        // Check if we might be in a direct navigation scenario (no params)
-        if (searchParams.toString() === '' && hash === '') {
-          console.log('🔄 Direct navigation detected, checking existing session...');
-          const { data: currentSession } = await supabase.auth.getSession();
-          
-          if (currentSession?.session?.user) {
-            console.log('✅ Found existing session for reset');
-            setUserEmail(currentSession.session.user.email || '');
-            setIsValidating(false);
-            return;
-          }
-        }
-        
-        // No valid reset parameters found
-        console.log('❌ No valid reset parameters found');
-        handleResetError('invalid', 'Invalid reset link. Please request a new password reset.');
-        
-      } catch (error: any) {
-        console.error('❌ Unexpected error during reset validation:', error);
-        handleResetError('invalid', `Unexpected error: ${error.message}`);
+        }, 3000);
       }
+
+      return () => {
+        subscription.unsubscribe();
+      };
     };
 
     const handleResetError = (type: 'expired' | 'not_found' | 'invalid', message: string) => {
