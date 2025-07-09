@@ -98,13 +98,7 @@ const ResetPasswordPage: React.FC = () => {
         if (code) {
           console.log('🔄 Processing legacy reset code...');
           
-          // Clear any existing session first
-          await supabase.auth.signOut({ scope: 'global' });
-          
-          // Small delay to ensure cleanup
-          await new Promise(resolve => setTimeout(resolve, 100));
-          
-          // Try to exchange the code for a session
+          // Try to exchange the code for a session without clearing existing session
           const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
           
           console.log('Exchange result:', { data: !!data, error: exchangeError });
@@ -145,6 +139,19 @@ const ResetPasswordPage: React.FC = () => {
           return;
         }
 
+        // Check if we might be in a direct navigation scenario (no params)
+        if (searchParams.toString() === '') {
+          console.log('🔄 Direct navigation detected, checking existing session...');
+          const { data: currentSession } = await supabase.auth.getSession();
+          
+          if (currentSession?.session?.user) {
+            console.log('✅ Found existing session for reset');
+            setUserEmail(currentSession.session.user.email || '');
+            setIsValidating(false);
+            return;
+          }
+        }
+        
         // No valid reset parameters found
         console.log('❌ No valid reset parameters found');
         handleResetError('invalid', 'Invalid reset link. Please request a new password reset.');

@@ -19,8 +19,8 @@ const ForgotPasswordPage: React.FC = () => {
 
   // Enhanced redirect URL handling
   const getResetRedirectUrl = () => {
-    const baseUrl = 'https://app.booqit.in';
-    return `${baseUrl}/reset-password`;
+    // Use current origin to ensure compatibility across environments
+    return `${window.location.origin}/reset-password`;
   };
 
   // Cooldown timer effect
