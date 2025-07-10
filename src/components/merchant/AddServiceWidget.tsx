@@ -8,10 +8,12 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { Service } from '@/types';
-import { PlusCircle, X, Loader2, DollarSign, Clock, Tag, Users } from 'lucide-react';
+import { PlusCircle, X, Loader2, DollarSign, Clock, Tag, Users, Camera, Edit2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import AIServiceExtractor from './AIServiceExtractor';
 
 interface Category {
   id: string;
@@ -151,7 +153,7 @@ const AddServiceWidget: React.FC<AddServiceWidgetProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md max-w-[95vw] mx-auto max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-4xl max-w-[95vw] mx-auto max-h-[90vh] overflow-y-auto">
         <DialogHeader className="relative">
           <DialogTitle className="text-xl font-light text-booqit-dark flex items-center gap-2">
             <PlusCircle className="h-5 w-5 text-booqit-primary" />
@@ -167,9 +169,22 @@ const AddServiceWidget: React.FC<AddServiceWidgetProps> = ({
           </Button>
         </DialogHeader>
 
-        <Card className="border-0 shadow-none">
-          <CardContent className="p-0">
-            <form onSubmit={handleSubmit} className="space-y-4">
+        <Tabs defaultValue="manual" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-6">
+            <TabsTrigger value="manual" className="flex items-center gap-2">
+              <Edit2 className="h-4 w-4" />
+              Manual Entry
+            </TabsTrigger>
+            <TabsTrigger value="ai" className="flex items-center gap-2">
+              <Camera className="h-4 w-4" />
+              AI Extraction
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="manual">
+            <Card className="border-0 shadow-none">
+              <CardContent className="p-0">
+                <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="name" className="text-sm font-medium">Service Name</Label>
                 <Input
@@ -309,9 +324,22 @@ const AddServiceWidget: React.FC<AddServiceWidgetProps> = ({
                   )}
                 </Button>
               </div>
-            </form>
-          </CardContent>
-        </Card>
+                </form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="ai">
+            <AIServiceExtractor
+              merchantId={merchantId}
+              onServicesAdded={() => {
+                onServiceAdded();
+                handleClose();
+              }}
+              isEmbedded={true}
+            />
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );

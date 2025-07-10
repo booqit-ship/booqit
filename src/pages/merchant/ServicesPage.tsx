@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Service } from '@/types';
-import { PlusCircle, Edit, Trash, Loader2, Clock, Users, Tag, Camera } from 'lucide-react';
+import { PlusCircle, Edit, Trash, Loader2, Clock, Users, Tag } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useServicesData, useStaffData, useInvalidateServicesData } from '@/hooks/useServicesData';
@@ -15,7 +15,7 @@ import AddServiceWidget from '@/components/merchant/AddServiceWidget';
 import EditServiceWidget from '@/components/merchant/EditServiceWidget';
 import AddStaffWidget from '@/components/merchant/AddStaffWidget';
 import ManageCategoriesWidget from '@/components/merchant/ManageCategoriesWidget';
-import AIServiceExtractor from '@/components/merchant/AIServiceExtractor';
+
 
 interface Category {
   id: string;
@@ -32,7 +32,7 @@ const ServicesPage: React.FC = () => {
   const [isServiceWidgetOpen, setIsServiceWidgetOpen] = useState(false);
   const [isStaffWidgetOpen, setIsStaffWidgetOpen] = useState(false);
   const [isCategoriesWidgetOpen, setIsCategoriesWidgetOpen] = useState(false);
-  const [isAIExtractorOpen, setIsAIExtractorOpen] = useState(false);
+  
   const [editingService, setEditingService] = useState<Service | null>(null);
   
   const { toast } = useToast();
@@ -244,25 +244,16 @@ const ServicesPage: React.FC = () => {
           <Button 
             onClick={() => setIsServiceWidgetOpen(true)} 
             size={isMobile ? "default" : "lg"} 
-            className="bg-booqit-primary hover:bg-booqit-primary/90"
+            className="bg-booqit-primary hover:bg-booqit-primary/90 hover:scale-105 transition-transform animate-fade-in"
           >
             <PlusCircle className="mr-2 h-5 w-5" /> Add New Service
-          </Button>
-          
-          <Button 
-            onClick={() => setIsAIExtractorOpen(true)} 
-            size={isMobile ? "default" : "lg"} 
-            variant="outline" 
-            className="border-green-500 text-green-600 hover:bg-green-50 bg-gradient-to-r from-green-50 to-emerald-50"
-          >
-            <Camera className="mr-2 h-5 w-5" /> Extract from Menu
           </Button>
           
           <Button 
             onClick={() => setIsStaffWidgetOpen(true)} 
             size={isMobile ? "default" : "lg"} 
             variant="outline" 
-            className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary/10"
+            className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary/10 hover:scale-105 transition-transform animate-fade-in"
           >
             <Users className="mr-2 h-5 w-5" /> Manage Staff
           </Button>
@@ -271,7 +262,7 @@ const ServicesPage: React.FC = () => {
             onClick={() => setIsCategoriesWidgetOpen(true)} 
             size={isMobile ? "default" : "lg"} 
             variant="outline" 
-            className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary/10"
+            className="border-booqit-primary text-booqit-primary hover:bg-booqit-primary/10 hover:scale-105 transition-transform animate-fade-in"
           >
             <Tag className="mr-2 h-5 w-5" /> Manage Categories
           </Button>
@@ -419,15 +410,6 @@ const ServicesPage: React.FC = () => {
         />
       )}
 
-      {/* AI Service Extractor */}
-      {merchantId && (
-        <AIServiceExtractor
-          merchantId={merchantId}
-          onServicesAdded={handleServiceAdded}
-          isOpen={isAIExtractorOpen}
-          onClose={() => setIsAIExtractorOpen(false)}
-        />
-      )}
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
