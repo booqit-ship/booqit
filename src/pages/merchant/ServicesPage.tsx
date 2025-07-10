@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Service } from '@/types';
-import { PlusCircle, Edit, Trash, Loader2, Clock, Users, Tag } from 'lucide-react';
+import { PlusCircle, Edit, Trash, Loader2, Clock, Users, Tag, Camera } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useServicesData, useStaffData, useInvalidateServicesData } from '@/hooks/useServicesData';
@@ -15,6 +15,7 @@ import AddServiceWidget from '@/components/merchant/AddServiceWidget';
 import EditServiceWidget from '@/components/merchant/EditServiceWidget';
 import AddStaffWidget from '@/components/merchant/AddStaffWidget';
 import ManageCategoriesWidget from '@/components/merchant/ManageCategoriesWidget';
+import AIServiceExtractor from '@/components/merchant/AIServiceExtractor';
 
 interface Category {
   id: string;
@@ -31,6 +32,7 @@ const ServicesPage: React.FC = () => {
   const [isServiceWidgetOpen, setIsServiceWidgetOpen] = useState(false);
   const [isStaffWidgetOpen, setIsStaffWidgetOpen] = useState(false);
   const [isCategoriesWidgetOpen, setIsCategoriesWidgetOpen] = useState(false);
+  const [isAIExtractorOpen, setIsAIExtractorOpen] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
   
   const { toast } = useToast();
@@ -248,6 +250,15 @@ const ServicesPage: React.FC = () => {
           </Button>
           
           <Button 
+            onClick={() => setIsAIExtractorOpen(true)} 
+            size={isMobile ? "default" : "lg"} 
+            variant="outline" 
+            className="border-green-500 text-green-600 hover:bg-green-50 bg-gradient-to-r from-green-50 to-emerald-50"
+          >
+            <Camera className="mr-2 h-5 w-5" /> Extract from Menu
+          </Button>
+          
+          <Button 
             onClick={() => setIsStaffWidgetOpen(true)} 
             size={isMobile ? "default" : "lg"} 
             variant="outline" 
@@ -405,6 +416,16 @@ const ServicesPage: React.FC = () => {
           isOpen={isCategoriesWidgetOpen}
           onClose={() => setIsCategoriesWidgetOpen(false)}
           onCategoriesUpdated={handleCategoriesUpdated}
+        />
+      )}
+
+      {/* AI Service Extractor */}
+      {merchantId && (
+        <AIServiceExtractor
+          merchantId={merchantId}
+          onServicesAdded={handleServiceAdded}
+          isOpen={isAIExtractorOpen}
+          onClose={() => setIsAIExtractorOpen(false)}
         />
       )}
 
