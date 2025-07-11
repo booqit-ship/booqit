@@ -292,14 +292,14 @@ const GuestShopDetailsPage: React.FC = () => {
                     <div className="p-4 hover:bg-purple-50 transition-colors">
                       <div className="flex justify-between items-center">
                         <div className="flex-1">
-                          <h4 className="font-semibold font-righteous">{service.name}</h4>
+                          <h4 className="font-semibold font-righteous text-gray-800">{service.name}</h4>
                           {service.description && (
-                            <p className="text-sm text-gray-600 mt-1 font-poppins">
+                            <p className="text-sm text-gray-600 mt-1 font-poppins line-clamp-2">
                               {service.description}
                             </p>
                           )}
                           <div className="flex items-center gap-2 mt-2">
-                            <Badge variant="outline" className="font-poppins">
+                            <Badge variant="outline" className="font-poppins bg-purple-50 text-purple-700 border-purple-200">
                               <Clock className="h-3 w-3 mr-1" />
                               {service.duration} min
                             </Badge>

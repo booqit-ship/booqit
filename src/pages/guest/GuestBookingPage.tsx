@@ -248,15 +248,15 @@ const GuestBookingPage: React.FC = () => {
                     <CardContent className="p-4">
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
-                          <h4 className="font-semibold text-lg mb-1">{service.name}</h4>
+                          <h4 className="font-semibold text-lg mb-1 text-gray-800">{service.name}</h4>
                           {service.description && (
-                            <p className="text-gray-600 text-sm mb-2">{service.description}</p>
+                            <p className="text-gray-600 text-sm mb-2 line-clamp-2">{service.description}</p>
                           )}
-                          <div className="flex items-center gap-4 text-sm text-gray-500">
-                            <span className="flex items-center gap-1">
-                              <Clock className="h-4 w-4" />
+                          <div className="flex items-center gap-4 text-sm">
+                            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                              <Clock className="h-3 w-3 mr-1" />
                               {service.duration} min
-                            </span>
+                            </Badge>
                           </div>
                         </div>
                         <div className="text-right ml-4">

@@ -51,6 +51,28 @@ const AIServiceExtractor: React.FC<AIServiceExtractorProps> = ({
   const { toast } = useToast();
 
   const GEMINI_API_KEY = 'AIzaSyAeycUlj481zIG6XKACW6gNjYqD_uY3LIE';
+
+  const generateServiceDescription = async (serviceName: string, category: string): Promise<string> => {
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: `Write a brief 10-word description for the salon service "${serviceName}" in the "${category}" category. Focus on what the service does/provides. Example: "Hair Cut" -> "Professional hair cutting and styling service". Only return the description text, no quotes.` }]
+          }]
+        })
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        return result.candidates[0].content.parts[0].text.trim();
+      }
+    } catch (error) {
+      console.error('Error generating description:', error);
+    }
+    return `Professional ${serviceName.toLowerCase()} service for ${category.toLowerCase()}`;
+  };
   
   const EXTRACTION_PROMPT = `You are an AI assistant helping merchants on a salon booking platform in India called Booqit.
 
@@ -426,7 +448,7 @@ IMPORTANT: Return ONLY the JSON object, no additional text or formatting.`;
               price: parseInt(service.price),
               duration: parseInt(service.duration),
               type: service.gender.toLowerCase(),
-              description: `Extracted from menu - ${service.category}`,
+              description: await generateServiceDescription(service.name, service.category),
               categories: categoryId ? [categoryId] : []
             });
 

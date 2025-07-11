@@ -58,7 +58,11 @@ const ServiceSelectionPage: React.FC = () => {
 
     // Filter by search term
     if (searchTerm.trim()) {
-      filtered = filtered.filter(service => service.name.toLowerCase().includes(searchTerm.toLowerCase()) || service.description?.toLowerCase().includes(searchTerm.toLowerCase()));
+      filtered = filtered.filter(service => 
+        service.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        (service.description && !service.description.startsWith('Extracted from menu') && 
+         service.description.toLowerCase().includes(searchTerm.toLowerCase()))
+      );
     }
 
     // Filter by selected categories
