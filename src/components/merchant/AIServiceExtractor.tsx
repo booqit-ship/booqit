@@ -54,27 +54,28 @@ const AIServiceExtractor: React.FC<AIServiceExtractorProps> = ({
   
   const EXTRACTION_PROMPT = `You are an AI assistant helping merchants on a salon booking platform in India called Booqit.
 
-A merchant is uploading an image of their salon's service menu. Your job is to extract all the services from this image and present them in a clean, editable, structured format that will be displayed inside a mobile-responsive web application.
+FIRST: Validate that this image contains a salon/beauty service menu. If the image does not show a salon menu (like food menu, random text, non-business content), respond with: {"error": "Invalid image - not a salon menu"}
+
+A merchant is uploading an image of their salon's service menu. Your job is to extract all the services from this image and present them in a clean, editable, structured format.
 
 Here's what you must do:
 
-🔹 1. Extract Categories:
-Group the services into correct categories such as:
-- Hair Services
-- Facial
-- Waxing
-- Massage
-- Make-Up
-- Hair Styling
-- Any other clear groupings seen in the image
+🔹 1. Extract Categories and Services:
+Look for category headers (like "Hair Services", "Facial", "Massage", "Waxing", "Make-Up") and group services under their correct categories.
+CRITICAL: Keep services grouped under their actual category headers as shown in the menu. Do NOT create separate categories for each service.
 
-Each service should belong to one of these categories. If no category is given in the image, infer it from context.
+Example: If menu shows:
+"Hair Services"
+- Hair Cut - $20
+- Hair Wash - $10
+
+You should group BOTH services under "Hair Services" category, NOT create separate categories.
 
 🔹 2. For Each Service, Extract:
 • Service Name (e.g., "Hair Cut", "Gold Facial")
-• Price → Convert to Indian Rupees (₹). If the price in the image is in another currency (e.g., dollars), just extract the number and replace the prefix with ₹. (Example: "$25" becomes "₹25")
-• Gender → Detect from the service name if possible. Use "Men", "Women", or "Unisex". If gender is not clearly stated, use "Unisex".
-• Time → If time duration is mentioned in the image, extract it in minutes. If not mentioned, calculate an approximate time based on the service type:
+• Price → Convert to Indian Rupees (₹). Extract just the number (e.g., "$25" becomes "25")
+• Gender → Look for explicit gender indicators in the menu. If the menu shows "Men's Cut" or "Women's Facial", extract that. If time duration is shown in the menu (like "Hair Cut - 30 min"), use that exact time. Otherwise use "Unisex".
+• Time → PRIORITY: If time is explicitly shown in the menu (like "Hair Cut - 30 min" or "Facial (60 minutes)"), use that exact time. Only if no time is shown, estimate based on service type:
   - Hair Cut: 30 minutes
   - Hair Wash: 15 minutes  
   - Hair Styling: 45 minutes
@@ -83,15 +84,14 @@ Each service should belong to one of these categories. If no category is given i
   - Waxing: 30 minutes
   - Manicure: 45 minutes
   - Pedicure: 60 minutes
-  - Eyebrow Threading: 15 minutes
+  - Threading: 15 minutes
   - Hair Color: 120 minutes
-  Use your best judgment for other services.
 
 🔹 3. Do NOT Include:
-- Contact details (e.g., phone numbers, emails)
-- Brand names (e.g., L'Oréal, Matrix)
-- Decorative headings like "Special Offers", "Welcome"
-- Any irrelevant text or watermarks
+- Contact details, addresses, phone numbers
+- Brand names (L'Oréal, Matrix, etc.)
+- Decorative text ("Special Offers", "Welcome")
+- Watermarks or promotional text
 
 🔹 4. Output Format:
 Return a valid JSON object with this exact structure:
@@ -192,6 +192,15 @@ IMPORTANT: Return ONLY the JSON object, no additional text or formatting.`;
         
         const parsedData = JSON.parse(jsonMatch[0]);
         
+        // Check if AI detected invalid menu image
+        if (parsedData.error) {
+          throw new Error(parsedData.error);
+        }
+        
+        if (!parsedData.categories || !Array.isArray(parsedData.categories)) {
+          throw new Error('Invalid menu structure detected');
+        }
+        
         // Convert to our format and add IDs
         const categoriesWithIds = parsedData.categories.map((cat: any) => ({
           id: `cat-${Date.now()}-${Math.random()}`,
@@ -244,8 +253,18 @@ IMPORTANT: Return ONLY the JSON object, no additional text or formatting.`;
     const merged: { [key: string]: ExtractedCategory } = {};
     
     categories.forEach(cat => {
-      if (merged[cat.name]) {
-        merged[cat.name].services = [...merged[cat.name].services, ...cat.services];
+      const lowerCatName = cat.name.toLowerCase();
+      const existingKey = Object.keys(merged).find(key => key.toLowerCase() === lowerCatName);
+      
+      if (existingKey) {
+        // Merge services avoiding duplicates
+        const existingServices = merged[existingKey].services;
+        const newServices = cat.services.filter(newService => 
+          !existingServices.some(existing => 
+            existing.name.toLowerCase() === newService.name.toLowerCase()
+          )
+        );
+        merged[existingKey].services = [...existingServices, ...newServices];
       } else {
         merged[cat.name] = cat;
       }
@@ -386,23 +405,33 @@ IMPORTANT: Return ONLY the JSON object, no additional text or formatting.`;
         }
       }
 
-      // Save services to database
+      // Save services to database, avoiding duplicates
       for (const service of editingServices) {
         const categoryId = savedCategoryIds[service.category];
         
-        const { error } = await supabase
+        // Check if service already exists
+        const { data: existingService } = await supabase
           .from('services')
-          .insert({
-            merchant_id: merchantId,
-            name: service.name.trim(),
-            price: parseInt(service.price),
-            duration: parseInt(service.duration),
-            type: service.gender.toLowerCase(),
-            description: `Extracted from menu - ${service.category}`,
-            categories: categoryId ? [categoryId] : []
-          });
+          .select('id')
+          .eq('merchant_id', merchantId)
+          .eq('name', service.name.trim())
+          .single();
+        
+        if (!existingService) {
+          const { error } = await supabase
+            .from('services')
+            .insert({
+              merchant_id: merchantId,
+              name: service.name.trim(),
+              price: parseInt(service.price),
+              duration: parseInt(service.duration),
+              type: service.gender.toLowerCase(),
+              description: `Extracted from menu - ${service.category}`,
+              categories: categoryId ? [categoryId] : []
+            });
 
-        if (error) throw error;
+          if (error) throw error;
+        }
       }
 
       toast({
@@ -411,7 +440,11 @@ IMPORTANT: Return ONLY the JSON object, no additional text or formatting.`;
       });
 
       onServicesAdded();
-      handleClose();
+      
+      // Close widget after successful save
+      setTimeout(() => {
+        handleClose();
+      }, 1000);
 
     } catch (error) {
       console.error('Error saving services:', error);

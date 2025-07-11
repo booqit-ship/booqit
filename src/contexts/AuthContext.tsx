@@ -106,8 +106,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const getSession = async () => {
       try {
+        // Check for permanent session first
+        const permanentSessionData = PermanentSession.getSession();
+        if (permanentSessionData.isLoggedIn && permanentSessionData.userId) {
+          console.log('🔐 Found permanent session, restoring user state');
+          setAuth(null, permanentSessionData.userRole, permanentSessionData.userId);
+          setLoading(false);
+          return;
+        }
+
         const { data: { session } } = await supabase.auth.getSession();
         setAuth(session);
+        
+        // Save session permanently if it exists
+        if (session?.user) {
+          await fetchUserRole(session.user.id);
+        }
       } catch (error) {
         console.error('Error fetching session:', error);
       } finally {
@@ -121,12 +135,55 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       async (event, session) => {
         console.log('🔄 Auth state change:', event);
         setAuth(session);
+        
+        // Save session permanently on sign in
+        if (event === 'SIGNED_IN' && session?.user) {
+          setTimeout(async () => {
+            const role = await fetchUserRoleForSession(session.user.id);
+            if (role) {
+              PermanentSession.saveSession({
+                userId: session.user.id,
+                email: session.user.email || '',
+                userRole: role,
+                isLoggedIn: true,
+                session
+              });
+            }
+          }, 100);
+        }
+        
+        // Clear permanent session on sign out
+        if (event === 'SIGNED_OUT') {
+          PermanentSession.clearSession();
+        }
+        
         setLoading(false);
       }
     );
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Helper function to fetch role for session saving
+  const fetchUserRoleForSession = async (userId: string): Promise<string | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching user role for session:', error);
+        return null;
+      } else {
+        return data?.role || null;
+      }
+    } catch (error) {
+      console.error('Error fetching user role for session:', error);
+      return null;
+    }
+  };
 
   const value: AuthContextType = {
     user,
