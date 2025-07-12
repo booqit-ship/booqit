@@ -74,77 +74,73 @@ const HomePage: React.FC = () => {
     return deg * (Math.PI / 180);
   }, []);
 
-  // Get user location with better caching
+  // Optimized location with better caching
   useEffect(() => {
-    const getLocationFromCache = () => {
+    const initLocation = async () => {
       try {
-        const cached = sessionStorage.getItem('user_location');
+        const cached = localStorage.getItem('user_location_v2');
         if (cached) {
           const data = JSON.parse(cached);
-          if (Date.now() - data.timestamp < 10 * 60 * 1000) { // 10 minutes cache
+          if (Date.now() - data.timestamp < 30 * 60 * 1000) { // 30 minutes cache
             setUserLocation(data.location);
             setLocationName(data.locationName || "Your area");
-            return true;
+            return;
           }
         }
-      } catch {
-        return false;
+      } catch {}
+
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            const userLoc = {
+              lat: position.coords.latitude,
+              lng: position.coords.longitude
+            };
+            setUserLocation(userLoc);
+
+            try {
+              const response = await fetch(
+                `https://maps.googleapis.com/maps/api/geocode/json?latlng=${userLoc.lat},${userLoc.lng}&key=AIzaSyB28nWHDBaEoMGIEoqfWDh6L2VRkM5AMwc`
+              );
+              const data = await response.json();
+              
+              if (data.status === 'OK' && data.results?.[0]) {
+                const addressComponents = data.results[0].address_components;
+                const neighborhood = addressComponents.find((component: any) => 
+                  component.types.includes('sublocality_level_1') || 
+                  component.types.includes('neighborhood')
+                );
+                const cityComponent = addressComponents.find((component: any) => 
+                  component.types.includes('locality') || 
+                  component.types.includes('administrative_area_level_1')
+                );
+                const name = neighborhood?.long_name || cityComponent?.long_name || "Your area";
+                setLocationName(name);
+
+                localStorage.setItem('user_location_v2', JSON.stringify({
+                  location: userLoc,
+                  locationName: name,
+                  timestamp: Date.now()
+                }));
+              }
+            } catch (error) {
+              console.error("Error fetching location name:", error);
+              setLocationName("Your area");
+            }
+          },
+          () => {
+            setLocationName("Bengaluru");
+            setUserLocation({ lat: 12.9716, lng: 77.5946 });
+          },
+          { timeout: 10000, maximumAge: 600000 }
+        );
+      } else {
+        setLocationName("Bengaluru");
+        setUserLocation({ lat: 12.9716, lng: 77.5946 });
       }
-      return false;
     };
 
-    if (getLocationFromCache()) return;
-
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const userLoc = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          };
-          setUserLocation(userLoc);
-
-          try {
-            const response = await fetch(
-              `https://maps.googleapis.com/maps/api/geocode/json?latlng=${userLoc.lat},${userLoc.lng}&key=AIzaSyB28nWHDBaEoMGIEoqfWDh6L2VRkM5AMwc`
-            );
-            const data = await response.json();
-            
-            if (data.status === 'OK' && data.results?.[0]) {
-              const addressComponents = data.results[0].address_components;
-              const neighborhood = addressComponents.find((component: any) => 
-                component.types.includes('sublocality_level_1') || 
-                component.types.includes('neighborhood')
-              );
-              const cityComponent = addressComponents.find((component: any) => 
-                component.types.includes('locality') || 
-                component.types.includes('administrative_area_level_1')
-              );
-              const name = neighborhood?.long_name || cityComponent?.long_name || "Your area";
-              setLocationName(name);
-
-              sessionStorage.setItem('user_location', JSON.stringify({
-                location: userLoc,
-                locationName: name,
-                timestamp: Date.now()
-              }));
-            }
-          } catch (error) {
-            console.error("Error fetching location name:", error);
-            setLocationName("Your area");
-          }
-        },
-        (error) => {
-          console.error("Error getting location:", error);
-          setLocationName("Location unavailable");
-          const defaultLocation = { lat: 12.9716, lng: 77.5946 };
-          setUserLocation(defaultLocation);
-        }
-      );
-    } else {
-      setLocationName("Bengaluru");
-      setUserLocation({ lat: 12.9716, lng: 77.5946 });
-    }
+    initLocation();
   }, []);
 
   // Debounced search function to prevent excessive API calls
@@ -226,7 +222,7 @@ const HomePage: React.FC = () => {
   }, [navigate]);
 
   return (
-    <div className="pb-20 min-h-screen will-change-scroll">
+    <div className="pb-20 min-h-screen will-change-scroll" style={{ contain: 'layout style paint' }}>
       {/* Header Section - optimized for smooth rendering */}
       <div className="bg-gradient-to-r from-booqit-primary to-purple-700 text-white p-6 rounded-b-3xl shadow-lg transform-gpu">
         <div className="flex justify-between items-center mb-6">
