@@ -3,10 +3,12 @@ import { useEffect } from 'react';
 import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigationStack } from '@/contexts/NavigationStackContext';
 
 export const useAndroidBackButton = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { popFromStack, hasItems, getCurrentItem } = useNavigationStack();
 
   useEffect(() => {
     // Only set up back button handling on native platforms
@@ -25,8 +27,33 @@ export const useAndroidBackButton = () => {
         console.log('🔙 Back button pressed:', {
           currentPath,
           canGoBack,
-          historyLength: window.history.length
+          historyLength: window.history.length,
+          hasStackItems: hasItems(),
+          currentStackItem: getCurrentItem()
         });
+
+        // Check if we have items in the navigation stack (modals, widgets, tabs)
+        if (hasItems()) {
+          const stackItem = popFromStack();
+          console.log('🔙 Handling stack item:', stackItem);
+          
+          if (stackItem) {
+            switch (stackItem.type) {
+              case 'modal':
+              case 'widget':
+                // Close the modal/widget by dispatching a close event
+                window.dispatchEvent(new CustomEvent('closeCurrentModal', { detail: stackItem }));
+                return;
+              case 'tab':
+                // Navigate back to the previous tab/page
+                if (stackItem.path !== currentPath) {
+                  navigate(stackItem.path, { replace: true });
+                  return;
+                }
+                break;
+            }
+          }
+        }
 
         // Define root/home paths where we should exit the app
         const rootPaths = ['/', '/home', '/merchant'];
@@ -80,5 +107,5 @@ export const useAndroidBackButton = () => {
         listenerHandle.remove();
       }
     };
-  }, [navigate, location.pathname]);
+  }, [navigate, location.pathname, popFromStack, hasItems, getCurrentItem]);
 };

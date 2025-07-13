@@ -151,12 +151,18 @@ const NearbyShopsPage: React.FC = () => {
 
   const getShopImage = (merchant: Merchant) => {
     if (merchant.image_url && merchant.image_url.trim() !== '') {
+      // Handle full URLs
       if (merchant.image_url.startsWith('http')) {
         return merchant.image_url;
       }
-      return `https://ggclvurfcykbwmhfftkn.supabase.co/storage/v1/object/public/merchant_images/${merchant.image_url}`;
+      // Handle Supabase storage URLs - check if it's already a full storage URL
+      if (merchant.image_url.includes('supabase.co/storage')) {
+        return merchant.image_url;
+      }
+      // Handle relative paths for Supabase storage
+      return `https://ggclvurfcykbwmhfftkn.supabase.co/storage/v1/object/public/merchant-images/${merchant.image_url}`;
     }
-    return 'https://images.unsplash.com/photo-1582562124811-c09040d0a901';
+    return 'https://images.unsplash.com/photo-1582562124811-c09040d0a901?w=300&h=300&fit=crop';
   };
 
   const handleBookNow = (merchantId: string) => {
