@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Camera, Upload, Loader2, Edit, Trash2, Save, Plus, X, Image as ImageIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { useModalNavigation } from '@/hooks/useModalNavigation';
 import { supabase } from '@/integrations/supabase/client';
 
 interface ExtractedService {
@@ -41,6 +42,13 @@ const AIServiceExtractor: React.FC<AIServiceExtractorProps> = ({
   onClose,
   isEmbedded = false
 }) => {
+  const { handleClose: modalHandleClose } = useModalNavigation({
+    isOpen: isOpen && !isEmbedded,
+    onClose: onClose || (() => {}),
+    modalId: 'ai-service-extractor',
+    type: 'widget',
+    title: 'AI Service Extractor'
+  });
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractedCategories, setExtractedCategories] = useState<ExtractedCategory[]>([]);
@@ -464,9 +472,11 @@ IMPORTANT: Return ONLY the JSON object, no additional text or formatting.`;
       onServicesAdded();
       
       // Close widget after successful save
-      setTimeout(() => {
-        handleClose();
-      }, 1000);
+      if (onClose && !isEmbedded) {
+        modalHandleClose();
+      } else if (onClose) {
+        onClose();
+      }
 
     } catch (error) {
       console.error('Error saving services:', error);
@@ -785,7 +795,7 @@ IMPORTANT: Return ONLY the JSON object, no additional text or formatting.`;
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
+    <Dialog open={isOpen} onOpenChange={isEmbedded ? onClose : modalHandleClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

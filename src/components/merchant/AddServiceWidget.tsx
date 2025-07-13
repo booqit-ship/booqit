@@ -13,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Service } from '@/types';
 import { PlusCircle, X, Loader2, DollarSign, Clock, Tag, Users, Camera, Edit2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useModalNavigation } from '@/hooks/useModalNavigation';
 import AIServiceExtractor from './AIServiceExtractor';
 
 interface Category {
@@ -34,6 +35,13 @@ const AddServiceWidget: React.FC<AddServiceWidgetProps> = ({
   isOpen,
   onClose
 }) => {
+  const { handleClose } = useModalNavigation({
+    isOpen,
+    onClose,
+    modalId: 'add-service-widget',
+    type: 'widget',
+    title: 'Add Service'
+  });
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [duration, setDuration] = useState('');
@@ -144,15 +152,15 @@ const AddServiceWidget: React.FC<AddServiceWidgetProps> = ({
     }
   };
 
-  const handleClose = () => {
+  const handleWidgetClose = () => {
     resetForm();
-    onClose();
+    handleClose();
   };
 
   const isUnisexShop = merchantGenderFocus === 'unisex';
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
+    <Dialog open={isOpen} onOpenChange={handleWidgetClose}>
       <DialogContent className="sm:max-w-4xl max-w-[95vw] mx-auto max-h-[90vh] overflow-y-auto">
         <DialogHeader className="relative">
           <DialogTitle className="text-xl font-light text-booqit-dark flex items-center gap-2">
@@ -334,7 +342,7 @@ const AddServiceWidget: React.FC<AddServiceWidgetProps> = ({
               merchantId={merchantId}
               onServicesAdded={() => {
                 onServiceAdded();
-                handleClose();
+                handleWidgetClose();
               }}
               isEmbedded={true}
             />
